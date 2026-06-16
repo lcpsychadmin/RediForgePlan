@@ -55,6 +55,7 @@ interface Project {
   name: string;
   startDate?: string;
   endDate?: string;
+  accentColor?: string;
 }
 
 type SelectableItem = { type: 'program'; id: string } | { type: 'cycle'; id: string; programId: string } | { type: 'project'; id: string; cycleId: string };
@@ -91,6 +92,17 @@ const ProjectsPage: React.FC = () => {
   const [deleteItemName, setDeleteItemName] = useState('');
   const [deleteChildrenCount, setDeleteChildrenCount] = useState(0);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Edit dialog states
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editItemType, setEditItemType] = useState<'program' | 'cycle' | 'project' | null>(null);
+  const [editItemId, setEditItemId] = useState<string | null>(null);
+  const [editItemName, setEditItemName] = useState('');
+  const [editItemDesc, setEditItemDesc] = useState('');
+  const [editStartDate, setEditStartDate] = useState('');
+  const [editEndDate, setEditEndDate] = useState('');
+  const [editAccentColor, setEditAccentColor] = useState('');
+  const [isEditing, setIsEditing] = useState(false);
 
   const { data: programs = [], isLoading } = useQuery({
     queryKey: ['programs'],
@@ -279,6 +291,89 @@ const ProjectsPage: React.FC = () => {
       alert('Failed to delete. Please try again.');
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  const openEditDialog = (type: 'program' | 'cycle' | 'project', itemId: string) => {
+    setEditItemType(type);
+    setEditItemId(itemId);
+    setMenuAnchorEl(null);
+
+    // Pre-fill form with current data
+    if (type === 'program') {
+      const program = programs.find(p => p.id === itemId);
+      if (program) {
+        setEditItemName(program.name);
+        setEditItemDesc(program.description || '');
+        setEditStartDate('');
+        setEditEndDate('');
+        setEditAccentColor('');
+      }
+    } else if (type === 'cycle') {
+      for (const progId in mockCycles) {
+        const cycle = mockCycles[progId]?.find(c => c.id === itemId);
+        if (cycle) {
+          setEditItemName(cycle.name);
+          setEditItemDesc('');
+          setEditStartDate(cycle.startDate);
+          setEditEndDate(cycle.endDate);
+          setEditAccentColor('');
+          break;
+        }
+      }
+    } else if (type === 'project') {
+      for (const cycleId in projectsByMockCycle) {
+        const project = projectsByMockCycle[cycleId]?.find(p => p.id === itemId);
+        if (project) {
+          setEditItemName(project.name);
+          setEditItemDesc('');
+          setEditStartDate(project.startDate || '');
+          setEditEndDate(project.endDate || '');
+          setEditAccentColor(project.accentColor || '');
+          break;
+        }
+      }
+    }
+
+    setEditDialogOpen(true);
+  };
+
+  const handleEditConfirm = async () => {
+    if (!editItemId || !editItemType) return;
+
+    try {
+      setIsEditing(true);
+      if (editItemType === 'program') {
+        await apiClient.patch(`/api/programs/${editItemId}`, {
+          name: editItemName,
+          description: editItemDesc,
+        });
+      } else if (editItemType === 'cycle') {
+        await apiClient.patch(`/api/mock-cycles/${editItemId}`, {
+          name: editItemName,
+          startDate: editStartDate,
+          endDate: editEndDate,
+        });
+      } else if (editItemType === 'project') {
+        await apiClient.patch(`/api/projects/${editItemId}`, {
+          name: editItemName,
+          startDate: editStartDate,
+          endDate: editEndDate,
+          accentColor: editAccentColor,
+        });
+      }
+
+      // Invalidate queries
+      queryClient.invalidateQueries({ queryKey: ['programs'] });
+      queryClient.invalidateQueries({ queryKey: ['mockCycles'] });
+      queryClient.invalidateQueries({ queryKey: ['projectsByMockCycle'] });
+
+      setEditDialogOpen(false);
+    } catch (error) {
+      console.error('Failed to update:', error);
+      alert('Failed to update. Please try again.');
+    } finally {
+      setIsEditing(false);
     }
   };
 
@@ -590,8 +685,8 @@ const ProjectsPage: React.FC = () => {
       >
         <MenuItem
           onClick={() => {
-            // TODO: Implement edit
-            setMenuAnchorEl(null);
+            if (!menuItemId || !menuType) return;
+            openEditDialog(menuType, menuItemId);
           }}
         >
           <EditIcon fontSize="small" sx={{ mr: 1 }} /> Edit
@@ -673,6 +768,107 @@ const ProjectsPage: React.FC = () => {
             disabled={isDeleting}
           >
             {isDeleting ? 'Deleting...' : 'Delete'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Edit Dialog */}
+      <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          Edit {editItemType}
+        </DialogTitle>
+        <DialogContent sx={{ pt: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <TextField
+            label="Name"
+            value={editItemName}
+            onChange={(e) => setEditItemName(e.target.value)}
+            fullWidth
+          />
+          
+          {editItemType === 'program' && (
+            <TextField
+              label="Description"
+              value={editItemDesc}
+              onChange={(e) => setEditItemDesc(e.target.value)}
+              fullWidth
+              multiline
+              rows={3}
+            />
+          )}
+
+          {editItemType === 'cycle' && (
+            <>
+              <TextField
+                label="Start Date"
+                type="date"
+                value={editStartDate}
+                onChange={(e) => setEditStartDate(e.target.value)}
+                InputLabelProps={{ shrink: true }}
+                fullWidth
+              />
+              <TextField
+                label="End Date"
+                type="date"
+                value={editEndDate}
+                onChange={(e) => setEditEndDate(e.target.value)}
+                InputLabelProps={{ shrink: true }}
+                fullWidth
+              />
+            </>
+          )}
+
+          {editItemType === 'project' && (
+            <>
+              <TextField
+                label="Start Date"
+                type="date"
+                value={editStartDate}
+                onChange={(e) => setEditStartDate(e.target.value)}
+                InputLabelProps={{ shrink: true }}
+                fullWidth
+              />
+              <TextField
+                label="End Date"
+                type="date"
+                value={editEndDate}
+                onChange={(e) => setEditEndDate(e.target.value)}
+                InputLabelProps={{ shrink: true }}
+                fullWidth
+              />
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <TextField
+                  label="Accent Color"
+                  type="color"
+                  value={editAccentColor}
+                  onChange={(e) => setEditAccentColor(e.target.value)}
+                  sx={{ width: '100px' }}
+                />
+                {editAccentColor && (
+                  <Box
+                    sx={{
+                      width: '40px',
+                      height: '40px',
+                      backgroundColor: editAccentColor,
+                      borderRadius: '4px',
+                      border: '1px solid #ddd',
+                    }}
+                  />
+                )}
+              </Box>
+            </>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setEditDialogOpen(false)} disabled={isEditing}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleEditConfirm}
+            variant="contained"
+            color="primary"
+            disabled={isEditing}
+          >
+            {isEditing ? 'Saving...' : 'Save'}
           </Button>
         </DialogActions>
       </Dialog>

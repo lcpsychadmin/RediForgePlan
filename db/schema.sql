@@ -84,6 +84,7 @@ CREATE TABLE projects (
   description TEXT,
   start_date DATE NOT NULL,
   end_date DATE NOT NULL,
+  accent_color VARCHAR(7),
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT valid_date_range CHECK (start_date <= end_date)
