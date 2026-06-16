@@ -29,6 +29,7 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
+import FolderIcon from '@mui/icons-material/Folder';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Menu from '@mui/material/Menu';
 import { useNavigate } from 'react-router-dom';
@@ -529,8 +530,9 @@ const ProjectsPage: React.FC = () => {
                                       onClick={() =>
                                         setSelectedItem({ type: 'project', id: project.id, cycleId: cycle.id })
                                       }
-                                      sx={{ flex: 1, minWidth: 0 }}
+                                      sx={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 1 }}
                                     >
+                                      <FolderIcon sx={{ fontSize: '1.2rem', color: project.accentColor || '#90caf9', flexShrink: 0 }} />
                                       <Typography variant="caption" sx={{ noWrap: true }}>
                                         {project.name}
                                       </Typography>
@@ -600,6 +602,11 @@ const ProjectsPage: React.FC = () => {
           ) : selectedDetails ? (
             <Card>
               <CardHeader
+                avatar={
+                  selectedItem.type === 'project' ? (
+                    <FolderIcon sx={{ color: (selectedDetails as Project).accentColor || '#90caf9', fontSize: '2rem' }} />
+                  ) : undefined
+                }
                 title={selectedDetails.name}
                 subheader={selectedDetails.description || (selectedItem.type === 'cycle' ? `${(selectedDetails as MockCycle).startDate} → ${(selectedDetails as MockCycle).endDate}` : '')}
               />
@@ -612,22 +619,38 @@ const ProjectsPage: React.FC = () => {
                 </Typography>
                 
                 {selectedItem.type === 'project' && (
-                  <Button
-                    variant="contained"
-                    onClick={() => {
-                      const item = selectedItem as Extract<SelectableItem, { type: 'project' }>;
-                      // Find the cycle's program ID
-                      for (const progId in mockCycles) {
-                        const cycle = mockCycles[progId]?.find(c => c.id === item.cycleId);
-                        if (cycle) {
-                          navigate(`/programs/${progId}/mock-cycles/${item.cycleId}/projects/${item.id}/plan`);
-                          break;
+                  <>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+                      <Typography variant="body2" color="textSecondary">
+                        Color:
+                      </Typography>
+                      <Box
+                        sx={{
+                          width: '60px',
+                          height: '40px',
+                          backgroundColor: (selectedDetails as Project).accentColor || '#90caf9',
+                          borderRadius: '4px',
+                          border: '1px solid #ddd',
+                        }}
+                      />
+                    </Box>
+                    <Button
+                      variant="contained"
+                      onClick={() => {
+                        const item = selectedItem as Extract<SelectableItem, { type: 'project' }>;
+                        // Find the cycle's program ID
+                        for (const progId in mockCycles) {
+                          const cycle = mockCycles[progId]?.find(c => c.id === item.cycleId);
+                          if (cycle) {
+                            navigate(`/programs/${progId}/mock-cycles/${item.cycleId}/projects/${item.id}/plan`);
+                            break;
+                          }
                         }
-                      }
-                    }}
-                  >
-                    Open Planning View
-                  </Button>
+                      }}
+                    >
+                      Open Planning View
+                    </Button>
+                  </>
                 )}
               </CardContent>
             </Card>
