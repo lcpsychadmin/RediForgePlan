@@ -1838,239 +1838,266 @@ const ProjectsPage: React.FC = () => {
           factorType: '',
           loadMethod: '',
         });
-      }} maxWidth="sm" fullWidth>
-        <DialogTitle>{editingInventoryItemId ? 'Edit Project Inventory Item' : 'Add Project Inventory Item'}</DialogTitle>
-        <DialogContent sx={{ pt: 2, maxHeight: '60vh', overflowY: 'auto' }}>
-          <TextField
-            select
-            fullWidth
-            label="Data Object ID"
-            value={projectInventoryItem.dataObjectId}
-            onChange={(e) => setProjectInventoryItem({ ...projectInventoryItem, dataObjectId: e.target.value })}
-            margin="normal"
-            disabled={editingInventoryItemId !== null}
-          >
-            {inventoryObjects.map((obj) => (
-              <MenuItem key={obj.id} value={obj.objectId}>
-                {obj.objectId}
-              </MenuItem>
-            ))}
-          </TextField>
+      }} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 2 } }}>
+        <DialogTitle sx={{ 
+          background: theme => `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark || theme.palette.primary.main} 100%)`,
+          color: 'white',
+          fontWeight: 600,
+          fontSize: '1.1rem',
+        }}>
+          {editingInventoryItemId ? 'Edit Project Inventory Item' : 'Add Project Inventory Item'}
+        </DialogTitle>
+        <DialogContent sx={{ pt: 3, maxHeight: '70vh', overflowY: 'auto', px: 3 }}>
+          <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
+            <TextField
+              select
+              fullWidth
+              label="Data Object ID"
+              value={projectInventoryItem.dataObjectId}
+              onChange={(e) => setProjectInventoryItem({ ...projectInventoryItem, dataObjectId: e.target.value })}
+              disabled={editingInventoryItemId !== null}
+              variant="outlined"
+              size="small"
+            >
+              {inventoryObjects.map((obj) => (
+                <MenuItem key={obj.id} value={obj.objectId}>
+                  {obj.objectId}
+                </MenuItem>
+              ))}
+            </TextField>
 
-          <TextField
-            select
-            fullWidth
-            label="Process Area"
-            value={projectInventoryItem.processArea}
-            onChange={(e) => setProjectInventoryItem({ ...projectInventoryItem, processArea: e.target.value })}
-            margin="normal"
-          >
-            {processAreaOptions.map((option) => (
-              <MenuItem key={option} value={option}>
-                {option}
-              </MenuItem>
-            ))}
-          </TextField>
+            <TextField
+              select
+              fullWidth
+              label="Process Area"
+              value={projectInventoryItem.processArea}
+              onChange={(e) => setProjectInventoryItem({ ...projectInventoryItem, processArea: e.target.value })}
+              variant="outlined"
+              size="small"
+            >
+              {processAreaOptions.map((option) => (
+                <MenuItem key={option} value={option}>
+                  {option}
+                </MenuItem>
+              ))}
+            </TextField>
 
-          <TextField
-            select
-            fullWidth
-            label="Complexity"
-            value={projectInventoryItem.complexity}
-            onChange={(e) => setProjectInventoryItem({ ...projectInventoryItem, complexity: e.target.value })}
-            margin="normal"
-          >
-            {complexityOptions.map((option) => (
-              <MenuItem key={option} value={option}>
-                {option}
-              </MenuItem>
-            ))}
-          </TextField>
+            <TextField
+              select
+              fullWidth
+              label="Complexity"
+              value={projectInventoryItem.complexity}
+              onChange={(e) => setProjectInventoryItem({ ...projectInventoryItem, complexity: e.target.value })}
+              variant="outlined"
+              size="small"
+            >
+              {complexityOptions.map((option) => (
+                <MenuItem key={option} value={option}>
+                  {option}
+                </MenuItem>
+              ))}
+            </TextField>
 
-          <TextField
-            select
-            fullWidth
-            label="Deployment Disposition"
-            value={projectInventoryItem.deploymentDisposition}
-            onChange={(e) => setProjectInventoryItem({ ...projectInventoryItem, deploymentDisposition: e.target.value })}
-            margin="normal"
-          >
-            {deploymentDispositionOptions.map((option) => (
-              <MenuItem key={option} value={option}>
-                {option}
-              </MenuItem>
-            ))}
-          </TextField>
+            <TextField
+              select
+              fullWidth
+              label="Deployment Disposition"
+              value={projectInventoryItem.deploymentDisposition}
+              onChange={(e) => setProjectInventoryItem({ ...projectInventoryItem, deploymentDisposition: e.target.value })}
+              variant="outlined"
+              size="small"
+            >
+              {deploymentDispositionOptions.map((option) => (
+                <MenuItem key={option} value={option}>
+                  {option}
+                </MenuItem>
+              ))}
+            </TextField>
 
-          <TextField
-            select
-            fullWidth
-            label="Build Type"
-            value={projectInventoryItem.buildType}
-            onChange={(e) => setProjectInventoryItem({ ...projectInventoryItem, buildType: e.target.value })}
-            margin="normal"
-          >
-            {buildTypeOptions.map((option) => (
-              <MenuItem key={option} value={option}>
-                {option}
-              </MenuItem>
-            ))}
-          </TextField>
+            <TextField
+              select
+              fullWidth
+              label="Build Type"
+              value={projectInventoryItem.buildType}
+              onChange={(e) => setProjectInventoryItem({ ...projectInventoryItem, buildType: e.target.value })}
+              variant="outlined"
+              size="small"
+            >
+              {buildTypeOptions.map((option) => (
+                <MenuItem key={option} value={option}>
+                  {option}
+                </MenuItem>
+              ))}
+            </TextField>
 
-          <TextField
-            select
-            fullWidth
-            label="Object Type"
-            value={projectInventoryItem.objectType}
-            onChange={(e) => setProjectInventoryItem({ ...projectInventoryItem, objectType: e.target.value })}
-            margin="normal"
-          >
-            {objectTypeOptions.map((option) => (
-              <MenuItem key={option} value={option}>
-                {option}
-              </MenuItem>
-            ))}
-          </TextField>
+            <TextField
+              select
+              fullWidth
+              label="Object Type"
+              value={projectInventoryItem.objectType}
+              onChange={(e) => setProjectInventoryItem({ ...projectInventoryItem, objectType: e.target.value })}
+              variant="outlined"
+              size="small"
+            >
+              {objectTypeOptions.map((option) => (
+                <MenuItem key={option} value={option}>
+                  {option}
+                </MenuItem>
+              ))}
+            </TextField>
 
-          <TextField
-            fullWidth
-            label="DRA (Person)"
-            value={projectInventoryItem.dra}
-            onChange={(e) => setProjectInventoryItem({ ...projectInventoryItem, dra: e.target.value })}
-            margin="normal"
-            placeholder="Enter person name"
-          />
+            <TextField
+              fullWidth
+              label="DRA (Person)"
+              value={projectInventoryItem.dra}
+              onChange={(e) => setProjectInventoryItem({ ...projectInventoryItem, dra: e.target.value })}
+              placeholder="Enter person name"
+              variant="outlined"
+              size="small"
+            />
 
-          <TextField
-            fullWidth
-            label="Developer (Person)"
-            value={projectInventoryItem.developer}
-            onChange={(e) => setProjectInventoryItem({ ...projectInventoryItem, developer: e.target.value })}
-            margin="normal"
-            placeholder="Enter person name"
-          />
+            <TextField
+              fullWidth
+              label="Developer"
+              value={projectInventoryItem.developer}
+              onChange={(e) => setProjectInventoryItem({ ...projectInventoryItem, developer: e.target.value })}
+              placeholder="Enter person name"
+              variant="outlined"
+              size="small"
+            />
 
-          <TextField
-            fullWidth
-            label="Systems Analyst (Person)"
-            value={projectInventoryItem.systemsAnalyst}
-            onChange={(e) => setProjectInventoryItem({ ...projectInventoryItem, systemsAnalyst: e.target.value })}
-            margin="normal"
-            placeholder="Enter person name"
-          />
+            <TextField
+              fullWidth
+              label="Systems Analyst"
+              value={projectInventoryItem.systemsAnalyst}
+              onChange={(e) => setProjectInventoryItem({ ...projectInventoryItem, systemsAnalyst: e.target.value })}
+              placeholder="Enter person name"
+              variant="outlined"
+              size="small"
+            />
 
-          <TextField
-            select
-            fullWidth
-            label="Cutover Phase"
-            value={projectInventoryItem.cutoverPhase}
-            onChange={(e) => setProjectInventoryItem({ ...projectInventoryItem, cutoverPhase: e.target.value })}
-            margin="normal"
-          >
-            {cutoverPhaseOptions.map((option) => (
-              <Box key={option} component="option" value={option}>
-                {option}
-              </Box>
-            ))}
-          </TextField>
+            <TextField
+              select
+              fullWidth
+              label="Cutover Phase"
+              value={projectInventoryItem.cutoverPhase}
+              onChange={(e) => setProjectInventoryItem({ ...projectInventoryItem, cutoverPhase: e.target.value })}
+              variant="outlined"
+              size="small"
+            >
+              {cutoverPhaseOptions.map((option) => (
+                <MenuItem key={option} value={option}>
+                  {option}
+                </MenuItem>
+              ))}
+            </TextField>
 
-          <TextField
-            select
-            fullWidth
-            label="DDM Approach"
-            value={projectInventoryItem.ddmApproach}
-            onChange={(e) => setProjectInventoryItem({ ...projectInventoryItem, ddmApproach: e.target.value })}
-            margin="normal"
-          >
-            {ddmApproachOptions.map((option) => (
-              <Box key={option} component="option" value={option}>
-                {option}
-              </Box>
-            ))}
-          </TextField>
+            <TextField
+              select
+              fullWidth
+              label="DDM Approach"
+              value={projectInventoryItem.ddmApproach}
+              onChange={(e) => setProjectInventoryItem({ ...projectInventoryItem, ddmApproach: e.target.value })}
+              variant="outlined"
+              size="small"
+            >
+              {ddmApproachOptions.map((option) => (
+                <MenuItem key={option} value={option}>
+                  {option}
+                </MenuItem>
+              ))}
+            </TextField>
 
-          <TextField
-            select
-            fullWidth
-            label="Risk/Security Type"
-            value={projectInventoryItem.riskSecurityType}
-            onChange={(e) => setProjectInventoryItem({ ...projectInventoryItem, riskSecurityType: e.target.value })}
-            margin="normal"
-          >
-            {riskSecurityTypeOptions.map((option) => (
-              <Box key={option} component="option" value={option}>
-                {option}
-              </Box>
-            ))}
-          </TextField>
+            <TextField
+              select
+              fullWidth
+              label="Risk/Security Type"
+              value={projectInventoryItem.riskSecurityType}
+              onChange={(e) => setProjectInventoryItem({ ...projectInventoryItem, riskSecurityType: e.target.value })}
+              variant="outlined"
+              size="small"
+            >
+              {riskSecurityTypeOptions.map((option) => (
+                <MenuItem key={option} value={option}>
+                  {option}
+                </MenuItem>
+              ))}
+            </TextField>
 
-          <TextField
-            select
-            fullWidth
-            label="Migration Type"
-            value={projectInventoryItem.migrationType}
-            onChange={(e) => setProjectInventoryItem({ ...projectInventoryItem, migrationType: e.target.value })}
-            margin="normal"
-          >
-            {migrationTypeOptions.map((option) => (
-              <Box key={option} component="option" value={option}>
-                {option}
-              </Box>
-            ))}
-          </TextField>
+            <TextField
+              select
+              fullWidth
+              label="Migration Type"
+              value={projectInventoryItem.migrationType}
+              onChange={(e) => setProjectInventoryItem({ ...projectInventoryItem, migrationType: e.target.value })}
+              variant="outlined"
+              size="small"
+            >
+              {migrationTypeOptions.map((option) => (
+                <MenuItem key={option} value={option}>
+                  {option}
+                </MenuItem>
+              ))}
+            </TextField>
 
-          <TextField
-            select
-            fullWidth
-            label="Factor Type"
-            value={projectInventoryItem.factorType}
-            onChange={(e) => setProjectInventoryItem({ ...projectInventoryItem, factorType: e.target.value })}
-            margin="normal"
-          >
-            {factorTypeOptions.map((option) => (
-              <Box key={option} component="option" value={option}>
-                {option}
-              </Box>
-            ))}
-          </TextField>
+            <TextField
+              select
+              fullWidth
+              label="Factor Type"
+              value={projectInventoryItem.factorType}
+              onChange={(e) => setProjectInventoryItem({ ...projectInventoryItem, factorType: e.target.value })}
+              variant="outlined"
+              size="small"
+            >
+              {factorTypeOptions.map((option) => (
+                <MenuItem key={option} value={option}>
+                  {option}
+                </MenuItem>
+              ))}
+            </TextField>
 
-          <TextField
-            select
-            fullWidth
-            label="Load Method"
-            value={projectInventoryItem.loadMethod}
-            onChange={(e) => setProjectInventoryItem({ ...projectInventoryItem, loadMethod: e.target.value })}
-            margin="normal"
-          >
-            {loadMethodOptions.map((option) => (
-              <Box key={option} component="option" value={option}>
-                {option}
-              </Box>
-            ))}
-          </TextField>
+            <TextField
+              select
+              fullWidth
+              label="Load Method"
+              value={projectInventoryItem.loadMethod}
+              onChange={(e) => setProjectInventoryItem({ ...projectInventoryItem, loadMethod: e.target.value })}
+              variant="outlined"
+              size="small"
+            >
+              {loadMethodOptions.map((option) => (
+                <MenuItem key={option} value={option}>
+                  {option}
+                </MenuItem>
+              ))}
+            </TextField>
+          </Box>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => {
-            setProjectInventoryDialogOpen(false);
-            setEditingInventoryItemId(null);
-            setProjectInventoryItem({
-              dataObjectId: '',
-              processArea: '',
-              complexity: '',
-              deploymentDisposition: '',
-              buildType: '',
-              objectType: '',
-              dra: '',
-              developer: '',
-              systemsAnalyst: '',
-              cutoverPhase: '',
-              ddmApproach: '',
-              riskSecurityType: '',
-              migrationType: '',
-              factorType: '',
-              loadMethod: '',
-            });
-          }}>
+        <DialogActions sx={{ gap: 1, p: 2, borderTop: '1px solid', borderColor: 'divider' }}>
+          <Button 
+            onClick={() => {
+              setProjectInventoryDialogOpen(false);
+              setEditingInventoryItemId(null);
+              setProjectInventoryItem({
+                dataObjectId: '',
+                processArea: '',
+                complexity: '',
+                deploymentDisposition: '',
+                buildType: '',
+                objectType: '',
+                dra: '',
+                developer: '',
+                systemsAnalyst: '',
+                cutoverPhase: '',
+                ddmApproach: '',
+                riskSecurityType: '',
+                migrationType: '',
+                factorType: '',
+                loadMethod: '',
+              });
+            }}
+            sx={{ textTransform: 'none' }}
+          >
             Cancel
           </Button>
           <Button
@@ -2181,7 +2208,6 @@ const ProjectsPage: React.FC = () => {
                   factorType: '',
                   loadMethod: '',
                 });
-                alert('Item saved successfully');
               } catch (error) {
                 console.error('Failed to save item:', error);
                 alert('Failed to save item. Please try again.');
@@ -2191,6 +2217,7 @@ const ProjectsPage: React.FC = () => {
             }}
             variant="contained"
             disabled={isCreatingProjectInventoryItem || !projectInventoryItem.dataObjectId.trim() || !selectedProjectForInventory}
+            sx={{ textTransform: 'none' }}
           >
             {isCreatingProjectInventoryItem ? 'Saving...' : (editingInventoryItemId ? 'Update' : 'Add Item')}
           </Button>
