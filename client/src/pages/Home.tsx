@@ -16,7 +16,7 @@ const Home: React.FC = () => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const response = await apiClient.get('/api/health');
+        const response = await apiClient.get('/auth/me');
         setData(response.data);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to fetch data');
