@@ -854,7 +854,7 @@ const ProjectsPage: React.FC = () => {
 
           {/* Inventory Tab Content - Always Shows */}
           {tabValue === 1 && (
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                   {/* Inventory Sub-Tabs */}
                   <Box sx={{ display: 'flex', gap: 1, overflow: 'visible' }}>
                     <Button
@@ -1081,10 +1081,8 @@ const ProjectsPage: React.FC = () => {
                   )}
                 </Box>
               )}
-            </>
-          )}
-        </Box>
-      </Box>
+            </Box>
+          </Box>
 
       {/* Create Item Dialog */}
       <Dialog open={createDialogOpen} onClose={() => setCreateDialogOpen(false)} maxWidth="sm" fullWidth>
