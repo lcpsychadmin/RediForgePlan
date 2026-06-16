@@ -220,6 +220,22 @@ const ProjectsPage: React.FC = () => {
     enabled: Object.keys(mockCycles).length > 0,
   });
 
+  // Fetch global objects for inventory dropdown
+  useQuery({
+    queryKey: ['globalObjects'],
+    queryFn: async () => {
+      const response = await apiClient.get('/api/global-objects');
+      const objects = response.data.data || [];
+      setInventoryObjects(objects.map((obj: any) => ({
+        id: obj.id,
+        objectId: obj.objectId,
+        description: obj.description || '',
+        processArea: obj.processArea || '',
+      })));
+      return objects;
+    },
+  });
+
   const handleCreateItem = async () => {
     if (!newItemName.trim()) {
       alert('Name is required');
@@ -1492,9 +1508,9 @@ const ProjectsPage: React.FC = () => {
             margin="normal"
           >
             {inventoryObjects.map((obj) => (
-              <Box key={obj.id} component="option" value={obj.objectId}>
+              <MenuItem key={obj.id} value={obj.objectId}>
                 {obj.objectId}
-              </Box>
+              </MenuItem>
             ))}
           </TextField>
 
@@ -1507,9 +1523,9 @@ const ProjectsPage: React.FC = () => {
             margin="normal"
           >
             {processAreaOptions.map((option) => (
-              <Box key={option} component="option" value={option}>
+              <MenuItem key={option} value={option}>
                 {option}
-              </Box>
+              </MenuItem>
             ))}
           </TextField>
 
@@ -1522,9 +1538,9 @@ const ProjectsPage: React.FC = () => {
             margin="normal"
           >
             {complexityOptions.map((option) => (
-              <Box key={option} component="option" value={option}>
+              <MenuItem key={option} value={option}>
                 {option}
-              </Box>
+              </MenuItem>
             ))}
           </TextField>
 
@@ -1537,9 +1553,9 @@ const ProjectsPage: React.FC = () => {
             margin="normal"
           >
             {deploymentDispositionOptions.map((option) => (
-              <Box key={option} component="option" value={option}>
+              <MenuItem key={option} value={option}>
                 {option}
-              </Box>
+              </MenuItem>
             ))}
           </TextField>
 
@@ -1552,9 +1568,9 @@ const ProjectsPage: React.FC = () => {
             margin="normal"
           >
             {buildTypeOptions.map((option) => (
-              <Box key={option} component="option" value={option}>
+              <MenuItem key={option} value={option}>
                 {option}
-              </Box>
+              </MenuItem>
             ))}
           </TextField>
 
@@ -1567,9 +1583,9 @@ const ProjectsPage: React.FC = () => {
             margin="normal"
           >
             {objectTypeOptions.map((option) => (
-              <Box key={option} component="option" value={option}>
+              <MenuItem key={option} value={option}>
                 {option}
-              </Box>
+              </MenuItem>
             ))}
           </TextField>
 

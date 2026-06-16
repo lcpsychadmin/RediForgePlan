@@ -15,6 +15,14 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
-    sourcemap: false
+    sourcemap: false,
+    rollupOptions: {
+      external: ['react-router'],
+      output: {
+        globals: {
+          'react-router': 'ReactRouter'
+        }
+      }
+    }
   }
 })
