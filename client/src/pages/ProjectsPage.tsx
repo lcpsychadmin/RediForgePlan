@@ -30,7 +30,7 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
-import FolderIcon from '@mui/icons-material/Folder';
+import FolderOutlinedIcon from '@mui/icons-material/FolderOutlined';
 import CorporateFareIcon from '@mui/icons-material/CorporateFare';
 import SyncIcon from '@mui/icons-material/Sync';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -541,7 +541,7 @@ const ProjectsPage: React.FC = () => {
                                       }
                                       sx={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 1 }}
                                     >
-                                      <FolderIcon sx={{ fontSize: '1.1rem', color: project.accentColor || '#90caf9', flexShrink: 0 }} />
+                                      <FolderOutlinedIcon sx={{ fontSize: '1.1rem', color: project.accentColor || '#90caf9', flexShrink: 0 }} />
                                       <Typography variant="caption" sx={{ noWrap: true, fontWeight: 500, flex: 1 }}>
                                         {project.name}
                                       </Typography>
@@ -616,7 +616,7 @@ const ProjectsPage: React.FC = () => {
               <CardHeader
                 avatar={
                   selectedItem.type === 'project' ? (
-                    <FolderIcon sx={{ color: (selectedDetails as Project).accentColor || '#90caf9', fontSize: '2rem' }} />
+                    <FolderOutlinedIcon sx={{ color: (selectedDetails as Project).accentColor || '#90caf9', fontSize: '2rem' }} />
                   ) : undefined
                 }
                 title={selectedDetails.name}
