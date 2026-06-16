@@ -1700,29 +1700,50 @@ const ProjectsPage: React.FC = () => {
             Cancel
           </Button>
           <Button
-            onClick={() => {
-              if (editingCatalogObjectId) {
-                // Update existing object
-                setInventoryObjects(inventoryObjects.map(obj =>
-                  obj.id === editingCatalogObjectId
-                    ? { ...obj, description: catalogObjectDesc, processArea: catalogProcessArea }
-                    : obj
-                ));
-              } else {
-                // Add new object
-                const newObject = {
-                  id: Math.random().toString(36).substr(2, 9),
-                  objectId: catalogObjectId,
-                  description: catalogObjectDesc,
-                  processArea: catalogProcessArea,
-                };
-                setInventoryObjects([...inventoryObjects, newObject]);
+            onClick={async () => {
+              try {
+                setIsCreatingCatalogObject(true);
+                
+                if (editingCatalogObjectId) {
+                  // Update existing object
+                  await apiClient.put(`/api/global-objects/${editingCatalogObjectId}`, {
+                    description: catalogObjectDesc,
+                    processArea: catalogProcessArea,
+                  });
+                  setInventoryObjects(inventoryObjects.map(obj =>
+                    obj.id === editingCatalogObjectId
+                      ? { ...obj, description: catalogObjectDesc, processArea: catalogProcessArea }
+                      : obj
+                  ));
+                } else {
+                  // Add new object
+                  const response = await apiClient.post('/api/global-objects', {
+                    objectId: catalogObjectId,
+                    description: catalogObjectDesc,
+                    processArea: catalogProcessArea,
+                  });
+                  
+                  const newObject = response.data.data || {
+                    id: Math.random().toString(36).substr(2, 9),
+                    objectId: catalogObjectId,
+                    description: catalogObjectDesc,
+                    processArea: catalogProcessArea,
+                  };
+                  setInventoryObjects([...inventoryObjects, newObject]);
+                }
+                
+                setCatalogObjectDialogOpen(false);
+                setEditingCatalogObjectId(null);
+                setCatalogObjectId('');
+                setCatalogObjectDesc('');
+                setCatalogProcessArea('');
+                alert('Object saved successfully');
+              } catch (error) {
+                console.error('Failed to save object:', error);
+                alert('Failed to save object. Please try again.');
+              } finally {
+                setIsCreatingCatalogObject(false);
               }
-              setCatalogObjectDialogOpen(false);
-              setEditingCatalogObjectId(null);
-              setCatalogObjectId('');
-              setCatalogObjectDesc('');
-              setCatalogProcessArea('');
             }}
             variant="contained"
             disabled={isCreatingCatalogObject || !catalogObjectId.trim() || !catalogObjectDesc.trim()}
@@ -2015,42 +2036,70 @@ const ProjectsPage: React.FC = () => {
             Cancel
           </Button>
           <Button
-            onClick={() => {
-              if (editingInventoryItemId) {
-                // Update existing item
-                setProjectInventoryItems(projectInventoryItems.map(item =>
-                  item.id === editingInventoryItemId ? { ...item, ...projectInventoryItem } : item
-                ));
-                setEditingInventoryItemId(null);
-              } else {
-                // Add new item
-                const newItem = {
-                  id: Math.random().toString(36).substr(2, 9),
-                  ...projectInventoryItem,
-                };
-                setProjectInventoryItems([...projectInventoryItems, newItem]);
+            onClick={async () => {
+              if (!selectedProjectForInventory) {
+                alert('Please select a project first');
+                return;
               }
-              setProjectInventoryDialogOpen(false);
-              setProjectInventoryItem({
-                dataObjectId: '',
-                processArea: '',
-                complexity: '',
-                deploymentDisposition: '',
-                buildType: '',
-                objectType: '',
-                dra: '',
-                developer: '',
-                systemsAnalyst: '',
-                cutoverPhase: '',
-                ddmApproach: '',
-                riskSecurityType: '',
-                migrationType: '',
-                factorType: '',
-                loadMethod: '',
-              });
+
+              try {
+                setIsCreatingProjectInventoryItem(true);
+                
+                if (editingInventoryItemId) {
+                  // Update existing item
+                  await apiClient.put(`/api/project-inventory/${editingInventoryItemId}`, {
+                    ...projectInventoryItem,
+                    projectId: selectedProjectForInventory,
+                  });
+                  setProjectInventoryItems(projectInventoryItems.map(item =>
+                    item.id === editingInventoryItemId 
+                      ? { ...item, ...projectInventoryItem, projectId: selectedProjectForInventory } 
+                      : item
+                  ));
+                  setEditingInventoryItemId(null);
+                } else {
+                  // Add new item
+                  const response = await apiClient.post('/api/project-inventory', {
+                    ...projectInventoryItem,
+                    projectId: selectedProjectForInventory,
+                  });
+                  
+                  const newItem = response.data.data || {
+                    id: Math.random().toString(36).substr(2, 9),
+                    ...projectInventoryItem,
+                    projectId: selectedProjectForInventory,
+                  };
+                  setProjectInventoryItems([...projectInventoryItems, newItem]);
+                }
+                
+                setProjectInventoryDialogOpen(false);
+                setProjectInventoryItem({
+                  dataObjectId: '',
+                  processArea: '',
+                  complexity: '',
+                  deploymentDisposition: '',
+                  buildType: '',
+                  objectType: '',
+                  dra: '',
+                  developer: '',
+                  systemsAnalyst: '',
+                  cutoverPhase: '',
+                  ddmApproach: '',
+                  riskSecurityType: '',
+                  migrationType: '',
+                  factorType: '',
+                  loadMethod: '',
+                });
+                alert('Item saved successfully');
+              } catch (error) {
+                console.error('Failed to save item:', error);
+                alert('Failed to save item. Please try again.');
+              } finally {
+                setIsCreatingProjectInventoryItem(false);
+              }
             }}
             variant="contained"
-            disabled={isCreatingProjectInventoryItem || !projectInventoryItem.dataObjectId.trim()}
+            disabled={isCreatingProjectInventoryItem || !projectInventoryItem.dataObjectId.trim() || !selectedProjectForInventory}
           >
             {isCreatingProjectInventoryItem ? 'Saving...' : (editingInventoryItemId ? 'Update' : 'Add Item')}
           </Button>
