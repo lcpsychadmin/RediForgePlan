@@ -71,7 +71,6 @@ interface Project {
 type SelectableItem = { type: 'program'; id: string } | { type: 'cycle'; id: string; programId: string } | { type: 'project'; id: string; cycleId: string };
 
 const ProjectsPage: React.FC = () => {
-  console.log('ProjectsPage component rendering...');
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   
@@ -466,7 +465,6 @@ const ProjectsPage: React.FC = () => {
   };
 
   if (isLoading) {
-    console.log('ProjectsPage: Loading programs...');
     return (
       <Layout>
         <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
@@ -494,9 +492,6 @@ const ProjectsPage: React.FC = () => {
   };
 
   const selectedDetails = getSelectedItemDetails();
-  
-  console.log('ProjectsPage: Rendering main component. Programs:', programs.length, 'Selected:', selectedItem?.type);
-  console.log('ProjectsPage: selectedDetails:', selectedDetails);
 
   return (
     <Layout>

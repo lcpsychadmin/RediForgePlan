@@ -37,22 +37,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   useEffect(() => {
     const initializeAuth = async () => {
       try {
-        console.log('AuthContext: Initializing auth...');
         const token = localStorage.getItem('authToken');
-        console.log('AuthContext: authToken exists?', !!token);
         if (token) {
           setLoading(true);
-          console.log('AuthContext: Setting loading=true, calling /auth/me');
           // Verify token is still valid
           const response = await apiClient.get('/auth/me');
-          console.log('AuthContext: /auth/me succeeded, user=', response.data?.email);
           setUser(response.data);
         }
       } catch (err) {
-        console.log('AuthContext: /auth/me failed', err);
         localStorage.removeItem('authToken');
       } finally {
-        console.log('AuthContext: Setting loading=false');
         setLoading(false);
       }
     };
@@ -232,8 +226,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     createUser,
     setUser,
   };
-  
-  console.log('AuthContext value updated: isAuthenticated=', !!user, 'loading=', loading, 'user=', user?.email);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
