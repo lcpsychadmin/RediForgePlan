@@ -1000,9 +1000,10 @@ const ProjectsPage: React.FC = () => {
                                   px: 2,
                                   py: 1,
                                   borderRadius: '24px',
-                                  border: selectedProjectForInventory === project.id ? '2px solid' : '1px solid',
-                                  borderColor: selectedProjectForInventory === project.id ? 'primary.main' : 'divider',
-                                  backgroundColor: selectedProjectForInventory === project.id ? 'primary.lighter' : 'background.paper',
+                                  border: selectedProjectForInventory === project.id ? '2px solid' : '1.5px solid',
+                                  borderColor: selectedProjectForInventory === project.id ? 'primary.main' : 'primary.main',
+                                  backgroundColor: selectedProjectForInventory === project.id ? 'primary.lighter' : 'transparent',
+                                  color: selectedProjectForInventory === project.id ? 'primary.main' : 'primary.main',
                                   cursor: 'pointer',
                                   textTransform: 'none',
                                   fontWeight: selectedProjectForInventory === project.id ? 600 : 500,
@@ -1011,6 +1012,7 @@ const ProjectsPage: React.FC = () => {
                                   '&:hover': {
                                     borderColor: 'primary.main',
                                     backgroundColor: 'primary.lighter',
+                                    color: 'primary.contrastText',
                                   },
                                 }}
                               >
