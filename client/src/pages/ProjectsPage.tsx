@@ -1083,8 +1083,17 @@ const ProjectsPage: React.FC = () => {
                               {/* Data Objects */}
                               {Array.from(new Set(projectTasks.map(t => t.projectObjectId))).map((objectId) => {
                                 const tasksForObject = projectTasks.filter(t => t.projectObjectId === objectId);
-                                const objectName = projectInventoryItems.find(obj => obj.id === objectId)?.objectId || 'Unknown Object';
+                                const inventoryObject = projectInventoryItems.find(obj => obj.id === objectId);
+                                const objectName = inventoryObject?.objectId || 'Unknown Object';
                                 const isExpanded = expandedObjects.has(objectId || '');
+                                
+                                // Calculate status counts
+                                const statusCounts = {
+                                  completed: tasksForObject.filter(t => t.status === 'completed').length,
+                                  in_progress: tasksForObject.filter(t => t.status === 'in_progress').length,
+                                  not_started: tasksForObject.filter(t => t.status === 'not_started').length,
+                                };
+                                
                                 return (
                                   <Box key={`obj-${objectId}`} sx={{
                                     border: '1px solid',
@@ -1109,13 +1118,98 @@ const ProjectsPage: React.FC = () => {
                                         display: 'flex',
                                         justifyContent: 'space-between',
                                         alignItems: 'center',
+                                        gap: 2,
                                         '&:hover': { backgroundColor: 'action.hover' },
                                       }}
                                     >
-                                      <Box>
-                                        <Typography variant="body2" sx={{ fontWeight: 600 }}>{objectName}</Typography>
-                                        <Typography variant="caption" color="textSecondary">{tasksForObject.length} task{tasksForObject.length !== 1 ? 's' : ''}</Typography>
+                                      {/* Left side: Arrow, Object ID, Description */}
+                                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flex: 1, minWidth: 0 }}>
+                                        <ChevronRightIcon
+                                          sx={{
+                                            fontSize: 20,
+                                            transition: 'transform 0.2s',
+                                            transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
+                                            flexShrink: 0,
+                                          }}
+                                        />
+                                        <Box sx={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }}>
+                                          <Typography
+                                            variant="body2"
+                                            sx={{
+                                              fontWeight: 700,
+                                              color: 'primary.main',
+                                              fontSize: '0.95rem',
+                                            }}
+                                          >
+                                            {objectName}
+                                          </Typography>
+                                          {inventoryObject?.description && (
+                                            <Typography
+                                              variant="caption"
+                                              color="textSecondary"
+                                              sx={{
+                                                fontSize: '0.8rem',
+                                                overflow: 'hidden',
+                                                textOverflow: 'ellipsis',
+                                                whiteSpace: 'nowrap',
+                                              }}
+                                            >
+                                              {inventoryObject.description}
+                                            </Typography>
+                                          )}
+                                        </Box>
                                       </Box>
+
+                                      {/* Status indicators */}
+                                      <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center', flexShrink: 0 }}>
+                                        {statusCounts.completed > 0 && (
+                                          <Box
+                                            sx={{
+                                              px: 1,
+                                              py: 0.5,
+                                              backgroundColor: 'success.lighter',
+                                              borderRadius: 0.5,
+                                              fontSize: '0.75rem',
+                                              fontWeight: 600,
+                                              color: 'success.main',
+                                            }}
+                                          >
+                                            {statusCounts.completed}
+                                          </Box>
+                                        )}
+                                        {statusCounts.in_progress > 0 && (
+                                          <Box
+                                            sx={{
+                                              px: 1,
+                                              py: 0.5,
+                                              backgroundColor: 'info.lighter',
+                                              borderRadius: 0.5,
+                                              fontSize: '0.75rem',
+                                              fontWeight: 600,
+                                              color: 'info.main',
+                                            }}
+                                          >
+                                            {statusCounts.in_progress}
+                                          </Box>
+                                        )}
+                                        {statusCounts.not_started > 0 && (
+                                          <Box
+                                            sx={{
+                                              px: 1,
+                                              py: 0.5,
+                                              backgroundColor: 'action.disabledBackground',
+                                              borderRadius: 0.5,
+                                              fontSize: '0.75rem',
+                                              fontWeight: 600,
+                                              color: 'text.secondary',
+                                            }}
+                                          >
+                                            {statusCounts.not_started}
+                                          </Box>
+                                        )}
+                                      </Box>
+
+                                      {/* Three dots menu */}
                                       <IconButton
                                         size="small"
                                         onClick={(e) => {
@@ -1124,6 +1218,7 @@ const ProjectsPage: React.FC = () => {
                                           setMenuType('task');
                                           setMenuItemId(objectId || '');
                                         }}
+                                        sx={{ flexShrink: 0 }}
                                       >
                                         <MoreVertIcon fontSize="small" />
                                       </IconButton>
@@ -1152,6 +1247,14 @@ const ProjectsPage: React.FC = () => {
                               {projectTaskGroups.map((group) => {
                                 const isExpanded = expandedTaskGroups.has(group.id);
                                 const groupTasks = projectTasks.filter(t => t.taskGroupId === group.id);
+                                
+                                // Calculate status counts
+                                const statusCounts = {
+                                  completed: groupTasks.filter(t => t.status === 'completed').length,
+                                  in_progress: groupTasks.filter(t => t.status === 'in_progress').length,
+                                  not_started: groupTasks.filter(t => t.status === 'not_started').length,
+                                };
+                                
                                 return (
                                   <Box key={`group-${group.id}`} sx={{
                                     border: '1px solid',
@@ -1176,13 +1279,84 @@ const ProjectsPage: React.FC = () => {
                                         display: 'flex',
                                         justifyContent: 'space-between',
                                         alignItems: 'center',
+                                        gap: 2,
                                         '&:hover': { backgroundColor: 'action.hover' },
                                       }}
                                     >
-                                      <Box>
-                                        <Typography variant="body2" sx={{ fontWeight: 600 }}>{group.name}</Typography>
-                                        <Typography variant="caption" color="textSecondary">{groupTasks.length} task{groupTasks.length !== 1 ? 's' : ''}</Typography>
+                                      {/* Left side: Arrow and Task Group Name */}
+                                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flex: 1, minWidth: 0 }}>
+                                        <ChevronRightIcon
+                                          sx={{
+                                            fontSize: 20,
+                                            transition: 'transform 0.2s',
+                                            transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
+                                            flexShrink: 0,
+                                          }}
+                                        />
+                                        <Typography
+                                          variant="body2"
+                                          sx={{
+                                            fontWeight: 700,
+                                            fontSize: '0.95rem',
+                                            overflow: 'hidden',
+                                            textOverflow: 'ellipsis',
+                                            whiteSpace: 'nowrap',
+                                          }}
+                                        >
+                                          {group.name}
+                                        </Typography>
                                       </Box>
+
+                                      {/* Status indicators */}
+                                      <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center', flexShrink: 0 }}>
+                                        {statusCounts.completed > 0 && (
+                                          <Box
+                                            sx={{
+                                              px: 1,
+                                              py: 0.5,
+                                              backgroundColor: 'success.lighter',
+                                              borderRadius: 0.5,
+                                              fontSize: '0.75rem',
+                                              fontWeight: 600,
+                                              color: 'success.main',
+                                            }}
+                                          >
+                                            {statusCounts.completed}
+                                          </Box>
+                                        )}
+                                        {statusCounts.in_progress > 0 && (
+                                          <Box
+                                            sx={{
+                                              px: 1,
+                                              py: 0.5,
+                                              backgroundColor: 'info.lighter',
+                                              borderRadius: 0.5,
+                                              fontSize: '0.75rem',
+                                              fontWeight: 600,
+                                              color: 'info.main',
+                                            }}
+                                          >
+                                            {statusCounts.in_progress}
+                                          </Box>
+                                        )}
+                                        {statusCounts.not_started > 0 && (
+                                          <Box
+                                            sx={{
+                                              px: 1,
+                                              py: 0.5,
+                                              backgroundColor: 'action.disabledBackground',
+                                              borderRadius: 0.5,
+                                              fontSize: '0.75rem',
+                                              fontWeight: 600,
+                                              color: 'text.secondary',
+                                            }}
+                                          >
+                                            {statusCounts.not_started}
+                                          </Box>
+                                        )}
+                                      </Box>
+
+                                      {/* Three dots menu */}
                                       <IconButton
                                         size="small"
                                         onClick={(e) => {
@@ -1191,6 +1365,7 @@ const ProjectsPage: React.FC = () => {
                                           setMenuType('taskGroup');
                                           setMenuItemId(group.id);
                                         }}
+                                        sx={{ flexShrink: 0 }}
                                       >
                                         <MoreVertIcon fontSize="small" />
                                       </IconButton>
