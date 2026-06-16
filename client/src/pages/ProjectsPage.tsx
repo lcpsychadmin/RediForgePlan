@@ -1252,21 +1252,21 @@ const ProjectsPage: React.FC = () => {
 
                     {/* Inventory Table */}
                     <Box sx={{ overflowX: 'auto' }}>
-                      <Box sx={{ display: 'grid', gridTemplateColumns: '0.9fr 0.9fr 0.7fr 1.2fr 0.7fr', gap: 0, borderRadius: 1, overflow: 'hidden', border: '1px solid', borderColor: 'divider' }}>
+                      <Box sx={{ display: 'grid', gridTemplateColumns: '0.9fr 0.9fr 0.7fr 1.2fr 0.7fr', gap: 0, borderRadius: 1, overflow: 'hidden', border: '1px solid', borderColor: 'primary.main' }}>
                         {/* Header */}
-                        <Box sx={{ backgroundColor: 'background.paper', p: 1, fontWeight: 600, borderBottom: '1px solid', borderColor: 'divider', fontSize: '0.75rem' }}>
+                        <Box sx={{ backgroundColor: 'primary.main', p: 1, fontWeight: 700, color: 'primary.contrastText', fontSize: '0.75rem', letterSpacing: '0.5px' }}>
                           DATA OBJECT ID
                         </Box>
-                        <Box sx={{ backgroundColor: 'background.paper', p: 1, fontWeight: 600, borderBottom: '1px solid', borderColor: 'divider', fontSize: '0.75rem' }}>
+                        <Box sx={{ backgroundColor: 'primary.main', p: 1, fontWeight: 700, color: 'primary.contrastText', fontSize: '0.75rem', letterSpacing: '0.5px' }}>
                           PROCESS AREA
                         </Box>
-                        <Box sx={{ backgroundColor: 'background.paper', p: 1, fontWeight: 600, borderBottom: '1px solid', borderColor: 'divider', fontSize: '0.75rem' }}>
+                        <Box sx={{ backgroundColor: 'primary.main', p: 1, fontWeight: 700, color: 'primary.contrastText', fontSize: '0.75rem', letterSpacing: '0.5px' }}>
                           COMPLEXITY
                         </Box>
-                        <Box sx={{ backgroundColor: 'background.paper', p: 1, fontWeight: 600, borderBottom: '1px solid', borderColor: 'divider', fontSize: '0.75rem' }}>
+                        <Box sx={{ backgroundColor: 'primary.main', p: 1, fontWeight: 700, color: 'primary.contrastText', fontSize: '0.75rem', letterSpacing: '0.5px' }}>
                           DEPLOYMENT DISPOSITION
                         </Box>
-                        <Box sx={{ backgroundColor: 'background.paper', p: 1, fontWeight: 600, borderBottom: '1px solid', borderColor: 'divider', fontSize: '0.75rem' }}>
+                        <Box sx={{ backgroundColor: 'primary.main', p: 1, fontWeight: 700, color: 'primary.contrastText', fontSize: '0.75rem', letterSpacing: '0.5px' }}>
                           ACTIONS
                         </Box>
 
