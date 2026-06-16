@@ -3,7 +3,7 @@
 import axios, { AxiosInstance, AxiosError } from 'axios';
 import { parseApiError } from './errorHandler';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' && window.location.hostname !== 'localhost' ? '/' : 'http://localhost:5000');
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/';
 
 /**
  * Create Axios instance with base configuration
