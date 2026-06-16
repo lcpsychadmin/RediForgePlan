@@ -745,44 +745,6 @@ const ProjectsPage: React.FC = () => {
                         Add Task Group
                       </Button>
                     </Box>
-
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
-                      <Typography variant="body2" color="textSecondary">
-                        Color:
-                      </Typography>
-                      <Box
-                        sx={{
-                          width: '60px',
-                          height: '40px',
-                          backgroundColor: (selectedDetails as Project).accentColor || '#90caf9',
-                          borderRadius: '4px',
-                          border: '1px solid #ddd',
-                        }}
-                      />
-                    </Box>
-                    <Box sx={{ mb: 2 }}>
-                      <Typography variant="body2" color="textSecondary" sx={{ mb: 0.5 }}>
-                        Progress: {(selectedDetails as Project).progressPercentage || 0}%
-                      </Typography>
-                      <Box
-                        sx={{
-                          width: '100%',
-                          height: '8px',
-                          backgroundColor: '#e0e0e0',
-                          borderRadius: '4px',
-                          overflow: 'hidden',
-                        }}
-                      >
-                        <Box
-                          sx={{
-                            height: '100%',
-                            width: `${(selectedDetails as Project).progressPercentage || 0}%`,
-                            backgroundColor: (selectedDetails as Project).accentColor || '#90caf9',
-                            transition: 'width 0.3s ease',
-                          }}
-                        />
-                      </Box>
-                    </Box>
                   </>
                 )}
               </CardContent>
