@@ -23,8 +23,6 @@ import {
   Paper,
   MenuItem,
   Slider,
-  Tabs,
-  Tab,
   Breadcrumbs,
   Link,
 } from '@mui/material';
@@ -707,16 +705,9 @@ const ProjectsPage: React.FC = () => {
       programCount={programs.length}
       objectCount={projectInventoryItems.length}
       completionPercentage={0}
+      tabValue={tabValue}
+      onTabChange={(v) => setTabValue(v)}
     >
-      {/* Tabs Section */}
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 3, maxWidth: '1200px', mx: 'auto' }}>
-        <Tabs value={tabValue} onChange={(e, newValue) => setTabValue(newValue)}>
-          <Tab label="Plan" icon={<Box sx={{ width: '24px', height: '24px', background: 'linear-gradient(135deg, #5B67CA 0%, #3B4DB3 100%)', borderRadius: '2px' }} />} iconPosition="start" />
-          <Tab label="Inventory" />
-        </Tabs>
-      </Box>
-      <Divider sx={{ mb: 2 }} />
-
       {/* Main Content Area */}
       <Box sx={{ display: 'flex', height: 'calc(100vh - 320px)', gap: 2, mx: -3, px: 3 }}>
         {/* Left Sidebar - Hierarchy Tree */}
