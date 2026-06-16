@@ -1358,21 +1358,29 @@ const ProjectsPage: React.FC = () => {
       </Box>
 
       {/* Create Item Dialog */}
-      <Dialog open={createDialogOpen} onClose={() => setCreateDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>
+      <Dialog open={createDialogOpen} onClose={() => setCreateDialogOpen(false)} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 2 } }}>
+        <DialogTitle sx={{ 
+          background: theme => `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark || theme.palette.primary.main} 100%)`,
+          color: 'white',
+          fontWeight: 600,
+          fontSize: '1.1rem',
+          pb: 2,
+        }}>
           {dialogMode === 'program' && 'Create New Program'}
           {dialogMode === 'cycle' && 'Create New Mock Cycle'}
           {dialogMode === 'project' && 'Create New Project'}
         </DialogTitle>
-        <DialogContent sx={{ pt: 2 }}>
+        <DialogContent sx={{ pt: 2, maxHeight: '70vh', overflowY: 'auto', px: 3 }}>
           <TextField
             autoFocus
             fullWidth
             label="Name"
             value={newItemName}
             onChange={(e) => setNewItemName(e.target.value)}
-            margin="normal"
             placeholder="Enter name"
+            variant="outlined"
+            size="small"
+            sx={{ mb: 2 }}
           />
           {dialogMode === 'program' && (
             <TextField
@@ -1380,19 +1388,21 @@ const ProjectsPage: React.FC = () => {
               label="Description"
               value={newItemDesc}
               onChange={(e) => setNewItemDesc(e.target.value)}
-              margin="normal"
               multiline
               rows={3}
               placeholder="Optional description"
+              variant="outlined"
+              size="small"
             />
           )}
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setCreateDialogOpen(false)}>Cancel</Button>
+        <DialogActions sx={{ gap: 1, p: 2, borderTop: '1px solid', borderColor: 'divider' }}>
+          <Button onClick={() => setCreateDialogOpen(false)} sx={{ textTransform: 'none' }}>Cancel</Button>
           <Button
             onClick={handleCreateItem}
             variant="contained"
             disabled={isCreating || !newItemName.trim()}
+            sx={{ textTransform: 'none' }}
           >
             {isCreating ? 'Creating...' : 'Create'}
           </Button>
@@ -1495,16 +1505,24 @@ const ProjectsPage: React.FC = () => {
       </Dialog>
 
       {/* Edit Dialog */}
-      <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>
+      <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 2 } }}>
+        <DialogTitle sx={{ 
+          background: theme => `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark || theme.palette.primary.main} 100%)`,
+          color: 'white',
+          fontWeight: 600,
+          fontSize: '1.1rem',
+          pb: 2,
+        }}>
           Edit {editItemType}
         </DialogTitle>
-        <DialogContent sx={{ pt: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <DialogContent sx={{ pt: 2, maxHeight: '70vh', overflowY: 'auto', px: 3, display: 'flex', flexDirection: 'column', gap: 2 }}>
           <TextField
             label="Name"
             value={editItemName}
             onChange={(e) => setEditItemName(e.target.value)}
             fullWidth
+            variant="outlined"
+            size="small"
           />
           
           {editItemType === 'program' && (
@@ -1515,6 +1533,8 @@ const ProjectsPage: React.FC = () => {
               fullWidth
               multiline
               rows={3}
+              variant="outlined"
+              size="small"
             />
           )}
 
@@ -1527,6 +1547,8 @@ const ProjectsPage: React.FC = () => {
                 onChange={(e) => setEditStartDate(e.target.value)}
                 InputLabelProps={{ shrink: true }}
                 fullWidth
+                variant="outlined"
+                size="small"
               />
               <TextField
                 label="End Date"
@@ -1535,6 +1557,8 @@ const ProjectsPage: React.FC = () => {
                 onChange={(e) => setEditEndDate(e.target.value)}
                 InputLabelProps={{ shrink: true }}
                 fullWidth
+                variant="outlined"
+                size="small"
               />
             </>
           )}
@@ -1548,6 +1572,8 @@ const ProjectsPage: React.FC = () => {
                 onChange={(e) => setEditStartDate(e.target.value)}
                 InputLabelProps={{ shrink: true }}
                 fullWidth
+                variant="outlined"
+                size="small"
               />
               <TextField
                 label="End Date"
@@ -1556,6 +1582,8 @@ const ProjectsPage: React.FC = () => {
                 onChange={(e) => setEditEndDate(e.target.value)}
                 InputLabelProps={{ shrink: true }}
                 fullWidth
+                variant="outlined"
+                size="small"
               />
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                 <TextField
@@ -1564,6 +1592,8 @@ const ProjectsPage: React.FC = () => {
                   value={editAccentColor}
                   onChange={(e) => setEditAccentColor(e.target.value)}
                   sx={{ width: '100px' }}
+                  variant="outlined"
+                  size="small"
                 />
                 {editAccentColor && (
                   <Box
@@ -1593,8 +1623,8 @@ const ProjectsPage: React.FC = () => {
             </>
           )}
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setEditDialogOpen(false)} disabled={isEditing}>
+        <DialogActions sx={{ gap: 1, p: 2, borderTop: '1px solid', borderColor: 'divider' }}>
+          <Button onClick={() => setEditDialogOpen(false)} disabled={isEditing} sx={{ textTransform: 'none' }}>
             Cancel
           </Button>
           <Button
@@ -1602,6 +1632,8 @@ const ProjectsPage: React.FC = () => {
             variant="contained"
             color="primary"
             disabled={isEditing}
+            sx={{ textTransform: 'none' }}
+          >
           >
             {isEditing ? 'Saving...' : 'Save'}
           </Button>
@@ -1695,46 +1727,57 @@ const ProjectsPage: React.FC = () => {
         setCatalogObjectId('');
         setCatalogObjectDesc('');
         setCatalogProcessArea('');
-      }} maxWidth="sm" fullWidth>
-        <DialogTitle>{editingCatalogObjectId ? 'Edit Object' : 'Add Object to Catalog'}</DialogTitle>
-        <DialogContent sx={{ pt: 2 }}>
+      }} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 2 } }}>
+        <DialogTitle sx={{ 
+          background: theme => `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark || theme.palette.primary.main} 100%)`,
+          color: 'white',
+          fontWeight: 600,
+          fontSize: '1.1rem',
+          pb: 2,
+        }}>{editingCatalogObjectId ? 'Edit Object' : 'Add Object to Catalog'}</DialogTitle>
+        <DialogContent sx={{ pt: 2, maxHeight: '70vh', overflowY: 'auto', px: 3 }}>
           <TextField
             autoFocus
             fullWidth
             label="Object ID"
             value={catalogObjectId}
             onChange={(e) => setCatalogObjectId(e.target.value)}
-            margin="normal"
             placeholder="e.g., H2R.CNV.068"
             disabled={!!editingCatalogObjectId}
+            variant="outlined"
+            size="small"
+            sx={{ mb: 2 }}
           />
           <TextField
             fullWidth
             label="Description"
             value={catalogObjectDesc}
             onChange={(e) => setCatalogObjectDesc(e.target.value)}
-            margin="normal"
             multiline
             rows={3}
             placeholder="Enter detailed object description"
+            variant="outlined"
+            size="small"
+            sx={{ mb: 2 }}
           />
           <TextField
             fullWidth
             label="Process Area"
             value={catalogProcessArea}
             onChange={(e) => setCatalogProcessArea(e.target.value)}
-            margin="normal"
             placeholder="e.g., H2R, Finance, HR"
+            variant="outlined"
+            size="small"
           />
         </DialogContent>
-        <DialogActions>
+        <DialogActions sx={{ gap: 1, p: 2, borderTop: '1px solid', borderColor: 'divider' }}>
           <Button onClick={() => {
             setCatalogObjectDialogOpen(false);
             setEditingCatalogObjectId(null);
             setCatalogObjectId('');
             setCatalogObjectDesc('');
             setCatalogProcessArea('');
-          }}>
+          }} sx={{ textTransform: 'none' }}>
             Cancel
           </Button>
           <Button
@@ -1775,7 +1818,6 @@ const ProjectsPage: React.FC = () => {
                 setCatalogObjectId('');
                 setCatalogObjectDesc('');
                 setCatalogProcessArea('');
-                alert('Object saved successfully');
               } catch (error) {
                 console.error('Failed to save object:', error);
                 alert('Failed to save object. Please try again.');
@@ -1785,6 +1827,7 @@ const ProjectsPage: React.FC = () => {
             }}
             variant="contained"
             disabled={isCreatingCatalogObject || !catalogObjectId.trim() || !catalogObjectDesc.trim()}
+            sx={{ textTransform: 'none' }}
           >
             {isCreatingCatalogObject ? (editingCatalogObjectId ? 'Updating...' : 'Adding...') : (editingCatalogObjectId ? 'Update' : 'Add Object')}
           </Button>
