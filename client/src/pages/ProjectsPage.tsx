@@ -984,12 +984,12 @@ const ProjectsPage: React.FC = () => {
                         Select a project:
                       </Typography>
                       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                        {mockCycles.length === 0 ? (
+                        {Object.keys(mockCycles).length === 0 || Object.values(mockCycles).flat().length === 0 ? (
                           <Typography variant="caption" color="textSecondary">
                             No projects available
                           </Typography>
                         ) : (
-                          mockCycles.flatMap((cycle: MockCycle) => {
+                          Object.values(mockCycles).flat().flatMap((cycle: MockCycle) => {
                             const cycleProjects = projectsByMockCycle[cycle.id] || [];
                             return cycleProjects.map((project: Project) => (
                               <Box
