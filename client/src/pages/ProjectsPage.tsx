@@ -1844,10 +1844,11 @@ const ProjectsPage: React.FC = () => {
           color: 'white',
           fontWeight: 600,
           fontSize: '1.1rem',
+          mb: 0,
         }}>
           {editingInventoryItemId ? 'Edit Project Inventory Item' : 'Add Project Inventory Item'}
         </DialogTitle>
-        <DialogContent sx={{ pt: 3, maxHeight: '70vh', overflowY: 'auto', px: 3 }}>
+        <DialogContent sx={{ pt: 4, maxHeight: '70vh', overflowY: 'auto', px: 3 }}>
           <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
             <TextField
               select
@@ -2120,6 +2121,7 @@ const ProjectsPage: React.FC = () => {
                 if (editingInventoryItemId) {
                   // Update existing item
                   await apiClient.patch(`/api/project-objects/${editingInventoryItemId}`, {
+                    processArea: projectInventoryItem.processArea || null,
                     complexity: projectInventoryItem.complexity || null,
                     deploymentDisposition: projectInventoryItem.deploymentDisposition || null,
                     buildType: projectInventoryItem.buildType || null,
@@ -2137,6 +2139,7 @@ const ProjectsPage: React.FC = () => {
                     item.id === editingInventoryItemId 
                       ? {
                           ...item,
+                          processArea: projectInventoryItem.processArea,
                           complexity: projectInventoryItem.complexity,
                           deploymentDisposition: projectInventoryItem.deploymentDisposition,
                           buildType: projectInventoryItem.buildType,
