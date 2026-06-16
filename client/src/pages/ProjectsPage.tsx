@@ -707,109 +707,58 @@ const ProjectsPage: React.FC = () => {
 
   return (
     <Layout>
-      {/* Header Section */}
+      {/* Header Section - Compact Row */}
       <Box sx={{ mb: 3 }}>
-        {/* Title and Stats Row */}
+        {/* Compact Title and Stats Row */}
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            {selectedItem?.type === 'project' && selectedDetails ? (
-              // Project-specific header
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                <FolderOutlinedIcon sx={{ fontSize: '2rem', color: (selectedDetails as Project).accentColor || '#90caf9', flexShrink: 0 }} />
-                <Box>
-                  <Typography variant="h5" sx={{ fontWeight: 600 }}>
-                    {selectedDetails?.name}
-                  </Typography>
-                  <Typography variant="caption" color="textSecondary">
-                    Project
-                  </Typography>
-                </Box>
-              </Box>
-            ) : (
-              // Default Migration Plan header
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                <StorageIcon sx={{ fontSize: '2rem', color: 'primary.main' }} />
-                <Typography variant="h5" sx={{ fontWeight: 600 }}>
-                  Migration Plan
+          {/* Left: Icon, Title, and Stats */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+              <StorageIcon sx={{ fontSize: '1.5rem', color: 'primary.main' }} />
+              <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                Migration Plan
+              </Typography>
+            </Box>
+            
+            {/* Stats */}
+            <Box sx={{ display: 'flex', gap: 2.5, alignItems: 'center', borderLeft: '1px solid', borderColor: 'divider', pl: 3 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                <Typography variant="caption" color="textSecondary">
+                  Programs:
+                </Typography>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                  {programs.length}
                 </Typography>
               </Box>
-            )}
-            
-            <Box sx={{ display: 'flex', gap: 3, ml: 3 }}>
-              {selectedItem?.type === 'project' ? (
-                // Task progress breakdown for project
-                <>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Typography variant="body2" color="textSecondary">
-                      Tasks in Plan:
-                    </Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                      0
-                    </Typography>
-                  </Box>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Typography variant="body2" color="textSecondary">
-                      Tasks in Inventory:
-                    </Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                      0
-                    </Typography>
-                  </Box>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Typography variant="body2" color="textSecondary">
-                      Progress:
-                    </Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 600, color: 'primary.main' }}>
-                      {selectedDetails ? (selectedDetails as Project).progressPercentage || 0 : 0}%
-                    </Typography>
-                  </Box>
-                </>
-              ) : (
-                // Default stats
-                <>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Typography variant="body2" color="textSecondary">
-                      Programs:
-                    </Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                      {programs.length}
-                    </Typography>
-                  </Box>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Typography variant="body2" color="textSecondary">
-                      Cycles:
-                    </Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                      {Object.values(mockCycles).flat().length}
-                    </Typography>
-                  </Box>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Typography variant="body2" color="textSecondary">
-                      Objects:
-                    </Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                      46
-                    </Typography>
-                  </Box>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Typography variant="body2" sx={{ fontWeight: 600, color: 'primary.main' }}>
-                      0%
-                    </Typography>
-                  </Box>
-                </>
-              )}
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                <Typography variant="caption" color="textSecondary">
+                  Objects:
+                </Typography>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                  {projectInventoryItems.length}
+                </Typography>
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                <Typography variant="body2" sx={{ fontWeight: 600, color: 'primary.main' }}>
+                  0%
+                </Typography>
+              </Box>
             </Box>
           </Box>
-          <Box sx={{ display: 'flex', gap: 1.5 }}>
+          
+          {/* Right: Action Buttons */}
+          <Box sx={{ display: 'flex', gap: 1 }}>
             <Button
               variant="outlined"
+              size="small"
               startIcon={<GroupIcon />}
               sx={{ textTransform: 'none', fontWeight: 500 }}
             >
               People
             </Button>
             <Button
-              variant="outlined"
+              variant="contained"
+              size="small"
               startIcon={<DownloadIcon />}
               sx={{ textTransform: 'none', fontWeight: 500 }}
             >
