@@ -5,7 +5,7 @@ import { useDraggable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import { Box, useTheme } from '@mui/material';
 import { ScheduleItem } from '../../api/types';
-import ScheduleItem as ScheduleItemComponent from './ScheduleItem';
+import ScheduleItemComponent from './ScheduleItem';
 
 interface DraggableScheduleItemProps {
   item: ScheduleItem;
