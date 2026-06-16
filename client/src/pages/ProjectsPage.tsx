@@ -1848,7 +1848,7 @@ const ProjectsPage: React.FC = () => {
         }}>
           {editingInventoryItemId ? 'Edit Project Inventory Item' : 'Add Project Inventory Item'}
         </DialogTitle>
-        <DialogContent sx={{ pt: 4, maxHeight: '70vh', overflowY: 'auto', px: 3 }}>
+        <DialogContent sx={{ pt: 8, maxHeight: '70vh', overflowY: 'auto', px: 3 }}>
           <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
             <TextField
               select
