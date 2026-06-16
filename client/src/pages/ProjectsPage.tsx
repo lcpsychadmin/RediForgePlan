@@ -36,11 +36,6 @@ import MoreVertIcon from '@mui/icons-material/MoreVert';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import FolderOutlinedIcon from '@mui/icons-material/FolderOutlined';
-import CorporateFareIcon from '@mui/icons-material/CorporateFare';
-import SyncIcon from '@mui/icons-material/Sync';
-import StorageIcon from '@mui/icons-material/Storage';
-import GroupIcon from '@mui/icons-material/Group';
-import DownloadIcon from '@mui/icons-material/Download';
 import SearchIcon from '@mui/icons-material/Search';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Menu from '@mui/material/Menu';
@@ -706,74 +701,19 @@ const ProjectsPage: React.FC = () => {
   const selectedDetails = getSelectedItemDetails();
 
   return (
-    <Layout>
-      {/* Header Section - Compact Row */}
-      <Box sx={{ mb: 3 }}>
-        {/* Compact Title and Stats Row */}
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-          {/* Left: Icon, Title, and Stats */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-              <StorageIcon sx={{ fontSize: '1.5rem', color: 'primary.main' }} />
-              <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                Migration Plan
-              </Typography>
-            </Box>
-            
-            {/* Stats */}
-            <Box sx={{ display: 'flex', gap: 2.5, alignItems: 'center', borderLeft: '1px solid', borderColor: 'divider', pl: 3 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                <Typography variant="caption" color="textSecondary">
-                  Programs:
-                </Typography>
-                <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                  {programs.length}
-                </Typography>
-              </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                <Typography variant="caption" color="textSecondary">
-                  Objects:
-                </Typography>
-                <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                  {projectInventoryItems.length}
-                </Typography>
-              </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                <Typography variant="body2" sx={{ fontWeight: 600, color: 'primary.main' }}>
-                  0%
-                </Typography>
-              </Box>
-            </Box>
-          </Box>
-          
-          {/* Right: Action Buttons */}
-          <Box sx={{ display: 'flex', gap: 1 }}>
-            <Button
-              variant="outlined"
-              size="small"
-              startIcon={<GroupIcon />}
-              sx={{ textTransform: 'none', fontWeight: 500 }}
-            >
-              People
-            </Button>
-            <Button
-              variant="contained"
-              size="small"
-              startIcon={<DownloadIcon />}
-              sx={{ textTransform: 'none', fontWeight: 500 }}
-            >
-              Export CSV
-            </Button>
-          </Box>
-        </Box>
-        
-        {/* Tabs */}
+    <Layout
+      programCount={programs.length}
+      objectCount={projectInventoryItems.length}
+      completionPercentage={0}
+    >
+      {/* Tabs Section */}
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 3, maxWidth: '1200px', mx: 'auto' }}>
         <Tabs value={tabValue} onChange={(e, newValue) => setTabValue(newValue)}>
           <Tab label="Plan" icon={<Box sx={{ width: '24px', height: '24px', background: 'linear-gradient(135deg, #5B67CA 0%, #3B4DB3 100%)', borderRadius: '2px' }} />} iconPosition="start" />
           <Tab label="Inventory" />
         </Tabs>
-        <Divider sx={{ mt: 2, mb: 2 }} />
       </Box>
+      <Divider sx={{ mb: 2 }} />
 
       {/* Main Content Area */}
       <Box sx={{ display: 'flex', height: 'calc(100vh - 320px)', gap: 2, mx: -3, px: 3 }}>
