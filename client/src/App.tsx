@@ -46,6 +46,7 @@ const LogoutCallbackRegistration: React.FC = () => {
 };
 
 const AppRoutes: React.FC = () => {
+  console.log('AppRoutes component rendering');
   return (
     <Routes>
       {/* Public routes */}
