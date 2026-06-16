@@ -145,12 +145,19 @@ const ProjectsPage: React.FC = () => {
   const [inventoryObjects, setInventoryObjects] = useState<{ id: string; objectId: string; description: string; processArea: string }[]>([]);
   const [projectInventoryItems, setProjectInventoryItems] = useState<any[]>([]);
   const [inventorySearchTerm, setInventorySearchTerm] = useState('');
+  const [catalogSearchTerm, setCatalogSearchTerm] = useState('');
+  const [catalogSortColumn, setCatalogSortColumn] = useState<'objectId' | 'description'>('objectId');
+  const [catalogSortDirection, setCatalogSortDirection] = useState<'asc' | 'desc'>('asc');
   const [selectedProjectForInventory, setSelectedProjectForInventory] = useState<string | null>(null);
   const [catalogObjectDialogOpen, setCatalogObjectDialogOpen] = useState(false);
   const [catalogObjectId, setCatalogObjectId] = useState('');
   const [catalogObjectDesc, setCatalogObjectDesc] = useState('');
   const [catalogProcessArea, setCatalogProcessArea] = useState('');
   const [isCreatingCatalogObject, setIsCreatingCatalogObject] = useState(false);
+  const [editingCatalogObjectId, setEditingCatalogObjectId] = useState<string | null>(null);
+  const [deletingCatalogObjectId, setDeletingCatalogObjectId] = useState<string | null>(null);
+  const [deletingCatalogObjectName, setDeletingCatalogObjectName] = useState('');
+  const [isDeletingCatalogObject, setIsDeletingCatalogObject] = useState(false);
 
   // Project Inventory item dialog states
   const [projectInventoryDialogOpen, setProjectInventoryDialogOpen] = useState(false);
@@ -462,6 +469,55 @@ const ProjectsPage: React.FC = () => {
     } finally {
       setIsEditing(false);
     }
+  };
+
+  // Handle edit catalog object
+  const handleEditCatalogObject = (obj: any) => {
+    setEditingCatalogObjectId(obj.id);
+    setCatalogObjectId(obj.objectId);
+    setCatalogObjectDesc(obj.description);
+    setCatalogProcessArea(obj.processArea || '');
+    setCatalogObjectDialogOpen(true);
+  };
+
+  // Handle delete catalog object
+  const handleDeleteCatalogObject = (obj: any) => {
+    setDeletingCatalogObjectId(obj.id);
+    setDeletingCatalogObjectName(obj.objectId);
+  };
+
+  // Confirm delete catalog object
+  const confirmDeleteCatalogObject = async () => {
+    if (!deletingCatalogObjectId) return;
+    
+    try {
+      setIsDeletingCatalogObject(true);
+      await apiClient.delete(`/api/global-objects/${deletingCatalogObjectId}`);
+      setInventoryObjects(inventoryObjects.filter(obj => obj.id !== deletingCatalogObjectId));
+      setDeletingCatalogObjectId(null);
+      alert('Object deleted successfully');
+    } catch (error) {
+      console.error('Failed to delete:', error);
+      alert('Failed to delete object. Please try again.');
+    } finally {
+      setIsDeletingCatalogObject(false);
+    }
+  };
+
+  // Get filtered and sorted catalog objects
+  const getFilteredSortedCatalogObjects = () => {
+    let filtered = inventoryObjects.filter(obj =>
+      obj.objectId.toLowerCase().includes(catalogSearchTerm.toLowerCase()) ||
+      obj.description.toLowerCase().includes(catalogSearchTerm.toLowerCase())
+    );
+
+    filtered.sort((a, b) => {
+      const aVal = a[catalogSortColumn]?.toLowerCase() || '';
+      const bVal = b[catalogSortColumn]?.toLowerCase() || '';
+      return catalogSortDirection === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+    });
+
+    return filtered;
   };
 
   if (isLoading) {
@@ -939,38 +995,86 @@ const ProjectsPage: React.FC = () => {
 
                     {/* Catalog Table */}
                     <Box sx={{ overflowX: 'auto' }}>
+                      {/* Table Controls */}
+                      <Box sx={{ display: 'flex', gap: 2, mb: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+                        <TextField
+                          size="small"
+                          placeholder="Search by ID or description..."
+                          value={catalogSearchTerm}
+                          onChange={(e) => setCatalogSearchTerm(e.target.value)}
+                          sx={{ flex: 1, minWidth: '200px' }}
+                        />
+                        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                          <Typography variant="caption" sx={{ fontWeight: 600 }}>Sort by:</Typography>
+                          <Box
+                            component="select"
+                            value={catalogSortColumn}
+                            onChange={(e) => setCatalogSortColumn(e.target.value as 'objectId' | 'description')}
+                            sx={{
+                              p: '8px 12px',
+                              border: '1px solid',
+                              borderColor: 'divider',
+                              borderRadius: '4px',
+                              fontSize: '0.875rem',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <option value="objectId">Object ID</option>
+                            <option value="description">Description</option>
+                          </Box>
+                          <Button
+                            size="small"
+                            onClick={() => setCatalogSortDirection(catalogSortDirection === 'asc' ? 'desc' : 'asc')}
+                            sx={{ minWidth: 'auto' }}
+                          >
+                            {catalogSortDirection === 'asc' ? '↑' : '↓'}
+                          </Button>
+                        </Box>
+                      </Box>
+
+                      {/* Grid Table */}
                       <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr 120px', gap: 0, borderRadius: 1, overflow: 'hidden', border: '1px solid', borderColor: 'primary.main' }}>
                         {/* Header Row */}
-                        <Box sx={{ backgroundColor: 'primary.main', p: 1.5, fontWeight: 700, color: 'primary.contrastText', fontSize: '0.875rem', letterSpacing: '0.5px' }}>
+                        <Box sx={{ backgroundColor: 'primary.main', p: 1, fontWeight: 700, color: 'primary.contrastText', fontSize: '0.75rem', letterSpacing: '0.5px' }}>
                           OBJECT ID
                         </Box>
-                        <Box sx={{ backgroundColor: 'primary.main', p: 1.5, fontWeight: 700, color: 'primary.contrastText', fontSize: '0.875rem', letterSpacing: '0.5px' }}>
+                        <Box sx={{ backgroundColor: 'primary.main', p: 1, fontWeight: 700, color: 'primary.contrastText', fontSize: '0.75rem', letterSpacing: '0.5px' }}>
                           DESCRIPTION
                         </Box>
-                        <Box sx={{ backgroundColor: 'primary.main', p: 1.5, fontWeight: 700, color: 'primary.contrastText', fontSize: '0.875rem', letterSpacing: '0.5px', textAlign: 'center' }}>
+                        <Box sx={{ backgroundColor: 'primary.main', p: 1, fontWeight: 700, color: 'primary.contrastText', fontSize: '0.75rem', letterSpacing: '0.5px', textAlign: 'center' }}>
                           ACTIONS
                         </Box>
 
                         {/* Catalog Data Rows */}
-                        {inventoryObjects.length === 0 ? (
-                          <Box sx={{ gridColumn: '1 / -1', p: 2, textAlign: 'center', color: 'text.secondary' }}>
-                            No objects in catalog yet
+                        {getFilteredSortedCatalogObjects().length === 0 ? (
+                          <Box sx={{ gridColumn: '1 / -1', p: 2, textAlign: 'center', color: 'text.secondary', fontSize: '0.875rem' }}>
+                            {inventoryObjects.length === 0 ? 'No objects in catalog yet' : 'No results matching your search'}
                           </Box>
                         ) : (
-                          inventoryObjects.map((obj) => (
+                          getFilteredSortedCatalogObjects().map((obj) => (
                             <React.Fragment key={obj.id}>
-                              <Box sx={{ p: 1.5, borderBottom: '1px solid', borderColor: 'divider', backgroundColor: 'background.paper', fontFamily: 'monospace', fontSize: '0.9rem', color: 'primary.light' }}>
+                              <Box sx={{ p: 1, borderBottom: '1px solid', borderColor: 'divider', backgroundColor: 'background.paper', fontFamily: 'monospace', fontSize: '0.8rem', color: 'primary.light' }}>
                                 {obj.objectId}
                               </Box>
-                              <Box sx={{ p: 1.5, borderBottom: '1px solid', borderColor: 'divider', backgroundColor: 'background.paper', color: 'text.primary' }}>
+                              <Box sx={{ p: 1, borderBottom: '1px solid', borderColor: 'divider', backgroundColor: 'background.paper', color: 'text.primary', fontSize: '0.8rem' }}>
                                 {obj.description}
                               </Box>
-                              <Box sx={{ p: 1, borderBottom: '1px solid', borderColor: 'divider', backgroundColor: 'background.paper', display: 'flex', gap: 0.5, justifyContent: 'center', alignItems: 'center' }}>
-                                <IconButton size="small" sx={{ color: 'info.main', '&:hover': { backgroundColor: 'action.hover' } }} title="Edit">
-                                  <EditIcon sx={{ fontSize: '1.1rem' }} />
+                              <Box sx={{ p: 0.75, borderBottom: '1px solid', borderColor: 'divider', backgroundColor: 'background.paper', display: 'flex', gap: 0.25, justifyContent: 'center', alignItems: 'center' }}>
+                                <IconButton
+                                  size="small"
+                                  onClick={() => handleEditCatalogObject(obj)}
+                                  sx={{ color: 'info.main', '&:hover': { backgroundColor: 'action.hover' } }}
+                                  title="Edit"
+                                >
+                                  <EditIcon sx={{ fontSize: '1rem' }} />
                                 </IconButton>
-                                <IconButton size="small" sx={{ color: 'error.main', '&:hover': { backgroundColor: 'action.hover' } }} title="Delete">
-                                  <DeleteIcon sx={{ fontSize: '1.1rem' }} />
+                                <IconButton
+                                  size="small"
+                                  onClick={() => handleDeleteCatalogObject(obj)}
+                                  sx={{ color: 'error.main', '&:hover': { backgroundColor: 'action.hover' } }}
+                                  title="Delete"
+                                >
+                                  <DeleteIcon sx={{ fontSize: '1rem' }} />
                                 </IconButton>
                               </Box>
                             </React.Fragment>
@@ -1443,8 +1547,14 @@ const ProjectsPage: React.FC = () => {
       </Dialog>
 
       {/* Catalog Object Dialog */}
-      <Dialog open={catalogObjectDialogOpen} onClose={() => setCatalogObjectDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Add Object to Catalog</DialogTitle>
+      <Dialog open={catalogObjectDialogOpen} onClose={() => {
+        setCatalogObjectDialogOpen(false);
+        setEditingCatalogObjectId(null);
+        setCatalogObjectId('');
+        setCatalogObjectDesc('');
+        setCatalogProcessArea('');
+      }} maxWidth="sm" fullWidth>
+        <DialogTitle>{editingCatalogObjectId ? 'Edit Object' : 'Add Object to Catalog'}</DialogTitle>
         <DialogContent sx={{ pt: 2 }}>
           <TextField
             autoFocus
@@ -1454,6 +1564,7 @@ const ProjectsPage: React.FC = () => {
             onChange={(e) => setCatalogObjectId(e.target.value)}
             margin="normal"
             placeholder="e.g., H2R.CNV.068"
+            disabled={!!editingCatalogObjectId}
           />
           <TextField
             fullWidth
@@ -1477,6 +1588,7 @@ const ProjectsPage: React.FC = () => {
         <DialogActions>
           <Button onClick={() => {
             setCatalogObjectDialogOpen(false);
+            setEditingCatalogObjectId(null);
             setCatalogObjectId('');
             setCatalogObjectDesc('');
             setCatalogProcessArea('');
@@ -1485,15 +1597,25 @@ const ProjectsPage: React.FC = () => {
           </Button>
           <Button
             onClick={() => {
-              // TODO: Implement API call to create catalog object
-              const newObject = {
-                id: Math.random().toString(36).substr(2, 9),
-                objectId: catalogObjectId,
-                description: catalogObjectDesc,
-                processArea: catalogProcessArea,
-              };
-              setInventoryObjects([...inventoryObjects, newObject]);
+              if (editingCatalogObjectId) {
+                // Update existing object
+                setInventoryObjects(inventoryObjects.map(obj =>
+                  obj.id === editingCatalogObjectId
+                    ? { ...obj, description: catalogObjectDesc, processArea: catalogProcessArea }
+                    : obj
+                ));
+              } else {
+                // Add new object
+                const newObject = {
+                  id: Math.random().toString(36).substr(2, 9),
+                  objectId: catalogObjectId,
+                  description: catalogObjectDesc,
+                  processArea: catalogProcessArea,
+                };
+                setInventoryObjects([...inventoryObjects, newObject]);
+              }
               setCatalogObjectDialogOpen(false);
+              setEditingCatalogObjectId(null);
               setCatalogObjectId('');
               setCatalogObjectDesc('');
               setCatalogProcessArea('');
@@ -1501,7 +1623,33 @@ const ProjectsPage: React.FC = () => {
             variant="contained"
             disabled={isCreatingCatalogObject || !catalogObjectId.trim() || !catalogObjectDesc.trim()}
           >
-            {isCreatingCatalogObject ? 'Adding...' : 'Add Object'}
+            {isCreatingCatalogObject ? (editingCatalogObjectId ? 'Updating...' : 'Adding...') : (editingCatalogObjectId ? 'Update' : 'Add Object')}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete Catalog Object Confirmation Dialog */}
+      <Dialog open={!!deletingCatalogObjectId} onClose={() => setDeletingCatalogObjectId(null)} maxWidth="xs" fullWidth>
+        <DialogTitle>Delete Object</DialogTitle>
+        <DialogContent>
+          <Typography>
+            Are you sure you want to delete <strong>{deletingCatalogObjectName}</strong>?
+          </Typography>
+          <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mt: 1 }}>
+            This action cannot be undone.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeletingCatalogObjectId(null)} disabled={isDeletingCatalogObject}>
+            Cancel
+          </Button>
+          <Button
+            onClick={confirmDeleteCatalogObject}
+            variant="contained"
+            color="error"
+            disabled={isDeletingCatalogObject}
+          >
+            {isDeletingCatalogObject ? 'Deleting...' : 'Delete'}
           </Button>
         </DialogActions>
       </Dialog>
