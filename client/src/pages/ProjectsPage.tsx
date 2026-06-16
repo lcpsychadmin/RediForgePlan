@@ -1380,7 +1380,7 @@ const ProjectsPage: React.FC = () => {
             placeholder="Enter name"
             variant="outlined"
             size="small"
-            sx={{ mb: 2 }}
+            sx={{ mb: 2, mt: 3 }}
           />
           {dialogMode === 'program' && (
             <TextField
@@ -1523,6 +1523,7 @@ const ProjectsPage: React.FC = () => {
             fullWidth
             variant="outlined"
             size="small"
+            sx={{ mt: 3 }}
           />
           
           {editItemType === 'program' && (
@@ -1745,7 +1746,7 @@ const ProjectsPage: React.FC = () => {
             disabled={!!editingCatalogObjectId}
             variant="outlined"
             size="small"
-            sx={{ mb: 2 }}
+            sx={{ mb: 2, mt: 3 }}
           />
           <TextField
             fullWidth
