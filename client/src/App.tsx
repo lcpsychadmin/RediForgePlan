@@ -15,6 +15,7 @@ import MFA from './pages/MFA';
 import Home from './pages/Home';
 import AdminUsers from './pages/AdminUsers';
 import ProjectsPage from './pages/ProjectsPage';
+import SettingsPage from './pages/SettingsPage';
 import PlanPage from './pages/PlanPage';
 import InventoryPage from './pages/InventoryPage';
 import PrioritiesPage from './pages/PrioritiesPage';
@@ -80,6 +81,15 @@ const AppRoutes: React.FC = () => {
         element={
           <ProtectedRoute>
             <ProjectsPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/settings"
+        element={
+          <ProtectedRoute>
+            <SettingsPage />
           </ProtectedRoute>
         }
       />

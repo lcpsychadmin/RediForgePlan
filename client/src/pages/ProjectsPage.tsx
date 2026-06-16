@@ -127,15 +127,50 @@ const ProjectsPage: React.FC = () => {
   const [newTaskGroupName, setNewTaskGroupName] = useState('');
   const [isCreatingTaskGroup, setIsCreatingTaskGroup] = useState(false);
 
+  // Picklist constants
+  const processAreaOptions = ['A2R', 'CTRM', 'GTS', 'H2R', 'I2L', 'MDM', 'P2C', 'P2D', 'PSS', 'R2R', 'S2P', 'TM'];
+  const complexityOptions = ['1-Complex', '2-Medium', '3-Simple'];
+  const deploymentDispositionOptions = ['In Scope', 'Out of Scope', 'Pending Approval', 'Pending Confirmation'];
+  const buildTypeOptions = ['New', 'Modify'];
+  const objectTypeOptions = ['Master Data', 'Transactional', 'Document'];
+  const cutoverPhaseOptions = ['Pre-Cutover', 'Blackout', 'Post Go-Live'];
+  const ddmApproachOptions = ['Not in Scope', 'Automated', 'Manual'];
+  const riskSecurityTypeOptions = ['Standard', 'Risk & Control', 'Data Masking'];
+  const migrationTypeOptions = ['Automated', 'Manual'];
+  const factorTypeOptions = ['Conversion - Extract, Transform & Load', 'Conversion - Construct & Load', 'Conversion - Construct, Transform & Manual Load', 'Conversion - Construct, Transform & Load', 'Conversion - Extract, Transform & Manual Load', 'Manual'];
+  const loadMethodOptions = ['LTMC', 'IDOC', 'BAPI', 'LSMW', 'BODS - IDOC', 'BODS - BAPI', 'Custom ABAP Program', 'Informatica', 'Migration Cockpit', 'SAP Standard T Code', 'Manual'];
+
   // Inventory states
   const [inventorySubTab, setInventorySubTab] = useState(0);
   const [inventoryObjects, setInventoryObjects] = useState<{ id: string; objectId: string; description: string; processArea: string }[]>([]);
+  const [projectInventoryItems, setProjectInventoryItems] = useState<any[]>([]);
   const [inventorySearchTerm, setInventorySearchTerm] = useState('');
   const [catalogObjectDialogOpen, setCatalogObjectDialogOpen] = useState(false);
   const [catalogObjectId, setCatalogObjectId] = useState('');
   const [catalogObjectDesc, setCatalogObjectDesc] = useState('');
   const [catalogProcessArea, setCatalogProcessArea] = useState('');
   const [isCreatingCatalogObject, setIsCreatingCatalogObject] = useState(false);
+
+  // Project Inventory item dialog states
+  const [projectInventoryDialogOpen, setProjectInventoryDialogOpen] = useState(false);
+  const [projectInventoryItem, setProjectInventoryItem] = useState({
+    dataObjectId: '',
+    processArea: '',
+    complexity: '',
+    deploymentDisposition: '',
+    buildType: '',
+    objectType: '',
+    dra: '',
+    developer: '',
+    systemsAnalyst: '',
+    cutoverPhase: '',
+    ddmApproach: '',
+    riskSecurityType: '',
+    migrationType: '',
+    factorType: '',
+    loadMethod: '',
+  });
+  const [isCreatingProjectInventoryItem, setIsCreatingProjectInventoryItem] = useState(false);
 
   const { data: programs = [], isLoading } = useQuery({
     queryKey: ['programs'],
@@ -933,6 +968,7 @@ const ProjectsPage: React.FC = () => {
                               fontWeight: 600,
                             }}
                             startIcon={<AddIcon />}
+                            onClick={() => setProjectInventoryDialogOpen(true)}
                           >
                             Add Item
                           </Button>
@@ -950,40 +986,40 @@ const ProjectsPage: React.FC = () => {
 
                         {/* Inventory Table */}
                         <Box sx={{ overflowX: 'auto' }}>
-                          <Box sx={{ display: 'grid', gridTemplateColumns: '150px 1fr 120px 100px', gap: 0, borderRadius: 1, overflow: 'hidden', border: '1px solid', borderColor: 'divider' }}>
+                          <Box sx={{ display: 'grid', gridTemplateColumns: '150px 150px 120px 150px', gap: 0, borderRadius: 1, overflow: 'hidden', border: '1px solid', borderColor: 'divider' }}>
                             {/* Header */}
                             <Box sx={{ backgroundColor: 'background.paper', p: 1.5, fontWeight: 600, borderBottom: '1px solid', borderColor: 'divider' }}>
-                              OBJECT ID
+                              DATA OBJECT ID
                             </Box>
                             <Box sx={{ backgroundColor: 'background.paper', p: 1.5, fontWeight: 600, borderBottom: '1px solid', borderColor: 'divider' }}>
-                              DESCRIPTION
+                              PROCESS AREA
                             </Box>
                             <Box sx={{ backgroundColor: 'background.paper', p: 1.5, fontWeight: 600, borderBottom: '1px solid', borderColor: 'divider' }}>
-                              QUANTITY
+                              COMPLEXITY
                             </Box>
                             <Box sx={{ backgroundColor: 'background.paper', p: 1.5, fontWeight: 600, borderBottom: '1px solid', borderColor: 'divider' }}>
-                              STATUS
+                              DEPLOYMENT DISPOSITION
                             </Box>
 
                             {/* Inventory Data Rows */}
-                            {inventoryObjects.length === 0 ? (
+                            {projectInventoryItems.length === 0 ? (
                               <Box sx={{ gridColumn: '1 / -1', p: 2, textAlign: 'center', color: 'text.secondary' }}>
                                 No items in project inventory yet
                               </Box>
                             ) : (
-                              inventoryObjects.map((obj) => (
-                                <React.Fragment key={obj.id}>
+                              projectInventoryItems.map((item) => (
+                                <React.Fragment key={item.id}>
                                   <Box sx={{ p: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
-                                    {obj.objectId}
+                                    {item.dataObjectId}
                                   </Box>
                                   <Box sx={{ p: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
-                                    {obj.description}
+                                    {item.processArea || '—'}
                                   </Box>
                                   <Box sx={{ p: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
-                                    —
+                                    {item.complexity || '—'}
                                   </Box>
                                   <Box sx={{ p: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
-                                    —
+                                    {item.deploymentDisposition || '—'}
                                   </Box>
                                 </React.Fragment>
                               ))
@@ -1391,6 +1427,275 @@ const ProjectsPage: React.FC = () => {
             disabled={isCreatingCatalogObject || !catalogObjectId.trim() || !catalogObjectDesc.trim()}
           >
             {isCreatingCatalogObject ? 'Adding...' : 'Add Object'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Project Inventory Item Dialog */}
+      <Dialog open={projectInventoryDialogOpen} onClose={() => setProjectInventoryDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Add Project Inventory Item</DialogTitle>
+        <DialogContent sx={{ pt: 2, maxHeight: '60vh', overflowY: 'auto' }}>
+          <TextField
+            select
+            fullWidth
+            label="Data Object ID"
+            value={projectInventoryItem.dataObjectId}
+            onChange={(e) => setProjectInventoryItem({ ...projectInventoryItem, dataObjectId: e.target.value })}
+            margin="normal"
+          >
+            {inventoryObjects.map((obj) => (
+              <Box key={obj.id} component="option" value={obj.objectId}>
+                {obj.objectId}
+              </Box>
+            ))}
+          </TextField>
+
+          <TextField
+            select
+            fullWidth
+            label="Process Area"
+            value={projectInventoryItem.processArea}
+            onChange={(e) => setProjectInventoryItem({ ...projectInventoryItem, processArea: e.target.value })}
+            margin="normal"
+          >
+            {processAreaOptions.map((option) => (
+              <Box key={option} component="option" value={option}>
+                {option}
+              </Box>
+            ))}
+          </TextField>
+
+          <TextField
+            select
+            fullWidth
+            label="Complexity"
+            value={projectInventoryItem.complexity}
+            onChange={(e) => setProjectInventoryItem({ ...projectInventoryItem, complexity: e.target.value })}
+            margin="normal"
+          >
+            {complexityOptions.map((option) => (
+              <Box key={option} component="option" value={option}>
+                {option}
+              </Box>
+            ))}
+          </TextField>
+
+          <TextField
+            select
+            fullWidth
+            label="Deployment Disposition"
+            value={projectInventoryItem.deploymentDisposition}
+            onChange={(e) => setProjectInventoryItem({ ...projectInventoryItem, deploymentDisposition: e.target.value })}
+            margin="normal"
+          >
+            {deploymentDispositionOptions.map((option) => (
+              <Box key={option} component="option" value={option}>
+                {option}
+              </Box>
+            ))}
+          </TextField>
+
+          <TextField
+            select
+            fullWidth
+            label="Build Type"
+            value={projectInventoryItem.buildType}
+            onChange={(e) => setProjectInventoryItem({ ...projectInventoryItem, buildType: e.target.value })}
+            margin="normal"
+          >
+            {buildTypeOptions.map((option) => (
+              <Box key={option} component="option" value={option}>
+                {option}
+              </Box>
+            ))}
+          </TextField>
+
+          <TextField
+            select
+            fullWidth
+            label="Object Type"
+            value={projectInventoryItem.objectType}
+            onChange={(e) => setProjectInventoryItem({ ...projectInventoryItem, objectType: e.target.value })}
+            margin="normal"
+          >
+            {objectTypeOptions.map((option) => (
+              <Box key={option} component="option" value={option}>
+                {option}
+              </Box>
+            ))}
+          </TextField>
+
+          <TextField
+            fullWidth
+            label="DRA (Person)"
+            value={projectInventoryItem.dra}
+            onChange={(e) => setProjectInventoryItem({ ...projectInventoryItem, dra: e.target.value })}
+            margin="normal"
+            placeholder="Enter person name"
+          />
+
+          <TextField
+            fullWidth
+            label="Developer (Person)"
+            value={projectInventoryItem.developer}
+            onChange={(e) => setProjectInventoryItem({ ...projectInventoryItem, developer: e.target.value })}
+            margin="normal"
+            placeholder="Enter person name"
+          />
+
+          <TextField
+            fullWidth
+            label="Systems Analyst (Person)"
+            value={projectInventoryItem.systemsAnalyst}
+            onChange={(e) => setProjectInventoryItem({ ...projectInventoryItem, systemsAnalyst: e.target.value })}
+            margin="normal"
+            placeholder="Enter person name"
+          />
+
+          <TextField
+            select
+            fullWidth
+            label="Cutover Phase"
+            value={projectInventoryItem.cutoverPhase}
+            onChange={(e) => setProjectInventoryItem({ ...projectInventoryItem, cutoverPhase: e.target.value })}
+            margin="normal"
+          >
+            {cutoverPhaseOptions.map((option) => (
+              <Box key={option} component="option" value={option}>
+                {option}
+              </Box>
+            ))}
+          </TextField>
+
+          <TextField
+            select
+            fullWidth
+            label="DDM Approach"
+            value={projectInventoryItem.ddmApproach}
+            onChange={(e) => setProjectInventoryItem({ ...projectInventoryItem, ddmApproach: e.target.value })}
+            margin="normal"
+          >
+            {ddmApproachOptions.map((option) => (
+              <Box key={option} component="option" value={option}>
+                {option}
+              </Box>
+            ))}
+          </TextField>
+
+          <TextField
+            select
+            fullWidth
+            label="Risk/Security Type"
+            value={projectInventoryItem.riskSecurityType}
+            onChange={(e) => setProjectInventoryItem({ ...projectInventoryItem, riskSecurityType: e.target.value })}
+            margin="normal"
+          >
+            {riskSecurityTypeOptions.map((option) => (
+              <Box key={option} component="option" value={option}>
+                {option}
+              </Box>
+            ))}
+          </TextField>
+
+          <TextField
+            select
+            fullWidth
+            label="Migration Type"
+            value={projectInventoryItem.migrationType}
+            onChange={(e) => setProjectInventoryItem({ ...projectInventoryItem, migrationType: e.target.value })}
+            margin="normal"
+          >
+            {migrationTypeOptions.map((option) => (
+              <Box key={option} component="option" value={option}>
+                {option}
+              </Box>
+            ))}
+          </TextField>
+
+          <TextField
+            select
+            fullWidth
+            label="Factor Type"
+            value={projectInventoryItem.factorType}
+            onChange={(e) => setProjectInventoryItem({ ...projectInventoryItem, factorType: e.target.value })}
+            margin="normal"
+          >
+            {factorTypeOptions.map((option) => (
+              <Box key={option} component="option" value={option}>
+                {option}
+              </Box>
+            ))}
+          </TextField>
+
+          <TextField
+            select
+            fullWidth
+            label="Load Method"
+            value={projectInventoryItem.loadMethod}
+            onChange={(e) => setProjectInventoryItem({ ...projectInventoryItem, loadMethod: e.target.value })}
+            margin="normal"
+          >
+            {loadMethodOptions.map((option) => (
+              <Box key={option} component="option" value={option}>
+                {option}
+              </Box>
+            ))}
+          </TextField>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => {
+            setProjectInventoryDialogOpen(false);
+            setProjectInventoryItem({
+              dataObjectId: '',
+              processArea: '',
+              complexity: '',
+              deploymentDisposition: '',
+              buildType: '',
+              objectType: '',
+              dra: '',
+              developer: '',
+              systemsAnalyst: '',
+              cutoverPhase: '',
+              ddmApproach: '',
+              riskSecurityType: '',
+              migrationType: '',
+              factorType: '',
+              loadMethod: '',
+            });
+          }}>
+            Cancel
+          </Button>
+          <Button
+            onClick={() => {
+              // TODO: Implement API call to create project inventory item
+              const newItem = {
+                id: Math.random().toString(36).substr(2, 9),
+                ...projectInventoryItem,
+              };
+              setProjectInventoryItems([...projectInventoryItems, newItem]);
+              setProjectInventoryDialogOpen(false);
+              setProjectInventoryItem({
+                dataObjectId: '',
+                processArea: '',
+                complexity: '',
+                deploymentDisposition: '',
+                buildType: '',
+                objectType: '',
+                dra: '',
+                developer: '',
+                systemsAnalyst: '',
+                cutoverPhase: '',
+                ddmApproach: '',
+                riskSecurityType: '',
+                migrationType: '',
+                factorType: '',
+                loadMethod: '',
+              });
+            }}
+            variant="contained"
+            disabled={isCreatingProjectInventoryItem || !projectInventoryItem.dataObjectId.trim()}
+          >
+            {isCreatingProjectInventoryItem ? 'Adding...' : 'Add Item'}
           </Button>
         </DialogActions>
       </Dialog>

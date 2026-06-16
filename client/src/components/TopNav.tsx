@@ -4,6 +4,7 @@ import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import LogoutIcon from '@mui/icons-material/Logout';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import FolderOpenIcon from '@mui/icons-material/FolderOpen';
+import SettingsIcon from '@mui/icons-material/Settings';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -81,6 +82,15 @@ const TopNav: React.FC<TopNavProps> = ({ onMenuClick }) => {
             >
               <FolderOpenIcon fontSize="small" />
               <Typography variant="body2">Projects</Typography>
+            </MenuItem>
+
+            <MenuItem
+              onClick={() => handleNavigate('/settings')}
+              selected={isActive('/settings')}
+              sx={{ display: 'flex', gap: 1 }}
+            >
+              <SettingsIcon fontSize="small" />
+              <Typography variant="body2">Settings</Typography>
             </MenuItem>
 
             {/* Admin Section */}
