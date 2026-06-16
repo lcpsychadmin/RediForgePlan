@@ -85,6 +85,7 @@ CREATE TABLE projects (
   start_date DATE NOT NULL,
   end_date DATE NOT NULL,
   accent_color VARCHAR(7),
+  progress_percentage INTEGER DEFAULT 0 CHECK (progress_percentage >= 0 AND progress_percentage <= 100),
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT valid_date_range CHECK (start_date <= end_date)

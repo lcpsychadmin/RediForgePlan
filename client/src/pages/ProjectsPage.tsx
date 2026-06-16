@@ -22,6 +22,7 @@ import {
   Divider,
   Paper,
   MenuItem,
+  Slider,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
@@ -57,6 +58,7 @@ interface Project {
   startDate?: string;
   endDate?: string;
   accentColor?: string;
+  progressPercentage?: number;
 }
 
 type SelectableItem = { type: 'program'; id: string } | { type: 'cycle'; id: string; programId: string } | { type: 'project'; id: string; cycleId: string };
@@ -103,6 +105,7 @@ const ProjectsPage: React.FC = () => {
   const [editStartDate, setEditStartDate] = useState('');
   const [editEndDate, setEditEndDate] = useState('');
   const [editAccentColor, setEditAccentColor] = useState('');
+  const [editProgressPercentage, setEditProgressPercentage] = useState(0);
   const [isEditing, setIsEditing] = useState(false);
 
   const { data: programs = [], isLoading } = useQuery({
@@ -331,6 +334,7 @@ const ProjectsPage: React.FC = () => {
           setEditStartDate(project.startDate || '');
           setEditEndDate(project.endDate || '');
           setEditAccentColor(project.accentColor || '');
+          setEditProgressPercentage(project.progressPercentage || 0);
           break;
         }
       }
@@ -361,6 +365,7 @@ const ProjectsPage: React.FC = () => {
           startDate: editStartDate,
           endDate: editEndDate,
           accentColor: editAccentColor,
+          progressPercentage: editProgressPercentage,
         });
       }
 
@@ -534,7 +539,7 @@ const ProjectsPage: React.FC = () => {
                                     >
                                       <FolderIcon sx={{ fontSize: '1.2rem', color: project.accentColor || '#90caf9', flexShrink: 0 }} />
                                       <Typography variant="caption" sx={{ noWrap: true }}>
-                                        {project.name}
+                                        {project.name} {project.progressPercentage || 0}%
                                       </Typography>
                                     </Box>
                                     <IconButton
@@ -633,6 +638,29 @@ const ProjectsPage: React.FC = () => {
                           border: '1px solid #ddd',
                         }}
                       />
+                    </Box>
+                    <Box sx={{ mb: 2 }}>
+                      <Typography variant="body2" color="textSecondary" sx={{ mb: 0.5 }}>
+                        Progress: {(selectedDetails as Project).progressPercentage || 0}%
+                      </Typography>
+                      <Box
+                        sx={{
+                          width: '100%',
+                          height: '8px',
+                          backgroundColor: '#e0e0e0',
+                          borderRadius: '4px',
+                          overflow: 'hidden',
+                        }}
+                      >
+                        <Box
+                          sx={{
+                            height: '100%',
+                            width: `${(selectedDetails as Project).progressPercentage || 0}%`,
+                            backgroundColor: (selectedDetails as Project).accentColor || '#90caf9',
+                            transition: 'width 0.3s ease',
+                          }}
+                        />
+                      </Box>
                     </Box>
                     <Button
                       variant="contained"
@@ -877,6 +905,19 @@ const ProjectsPage: React.FC = () => {
                     }}
                   />
                 )}
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <Typography variant="body2" sx={{ minWidth: '100px' }}>
+                  Progress: {editProgressPercentage}%
+                </Typography>
+                <Slider
+                  value={editProgressPercentage}
+                  onChange={(e, newValue) => setEditProgressPercentage(newValue as number)}
+                  min={0}
+                  max={100}
+                  step={1}
+                  sx={{ flex: 1 }}
+                />
               </Box>
             </>
           )}

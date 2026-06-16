@@ -6,7 +6,7 @@ import db from '../db.js';
 export class ProjectService {
   async getProjectsByMockCycle(mockCycleId: string) {
     const result = await db.query(
-      'SELECT id, mock_cycle_id, name, description, start_date, end_date, accent_color, created_at, updated_at FROM projects WHERE mock_cycle_id = $1 ORDER BY start_date DESC',
+      'SELECT id, mock_cycle_id, name, description, start_date, end_date, accent_color, progress_percentage, created_at, updated_at FROM projects WHERE mock_cycle_id = $1 ORDER BY start_date DESC',
       [mockCycleId]
     );
     return result.rows.map(row => this.formatProject(row));
@@ -14,22 +14,22 @@ export class ProjectService {
 
   async getProjectById(projectId: string) {
     const result = await db.query(
-      'SELECT id, mock_cycle_id, name, description, start_date, end_date, accent_color, created_at, updated_at FROM projects WHERE id = $1',
+      'SELECT id, mock_cycle_id, name, description, start_date, end_date, accent_color, progress_percentage, created_at, updated_at FROM projects WHERE id = $1',
       [projectId]
     );
     if (result.rows.length === 0) return null;
     return this.formatProject(result.rows[0]);
   }
 
-  async createProject(mockCycleId: string, name: string, description: string | undefined, startDate: string, endDate: string, accentColor?: string) {
+  async createProject(mockCycleId: string, name: string, description: string | undefined, startDate: string, endDate: string, accentColor?: string, progressPercentage?: number) {
     const result = await db.query(
-      'INSERT INTO projects (mock_cycle_id, name, description, start_date, end_date, accent_color) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, mock_cycle_id, name, description, start_date, end_date, accent_color, created_at, updated_at',
-      [mockCycleId, name, description || null, startDate, endDate, accentColor || null]
+      'INSERT INTO projects (mock_cycle_id, name, description, start_date, end_date, accent_color, progress_percentage) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, mock_cycle_id, name, description, start_date, end_date, accent_color, progress_percentage, created_at, updated_at',
+      [mockCycleId, name, description || null, startDate, endDate, accentColor || null, progressPercentage || 0]
     );
     return this.formatProject(result.rows[0]);
   }
 
-  async updateProject(projectId: string, data: { name?: string; description?: string; startDate?: string; endDate?: string; accentColor?: string }) {
+  async updateProject(projectId: string, data: { name?: string; description?: string; startDate?: string; endDate?: string; accentColor?: string; progressPercentage?: number }) {
     const fields: string[] = [];
     const values: any[] = [projectId];
     let paramCount = 2;
@@ -49,6 +49,11 @@ export class ProjectService {
       values.push(data.accentColor || null);
       paramCount++;
     }
+    if (data.progressPercentage !== undefined) {
+      fields.push(`progress_percentage = $${paramCount}`);
+      values.push(data.progressPercentage);
+      paramCount++;
+    }
     if (data.startDate !== undefined) {
       fields.push(`start_date = $${paramCount}`);
       values.push(data.startDate);
@@ -65,7 +70,7 @@ export class ProjectService {
     fields.push(`updated_at = CURRENT_TIMESTAMP`);
 
     const result = await db.query(
-      `UPDATE projects SET ${fields.join(', ')} WHERE id = $1 RETURNING id, mock_cycle_id, name, description, start_date, end_date, accent_color, created_at, updated_at`,
+      `UPDATE projects SET ${fields.join(', ')} WHERE id = $1 RETURNING id, mock_cycle_id, name, description, start_date, end_date, accent_color, progress_percentage, created_at, updated_at`,
       values
     );
 
@@ -137,6 +142,7 @@ export class ProjectService {
       startDate: row.start_date,
       endDate: row.end_date,
       accentColor: row.accent_color,
+      progressPercentage: row.progress_percentage || 0,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };
