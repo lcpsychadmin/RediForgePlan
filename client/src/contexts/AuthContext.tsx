@@ -64,6 +64,22 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       const response = await apiClient.post('/auth/login', { email, password });
 
+      // If MFA is not required and token is provided, log in directly
+      if (!response.data.mfaRequired && response.data.token) {
+        // Store JWT token
+        localStorage.setItem('authToken', response.data.token);
+
+        // Update API client default header
+        apiClient.defaults.headers.common['Authorization'] = `Bearer ${response.data.token}`;
+
+        // Set user
+        setUser(response.data.user);
+
+        return {
+          requiresMFA: false,
+        };
+      }
+
       // Store userId temporarily for MFA verification
       if (response.data.userId) {
         sessionStorage.setItem('pendingMFAUserId', response.data.userId);

@@ -29,6 +29,9 @@ const LoginForm: React.FC = () => {
       if (result.requiresMFA) {
         // Redirect to MFA verification
         navigate('/mfa', { state: { userId: result.userId } });
+      } else {
+        // No MFA required, redirect to dashboard
+        navigate('/');
       }
     } catch (err: any) {
       setFormError(err.response?.data?.error || 'Login failed');
