@@ -1642,45 +1642,56 @@ const ProjectsPage: React.FC = () => {
 
       {/* Data Object Dialog */}
       <Dialog open={dataObjectDialogOpen} onClose={() => setDataObjectDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Add Data Object</DialogTitle>
+        <DialogTitle sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', pb: 2 }}>
+          Add Data Object to Plan
+        </DialogTitle>
         <DialogContent sx={{ pt: 2 }}>
           <TextField
+            select
             autoFocus
             fullWidth
-            label="Object ID"
+            label="Select Object from Inventory"
             value={newDataObjectId}
             onChange={(e) => setNewDataObjectId(e.target.value)}
             margin="normal"
-            placeholder="e.g., H2R.CNV.068"
-          />
-          <TextField
-            fullWidth
-            label="Object Name"
-            value={newDataObjectName}
-            onChange={(e) => setNewDataObjectName(e.target.value)}
-            margin="normal"
-            placeholder="e.g., EC (Employee): Position"
-          />
+            helperText="Only objects in this project's inventory are available"
+            variant="outlined"
+            size="small"
+          >
+            {projectInventoryItems.length > 0 ? (
+              projectInventoryItems.map((item) => (
+                <MenuItem key={item.id} value={item.objectId}>
+                  {item.objectId} {item.processArea && `(${item.processArea})`}
+                </MenuItem>
+              ))
+            ) : (
+              <MenuItem disabled>No objects in project inventory</MenuItem>
+            )}
+          </TextField>
         </DialogContent>
-        <DialogActions>
+        <DialogActions sx={{ gap: 1, p: 2, borderTop: '1px solid', borderColor: 'divider' }}>
           <Button onClick={() => {
             setDataObjectDialogOpen(false);
             setNewDataObjectId('');
             setNewDataObjectName('');
-          }}>
+          }}
+          sx={{ textTransform: 'none' }}>
             Cancel
           </Button>
           <Button
             onClick={() => {
-              // TODO: Implement API call to create data object
+              if (selectedItem?.type === 'project') {
+                // TODO: Add selected object to project plan
+              }
               setDataObjectDialogOpen(false);
               setNewDataObjectId('');
               setNewDataObjectName('');
             }}
             variant="contained"
-            disabled={isCreatingDataObject || !newDataObjectId.trim() || !newDataObjectName.trim()}
+            disabled={isCreatingDataObject || !newDataObjectId.trim()}
+            sx={{ textTransform: 'none' }}
           >
-            {isCreatingDataObject ? 'Creating...' : 'Create'}
+            {isCreatingDataObject ? 'Adding...' : 'Add to Plan'}
           </Button>
         </DialogActions>
       </Dialog>
@@ -1902,37 +1913,12 @@ const ProjectsPage: React.FC = () => {
               disabled={editingInventoryItemId !== null}
               variant="outlined"
               size="small"
-              helperText="Only objects matching this project's scope are available"
             >
-              {(() => {
-                // Find the program for the current project
-                let projectProgram = null;
-                for (const programId in mockCycles) {
-                  const cycles = mockCycles[programId];
-                  for (const cycle of cycles) {
-                    const project = projectsByMockCycle[cycle.id]?.find(p => p.id === selectedProjectForInventory);
-                    if (project) {
-                      projectProgram = programs.find(pr => pr.id === programId);
-                      break;
-                    }
-                  }
-                  if (projectProgram) break;
-                }
-                
-                // Filter objects to only show those in scope (matching the program name or processArea)
-                const inScopeObjects = projectProgram 
-                  ? inventoryObjects.filter(obj => {
-                      // Match objects where processArea matches program name, or allow all if program name is generic
-                      return !obj.processArea || obj.processArea === projectProgram.name || obj.processArea.includes(projectProgram.name);
-                    })
-                  : inventoryObjects;
-                
-                return inScopeObjects.map((obj) => (
-                  <MenuItem key={obj.id} value={obj.objectId}>
-                    {obj.objectId} {obj.processArea && `(${obj.processArea})`}
-                  </MenuItem>
-                ));
-              })()}
+              {inventoryObjects.map((obj) => (
+                <MenuItem key={obj.id} value={obj.objectId}>
+                  {obj.objectId}
+                </MenuItem>
+              ))}
             </TextField>
 
             <TextField
