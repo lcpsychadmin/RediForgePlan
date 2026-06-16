@@ -94,12 +94,14 @@ const ProjectsPage: React.FC = () => {
   
   // Context menu states
   const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
-  const [menuType, setMenuType] = useState<'program' | 'cycle' | 'project' | null>(null);
+  const [menuType, setMenuType] = useState<'program' | 'cycle' | 'project' | 'task' | 'taskGroup' | null>(null);
   const [menuItemId, setMenuItemId] = useState<string | null>(null);
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [editingTaskGroupId, setEditingTaskGroupId] = useState<string | null>(null);
   
   // Delete confirmation dialog states
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [deleteItemType, setDeleteItemType] = useState<'program' | 'cycle' | 'project' | null>(null);
+  const [deleteItemType, setDeleteItemType] = useState<'program' | 'cycle' | 'project' | 'task' | 'taskGroup' | null>(null);
   const [deleteItemId, setDeleteItemId] = useState<string | null>(null);
   const [deleteItemName, setDeleteItemName] = useState('');
   const [deleteChildrenCount, setDeleteChildrenCount] = useState(0);
@@ -107,7 +109,7 @@ const ProjectsPage: React.FC = () => {
 
   // Edit dialog states
   const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [editItemType, setEditItemType] = useState<'program' | 'cycle' | 'project' | null>(null);
+  const [editItemType, setEditItemType] = useState<'program' | 'cycle' | 'project' | 'task' | 'taskGroup' | null>(null);
   const [editItemId, setEditItemId] = useState<string | null>(null);
   const [editItemName, setEditItemName] = useState('');
   const [editItemDesc, setEditItemDesc] = useState('');
@@ -425,9 +427,11 @@ const ProjectsPage: React.FC = () => {
     return { cycles, projects };
   };
 
-  const openDeleteDialog = (type: 'program' | 'cycle' | 'project', itemId: string, itemName: string) => {
-    const childrenCount = getChildrenCount(type, itemId);
-    const descendants = getTotalDescendants(type, itemId);
+  const openDeleteDialog = (type: 'program' | 'cycle' | 'project' | 'task' | 'taskGroup', itemId: string, itemName: string) => {
+    let childrenCount = 0;
+    if (type === 'program' || type === 'cycle' || type === 'project') {
+      childrenCount = getChildrenCount(type, itemId);
+    }
     
     setDeleteItemType(type);
     setDeleteItemId(itemId);
@@ -448,12 +452,30 @@ const ProjectsPage: React.FC = () => {
         await apiClient.delete(`/api/mock-cycles/${deleteItemId}`);
       } else if (deleteItemType === 'project') {
         await apiClient.delete(`/api/projects/${deleteItemId}`);
+      } else if (deleteItemType === 'task') {
+        // For tasks, need to find the task and delete by task ID
+        const task = projectTasks.find(t => t.projectObjectId === deleteItemId);
+        if (task) {
+          await apiClient.delete(`/api/tasks/${task.id}`);
+        }
+      } else if (deleteItemType === 'taskGroup') {
+        await apiClient.delete(`/api/tasks/groups/${deleteItemId}`);
       }
       
       // Invalidate queries
       queryClient.invalidateQueries({ queryKey: ['programs'] });
       queryClient.invalidateQueries({ queryKey: ['mockCycles'] });
       queryClient.invalidateQueries({ queryKey: ['projectsByMockCycle'] });
+      
+      // Reload tasks if we deleted a task or task group
+      if (activeProjectId && (deleteItemType === 'task' || deleteItemType === 'taskGroup')) {
+        const [tasksRes, groupsRes] = await Promise.all([
+          apiClient.get(`/api/tasks/project/${activeProjectId}`),
+          apiClient.get(`/api/tasks/groups/project/${activeProjectId}`),
+        ]);
+        setProjectTasks(tasksRes.data.data || []);
+        setProjectTaskGroups(groupsRes.data.data || []);
+      }
       
       // Clear selection if we deleted the selected item
       if (selectedItem?.id === deleteItemId) {
@@ -1048,28 +1070,23 @@ const ProjectsPage: React.FC = () => {
                           </Button>
                         </Box>
 
-                        {/* Objects with Tasks Display */}
+                        {/* Combined Task Display */}
                         <Box sx={{ mt: 3 }}>
-                          <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>Data Objects in Plan ({projectInventoryItems.filter(obj => projectTasks.some(t => t.projectObjectId === obj.id)).length})</Typography>
-                          {projectTasks.length === 0 ? (
+                          {projectTasks.length === 0 && projectTaskGroups.length === 0 ? (
                             <Alert severity="info">No tasks added to plan yet</Alert>
                           ) : (
                             <Box sx={{
                               display: 'grid',
                               gridTemplateColumns: '1fr',
                               gap: 1.5,
-                              border: '1px solid',
-                              borderColor: 'primary.main',
-                              borderRadius: 1,
-                              p: 2,
-                              backgroundColor: 'rgba(103, 58, 183, 0.05)',
                             }}>
+                              {/* Data Objects */}
                               {Array.from(new Set(projectTasks.map(t => t.projectObjectId))).map((objectId) => {
                                 const tasksForObject = projectTasks.filter(t => t.projectObjectId === objectId);
                                 const objectName = projectInventoryItems.find(obj => obj.id === objectId)?.objectId || 'Unknown Object';
                                 const isExpanded = expandedObjects.has(objectId || '');
                                 return (
-                                  <Box key={objectId} sx={{
+                                  <Box key={`obj-${objectId}`} sx={{
                                     border: '1px solid',
                                     borderColor: 'divider',
                                     borderRadius: 1,
@@ -1099,7 +1116,17 @@ const ProjectsPage: React.FC = () => {
                                         <Typography variant="body2" sx={{ fontWeight: 600 }}>{objectName}</Typography>
                                         <Typography variant="caption" color="textSecondary">{tasksForObject.length} task{tasksForObject.length !== 1 ? 's' : ''}</Typography>
                                       </Box>
-                                      {isExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                                      <IconButton
+                                        size="small"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setMenuAnchorEl(e.currentTarget);
+                                          setMenuType('task');
+                                          setMenuItemId(objectId || '');
+                                        }}
+                                      >
+                                        <MoreVertIcon fontSize="small" />
+                                      </IconButton>
                                     </Box>
                                     {isExpanded && (
                                       <Box sx={{ p: 2, pt: 0, borderTop: '1px solid', borderColor: 'divider' }}>
@@ -1120,29 +1147,13 @@ const ProjectsPage: React.FC = () => {
                                   </Box>
                                 );
                               })}
-                            </Box>
-                          )}
-                        </Box>
-
-                        {/* Task Groups Display */}
-                        {projectTaskGroups.length > 0 && (
-                          <Box sx={{ mt: 3 }}>
-                            <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>Task Groups ({projectTaskGroups.length})</Typography>
-                            <Box sx={{
-                              display: 'grid',
-                              gridTemplateColumns: '1fr',
-                              gap: 1.5,
-                              border: '1px solid',
-                              borderColor: 'info.main',
-                              borderRadius: 1,
-                              p: 2,
-                              backgroundColor: 'rgba(33, 150, 243, 0.05)',
-                            }}>
+                              
+                              {/* Task Groups */}
                               {projectTaskGroups.map((group) => {
                                 const isExpanded = expandedTaskGroups.has(group.id);
                                 const groupTasks = projectTasks.filter(t => t.taskGroupId === group.id);
                                 return (
-                                  <Box key={group.id} sx={{
+                                  <Box key={`group-${group.id}`} sx={{
                                     border: '1px solid',
                                     borderColor: 'divider',
                                     borderRadius: 1,
@@ -1172,7 +1183,17 @@ const ProjectsPage: React.FC = () => {
                                         <Typography variant="body2" sx={{ fontWeight: 600 }}>{group.name}</Typography>
                                         <Typography variant="caption" color="textSecondary">{groupTasks.length} task{groupTasks.length !== 1 ? 's' : ''}</Typography>
                                       </Box>
-                                      {isExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                                      <IconButton
+                                        size="small"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setMenuAnchorEl(e.currentTarget);
+                                          setMenuType('taskGroup');
+                                          setMenuItemId(group.id);
+                                        }}
+                                      >
+                                        <MoreVertIcon fontSize="small" />
+                                      </IconButton>
                                     </Box>
                                     {isExpanded && (
                                       <Box sx={{ p: 2, pt: 0, borderTop: '1px solid', borderColor: 'divider' }}>
@@ -1198,8 +1219,8 @@ const ProjectsPage: React.FC = () => {
                                 );
                               })}
                             </Box>
-                          </Box>
-                        )}
+                          )}
+                        </Box>
                       </>
                     )}
                   </CardContent>
@@ -1610,7 +1631,17 @@ const ProjectsPage: React.FC = () => {
         <MenuItem
           onClick={() => {
             if (!menuItemId || !menuType) return;
-            openEditDialog(menuType, menuItemId);
+            if (menuType === 'task' || menuType === 'taskGroup') {
+              // For tasks and task groups, open edit dialog
+              if (menuType === 'task') {
+                setEditingTaskId(menuItemId);
+              } else {
+                setEditingTaskGroupId(menuItemId);
+              }
+            } else {
+              openEditDialog(menuType, menuItemId);
+            }
+            setMenuAnchorEl(null);
           }}
         >
           <EditIcon fontSize="small" sx={{ mr: 1 }} /> Edit
@@ -1639,6 +1670,12 @@ const ProjectsPage: React.FC = () => {
                   break;
                 }
               }
+            } else if (menuType === 'task') {
+              const task = projectTasks.find(t => t.projectObjectId === menuItemId);
+              itemName = task?.name || 'Unknown Task';
+            } else if (menuType === 'taskGroup') {
+              const group = projectTaskGroups.find(g => g.id === menuItemId);
+              itemName = group?.name || 'Unknown Group';
             }
             
             openDeleteDialog(menuType, menuItemId, itemName);
