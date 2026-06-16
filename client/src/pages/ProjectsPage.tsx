@@ -716,8 +716,9 @@ const ProjectsPage: React.FC = () => {
             width: '280px',
             overflowY: 'auto',
             flexShrink: 0,
-            backgroundColor: 'rgba(255, 255, 255, 0.03)',
+            backgroundColor: 'transparent',
             borderRight: '1px solid rgba(255, 255, 255, 0.08)',
+            boxShadow: 'none',
             borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
             borderTop: 'none',
             borderLeft: 'none',
@@ -910,7 +911,7 @@ const ProjectsPage: React.FC = () => {
                                       variant="text"
                                       startIcon={<AddIcon sx={{ fontSize: '0.85rem !important' }} />}
                                       onClick={() => openCreateDialog('project', undefined, cycle.id)}
-                                      sx={{ fontSize: '0.72rem', height: 26, mt: 0.25, color: 'text.secondary', textTransform: 'none', pl: 1 }}
+                                      sx={{ fontSize: '0.72rem', height: 26, mt: 0.25, color: 'text.disabled', textTransform: 'none', pl: 1, '&:hover': { color: 'primary.light' } }}
                                     >
                                       Add Project
                                     </Button>
@@ -926,7 +927,7 @@ const ProjectsPage: React.FC = () => {
                             variant="text"
                             startIcon={<AddIcon sx={{ fontSize: '0.85rem !important' }} />}
                             onClick={() => openCreateDialog('cycle', program.id)}
-                            sx={{ fontSize: '0.72rem', height: 26, mt: 0.25, color: 'text.secondary', textTransform: 'none', pl: 1 }}
+                            sx={{ fontSize: '0.72rem', height: 26, mt: 0.25, color: 'text.disabled', textTransform: 'none', pl: 1, '&:hover': { color: 'primary.light' } }}
                           >
                             Add Mock Cycle
                           </Button>
