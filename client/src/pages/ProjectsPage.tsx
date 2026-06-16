@@ -1902,12 +1902,37 @@ const ProjectsPage: React.FC = () => {
               disabled={editingInventoryItemId !== null}
               variant="outlined"
               size="small"
+              helperText="Only objects matching this project's scope are available"
             >
-              {inventoryObjects.map((obj) => (
-                <MenuItem key={obj.id} value={obj.objectId}>
-                  {obj.objectId}
-                </MenuItem>
-              ))}
+              {(() => {
+                // Find the program for the current project
+                let projectProgram = null;
+                for (const programId in mockCycles) {
+                  const cycles = mockCycles[programId];
+                  for (const cycle of cycles) {
+                    const project = projectsByMockCycle[cycle.id]?.find(p => p.id === selectedProjectForInventory);
+                    if (project) {
+                      projectProgram = programs.find(pr => pr.id === programId);
+                      break;
+                    }
+                  }
+                  if (projectProgram) break;
+                }
+                
+                // Filter objects to only show those in scope (matching the program name or processArea)
+                const inScopeObjects = projectProgram 
+                  ? inventoryObjects.filter(obj => {
+                      // Match objects where processArea matches program name, or allow all if program name is generic
+                      return !obj.processArea || obj.processArea === projectProgram.name || obj.processArea.includes(projectProgram.name);
+                    })
+                  : inventoryObjects;
+                
+                return inScopeObjects.map((obj) => (
+                  <MenuItem key={obj.id} value={obj.objectId}>
+                    {obj.objectId} {obj.processArea && `(${obj.processArea})`}
+                  </MenuItem>
+                ));
+              })()}
             </TextField>
 
             <TextField
