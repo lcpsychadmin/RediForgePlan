@@ -249,16 +249,19 @@ const ProjectsPage: React.FC = () => {
     },
   });
 
+  // Get the active project ID from either inventory tab or plan tab selection
+  const activeProjectId = selectedItem?.type === 'project' ? selectedItem.id : selectedProjectForInventory;
+
   // Fetch project inventory items when a project is selected
   useEffect(() => {
     const loadProjectInventory = async () => {
-      if (!selectedProjectForInventory) {
+      if (!activeProjectId) {
         setProjectInventoryItems([]);
         return;
       }
 
       try {
-        const response = await apiClient.get(`/api/project-objects/project/${selectedProjectForInventory}`);
+        const response = await apiClient.get(`/api/project-objects/project/${activeProjectId}`);
         const items = response.data.data || [];
         setProjectInventoryItems(items.map((item: any) => ({
           id: item.id,
@@ -285,7 +288,7 @@ const ProjectsPage: React.FC = () => {
     };
 
     loadProjectInventory();
-  }, [selectedProjectForInventory]);
+  }, [activeProjectId]);
 
   const handleCreateItem = async () => {
     if (!newItemName.trim()) {
@@ -1680,8 +1683,13 @@ const ProjectsPage: React.FC = () => {
           </Button>
           <Button
             onClick={async () => {
-              if (selectedItem?.type !== 'project' || !selectedProjectForInventory) {
+              if (selectedItem?.type !== 'project') {
                 alert('Please select a project first');
+                return;
+              }
+
+              if (!activeProjectId) {
+                alert('Project ID not found');
                 return;
               }
 
@@ -1696,7 +1704,7 @@ const ProjectsPage: React.FC = () => {
                 }
 
                 // Create a task for this object
-                const response = await apiClient.post(`/api/tasks/project/${selectedProjectForInventory}`, {
+                const response = await apiClient.post(`/api/tasks/project/${activeProjectId}`, {
                   taskType: 'custom',
                   projectObjectId: inventoryItem.globalObjectId,
                   name: newDataObjectId,
@@ -1750,15 +1758,20 @@ const ProjectsPage: React.FC = () => {
           </Button>
           <Button
             onClick={async () => {
-              if (selectedItem?.type !== 'project' || !selectedProjectForInventory) {
+              if (selectedItem?.type !== 'project') {
                 alert('Please select a project first');
+                return;
+              }
+
+              if (!activeProjectId) {
+                alert('Project ID not found');
                 return;
               }
 
               try {
                 setIsCreatingTaskGroup(true);
                 
-                const response = await apiClient.post(`/api/tasks/groups/project/${selectedProjectForInventory}`, {
+                const response = await apiClient.post(`/api/tasks/groups/project/${activeProjectId}`, {
                   name: newTaskGroupName,
                 });
 
