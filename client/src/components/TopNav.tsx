@@ -244,6 +244,7 @@ const TopNav: React.FC<TopNavProps> = ({
             alignItems: 'center',
             gap: 0.5,
             px: 2,
+            pt: 1,
             pb: 1,
             borderTop: '1px solid rgba(255, 255, 255, 0.08)',
           }}

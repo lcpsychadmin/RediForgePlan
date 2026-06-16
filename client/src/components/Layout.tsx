@@ -37,7 +37,7 @@ const Layout: React.FC<LayoutProps> = ({
       <Box
         component="main"
         sx={{
-          mt: isProjectsPage ? '112px' : '64px',
+          mt: isProjectsPage ? '120px' : '64px',
           flex: 1,
           p: 3,
           overflow: 'auto',
