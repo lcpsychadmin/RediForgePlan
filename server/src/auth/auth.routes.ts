@@ -9,6 +9,8 @@ import {
   enableMFA,
 } from './auth.controller.js';
 import { requireAuth, requireRole } from '../middleware/authMiddleware.js';
+import { query } from '../db.js';
+import { hashPassword } from './auth.service.js';
 
 const router = express.Router();
 
@@ -24,8 +26,6 @@ router.post('/mfa/setup', setupMFA);
  */
 router.post('/seed', async (req, res) => {
   try {
-    const { query } = require('../db.js');
-    
     // Check if any users exist
     const result = await query('SELECT COUNT(*) FROM users');
     const userCount = parseInt(result.rows[0].count);
@@ -34,8 +34,7 @@ router.post('/seed', async (req, res) => {
       return res.status(400).json({ error: 'Users already exist - seed aborted' });
     }
     
-    // Create default admin user - delete and recreate
-    const { hashPassword } = await import('./auth.service.js');
+    // Create default admin user
     const hashedPassword = await hashPassword('password');
     
     // Insert admin user
@@ -62,7 +61,7 @@ router.post('/seed', async (req, res) => {
       ]
     });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: (error as any).message });
   }
 });
 
