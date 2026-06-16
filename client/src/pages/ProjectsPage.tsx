@@ -17,10 +17,17 @@ import {
   ListItemButton,
   Stack,
   Chip,
+  Button,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
 } from '@mui/material';
+import AddIcon from '@mui/icons-material/Add';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../api/client';
 import Layout from '../components/Layout';
@@ -49,8 +56,13 @@ interface Project {
 
 const ProjectsPage: React.FC = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [expandedProgram, setExpandedProgram] = useState<string | null>(null);
   const [expandedCycle, setExpandedCycle] = useState<string | null>(null);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [newProgramName, setNewProgramName] = useState('');
+  const [newProgramDesc, setNewProgramDesc] = useState('');
+  const [isCreating, setIsCreating] = useState(false);
 
   const { data: programs = [], isLoading } = useQuery({
     queryKey: ['programs'],
@@ -99,6 +111,34 @@ const ProjectsPage: React.FC = () => {
     enabled: Object.keys(mockCycles).length > 0,
   });
 
+  const handleCreateProgram = async () => {
+    if (!newProgramName.trim()) {
+      alert('Program name is required');
+      return;
+    }
+
+    try {
+      setIsCreating(true);
+      await apiClient.post('/api/programs', {
+        name: newProgramName,
+        description: newProgramDesc,
+      });
+
+      // Refresh programs list
+      queryClient.invalidateQueries({ queryKey: ['programs'] });
+
+      // Reset form
+      setNewProgramName('');
+      setNewProgramDesc('');
+      setCreateDialogOpen(false);
+    } catch (error) {
+      console.error('Failed to create program:', error);
+      alert('Failed to create program. Please try again.');
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
   const handleProjectClick = (programId: string, mockCycleId: string, projectId: string) => {
     navigate(`/programs/${programId}/mock-cycles/${mockCycleId}/projects/${projectId}/plan`);
   };
@@ -116,8 +156,18 @@ const ProjectsPage: React.FC = () => {
   return (
     <Layout>
       <Box sx={{ py: 3 }}>
-        <Typography variant="h4" component="h1" sx={{ mb: 3 }}>
-          Projects
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+          <Typography variant="h4" component="h1">
+            Projects
+          </Typography>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={() => setCreateDialogOpen(true)}
+          >
+            New Program
+          </Button>
+        </Box>
         </Typography>
 
         {programs.length === 0 ? (
@@ -227,6 +277,42 @@ const ProjectsPage: React.FC = () => {
             ))}
           </Grid>
         )}
+
+        {/* Create Program Dialog */}
+        <Dialog open={createDialogOpen} onClose={() => setCreateDialogOpen(false)} maxWidth="sm" fullWidth>
+          <DialogTitle>Create New Program</DialogTitle>
+          <DialogContent sx={{ pt: 2 }}>
+            <TextField
+              autoFocus
+              fullWidth
+              label="Program Name"
+              value={newProgramName}
+              onChange={(e) => setNewProgramName(e.target.value)}
+              margin="normal"
+              placeholder="e.g., Q4 2026 Planning"
+            />
+            <TextField
+              fullWidth
+              label="Description"
+              value={newProgramDesc}
+              onChange={(e) => setNewProgramDesc(e.target.value)}
+              margin="normal"
+              multiline
+              rows={3}
+              placeholder="Optional description of the program"
+            />
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setCreateDialogOpen(false)}>Cancel</Button>
+            <Button 
+              onClick={handleCreateProgram} 
+              variant="contained"
+              disabled={isCreating || !newProgramName.trim()}
+            >
+              {isCreating ? 'Creating...' : 'Create'}
+            </Button>
+          </DialogActions>
+        </Dialog>
       </Box>
     </Layout>
   );

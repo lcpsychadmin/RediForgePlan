@@ -97,8 +97,8 @@ const Sidebar: React.FC<{ open: boolean; onClose: () => void }> = ({ open, onClo
   return (
     <Drawer
       anchor="left"
-      open={open}
-      onClose={onClose}
+      variant="permanent"
+      open={true}
       sx={{
         width: DRAWER_WIDTH,
         flexShrink: 0,
@@ -108,6 +108,10 @@ const Sidebar: React.FC<{ open: boolean; onClose: () => void }> = ({ open, onClo
           backgroundColor: palette.background.paper,
           borderRight: `1px solid ${palette.divider}`,
           backgroundImage: 'none',
+          position: 'fixed',
+          height: '100vh',
+          mt: '64px',
+          top: 64,
         },
       }}
     >
