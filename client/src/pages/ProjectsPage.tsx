@@ -855,8 +855,8 @@ const ProjectsPage: React.FC = () => {
           {/* Inventory Tab Content - Always Shows */}
           {tabValue === 1 && (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  {/* Inventory Sub-Tabs */}
-                  <Box sx={{ display: 'flex', gap: 1, overflow: 'visible' }}>
+              {/* Inventory Sub-Tabs */}
+              <Box sx={{ display: 'flex', gap: 1, overflow: 'visible' }}>
                     <Button
                       variant={inventorySubTab === 0 ? 'contained' : 'outlined'}
                       onClick={() => setInventorySubTab(0)}
@@ -889,198 +889,198 @@ const ProjectsPage: React.FC = () => {
                     </Button>
                   </Box>
 
-                  {/* Object Catalog Sub-Tab */}
-                  {inventorySubTab === 0 && (
-                    <Card>
-                      <CardContent>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-                          <Typography variant="h6">
-                            Object Catalog
-                          </Typography>
-                          <Button
-                            variant="contained"
-                            sx={{
-                              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                              textTransform: 'none',
-                              fontWeight: 600,
-                            }}
-                            startIcon={<AddIcon />}
-                            onClick={() => setCatalogObjectDialogOpen(true)}
-                          >
-                            Add Object
-                          </Button>
+              {/* Object Catalog Sub-Tab */}
+              {inventorySubTab === 0 && (
+                <Card>
+                  <CardContent>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+                      <Typography variant="h6">
+                        Object Catalog
+                      </Typography>
+                      <Button
+                        variant="contained"
+                        sx={{
+                          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                          textTransform: 'none',
+                          fontWeight: 600,
+                        }}
+                        startIcon={<AddIcon />}
+                        onClick={() => setCatalogObjectDialogOpen(true)}
+                      >
+                        Add Object
+                      </Button>
+                    </Box>
+                    
+                    {/* Search Bar */}
+                    <TextField
+                      fullWidth
+                      placeholder="Search catalog..."
+                      size="small"
+                      value={inventorySearchTerm}
+                      onChange={(e) => setInventorySearchTerm(e.target.value)}
+                      sx={{ mb: 2 }}
+                    />
+
+                    {/* Catalog Table */}
+                    <Box sx={{ overflowX: 'auto' }}>
+                      <Box sx={{ display: 'grid', gridTemplateColumns: '150px 1fr', gap: 0, borderRadius: 1, overflow: 'hidden', border: '1px solid', borderColor: 'divider' }}>
+                        {/* Header */}
+                        <Box sx={{ backgroundColor: 'background.paper', p: 1.5, fontWeight: 600, borderBottom: '1px solid', borderColor: 'divider' }}>
+                          OBJECT ID
                         </Box>
-                        
-                        {/* Search Bar */}
-                        <TextField
-                          fullWidth
-                          placeholder="Search catalog..."
-                          size="small"
-                          value={inventorySearchTerm}
-                          onChange={(e) => setInventorySearchTerm(e.target.value)}
-                          sx={{ mb: 2 }}
-                        />
+                        <Box sx={{ backgroundColor: 'background.paper', p: 1.5, fontWeight: 600, borderBottom: '1px solid', borderColor: 'divider' }}>
+                          DESCRIPTION
+                        </Box>
 
-                        {/* Catalog Table */}
-                        <Box sx={{ overflowX: 'auto' }}>
-                          <Box sx={{ display: 'grid', gridTemplateColumns: '150px 1fr', gap: 0, borderRadius: 1, overflow: 'hidden', border: '1px solid', borderColor: 'divider' }}>
-                            {/* Header */}
-                            <Box sx={{ backgroundColor: 'background.paper', p: 1.5, fontWeight: 600, borderBottom: '1px solid', borderColor: 'divider' }}>
-                              OBJECT ID
-                            </Box>
-                            <Box sx={{ backgroundColor: 'background.paper', p: 1.5, fontWeight: 600, borderBottom: '1px solid', borderColor: 'divider' }}>
-                              DESCRIPTION
-                            </Box>
-
-                            {/* Catalog Data Rows */}
-                            {inventoryObjects.length === 0 ? (
-                              <Box sx={{ gridColumn: '1 / -1', p: 2, textAlign: 'center', color: 'text.secondary' }}>
-                                No objects in catalog yet
+                        {/* Catalog Data Rows */}
+                        {inventoryObjects.length === 0 ? (
+                          <Box sx={{ gridColumn: '1 / -1', p: 2, textAlign: 'center', color: 'text.secondary' }}>
+                            No objects in catalog yet
+                          </Box>
+                        ) : (
+                          inventoryObjects.map((obj) => (
+                            <React.Fragment key={obj.id}>
+                              <Box sx={{ p: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
+                                {obj.objectId}
                               </Box>
-                            ) : (
-                              inventoryObjects.map((obj) => (
-                                <React.Fragment key={obj.id}>
-                                  <Box sx={{ p: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
-                                    {obj.objectId}
-                                  </Box>
-                                  <Box sx={{ p: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
-                                    {obj.description}
-                                  </Box>
-                                </React.Fragment>
-                              ))
-                            )}
-                          </Box>
-                        </Box>
-                      </CardContent>
-                    </Card>
-                  )}
-
-                  {/* Project Inventory Sub-Tab */}
-                  {inventorySubTab === 1 && (
-                    <Card>
-                      <CardContent>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-                          <Typography variant="h6">
-                            Project Inventory
-                          </Typography>
-                          <Button
-                            variant="contained"
-                            sx={{
-                              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                              textTransform: 'none',
-                              fontWeight: 600,
-                            }}
-                            startIcon={<AddIcon />}
-                            onClick={() => setProjectInventoryDialogOpen(true)}
-                            disabled={!selectedProjectForInventory}
-                          >
-                            Add to Inventory
-                          </Button>
-                        </Box>
-
-                        {/* Project Selector Chips */}
-                        <Box sx={{ mb: 3 }}>
-                          <Typography variant="subtitle2" sx={{ mb: 1.5, color: 'text.secondary' }}>
-                            Select a project:
-                          </Typography>
-                          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                            {mockCycles.length === 0 ? (
-                              <Typography variant="caption" color="textSecondary">
-                                No projects available
-                              </Typography>
-                            ) : (
-                              mockCycles.flatMap((cycle: MockCycle) => {
-                                const cycleProjects = projectsByMockCycle[cycle.id] || [];
-                                return cycleProjects.map((project: Project) => (
-                                  <Box
-                                    key={project.id}
-                                    component="button"
-                                    onClick={() => setSelectedProjectForInventory(project.id)}
-                                    sx={{
-                                      px: 2,
-                                      py: 1,
-                                      borderRadius: '24px',
-                                      border: selectedProjectForInventory === project.id ? '2px solid' : '1px solid',
-                                      borderColor: selectedProjectForInventory === project.id ? 'primary.main' : 'divider',
-                                      backgroundColor: selectedProjectForInventory === project.id ? 'primary.lighter' : 'background.paper',
-                                      cursor: 'pointer',
-                                      textTransform: 'none',
-                                      fontWeight: selectedProjectForInventory === project.id ? 600 : 500,
-                                      fontSize: '0.875rem',
-                                      transition: 'all 0.2s',
-                                      '&:hover': {
-                                        borderColor: 'primary.main',
-                                        backgroundColor: 'primary.lighter',
-                                      },
-                                    }}
-                                  >
-                                    {project.name}
-                                  </Box>
-                                ));
-                              })
-                            )}
-                          </Box>
-                        </Box>
-                        
-                        {/* Search Bar */}
-                        <TextField
-                          fullWidth
-                          placeholder="Search inventory..."
-                          size="small"
-                          value={inventorySearchTerm}
-                          onChange={(e) => setInventorySearchTerm(e.target.value)}
-                          sx={{ mb: 2 }}
-                        />
-
-                        {/* Inventory Table */}
-                        <Box sx={{ overflowX: 'auto' }}>
-                          <Box sx={{ display: 'grid', gridTemplateColumns: '150px 150px 120px 150px', gap: 0, borderRadius: 1, overflow: 'hidden', border: '1px solid', borderColor: 'divider' }}>
-                            {/* Header */}
-                            <Box sx={{ backgroundColor: 'background.paper', p: 1.5, fontWeight: 600, borderBottom: '1px solid', borderColor: 'divider' }}>
-                              DATA OBJECT ID
-                            </Box>
-                            <Box sx={{ backgroundColor: 'background.paper', p: 1.5, fontWeight: 600, borderBottom: '1px solid', borderColor: 'divider' }}>
-                              PROCESS AREA
-                            </Box>
-                            <Box sx={{ backgroundColor: 'background.paper', p: 1.5, fontWeight: 600, borderBottom: '1px solid', borderColor: 'divider' }}>
-                              COMPLEXITY
-                            </Box>
-                            <Box sx={{ backgroundColor: 'background.paper', p: 1.5, fontWeight: 600, borderBottom: '1px solid', borderColor: 'divider' }}>
-                              DEPLOYMENT DISPOSITION
-                            </Box>
-
-                            {/* Inventory Data Rows */}
-                            {projectInventoryItems.length === 0 ? (
-                              <Box sx={{ gridColumn: '1 / -1', p: 2, textAlign: 'center', color: 'text.secondary' }}>
-                                No items in project inventory yet
+                              <Box sx={{ p: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
+                                {obj.description}
                               </Box>
-                            ) : (
-                              projectInventoryItems.map((item) => (
-                                <React.Fragment key={item.id}>
-                                  <Box sx={{ p: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
-                                    {item.dataObjectId}
-                                  </Box>
-                                  <Box sx={{ p: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
-                                    {item.processArea || '—'}
-                                  </Box>
-                                  <Box sx={{ p: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
-                                    {item.complexity || '—'}
-                                  </Box>
-                                  <Box sx={{ p: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
-                                    {item.deploymentDisposition || '—'}
-                                  </Box>
-                                </React.Fragment>
-                              ))
-                            )}
-                          </Box>
+                            </React.Fragment>
+                          ))
+                        )}
+                      </Box>
+                    </Box>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Project Inventory Sub-Tab */}
+              {inventorySubTab === 1 && (
+                <Card>
+                  <CardContent>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+                      <Typography variant="h6">
+                        Project Inventory
+                      </Typography>
+                      <Button
+                        variant="contained"
+                        sx={{
+                          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                          textTransform: 'none',
+                          fontWeight: 600,
+                        }}
+                        startIcon={<AddIcon />}
+                        onClick={() => setProjectInventoryDialogOpen(true)}
+                        disabled={!selectedProjectForInventory}
+                      >
+                        Add to Inventory
+                      </Button>
+                    </Box>
+
+                    {/* Project Selector Chips */}
+                    <Box sx={{ mb: 3 }}>
+                      <Typography variant="subtitle2" sx={{ mb: 1.5, color: 'text.secondary' }}>
+                        Select a project:
+                      </Typography>
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                        {mockCycles.length === 0 ? (
+                          <Typography variant="caption" color="textSecondary">
+                            No projects available
+                          </Typography>
+                        ) : (
+                          mockCycles.flatMap((cycle: MockCycle) => {
+                            const cycleProjects = projectsByMockCycle[cycle.id] || [];
+                            return cycleProjects.map((project: Project) => (
+                              <Box
+                                key={project.id}
+                                component="button"
+                                onClick={() => setSelectedProjectForInventory(project.id)}
+                                sx={{
+                                  px: 2,
+                                  py: 1,
+                                  borderRadius: '24px',
+                                  border: selectedProjectForInventory === project.id ? '2px solid' : '1px solid',
+                                  borderColor: selectedProjectForInventory === project.id ? 'primary.main' : 'divider',
+                                  backgroundColor: selectedProjectForInventory === project.id ? 'primary.lighter' : 'background.paper',
+                                  cursor: 'pointer',
+                                  textTransform: 'none',
+                                  fontWeight: selectedProjectForInventory === project.id ? 600 : 500,
+                                  fontSize: '0.875rem',
+                                  transition: 'all 0.2s',
+                                  '&:hover': {
+                                    borderColor: 'primary.main',
+                                    backgroundColor: 'primary.lighter',
+                                  },
+                                }}
+                              >
+                                {project.name}
+                              </Box>
+                            ));
+                          })
+                        )}
+                      </Box>
+                    </Box>
+                    
+                    {/* Search Bar */}
+                    <TextField
+                      fullWidth
+                      placeholder="Search inventory..."
+                      size="small"
+                      value={inventorySearchTerm}
+                      onChange={(e) => setInventorySearchTerm(e.target.value)}
+                      sx={{ mb: 2 }}
+                    />
+
+                    {/* Inventory Table */}
+                    <Box sx={{ overflowX: 'auto' }}>
+                      <Box sx={{ display: 'grid', gridTemplateColumns: '150px 150px 120px 150px', gap: 0, borderRadius: 1, overflow: 'hidden', border: '1px solid', borderColor: 'divider' }}>
+                        {/* Header */}
+                        <Box sx={{ backgroundColor: 'background.paper', p: 1.5, fontWeight: 600, borderBottom: '1px solid', borderColor: 'divider' }}>
+                          DATA OBJECT ID
                         </Box>
-                      </CardContent>
-                    </Card>
-                  )}
-                </Box>
+                        <Box sx={{ backgroundColor: 'background.paper', p: 1.5, fontWeight: 600, borderBottom: '1px solid', borderColor: 'divider' }}>
+                          PROCESS AREA
+                        </Box>
+                        <Box sx={{ backgroundColor: 'background.paper', p: 1.5, fontWeight: 600, borderBottom: '1px solid', borderColor: 'divider' }}>
+                          COMPLEXITY
+                        </Box>
+                        <Box sx={{ backgroundColor: 'background.paper', p: 1.5, fontWeight: 600, borderBottom: '1px solid', borderColor: 'divider' }}>
+                          DEPLOYMENT DISPOSITION
+                        </Box>
+
+                        {/* Inventory Data Rows */}
+                        {projectInventoryItems.length === 0 ? (
+                          <Box sx={{ gridColumn: '1 / -1', p: 2, textAlign: 'center', color: 'text.secondary' }}>
+                            No items in project inventory yet
+                          </Box>
+                        ) : (
+                          projectInventoryItems.map((item) => (
+                            <React.Fragment key={item.id}>
+                              <Box sx={{ p: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
+                                {item.dataObjectId}
+                              </Box>
+                              <Box sx={{ p: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
+                                {item.processArea || '—'}
+                              </Box>
+                              <Box sx={{ p: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
+                                {item.complexity || '—'}
+                              </Box>
+                              <Box sx={{ p: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
+                                {item.deploymentDisposition || '—'}
+                              </Box>
+                            </React.Fragment>
+                          ))
+                        )}
+                      </Box>
+                    </Box>
+                  </CardContent>
+                </Card>
               )}
             </Box>
-          </Box>
+          )}
+        </Box>
+      </Box>
 
       {/* Create Item Dialog */}
       <Dialog open={createDialogOpen} onClose={() => setCreateDialogOpen(false)} maxWidth="sm" fullWidth>
