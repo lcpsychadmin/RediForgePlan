@@ -116,6 +116,17 @@ const ProjectsPage: React.FC = () => {
   const [editProgressPercentage, setEditProgressPercentage] = useState(0);
   const [isEditing, setIsEditing] = useState(false);
 
+  // Data object dialog states
+  const [dataObjectDialogOpen, setDataObjectDialogOpen] = useState(false);
+  const [newDataObjectName, setNewDataObjectName] = useState('');
+  const [newDataObjectId, setNewDataObjectId] = useState('');
+  const [isCreatingDataObject, setIsCreatingDataObject] = useState(false);
+
+  // Task group dialog states
+  const [taskGroupDialogOpen, setTaskGroupDialogOpen] = useState(false);
+  const [newTaskGroupName, setNewTaskGroupName] = useState('');
+  const [isCreatingTaskGroup, setIsCreatingTaskGroup] = useState(false);
+
   const { data: programs = [], isLoading } = useQuery({
     queryKey: ['programs'],
     queryFn: async () => {
@@ -713,6 +724,7 @@ const ProjectsPage: React.FC = () => {
                       <Button
                         variant="contained"
                         startIcon={<AddIcon />}
+                        onClick={() => setDataObjectDialogOpen(true)}
                         sx={{
                           background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                           textTransform: 'none',
@@ -724,6 +736,7 @@ const ProjectsPage: React.FC = () => {
                       <Button
                         variant="outlined"
                         startIcon={<AddIcon />}
+                        onClick={() => setTaskGroupDialogOpen(true)}
                         sx={{
                           textTransform: 'none',
                           fontWeight: 600,
@@ -770,22 +783,6 @@ const ProjectsPage: React.FC = () => {
                         />
                       </Box>
                     </Box>
-                    <Button
-                      variant="contained"
-                      onClick={() => {
-                        const item = selectedItem as Extract<SelectableItem, { type: 'project' }>;
-                        // Find the cycle's program ID
-                        for (const progId in mockCycles) {
-                          const cycle = mockCycles[progId]?.find(c => c.id === item.cycleId);
-                          if (cycle) {
-                            navigate(`/programs/${progId}/mock-cycles/${item.cycleId}/projects/${item.id}/plan`);
-                            break;
-                          }
-                        }
-                      }}
-                    >
-                      Open Planning View
-                    </Button>
                   </>
                 )}
               </CardContent>
@@ -1041,6 +1038,86 @@ const ProjectsPage: React.FC = () => {
             disabled={isEditing}
           >
             {isEditing ? 'Saving...' : 'Save'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Data Object Dialog */}
+      <Dialog open={dataObjectDialogOpen} onClose={() => setDataObjectDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Add Data Object</DialogTitle>
+        <DialogContent sx={{ pt: 2 }}>
+          <TextField
+            autoFocus
+            fullWidth
+            label="Object ID"
+            value={newDataObjectId}
+            onChange={(e) => setNewDataObjectId(e.target.value)}
+            margin="normal"
+            placeholder="e.g., H2R.CNV.068"
+          />
+          <TextField
+            fullWidth
+            label="Object Name"
+            value={newDataObjectName}
+            onChange={(e) => setNewDataObjectName(e.target.value)}
+            margin="normal"
+            placeholder="e.g., EC (Employee): Position"
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => {
+            setDataObjectDialogOpen(false);
+            setNewDataObjectId('');
+            setNewDataObjectName('');
+          }}>
+            Cancel
+          </Button>
+          <Button
+            onClick={() => {
+              // TODO: Implement API call to create data object
+              setDataObjectDialogOpen(false);
+              setNewDataObjectId('');
+              setNewDataObjectName('');
+            }}
+            variant="contained"
+            disabled={isCreatingDataObject || !newDataObjectId.trim() || !newDataObjectName.trim()}
+          >
+            {isCreatingDataObject ? 'Creating...' : 'Create'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Task Group Dialog */}
+      <Dialog open={taskGroupDialogOpen} onClose={() => setTaskGroupDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Add Task Group</DialogTitle>
+        <DialogContent sx={{ pt: 2 }}>
+          <TextField
+            autoFocus
+            fullWidth
+            label="Task Group Name"
+            value={newTaskGroupName}
+            onChange={(e) => setNewTaskGroupName(e.target.value)}
+            margin="normal"
+            placeholder="e.g., Data Validation Tasks"
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => {
+            setTaskGroupDialogOpen(false);
+            setNewTaskGroupName('');
+          }}>
+            Cancel
+          </Button>
+          <Button
+            onClick={() => {
+              // TODO: Implement API call to create task group
+              setTaskGroupDialogOpen(false);
+              setNewTaskGroupName('');
+            }}
+            variant="contained"
+            disabled={isCreatingTaskGroup || !newTaskGroupName.trim()}
+          >
+            {isCreatingTaskGroup ? 'Creating...' : 'Create'}
           </Button>
         </DialogActions>
       </Dialog>
