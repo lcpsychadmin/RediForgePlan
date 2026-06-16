@@ -854,7 +854,7 @@ const ProjectsPage: React.FC = () => {
 
           {/* Inventory Tab Content - Always Shows */}
           {tabValue === 1 && (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, p: 2 }}>
               {/* Inventory Sub-Tabs */}
               <Box sx={{ display: 'flex', gap: 1, overflow: 'visible' }}>
                 <Button
@@ -891,8 +891,8 @@ const ProjectsPage: React.FC = () => {
 
               {/* Object Catalog Sub-Tab */}
               {inventorySubTab === 0 && (
-                <Card>
-                  <CardContent>
+                <Card sx={{ backgroundColor: 'background.paper' }}>
+                  <CardContent sx={{ p: 2 }}>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
                       <Typography variant="h6">
                         Object Catalog
@@ -957,8 +957,8 @@ const ProjectsPage: React.FC = () => {
 
               {/* Project Inventory Sub-Tab */}
               {inventorySubTab === 1 && (
-                <Card>
-                  <CardContent>
+                <Card sx={{ backgroundColor: 'background.paper' }}>
+                  <CardContent sx={{ p: 2 }}>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
                       <Typography variant="h6">
                         Project Inventory
