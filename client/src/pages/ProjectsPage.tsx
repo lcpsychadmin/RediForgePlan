@@ -708,6 +708,31 @@ const ProjectsPage: React.FC = () => {
                 
                 {selectedItem.type === 'project' && (
                   <>
+                    {/* Action Buttons */}
+                    <Box sx={{ display: 'flex', gap: 1.5, mb: 3 }}>
+                      <Button
+                        variant="contained"
+                        startIcon={<AddIcon />}
+                        sx={{
+                          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                          textTransform: 'none',
+                          fontWeight: 600,
+                        }}
+                      >
+                        Add Data Object
+                      </Button>
+                      <Button
+                        variant="outlined"
+                        startIcon={<AddIcon />}
+                        sx={{
+                          textTransform: 'none',
+                          fontWeight: 600,
+                        }}
+                      >
+                        Add Task Group
+                      </Button>
+                    </Box>
+
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
                       <Typography variant="body2" color="textSecondary">
                         Color:
