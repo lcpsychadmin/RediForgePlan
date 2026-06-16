@@ -83,6 +83,14 @@ const ProjectsPage: React.FC = () => {
   const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
   const [menuType, setMenuType] = useState<'program' | 'cycle' | 'project' | null>(null);
   const [menuItemId, setMenuItemId] = useState<string | null>(null);
+  
+  // Delete confirmation dialog states
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteItemType, setDeleteItemType] = useState<'program' | 'cycle' | 'project' | null>(null);
+  const [deleteItemId, setDeleteItemId] = useState<string | null>(null);
+  const [deleteItemName, setDeleteItemName] = useState('');
+  const [deleteChildrenCount, setDeleteChildrenCount] = useState(0);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const { data: programs = [], isLoading } = useQuery({
     queryKey: ['programs'],
@@ -202,6 +210,76 @@ const ProjectsPage: React.FC = () => {
     setNewItemName('');
     setNewItemDesc('');
     setCreateDialogOpen(true);
+  };
+
+  const getChildrenCount = (type: 'program' | 'cycle' | 'project', itemId: string): number => {
+    if (type === 'program') {
+      return mockCycles[itemId]?.length ?? 0;
+    } else if (type === 'cycle') {
+      return projectsByMockCycle[itemId]?.length ?? 0;
+    }
+    return 0;
+  };
+
+  const getTotalDescendants = (type: 'program' | 'cycle' | 'project', itemId: string): { cycles: number; projects: number } => {
+    let cycles = 0;
+    let projects = 0;
+    
+    if (type === 'program') {
+      const cycleList = mockCycles[itemId] ?? [];
+      cycles = cycleList.length;
+      cycleList.forEach(cycle => {
+        projects += projectsByMockCycle[cycle.id]?.length ?? 0;
+      });
+    } else if (type === 'cycle') {
+      projects = projectsByMockCycle[itemId]?.length ?? 0;
+    }
+    
+    return { cycles, projects };
+  };
+
+  const openDeleteDialog = (type: 'program' | 'cycle' | 'project', itemId: string, itemName: string) => {
+    const childrenCount = getChildrenCount(type, itemId);
+    const descendants = getTotalDescendants(type, itemId);
+    
+    setDeleteItemType(type);
+    setDeleteItemId(itemId);
+    setDeleteItemName(itemName);
+    setDeleteChildrenCount(childrenCount);
+    setDeleteDialogOpen(true);
+    setMenuAnchorEl(null);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteItemId || !deleteItemType) return;
+
+    try {
+      setIsDeleting(true);
+      if (deleteItemType === 'program') {
+        await apiClient.delete(`/api/programs/${deleteItemId}`);
+      } else if (deleteItemType === 'cycle') {
+        await apiClient.delete(`/api/mock-cycles/${deleteItemId}`);
+      } else if (deleteItemType === 'project') {
+        await apiClient.delete(`/api/projects/${deleteItemId}`);
+      }
+      
+      // Invalidate queries
+      queryClient.invalidateQueries({ queryKey: ['programs'] });
+      queryClient.invalidateQueries({ queryKey: ['mockCycles'] });
+      queryClient.invalidateQueries({ queryKey: ['projectsByMockCycle'] });
+      
+      // Clear selection if we deleted the selected item
+      if (selectedItem?.id === deleteItemId) {
+        setSelectedItem(null);
+      }
+      
+      setDeleteDialogOpen(false);
+    } catch (error) {
+      console.error('Failed to delete:', error);
+      alert('Failed to delete. Please try again.');
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   if (isLoading) {
@@ -519,40 +597,85 @@ const ProjectsPage: React.FC = () => {
           <EditIcon fontSize="small" sx={{ mr: 1 }} /> Edit
         </MenuItem>
         <MenuItem
-          onClick={async () => {
+          onClick={() => {
             if (!menuItemId || !menuType) return;
-            if (!confirm(`Delete this ${menuType}?`)) return;
-
-            try {
-              if (menuType === 'program') {
-                await apiClient.delete(`/api/programs/${menuItemId}`);
-              } else if (menuType === 'cycle') {
-                await apiClient.delete(`/api/mock-cycles/${menuItemId}`);
-              } else if (menuType === 'project') {
-                await apiClient.delete(`/api/projects/${menuItemId}`);
+            
+            // Get the item name for the dialog
+            let itemName = '';
+            if (menuType === 'program') {
+              itemName = programs.find(p => p.id === menuItemId)?.name || '';
+            } else if (menuType === 'cycle') {
+              for (const progId in mockCycles) {
+                const cycle = mockCycles[progId]?.find(c => c.id === menuItemId);
+                if (cycle) {
+                  itemName = cycle.name;
+                  break;
+                }
               }
-              
-              // Invalidate queries
-              queryClient.invalidateQueries({ queryKey: ['programs'] });
-              queryClient.invalidateQueries({ queryKey: ['mockCycles'] });
-              queryClient.invalidateQueries({ queryKey: ['projectsByMockCycle'] });
-              
-              // Clear selection if we deleted the selected item
-              if (selectedItem?.id === menuItemId) {
-                setSelectedItem(null);
+            } else if (menuType === 'project') {
+              for (const cycleId in projectsByMockCycle) {
+                const project = projectsByMockCycle[cycleId]?.find(p => p.id === menuItemId);
+                if (project) {
+                  itemName = project.name;
+                  break;
+                }
               }
-              
-              setMenuAnchorEl(null);
-            } catch (error) {
-              console.error('Failed to delete:', error);
-              alert('Failed to delete. Please try again.');
             }
+            
+            openDeleteDialog(menuType, menuItemId, itemName);
           }}
           sx={{ color: 'error.main' }}
         >
           <DeleteIcon fontSize="small" sx={{ mr: 1 }} /> Delete
         </MenuItem>
       </Menu>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ color: 'error.main', fontWeight: 'bold' }}>
+          Delete {deleteItemType}?
+        </DialogTitle>
+        <DialogContent sx={{ pt: 2 }}>
+          <Typography variant="body1" sx={{ mb: 2 }}>
+            Are you sure you want to delete <strong>{deleteItemName}</strong>?
+          </Typography>
+          
+          {deleteChildrenCount > 0 && (
+            <Alert severity="warning" sx={{ mb: 2 }}>
+              <Typography variant="body2" sx={{ mb: 1 }}>
+                <strong>Warning: This action will cascade delete all child items:</strong>
+              </Typography>
+              {deleteItemType === 'program' && (
+                <Typography variant="body2">
+                  • All {deleteChildrenCount} Mock Cycle(s) and their projects will be permanently deleted
+                </Typography>
+              )}
+              {deleteItemType === 'cycle' && (
+                <Typography variant="body2">
+                  • All {deleteChildrenCount} Project(s) will be permanently deleted
+                </Typography>
+              )}
+            </Alert>
+          )}
+          
+          <Typography variant="body2" color="textSecondary">
+            This action cannot be undone.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteDialogOpen(false)} disabled={isDeleting}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleDeleteConfirm}
+            variant="contained"
+            color="error"
+            disabled={isDeleting}
+          >
+            {isDeleting ? 'Deleting...' : 'Delete'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Layout>
   );
 };
