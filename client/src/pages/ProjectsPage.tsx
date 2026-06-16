@@ -2119,7 +2119,7 @@ const ProjectsPage: React.FC = () => {
 
                 if (editingInventoryItemId) {
                   // Update existing item
-                  await apiClient.put(`/api/project-objects/${editingInventoryItemId}`, {
+                  await apiClient.patch(`/api/project-objects/${editingInventoryItemId}`, {
                     complexity: projectInventoryItem.complexity || null,
                     deploymentDisposition: projectInventoryItem.deploymentDisposition || null,
                     buildType: projectInventoryItem.buildType || null,
