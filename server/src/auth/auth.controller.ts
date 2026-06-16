@@ -41,6 +41,21 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
+    // If MFA is disabled, bypass MFA and issue token directly
+    if (!user.mfa_enabled) {
+      const token = createJWT(user.id, user.email, user.role);
+      await storeSession(user.id, token.token);
+      return res.json({
+        mfaRequired: false,
+        token: token.token,
+        user: {
+          id: user.id,
+          email: user.email,
+          role: user.role,
+        },
+      });
+    }
+
     // Return MFA challenge required
     res.json({
       mfaRequired: true,
