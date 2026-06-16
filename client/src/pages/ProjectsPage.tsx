@@ -145,6 +145,7 @@ const ProjectsPage: React.FC = () => {
   const [inventoryObjects, setInventoryObjects] = useState<{ id: string; objectId: string; description: string; processArea: string }[]>([]);
   const [projectInventoryItems, setProjectInventoryItems] = useState<any[]>([]);
   const [inventorySearchTerm, setInventorySearchTerm] = useState('');
+  const [selectedProjectForInventory, setSelectedProjectForInventory] = useState<string | null>(null);
   const [catalogObjectDialogOpen, setCatalogObjectDialogOpen] = useState(false);
   const [catalogObjectId, setCatalogObjectId] = useState('');
   const [catalogObjectDesc, setCatalogObjectDesc] = useState('');
@@ -791,12 +792,12 @@ const ProjectsPage: React.FC = () => {
 
         {/* Right Content Area - Details */}
         <Box sx={{ flex: 1, overflowY: 'auto' }}>
-          {!selectedItem ? (
-            <Alert severity="info">Select an item from the list to view details</Alert>
-          ) : selectedDetails ? (
+          {/* Plan Tab Content */}
+          {tabValue === 0 && (
             <>
-              {/* Plan Tab Content */}
-              {tabValue === 0 && (
+              {!selectedItem ? (
+                <Alert severity="info">Select an item from the list to view details</Alert>
+              ) : selectedDetails ? (
                 <Card>
                   <CardHeader
                     avatar={
@@ -847,10 +848,12 @@ const ProjectsPage: React.FC = () => {
                     )}
                   </CardContent>
                 </Card>
-              )}
+              ) : null}
+            </>
+          )}
 
-              {/* Inventory Tab Content */}
-              {tabValue === 1 && selectedItem.type === 'project' && (
+          {/* Inventory Tab Content - Always Shows */}
+          {tabValue === 1 && (
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                   {/* Inventory Sub-Tabs */}
                   <Box sx={{ display: 'flex', gap: 1, overflow: 'visible' }}>
@@ -969,9 +972,56 @@ const ProjectsPage: React.FC = () => {
                             }}
                             startIcon={<AddIcon />}
                             onClick={() => setProjectInventoryDialogOpen(true)}
+                            disabled={!selectedProjectForInventory}
                           >
-                            Add Item
+                            Add to Inventory
                           </Button>
+                        </Box>
+
+                        {/* Project Selector Chips */}
+                        <Box sx={{ mb: 3 }}>
+                          <Typography variant="subtitle2" sx={{ mb: 1.5, color: 'text.secondary' }}>
+                            Select a project:
+                          </Typography>
+                          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                            {programs.length === 0 ? (
+                              <Typography variant="caption" color="textSecondary">
+                                No projects available
+                              </Typography>
+                            ) : (
+                              programs.map((program: Program) =>
+                                mockCycles.map((cycle: MockCycle) => {
+                                  const cycleProjects = projectsByMockCycle[cycle.id] || [];
+                                  return cycleProjects.map((project: Project) => (
+                                    <Box
+                                      key={project.id}
+                                      component="button"
+                                      onClick={() => setSelectedProjectForInventory(project.id)}
+                                      sx={{
+                                        px: 2,
+                                        py: 1,
+                                        borderRadius: '24px',
+                                        border: selectedProjectForInventory === project.id ? '2px solid' : '1px solid',
+                                        borderColor: selectedProjectForInventory === project.id ? 'primary.main' : 'divider',
+                                        backgroundColor: selectedProjectForInventory === project.id ? 'primary.lighter' : 'background.paper',
+                                        cursor: 'pointer',
+                                        textTransform: 'none',
+                                        fontWeight: selectedProjectForInventory === project.id ? 600 : 500,
+                                        fontSize: '0.875rem',
+                                        transition: 'all 0.2s',
+                                        '&:hover': {
+                                          borderColor: 'primary.main',
+                                          backgroundColor: 'primary.lighter',
+                                        },
+                                      }}
+                                    >
+                                      {project.name}
+                                    </Box>
+                                  ));
+                                })
+                              )
+                            )}
+                          </Box>
                         </Box>
                         
                         {/* Search Bar */}
@@ -1032,7 +1082,7 @@ const ProjectsPage: React.FC = () => {
                 </Box>
               )}
             </>
-          ) : null}
+          )}
         </Box>
       </Box>
 
