@@ -1844,12 +1844,12 @@ const ProjectsPage: React.FC = () => {
           color: 'white',
           fontWeight: 600,
           fontSize: '1.1rem',
-          mb: 0,
+          pb: 2,
         }}>
           {editingInventoryItemId ? 'Edit Project Inventory Item' : 'Add Project Inventory Item'}
         </DialogTitle>
-        <DialogContent sx={{ pt: 8, maxHeight: '70vh', overflowY: 'auto', px: 3 }}>
-          <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
+        <DialogContent sx={{ pt: 2, maxHeight: '70vh', overflowY: 'auto', px: 3 }}>
+          <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, mt: 3 }}>
             <TextField
               select
               fullWidth
