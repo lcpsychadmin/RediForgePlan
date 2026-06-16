@@ -31,6 +31,8 @@ import MoreVertIcon from '@mui/icons-material/MoreVert';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import FolderIcon from '@mui/icons-material/Folder';
+import CorporateFareIcon from '@mui/icons-material/CorporateFare';
+import SyncIcon from '@mui/icons-material/Sync';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Menu from '@mui/material/Menu';
 import { useNavigate } from 'react-router-dom';
@@ -454,9 +456,10 @@ const ProjectsPage: React.FC = () => {
                           setSelectedItem({ type: 'program', id: program.id });
                           toggleProgramExpanded(program.id);
                         }}
-                        sx={{ flex: 1, minWidth: 0 }}
+                        sx={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 1 }}
                       >
-                        <Typography variant="body2" sx={{ fontWeight: 500, noWrap: true }}>
+                        <CorporateFareIcon sx={{ fontSize: '1.4rem', color: 'primary.main', flexShrink: 0 }} />
+                        <Typography variant="subtitle2" sx={{ fontWeight: 600, noWrap: true, letterSpacing: 0.3 }}>
                           {program.name}
                         </Typography>
                       </Box>
@@ -495,9 +498,10 @@ const ProjectsPage: React.FC = () => {
                                   setSelectedItem({ type: 'cycle', id: cycle.id, programId: program.id });
                                   toggleCycleExpanded(cycle.id);
                                 }}
-                                sx={{ flex: 1, minWidth: 0 }}
+                                sx={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 1 }}
                               >
-                                <Typography variant="caption" sx={{ fontWeight: 500, noWrap: true }}>
+                                <SyncIcon sx={{ fontSize: '1.1rem', color: 'info.main', flexShrink: 0 }} />
+                                <Typography variant="body2" sx={{ fontWeight: 500, noWrap: true }}>
                                   {cycle.name}
                                 </Typography>
                               </Box>
@@ -537,9 +541,12 @@ const ProjectsPage: React.FC = () => {
                                       }
                                       sx={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 1 }}
                                     >
-                                      <FolderIcon sx={{ fontSize: '1.2rem', color: project.accentColor || '#90caf9', flexShrink: 0 }} />
-                                      <Typography variant="caption" sx={{ noWrap: true }}>
-                                        {project.name} {project.progressPercentage || 0}%
+                                      <FolderIcon sx={{ fontSize: '1.1rem', color: project.accentColor || '#90caf9', flexShrink: 0 }} />
+                                      <Typography variant="caption" sx={{ noWrap: true, fontWeight: 500, flex: 1 }}>
+                                        {project.name}
+                                      </Typography>
+                                      <Typography variant="caption" sx={{ noWrap: true, color: 'text.secondary', fontWeight: 500 }}>
+                                        {project.progressPercentage || 0}%
                                       </Typography>
                                     </Box>
                                     <IconButton
