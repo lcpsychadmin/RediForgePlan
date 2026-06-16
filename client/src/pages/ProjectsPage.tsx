@@ -857,37 +857,37 @@ const ProjectsPage: React.FC = () => {
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               {/* Inventory Sub-Tabs */}
               <Box sx={{ display: 'flex', gap: 1, overflow: 'visible' }}>
-                    <Button
-                      variant={inventorySubTab === 0 ? 'contained' : 'outlined'}
-                      onClick={() => setInventorySubTab(0)}
-                      sx={{ 
-                        textTransform: 'none', 
-                        fontWeight: 600,
-                        borderRadius: '8px',
-                        '&:hover': {
-                          backgroundColor: inventorySubTab === 0 ? undefined : 'action.hover',
-                          borderColor: 'transparent',
-                        }
-                      }}
-                    >
-                      Object Catalog
-                    </Button>
-                    <Button
-                      variant={inventorySubTab === 1 ? 'contained' : 'outlined'}
-                      onClick={() => setInventorySubTab(1)}
-                      sx={{ 
-                        textTransform: 'none', 
-                        fontWeight: 600,
-                        borderRadius: '8px',
-                        '&:hover': {
-                          backgroundColor: inventorySubTab === 1 ? undefined : 'action.hover',
-                          borderColor: 'transparent',
-                        }
-                      }}
-                    >
-                      Project Inventory
-                    </Button>
-                  </Box>
+                <Button
+                  variant={inventorySubTab === 0 ? 'contained' : 'outlined'}
+                  onClick={() => setInventorySubTab(0)}
+                  sx={{ 
+                    textTransform: 'none', 
+                    fontWeight: 600,
+                    borderRadius: '8px',
+                    '&:hover': {
+                      backgroundColor: inventorySubTab === 0 ? undefined : 'action.hover',
+                      borderColor: 'transparent',
+                    }
+                  }}
+                >
+                  Object Catalog
+                </Button>
+                <Button
+                  variant={inventorySubTab === 1 ? 'contained' : 'outlined'}
+                  onClick={() => setInventorySubTab(1)}
+                  sx={{ 
+                    textTransform: 'none', 
+                    fontWeight: 600,
+                    borderRadius: '8px',
+                    '&:hover': {
+                      backgroundColor: inventorySubTab === 1 ? undefined : 'action.hover',
+                      borderColor: 'transparent',
+                    }
+                  }}
+                >
+                  Project Inventory
+                </Button>
+              </Box>
 
               {/* Object Catalog Sub-Tab */}
               {inventorySubTab === 0 && (
