@@ -148,6 +148,12 @@ const ProjectsPage: React.FC = () => {
   const [catalogSearchTerm, setCatalogSearchTerm] = useState('');
   const [catalogSortColumn, setCatalogSortColumn] = useState<'objectId' | 'description'>('objectId');
   const [catalogSortDirection, setCatalogSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [inventorySortColumn, setInventorySortColumn] = useState<'dataObjectId' | 'processArea' | 'complexity' | 'deploymentDisposition'>('dataObjectId');
+  const [inventorySortDirection, setInventorySortDirection] = useState<'asc' | 'desc'>('asc');
+  const [editingInventoryItemId, setEditingInventoryItemId] = useState<string | null>(null);
+  const [deletingInventoryItemId, setDeletingInventoryItemId] = useState<string | null>(null);
+  const [deletingInventoryItemName, setDeletingInventoryItemName] = useState('');
+  const [isDeletingInventoryItem, setIsDeletingInventoryItem] = useState(false);
   const [selectedProjectForInventory, setSelectedProjectForInventory] = useState<string | null>(null);
   const [catalogObjectDialogOpen, setCatalogObjectDialogOpen] = useState(false);
   const [catalogObjectId, setCatalogObjectId] = useState('');
@@ -518,6 +524,54 @@ const ProjectsPage: React.FC = () => {
     });
 
     return filtered;
+  };
+
+  // Get filtered and sorted inventory items
+  const getFilteredSortedInventoryItems = () => {
+    let filtered = projectInventoryItems.filter(item =>
+      item.dataObjectId?.toLowerCase().includes(inventorySearchTerm.toLowerCase()) ||
+      item.processArea?.toLowerCase().includes(inventorySearchTerm.toLowerCase()) ||
+      item.complexity?.toLowerCase().includes(inventorySearchTerm.toLowerCase())
+    );
+
+    filtered.sort((a, b) => {
+      const aVal = (a[inventorySortColumn] || '')?.toString().toLowerCase();
+      const bVal = (b[inventorySortColumn] || '')?.toString().toLowerCase();
+      return inventorySortDirection === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+    });
+
+    return filtered;
+  };
+
+  // Handle edit inventory item
+  const handleEditInventoryItem = (item: any) => {
+    setEditingInventoryItemId(item.id);
+    setProjectInventoryItem({ ...item });
+    setProjectInventoryDialogOpen(true);
+  };
+
+  // Handle delete inventory item
+  const handleDeleteInventoryItem = (item: any) => {
+    setDeletingInventoryItemId(item.id);
+    setDeletingInventoryItemName(item.dataObjectId);
+  };
+
+  // Confirm delete inventory item
+  const confirmDeleteInventoryItem = async () => {
+    if (!deletingInventoryItemId) return;
+    
+    try {
+      setIsDeletingInventoryItem(true);
+      await apiClient.delete(`/api/project-inventory/${deletingInventoryItemId}`);
+      setProjectInventoryItems(projectInventoryItems.filter(item => item.id !== deletingInventoryItemId));
+      setDeletingInventoryItemId(null);
+      alert('Item deleted successfully');
+    } catch (error) {
+      console.error('Failed to delete:', error);
+      alert('Failed to delete item. Please try again.');
+    } finally {
+      setIsDeletingInventoryItem(false);
+    }
   };
 
   if (isLoading) {
@@ -1155,52 +1209,102 @@ const ProjectsPage: React.FC = () => {
                       </Box>
                     </Box>
                     
-                    {/* Search Bar */}
-                    <TextField
-                      fullWidth
-                      placeholder="Search inventory..."
-                      size="small"
-                      value={inventorySearchTerm}
-                      onChange={(e) => setInventorySearchTerm(e.target.value)}
-                      sx={{ mb: 2 }}
-                    />
+                    {/* Search and Filter Controls */}
+                    <Box sx={{ mb: 2 }}>
+                      <Box sx={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 2, alignItems: 'flex-end' }}>
+                        <TextField
+                          fullWidth
+                          placeholder="Search by ID or fields..."
+                          size="small"
+                          value={inventorySearchTerm}
+                          onChange={(e) => setInventorySearchTerm(e.target.value)}
+                        />
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Typography variant="caption" sx={{ color: 'text.secondary', whiteSpace: 'nowrap' }}>
+                            Sort by:
+                          </Typography>
+                          <select
+                            value={inventorySortColumn}
+                            onChange={(e) => setInventorySortColumn(e.target.value as any)}
+                            style={{
+                              padding: '6px 8px',
+                              borderRadius: '4px',
+                              border: '1px solid #ccc',
+                              fontSize: '0.875rem',
+                              fontFamily: 'inherit',
+                            }}
+                          >
+                            <option value="dataObjectId">Object ID</option>
+                            <option value="processArea">Process Area</option>
+                            <option value="complexity">Complexity</option>
+                            <option value="deploymentDisposition">Deployment Disposition</option>
+                          </select>
+                          <Button
+                            size="small"
+                            variant="text"
+                            onClick={() => setInventorySortDirection(inventorySortDirection === 'asc' ? 'desc' : 'asc')}
+                          >
+                            {inventorySortDirection === 'asc' ? '↑' : '↓'}
+                          </Button>
+                        </Box>
+                      </Box>
+                    </Box>
 
                     {/* Inventory Table */}
                     <Box sx={{ overflowX: 'auto' }}>
-                      <Box sx={{ display: 'grid', gridTemplateColumns: '150px 150px 120px 150px', gap: 0, borderRadius: 1, overflow: 'hidden', border: '1px solid', borderColor: 'divider' }}>
+                      <Box sx={{ display: 'grid', gridTemplateColumns: '0.9fr 0.9fr 0.7fr 1.2fr 0.7fr', gap: 0, borderRadius: 1, overflow: 'hidden', border: '1px solid', borderColor: 'divider' }}>
                         {/* Header */}
-                        <Box sx={{ backgroundColor: 'background.paper', p: 1.5, fontWeight: 600, borderBottom: '1px solid', borderColor: 'divider' }}>
+                        <Box sx={{ backgroundColor: 'background.paper', p: 1, fontWeight: 600, borderBottom: '1px solid', borderColor: 'divider', fontSize: '0.75rem' }}>
                           DATA OBJECT ID
                         </Box>
-                        <Box sx={{ backgroundColor: 'background.paper', p: 1.5, fontWeight: 600, borderBottom: '1px solid', borderColor: 'divider' }}>
+                        <Box sx={{ backgroundColor: 'background.paper', p: 1, fontWeight: 600, borderBottom: '1px solid', borderColor: 'divider', fontSize: '0.75rem' }}>
                           PROCESS AREA
                         </Box>
-                        <Box sx={{ backgroundColor: 'background.paper', p: 1.5, fontWeight: 600, borderBottom: '1px solid', borderColor: 'divider' }}>
+                        <Box sx={{ backgroundColor: 'background.paper', p: 1, fontWeight: 600, borderBottom: '1px solid', borderColor: 'divider', fontSize: '0.75rem' }}>
                           COMPLEXITY
                         </Box>
-                        <Box sx={{ backgroundColor: 'background.paper', p: 1.5, fontWeight: 600, borderBottom: '1px solid', borderColor: 'divider' }}>
+                        <Box sx={{ backgroundColor: 'background.paper', p: 1, fontWeight: 600, borderBottom: '1px solid', borderColor: 'divider', fontSize: '0.75rem' }}>
                           DEPLOYMENT DISPOSITION
+                        </Box>
+                        <Box sx={{ backgroundColor: 'background.paper', p: 1, fontWeight: 600, borderBottom: '1px solid', borderColor: 'divider', fontSize: '0.75rem' }}>
+                          ACTIONS
                         </Box>
 
                         {/* Inventory Data Rows */}
-                        {projectInventoryItems.length === 0 ? (
+                        {getFilteredSortedInventoryItems().length === 0 ? (
                           <Box sx={{ gridColumn: '1 / -1', p: 2, textAlign: 'center', color: 'text.secondary' }}>
                             No items in project inventory yet
                           </Box>
                         ) : (
-                          projectInventoryItems.map((item) => (
+                          getFilteredSortedInventoryItems().map((item) => (
                             <React.Fragment key={item.id}>
-                              <Box sx={{ p: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
+                              <Box sx={{ p: 1, borderBottom: '1px solid', borderColor: 'divider', fontSize: '0.8rem' }}>
                                 {item.dataObjectId}
                               </Box>
-                              <Box sx={{ p: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
+                              <Box sx={{ p: 1, borderBottom: '1px solid', borderColor: 'divider', fontSize: '0.8rem' }}>
                                 {item.processArea || '—'}
                               </Box>
-                              <Box sx={{ p: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
+                              <Box sx={{ p: 1, borderBottom: '1px solid', borderColor: 'divider', fontSize: '0.8rem' }}>
                                 {item.complexity || '—'}
                               </Box>
-                              <Box sx={{ p: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
+                              <Box sx={{ p: 1, borderBottom: '1px solid', borderColor: 'divider', fontSize: '0.8rem' }}>
                                 {item.deploymentDisposition || '—'}
+                              </Box>
+                              <Box sx={{ p: 1, borderBottom: '1px solid', borderColor: 'divider', display: 'flex', gap: 0.5 }}>
+                                <IconButton
+                                  size="small"
+                                  title="Edit"
+                                  onClick={() => handleEditInventoryItem(item)}
+                                >
+                                  <EditIcon sx={{ fontSize: '1rem' }} />
+                                </IconButton>
+                                <IconButton
+                                  size="small"
+                                  title="Delete"
+                                  onClick={() => handleDeleteInventoryItem(item)}
+                                >
+                                  <DeleteIcon sx={{ fontSize: '1rem' }} />
+                                </IconButton>
                               </Box>
                             </React.Fragment>
                           ))
@@ -1655,8 +1759,28 @@ const ProjectsPage: React.FC = () => {
       </Dialog>
 
       {/* Project Inventory Item Dialog */}
-      <Dialog open={projectInventoryDialogOpen} onClose={() => setProjectInventoryDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Add Project Inventory Item</DialogTitle>
+      <Dialog open={projectInventoryDialogOpen} onClose={() => {
+        setProjectInventoryDialogOpen(false);
+        setEditingInventoryItemId(null);
+        setProjectInventoryItem({
+          dataObjectId: '',
+          processArea: '',
+          complexity: '',
+          deploymentDisposition: '',
+          buildType: '',
+          objectType: '',
+          dra: '',
+          developer: '',
+          systemsAnalyst: '',
+          cutoverPhase: '',
+          ddmApproach: '',
+          riskSecurityType: '',
+          migrationType: '',
+          factorType: '',
+          loadMethod: '',
+        });
+      }} maxWidth="sm" fullWidth>
+        <DialogTitle>{editingInventoryItemId ? 'Edit Project Inventory Item' : 'Add Project Inventory Item'}</DialogTitle>
         <DialogContent sx={{ pt: 2, maxHeight: '60vh', overflowY: 'auto' }}>
           <TextField
             select
@@ -1665,6 +1789,7 @@ const ProjectsPage: React.FC = () => {
             value={projectInventoryItem.dataObjectId}
             onChange={(e) => setProjectInventoryItem({ ...projectInventoryItem, dataObjectId: e.target.value })}
             margin="normal"
+            disabled={editingInventoryItemId !== null}
           >
             {inventoryObjects.map((obj) => (
               <MenuItem key={obj.id} value={obj.objectId}>
@@ -1868,6 +1993,7 @@ const ProjectsPage: React.FC = () => {
         <DialogActions>
           <Button onClick={() => {
             setProjectInventoryDialogOpen(false);
+            setEditingInventoryItemId(null);
             setProjectInventoryItem({
               dataObjectId: '',
               processArea: '',
@@ -1890,12 +2016,20 @@ const ProjectsPage: React.FC = () => {
           </Button>
           <Button
             onClick={() => {
-              // TODO: Implement API call to create project inventory item
-              const newItem = {
-                id: Math.random().toString(36).substr(2, 9),
-                ...projectInventoryItem,
-              };
-              setProjectInventoryItems([...projectInventoryItems, newItem]);
+              if (editingInventoryItemId) {
+                // Update existing item
+                setProjectInventoryItems(projectInventoryItems.map(item =>
+                  item.id === editingInventoryItemId ? { ...item, ...projectInventoryItem } : item
+                ));
+                setEditingInventoryItemId(null);
+              } else {
+                // Add new item
+                const newItem = {
+                  id: Math.random().toString(36).substr(2, 9),
+                  ...projectInventoryItem,
+                };
+                setProjectInventoryItems([...projectInventoryItems, newItem]);
+              }
               setProjectInventoryDialogOpen(false);
               setProjectInventoryItem({
                 dataObjectId: '',
@@ -1918,7 +2052,35 @@ const ProjectsPage: React.FC = () => {
             variant="contained"
             disabled={isCreatingProjectInventoryItem || !projectInventoryItem.dataObjectId.trim()}
           >
-            {isCreatingProjectInventoryItem ? 'Adding...' : 'Add Item'}
+            {isCreatingProjectInventoryItem ? 'Saving...' : (editingInventoryItemId ? 'Update' : 'Add Item')}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete Inventory Item Confirmation Dialog */}
+      <Dialog open={deletingInventoryItemId !== null} onClose={() => setDeletingInventoryItemId(null)} maxWidth="sm" fullWidth>
+        <DialogTitle>Delete Item</DialogTitle>
+        <DialogContent>
+          <Box sx={{ pt: 2 }}>
+            <Typography>
+              Are you sure you want to delete <strong>{deletingInventoryItemName}</strong>?
+            </Typography>
+            <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mt: 1 }}>
+              This action cannot be undone.
+            </Typography>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeletingInventoryItemId(null)}>
+            Cancel
+          </Button>
+          <Button
+            onClick={confirmDeleteInventoryItem}
+            variant="contained"
+            color="error"
+            disabled={isDeletingInventoryItem}
+          >
+            {isDeletingInventoryItem ? 'Deleting...' : 'Delete'}
           </Button>
         </DialogActions>
       </Dialog>
