@@ -1,45 +1,217 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import apiClient from '../api/client';
+
+export interface User {
+  id: string;
+  email: string;
+  role: 'admin' | 'analyst' | 'viewer';
+  mfa_enabled: boolean;
+}
 
 interface AuthContextType {
-  user: null | { id: string; email: string; name: string };
+  user: User | null;
   isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  logout: () => Promise<void>;
   loading: boolean;
+  error: string | null;
+  // Auth flow
+  login: (email: string, password: string) => Promise<{ requiresMFA: boolean; userId?: string }>;
+  verifyMFA: (userId: string, token: string) => Promise<void>;
+  logout: () => Promise<void>;
+  // MFA setup
+  setupMFA: (email: string) => Promise<{ secret: string; qrCodeImage: string }>;
+  enableMFA: (secret: string, token: string) => Promise<void>;
+  // Admin
+  createUser: (email: string, password: string, role: string) => Promise<any>;
+  // Utils
+  setUser: (user: User | null) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<AuthContextType['user']>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const login = async (email: string, password: string) => {
-    // TODO: Implement login logic in Prompt 1
-    setLoading(true);
+  // Initialize auth from localStorage on mount
+  useEffect(() => {
+    const initializeAuth = async () => {
+      try {
+        const token = localStorage.getItem('authToken');
+        if (token) {
+          setLoading(true);
+          // Verify token is still valid
+          const response = await apiClient.get('/auth/me');
+          setUser(response.data);
+        }
+      } catch (err) {
+        localStorage.removeItem('authToken');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    initializeAuth();
+  }, []);
+
+  const login = async (
+    email: string,
+    password: string
+  ): Promise<{ requiresMFA: boolean; userId?: string }> => {
     try {
-      console.log('Login placeholder:', { email });
-      // Add actual login implementation here
+      setError(null);
+      setLoading(true);
+
+      const response = await apiClient.post('/auth/login', { email, password });
+
+      // Store userId temporarily for MFA verification
+      if (response.data.userId) {
+        sessionStorage.setItem('pendingMFAUserId', response.data.userId);
+      }
+
+      return {
+        requiresMFA: response.data.mfaRequired,
+        userId: response.data.userId,
+      };
+    } catch (err: any) {
+      const errorMessage = err.response?.data?.error || 'Login failed';
+      setError(errorMessage);
+      throw err;
     } finally {
       setLoading(false);
     }
   };
 
-  const logout = async () => {
-    // TODO: Implement logout logic in Prompt 1
-    setLoading(true);
+  const verifyMFA = async (userId: string, token: string): Promise<void> => {
     try {
+      setError(null);
+      setLoading(true);
+
+      const response = await apiClient.post('/auth/mfa/verify', { userId, token });
+
+      // Store JWT token
+      localStorage.setItem('authToken', response.data.token);
+
+      // Update API client default header
+      apiClient.defaults.headers.common['Authorization'] = `Bearer ${response.data.token}`;
+
+      // Set user
+      setUser(response.data.user);
+
+      // Clear temporary session storage
+      sessionStorage.removeItem('pendingMFAUserId');
+    } catch (err: any) {
+      const errorMessage = err.response?.data?.error || 'MFA verification failed';
+      setError(errorMessage);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const logout = async (): Promise<void> => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('authToken');
+
+      if (token) {
+        await apiClient.post('/auth/logout', {}, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      }
+
+      localStorage.removeItem('authToken');
+      delete apiClient.defaults.headers.common['Authorization'];
       setUser(null);
+    } catch (err: any) {
+      console.error('Logout error:', err);
     } finally {
       setLoading(false);
     }
   };
 
-  return (
-    <AuthContext.Provider value={{ user, isAuthenticated: !!user, login, logout, loading }}>
-      {children}
-    </AuthContext.Provider>
-  );
+  const setupMFA = async (email: string): Promise<{ secret: string; qrCodeImage: string }> => {
+    try {
+      setError(null);
+      const response = await apiClient.post('/auth/mfa/setup', { email });
+      return response.data;
+    } catch (err: any) {
+      const errorMessage = err.response?.data?.error || 'MFA setup failed';
+      setError(errorMessage);
+      throw err;
+    }
+  };
+
+  const enableMFA = async (secret: string, token: string): Promise<void> => {
+    try {
+      setError(null);
+      setLoading(true);
+
+      const authToken = localStorage.getItem('authToken');
+      await apiClient.post(
+        '/auth/mfa/enable',
+        { secret, token },
+        {
+          headers: { Authorization: `Bearer ${authToken}` },
+        }
+      );
+
+      // Update user MFA status
+      if (user) {
+        setUser({ ...user, mfa_enabled: true });
+      }
+    } catch (err: any) {
+      const errorMessage = err.response?.data?.error || 'Failed to enable MFA';
+      setError(errorMessage);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const createUser = async (
+    email: string,
+    password: string,
+    role: string
+  ): Promise<any> => {
+    try {
+      setError(null);
+      setLoading(true);
+
+      const authToken = localStorage.getItem('authToken');
+      const response = await apiClient.post(
+        '/auth/admin/create-user',
+        { email, password, role },
+        {
+          headers: { Authorization: `Bearer ${authToken}` },
+        }
+      );
+
+      return response.data;
+    } catch (err: any) {
+      const errorMessage = err.response?.data?.error || 'Failed to create user';
+      setError(errorMessage);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const value: AuthContextType = {
+    user,
+    isAuthenticated: !!user,
+    loading,
+    error,
+    login,
+    verifyMFA,
+    logout,
+    setupMFA,
+    enableMFA,
+    createUser,
+    setUser,
+  };
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 export const useAuth = () => {

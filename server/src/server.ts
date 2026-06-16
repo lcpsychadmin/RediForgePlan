@@ -5,7 +5,10 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import routes from './routes/index.js';
-import { errorHandler, requestLogger } from './middleware/index.js';
+import authRoutes from './auth/auth.routes.js';
+import apiRoutes from './routes/api.routes.js';
+import { requestLogger } from './middleware/index.js';
+import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 
 dotenv.config();
 
@@ -22,8 +25,14 @@ app.use(cors());
 app.use(express.json());
 app.use(requestLogger);
 
-// API Routes
-app.use('/api', routes);
+// API Routes (new planning API)
+app.use('/api', apiRoutes);
+
+// Auth Routes (existing)
+app.use('/auth', authRoutes);
+
+// Legacy routes (if any)
+app.use('/api/legacy', routes);
 
 // Serve static files from React build in production
 if (NODE_ENV === 'production') {
@@ -36,7 +45,10 @@ if (NODE_ENV === 'production') {
   });
 }
 
-// Error handling
+// 404 handler
+app.use(notFoundHandler);
+
+// Error handling middleware (must be last)
 app.use(errorHandler);
 
 // Start server

@@ -1,0 +1,234 @@
+// server/src/routes/tasks.routes.ts
+// Task and task group API routes
+
+import { Router, Request, Response, NextFunction } from 'express';
+import { requireAuth, requireRole } from '../middleware/authMiddleware.js';
+import taskService from '../services/taskService.js';
+import projectService from '../services/projectService.js';
+import { ApiError } from '../middleware/errorHandler.js';
+import { formatListResponse, formatSingleResponse } from '../utils/responseFormatter.js';
+
+const router = Router();
+
+// ===== TASK GROUPS =====
+
+// Get task groups by project
+router.get(
+  '/groups/project/:projectId',
+  requireAuth,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const project = await projectService.getProjectById(req.params.projectId);
+      if (!project) {
+        throw new ApiError(404, 'Project not found', 'NOT_FOUND');
+      }
+
+      const groups = await taskService.getTaskGroupsByProject(req.params.projectId);
+      res.json(formatListResponse(groups, groups.length));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// Create task group (analyst or admin)
+router.post(
+  '/groups/project/:projectId',
+  requireAuth,
+  requireRole('analyst', 'admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const project = await projectService.getProjectById(req.params.projectId);
+      if (!project) {
+        throw new ApiError(404, 'Project not found', 'NOT_FOUND');
+      }
+
+      const { name, description, startDate, endDate } = req.body;
+
+      if (!name) {
+        throw new ApiError(400, 'Task group name is required', 'MISSING_FIELD');
+      }
+
+      const group = await taskService.createTaskGroup(
+        req.params.projectId,
+        name,
+        description,
+        startDate,
+        endDate
+      );
+
+      res.status(201).json(formatSingleResponse(group));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// Get task group by ID
+router.get(
+  '/groups/:taskGroupId',
+  requireAuth,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const group = await taskService.getTaskGroupById(req.params.taskGroupId);
+
+      if (!group) {
+        throw new ApiError(404, 'Task group not found', 'NOT_FOUND');
+      }
+
+      const stats = await taskService.getTaskGroupStats(req.params.taskGroupId);
+      const response = { ...group, stats };
+
+      res.json(formatSingleResponse(response));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// Update task group (analyst or admin)
+router.patch(
+  '/groups/:taskGroupId',
+  requireAuth,
+  requireRole('analyst', 'admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const group = await taskService.updateTaskGroup(req.params.taskGroupId, req.body);
+
+      if (!group) {
+        throw new ApiError(404, 'Task group not found', 'NOT_FOUND');
+      }
+
+      res.json(formatSingleResponse(group));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// Delete task group (analyst or admin)
+router.delete(
+  '/groups/:taskGroupId',
+  requireAuth,
+  requireRole('analyst', 'admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      await taskService.deleteTaskGroup(req.params.taskGroupId);
+      res.json({ success: true });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// ===== TASKS =====
+
+// Get tasks by project with filters
+router.get(
+  '/project/:projectId',
+  requireAuth,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const project = await projectService.getProjectById(req.params.projectId);
+      if (!project) {
+        throw new ApiError(404, 'Project not found', 'NOT_FOUND');
+      }
+
+      const filters = {
+        status: req.query.status as string | undefined,
+        taskType: req.query.taskType as string | undefined,
+        draUserId: req.query.draUserId as string | undefined,
+        developerUserId: req.query.developerUserId as string | undefined,
+        projectObjectId: req.query.projectObjectId as string | undefined,
+        taskGroupId: req.query.taskGroupId as string | undefined,
+      };
+
+      const tasks = await taskService.getTasksByProject(req.params.projectId, filters);
+      res.json(formatListResponse(tasks, tasks.length));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// Create task (analyst or admin)
+router.post(
+  '/project/:projectId',
+  requireAuth,
+  requireRole('analyst', 'admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const project = await projectService.getProjectById(req.params.projectId);
+      if (!project) {
+        throw new ApiError(404, 'Project not found', 'NOT_FOUND');
+      }
+
+      const { taskType, ...data } = req.body;
+
+      if (!taskType) {
+        throw new ApiError(400, 'Task type is required', 'MISSING_FIELD');
+      }
+
+      const task = await taskService.createTask(req.params.projectId, {
+        taskType,
+        ...data,
+      });
+
+      res.status(201).json(formatSingleResponse(task));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// Get task by ID
+router.get('/:taskId', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const task = await taskService.getTaskById(req.params.taskId);
+
+    if (!task) {
+      throw new ApiError(404, 'Task not found', 'NOT_FOUND');
+    }
+
+    res.json(formatSingleResponse(task));
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Update task (analyst or admin)
+router.patch(
+  '/:taskId',
+  requireAuth,
+  requireRole('analyst', 'admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const task = await taskService.updateTask(req.params.taskId, req.body);
+
+      if (!task) {
+        throw new ApiError(404, 'Task not found', 'NOT_FOUND');
+      }
+
+      res.json(formatSingleResponse(task));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// Delete task (analyst or admin)
+router.delete(
+  '/:taskId',
+  requireAuth,
+  requireRole('analyst', 'admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      await taskService.deleteTask(req.params.taskId);
+      res.json({ success: true });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+export default router;

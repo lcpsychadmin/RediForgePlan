@@ -1,0 +1,284 @@
+// server/src/services/taskService.ts
+// Task and task group database operations
+
+import db from '../db.js';
+
+interface TaskInput {
+  projectObjectId?: string;
+  taskGroupId?: string;
+  taskType: string;
+  name?: string;
+  status?: string;
+  startDate?: string;
+  endDate?: string;
+  draUserId?: string;
+  developerUserId?: string;
+  notes?: string;
+}
+
+export class TaskService {
+  // Task Groups
+  async getTaskGroupsByProject(projectId: string) {
+    const result = await db.query(
+      'SELECT id, project_id, name, description, start_date, end_date, created_at, updated_at FROM task_groups WHERE project_id = $1 ORDER BY created_at DESC',
+      [projectId]
+    );
+    return result.rows.map(row => this.formatTaskGroup(row));
+  }
+
+  async getTaskGroupById(taskGroupId: string) {
+    const result = await db.query(
+      'SELECT id, project_id, name, description, start_date, end_date, created_at, updated_at FROM task_groups WHERE id = $1',
+      [taskGroupId]
+    );
+    if (result.rows.length === 0) return null;
+    return this.formatTaskGroup(result.rows[0]);
+  }
+
+  async createTaskGroup(projectId: string, name: string, description: string | undefined, startDate: string | undefined, endDate: string | undefined) {
+    const result = await db.query(
+      'INSERT INTO task_groups (project_id, name, description, start_date, end_date) VALUES ($1, $2, $3, $4, $5) RETURNING id, project_id, name, description, start_date, end_date, created_at, updated_at',
+      [projectId, name, description || null, startDate || null, endDate || null]
+    );
+    return this.formatTaskGroup(result.rows[0]);
+  }
+
+  async updateTaskGroup(taskGroupId: string, data: { name?: string; description?: string; startDate?: string; endDate?: string }) {
+    const fields: string[] = [];
+    const values: any[] = [taskGroupId];
+    let paramCount = 2;
+
+    if (data.name !== undefined) {
+      fields.push(`name = $${paramCount}`);
+      values.push(data.name);
+      paramCount++;
+    }
+    if (data.description !== undefined) {
+      fields.push(`description = $${paramCount}`);
+      values.push(data.description);
+      paramCount++;
+    }
+    if (data.startDate !== undefined) {
+      fields.push(`start_date = $${paramCount}`);
+      values.push(data.startDate);
+      paramCount++;
+    }
+    if (data.endDate !== undefined) {
+      fields.push(`end_date = $${paramCount}`);
+      values.push(data.endDate);
+      paramCount++;
+    }
+
+    if (fields.length === 0) return this.getTaskGroupById(taskGroupId);
+
+    fields.push(`updated_at = CURRENT_TIMESTAMP`);
+
+    const result = await db.query(
+      `UPDATE task_groups SET ${fields.join(', ')} WHERE id = $1 RETURNING id, project_id, name, description, start_date, end_date, created_at, updated_at`,
+      values
+    );
+
+    if (result.rows.length === 0) return null;
+    return this.formatTaskGroup(result.rows[0]);
+  }
+
+  async deleteTaskGroup(taskGroupId: string) {
+    const taskCount = await db.query(
+      'SELECT COUNT(*) FROM tasks WHERE task_group_id = $1',
+      [taskGroupId]
+    );
+
+    if (parseInt(taskCount.rows[0].count) > 0) {
+      throw new Error('Cannot delete task group with existing tasks');
+    }
+
+    const result = await db.query(
+      'DELETE FROM task_groups WHERE id = $1 RETURNING id',
+      [taskGroupId]
+    );
+
+    return result.rows.length > 0;
+  }
+
+  async getTaskGroupStats(taskGroupId: string) {
+    const result = await db.query(
+      `SELECT
+        COUNT(DISTINCT t.id) as task_count,
+        COUNT(DISTINCT CASE WHEN t.status = 'complete' THEN t.id END) as completed_tasks
+      FROM task_groups tg
+      LEFT JOIN tasks t ON tg.id = t.task_group_id
+      WHERE tg.id = $1`,
+      [taskGroupId]
+    );
+
+    return result.rows[0];
+  }
+
+  // Tasks
+  async getTasksByProject(projectId: string, filters?: { status?: string; taskType?: string; draUserId?: string; developerUserId?: string; projectObjectId?: string; taskGroupId?: string }) {
+    let query = `
+      SELECT t.id, t.project_id, t.project_object_id, t.task_group_id, t.task_type, t.name, t.status,
+             t.start_date, t.end_date, t.dra_user_id, t.developer_user_id, t.notes, t.created_at, t.updated_at
+      FROM tasks t
+      WHERE t.project_id = $1
+    `;
+    const params: any[] = [projectId];
+    let paramCount = 2;
+
+    if (filters?.status) {
+      query += ` AND t.status = $${paramCount}`;
+      params.push(filters.status);
+      paramCount++;
+    }
+    if (filters?.taskType) {
+      query += ` AND t.task_type = $${paramCount}`;
+      params.push(filters.taskType);
+      paramCount++;
+    }
+    if (filters?.draUserId) {
+      query += ` AND t.dra_user_id = $${paramCount}`;
+      params.push(filters.draUserId);
+      paramCount++;
+    }
+    if (filters?.developerUserId) {
+      query += ` AND t.developer_user_id = $${paramCount}`;
+      params.push(filters.developerUserId);
+      paramCount++;
+    }
+    if (filters?.projectObjectId) {
+      query += ` AND t.project_object_id = $${paramCount}`;
+      params.push(filters.projectObjectId);
+      paramCount++;
+    }
+    if (filters?.taskGroupId) {
+      query += ` AND t.task_group_id = $${paramCount}`;
+      params.push(filters.taskGroupId);
+      paramCount++;
+    }
+
+    query += ' ORDER BY t.created_at DESC';
+
+    const result = await db.query(query, params);
+    return result.rows.map(row => this.formatTask(row));
+  }
+
+  async getTaskById(taskId: string) {
+    const result = await db.query(
+      `SELECT t.id, t.project_id, t.project_object_id, t.task_group_id, t.task_type, t.name, t.status,
+              t.start_date, t.end_date, t.dra_user_id, t.developer_user_id, t.notes, t.created_at, t.updated_at
+       FROM tasks t
+       WHERE t.id = $1`,
+      [taskId]
+    );
+    if (result.rows.length === 0) return null;
+    return this.formatTask(result.rows[0]);
+  }
+
+  async createTask(projectId: string, data: TaskInput) {
+    if (!data.projectObjectId && !data.taskGroupId) {
+      throw new Error('Task must have either projectObjectId or taskGroupId');
+    }
+
+    const result = await db.query(
+      `INSERT INTO tasks (
+        project_id, project_object_id, task_group_id, task_type, name, status,
+        start_date, end_date, dra_user_id, developer_user_id, notes
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+       RETURNING id, project_id, project_object_id, task_group_id, task_type, name, status,
+                 start_date, end_date, dra_user_id, developer_user_id, notes, created_at, updated_at`,
+      [
+        projectId,
+        data.projectObjectId || null,
+        data.taskGroupId || null,
+        data.taskType,
+        data.name || null,
+        data.status || 'not_started',
+        data.startDate || null,
+        data.endDate || null,
+        data.draUserId || null,
+        data.developerUserId || null,
+        data.notes || null,
+      ]
+    );
+
+    return this.formatTask(result.rows[0]);
+  }
+
+  async updateTask(taskId: string, data: Partial<TaskInput>) {
+    const fields: string[] = [];
+    const values: any[] = [taskId];
+    let paramCount = 2;
+
+    const fieldMap: { [key: string]: string } = {
+      status: 'status',
+      startDate: 'start_date',
+      endDate: 'end_date',
+      draUserId: 'dra_user_id',
+      developerUserId: 'developer_user_id',
+      notes: 'notes',
+    };
+
+    for (const [key, dbColumn] of Object.entries(fieldMap)) {
+      if (key in data && data[key as keyof TaskInput] !== undefined) {
+        fields.push(`${dbColumn} = $${paramCount}`);
+        values.push(data[key as keyof TaskInput]);
+        paramCount++;
+      }
+    }
+
+    if (fields.length === 0) return this.getTaskById(taskId);
+
+    fields.push(`updated_at = CURRENT_TIMESTAMP`);
+
+    const result = await db.query(
+      `UPDATE tasks SET ${fields.join(', ')} WHERE id = $1 RETURNING id`,
+      values
+    );
+
+    if (result.rows.length === 0) return null;
+    return this.getTaskById(taskId);
+  }
+
+  async deleteTask(taskId: string) {
+    const result = await db.query(
+      'DELETE FROM tasks WHERE id = $1 RETURNING id',
+      [taskId]
+    );
+
+    return result.rows.length > 0;
+  }
+
+  private formatTaskGroup(row: any) {
+    return {
+      id: row.id,
+      projectId: row.project_id,
+      name: row.name,
+      description: row.description,
+      startDate: row.start_date,
+      endDate: row.end_date,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    };
+  }
+
+  private formatTask(row: any) {
+    return {
+      id: row.id,
+      projectId: row.project_id,
+      projectObjectId: row.project_object_id,
+      taskGroupId: row.task_group_id,
+      taskType: row.task_type,
+      name: row.name,
+      status: row.status,
+      startDate: row.start_date,
+      endDate: row.end_date,
+      draUserId: row.dra_user_id,
+      developerUserId: row.developer_user_id,
+      notes: row.notes,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    };
+  }
+}
+
+export default new TaskService();

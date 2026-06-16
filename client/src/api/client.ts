@@ -1,15 +1,36 @@
-import axios from 'axios';
+// client/src/api/client.ts
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+import axios, { AxiosInstance, AxiosError } from 'axios';
+import { parseApiError } from './errorHandler';
 
-const apiClient = axios.create({
-  baseURL: API_URL,
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
+/**
+ * Create Axios instance with base configuration
+ */
+const apiClient: AxiosInstance = axios.create({
+  baseURL: `${API_BASE_URL}/api`,
   headers: {
     'Content-Type': 'application/json',
   },
+  timeout: 30000,
 });
 
-// Add request interceptor to include auth token
+/**
+ * Callback for handling logout
+ */
+let logoutCallback: (() => void) | null = null;
+
+/**
+ * Register logout callback from AuthContext
+ */
+export function setLogoutCallback(callback: () => void): void {
+  logoutCallback = callback;
+}
+
+/**
+ * Request interceptor: attach JWT token
+ */
 apiClient.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('authToken');
@@ -21,14 +42,34 @@ apiClient.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Add response interceptor for error handling
+/**
+ * Response interceptor: normalize errors and handle auth
+ */
 apiClient.interceptors.response.use(
   (response) => response,
-  (error) => {
+  (error: AxiosError) => {
+    // Handle 401 Unauthorized
     if (error.response?.status === 401) {
       localStorage.removeItem('authToken');
-      window.location.href = '/login';
+      
+      // Call logout callback if registered
+      if (logoutCallback) {
+        logoutCallback();
+      } else {
+        // Fallback redirect
+        window.location.href = '/login';
+      }
     }
+
+    // Log error details in development
+    if (import.meta.env.DEV) {
+      console.error('[API Error]', {
+        status: error.response?.status,
+        message: error.response?.data?.message || error.message,
+        url: error.config?.url,
+      });
+    }
+
     return Promise.reject(error);
   }
 );
