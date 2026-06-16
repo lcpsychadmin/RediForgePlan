@@ -26,7 +26,13 @@ import ProjectLayout from './layout/ProjectLayout';
 
 // Redirect component for authenticated users trying to access login
 const AuthRedirect: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, loading } = useAuth();
+  
+  // Don't redirect while auth is loading
+  if (loading) {
+    return <>{children}</>;
+  }
+  
   return isAuthenticated ? <Navigate to="/dashboard" replace /> : <>{children}</>;
 };
 
