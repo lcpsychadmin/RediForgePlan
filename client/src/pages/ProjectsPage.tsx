@@ -29,6 +29,7 @@ import {
 import AddIcon from '@mui/icons-material/Add';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
@@ -189,6 +190,8 @@ const ProjectsPage: React.FC = () => {
   // Plan tab states
   const [projectTasks, setProjectTasks] = useState<any[]>([]);
   const [projectTaskGroups, setProjectTaskGroups] = useState<any[]>([]);
+  const [expandedObjects, setExpandedObjects] = useState<Set<string>>(new Set());
+  const [expandedTaskGroups, setExpandedTaskGroups] = useState<Set<string>>(new Set());
 
   const { data: programs = [], isLoading } = useQuery({
     queryKey: ['programs'],
@@ -1045,39 +1048,78 @@ const ProjectsPage: React.FC = () => {
                           </Button>
                         </Box>
 
-                        {/* Tasks Display */}
+                        {/* Objects with Tasks Display */}
                         <Box sx={{ mt: 3 }}>
-                          <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>Tasks in Plan ({projectTasks.length})</Typography>
+                          <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>Data Objects in Plan ({projectInventoryItems.filter(obj => projectTasks.some(t => t.projectObjectId === obj.id)).length})</Typography>
                           {projectTasks.length === 0 ? (
                             <Alert severity="info">No tasks added to plan yet</Alert>
                           ) : (
                             <Box sx={{
                               display: 'grid',
                               gridTemplateColumns: '1fr',
-                              gap: 1,
+                              gap: 1.5,
                               border: '1px solid',
                               borderColor: 'primary.main',
                               borderRadius: 1,
                               p: 2,
                               backgroundColor: 'rgba(103, 58, 183, 0.05)',
                             }}>
-                              {projectTasks.map((task) => (
-                                <Box key={task.id} sx={{
-                                  p: 1.5,
-                                  backgroundColor: 'background.paper',
-                                  border: '1px solid',
-                                  borderColor: 'divider',
-                                  borderRadius: 1,
-                                  display: 'flex',
-                                  justifyContent: 'space-between',
-                                  alignItems: 'center'
-                                }}>
-                                  <Box>
-                                    <Typography variant="body2" sx={{ fontWeight: 600 }}>{task.name || 'Unnamed Task'}</Typography>
-                                    <Typography variant="caption" color="textSecondary">Status: {task.status}</Typography>
+                              {Array.from(new Set(projectTasks.map(t => t.projectObjectId))).map((objectId) => {
+                                const tasksForObject = projectTasks.filter(t => t.projectObjectId === objectId);
+                                const objectName = projectInventoryItems.find(obj => obj.id === objectId)?.objectId || 'Unknown Object';
+                                const isExpanded = expandedObjects.has(objectId || '');
+                                return (
+                                  <Box key={objectId} sx={{
+                                    border: '1px solid',
+                                    borderColor: 'divider',
+                                    borderRadius: 1,
+                                    overflow: 'hidden',
+                                    backgroundColor: 'background.paper',
+                                  }}>
+                                    <Box
+                                      onClick={() => {
+                                        const newExpanded = new Set(expandedObjects);
+                                        if (isExpanded) {
+                                          newExpanded.delete(objectId || '');
+                                        } else {
+                                          newExpanded.add(objectId || '');
+                                        }
+                                        setExpandedObjects(newExpanded);
+                                      }}
+                                      sx={{
+                                        p: 2,
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        justifyContent: 'space-between',
+                                        alignItems: 'center',
+                                        '&:hover': { backgroundColor: 'action.hover' },
+                                      }}
+                                    >
+                                      <Box>
+                                        <Typography variant="body2" sx={{ fontWeight: 600 }}>{objectName}</Typography>
+                                        <Typography variant="caption" color="textSecondary">{tasksForObject.length} task{tasksForObject.length !== 1 ? 's' : ''}</Typography>
+                                      </Box>
+                                      {isExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                                    </Box>
+                                    {isExpanded && (
+                                      <Box sx={{ p: 2, pt: 0, borderTop: '1px solid', borderColor: 'divider' }}>
+                                        {tasksForObject.map((task) => (
+                                          <Box key={task.id} sx={{
+                                            p: 1.5,
+                                            mb: 1,
+                                            backgroundColor: 'action.hover',
+                                            borderRadius: 1,
+                                            '&:last-child': { mb: 0 },
+                                          }}>
+                                            <Typography variant="body2" sx={{ fontWeight: 600 }}>{task.name || 'Unnamed Task'}</Typography>
+                                            <Typography variant="caption" color="textSecondary">Status: {task.status}</Typography>
+                                          </Box>
+                                        ))}
+                                      </Box>
+                                    )}
                                   </Box>
-                                </Box>
-                              ))}
+                                );
+                              })}
                             </Box>
                           )}
                         </Box>
@@ -1089,24 +1131,72 @@ const ProjectsPage: React.FC = () => {
                             <Box sx={{
                               display: 'grid',
                               gridTemplateColumns: '1fr',
-                              gap: 1,
+                              gap: 1.5,
                               border: '1px solid',
                               borderColor: 'info.main',
                               borderRadius: 1,
                               p: 2,
                               backgroundColor: 'rgba(33, 150, 243, 0.05)',
                             }}>
-                              {projectTaskGroups.map((group) => (
-                                <Box key={group.id} sx={{
-                                  p: 1.5,
-                                  backgroundColor: 'background.paper',
-                                  border: '1px solid',
-                                  borderColor: 'divider',
-                                  borderRadius: 1,
-                                }}>
-                                  <Typography variant="body2" sx={{ fontWeight: 600 }}>{group.name}</Typography>
-                                </Box>
-                              ))}
+                              {projectTaskGroups.map((group) => {
+                                const isExpanded = expandedTaskGroups.has(group.id);
+                                const groupTasks = projectTasks.filter(t => t.taskGroupId === group.id);
+                                return (
+                                  <Box key={group.id} sx={{
+                                    border: '1px solid',
+                                    borderColor: 'divider',
+                                    borderRadius: 1,
+                                    overflow: 'hidden',
+                                    backgroundColor: 'background.paper',
+                                  }}>
+                                    <Box
+                                      onClick={() => {
+                                        const newExpanded = new Set(expandedTaskGroups);
+                                        if (isExpanded) {
+                                          newExpanded.delete(group.id);
+                                        } else {
+                                          newExpanded.add(group.id);
+                                        }
+                                        setExpandedTaskGroups(newExpanded);
+                                      }}
+                                      sx={{
+                                        p: 2,
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        justifyContent: 'space-between',
+                                        alignItems: 'center',
+                                        '&:hover': { backgroundColor: 'action.hover' },
+                                      }}
+                                    >
+                                      <Box>
+                                        <Typography variant="body2" sx={{ fontWeight: 600 }}>{group.name}</Typography>
+                                        <Typography variant="caption" color="textSecondary">{groupTasks.length} task{groupTasks.length !== 1 ? 's' : ''}</Typography>
+                                      </Box>
+                                      {isExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                                    </Box>
+                                    {isExpanded && (
+                                      <Box sx={{ p: 2, pt: 0, borderTop: '1px solid', borderColor: 'divider' }}>
+                                        {groupTasks.length > 0 ? (
+                                          groupTasks.map((task) => (
+                                            <Box key={task.id} sx={{
+                                              p: 1.5,
+                                              mb: 1,
+                                              backgroundColor: 'action.hover',
+                                              borderRadius: 1,
+                                              '&:last-child': { mb: 0 },
+                                            }}>
+                                              <Typography variant="body2" sx={{ fontWeight: 600 }}>{task.name || 'Unnamed Task'}</Typography>
+                                              <Typography variant="caption" color="textSecondary">Status: {task.status}</Typography>
+                                            </Box>
+                                          ))
+                                        ) : (
+                                          <Typography variant="caption" color="textSecondary">No tasks in this group</Typography>
+                                        )}
+                                      </Box>
+                                    )}
+                                  </Box>
+                                );
+                              })}
                             </Box>
                           </Box>
                         )}
