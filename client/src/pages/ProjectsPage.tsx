@@ -168,7 +168,6 @@ const ProjectsPage: React.FC = () => {
             New Program
           </Button>
         </Box>
-        </Typography>
 
         {programs.length === 0 ? (
           <Alert severity="info">No programs available</Alert>
