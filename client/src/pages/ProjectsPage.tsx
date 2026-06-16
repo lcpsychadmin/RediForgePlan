@@ -818,20 +818,34 @@ const ProjectsPage: React.FC = () => {
               {tabValue === 1 && selectedItem.type === 'project' && (
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                   {/* Inventory Sub-Tabs */}
-                  <Box sx={{ display: 'flex', gap: 1 }}>
+                  <Box sx={{ display: 'flex', gap: 1, overflow: 'visible' }}>
                     <Button
                       variant={inventorySubTab === 0 ? 'contained' : 'outlined'}
-                      startIcon={<Box sx={{ display: 'flex' }} />}
                       onClick={() => setInventorySubTab(0)}
-                      sx={{ textTransform: 'none', fontWeight: 600 }}
+                      sx={{ 
+                        textTransform: 'none', 
+                        fontWeight: 600,
+                        borderRadius: '8px',
+                        '&:hover': {
+                          backgroundColor: inventorySubTab === 0 ? undefined : 'action.hover',
+                          borderColor: 'transparent',
+                        }
+                      }}
                     >
                       Object Catalog
                     </Button>
                     <Button
                       variant={inventorySubTab === 1 ? 'contained' : 'outlined'}
-                      startIcon={<Box sx={{ display: 'flex' }} />}
                       onClick={() => setInventorySubTab(1)}
-                      sx={{ textTransform: 'none', fontWeight: 600 }}
+                      sx={{ 
+                        textTransform: 'none', 
+                        fontWeight: 600,
+                        borderRadius: '8px',
+                        '&:hover': {
+                          backgroundColor: inventorySubTab === 1 ? undefined : 'action.hover',
+                          borderColor: 'transparent',
+                        }
+                      }}
                     >
                       Project Inventory
                     </Button>
@@ -841,54 +855,9 @@ const ProjectsPage: React.FC = () => {
                   {inventorySubTab === 0 && (
                     <Card>
                       <CardContent>
-                        <Typography variant="h6" sx={{ mb: 3 }}>
-                          Object Catalog
-                        </Typography>
-                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                          <TextField
-                            fullWidth
-                            label="Object ID"
-                            placeholder="e.g., H2R.CNV.068"
-                            size="small"
-                          />
-                          <TextField
-                            fullWidth
-                            label="Description"
-                            placeholder="Enter object description"
-                            multiline
-                            rows={2}
-                            size="small"
-                          />
-                          <TextField
-                            fullWidth
-                            label="Process Area"
-                            placeholder="Enter process area"
-                            size="small"
-                          />
-                          <Button
-                            variant="contained"
-                            sx={{
-                              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                              textTransform: 'none',
-                              fontWeight: 600,
-                              alignSelf: 'flex-start',
-                            }}
-                            onClick={() => setCatalogObjectDialogOpen(true)}
-                          >
-                            Create Object
-                          </Button>
-                        </Box>
-                      </CardContent>
-                    </Card>
-                  )}
-
-                  {/* Project Inventory Sub-Tab */}
-                  {inventorySubTab === 1 && (
-                    <Card>
-                      <CardContent>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
                           <Typography variant="h6">
-                            Project Inventory
+                            Object Catalog
                           </Typography>
                           <Button
                             variant="contained"
@@ -898,6 +867,7 @@ const ProjectsPage: React.FC = () => {
                               fontWeight: 600,
                             }}
                             startIcon={<AddIcon />}
+                            onClick={() => setCatalogObjectDialogOpen(true)}
                           >
                             Add Object
                           </Button>
@@ -913,7 +883,7 @@ const ProjectsPage: React.FC = () => {
                           sx={{ mb: 2 }}
                         />
 
-                        {/* Inventory Table */}
+                        {/* Catalog Table */}
                         <Box sx={{ overflowX: 'auto' }}>
                           <Box sx={{ display: 'grid', gridTemplateColumns: '150px 1fr', gap: 0, borderRadius: 1, overflow: 'hidden', border: '1px solid', borderColor: 'divider' }}>
                             {/* Header */}
@@ -924,10 +894,10 @@ const ProjectsPage: React.FC = () => {
                               DESCRIPTION
                             </Box>
 
-                            {/* Sample Data Rows */}
+                            {/* Catalog Data Rows */}
                             {inventoryObjects.length === 0 ? (
                               <Box sx={{ gridColumn: '1 / -1', p: 2, textAlign: 'center', color: 'text.secondary' }}>
-                                No objects in inventory yet
+                                No objects in catalog yet
                               </Box>
                             ) : (
                               inventoryObjects.map((obj) => (
@@ -937,6 +907,83 @@ const ProjectsPage: React.FC = () => {
                                   </Box>
                                   <Box sx={{ p: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
                                     {obj.description}
+                                  </Box>
+                                </React.Fragment>
+                              ))
+                            )}
+                          </Box>
+                        </Box>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Project Inventory Sub-Tab */}
+                  {inventorySubTab === 1 && (
+                    <Card>
+                      <CardContent>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+                          <Typography variant="h6">
+                            Project Inventory
+                          </Typography>
+                          <Button
+                            variant="contained"
+                            sx={{
+                              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                              textTransform: 'none',
+                              fontWeight: 600,
+                            }}
+                            startIcon={<AddIcon />}
+                          >
+                            Add Item
+                          </Button>
+                        </Box>
+                        
+                        {/* Search Bar */}
+                        <TextField
+                          fullWidth
+                          placeholder="Search inventory..."
+                          size="small"
+                          value={inventorySearchTerm}
+                          onChange={(e) => setInventorySearchTerm(e.target.value)}
+                          sx={{ mb: 2 }}
+                        />
+
+                        {/* Inventory Table */}
+                        <Box sx={{ overflowX: 'auto' }}>
+                          <Box sx={{ display: 'grid', gridTemplateColumns: '150px 1fr 120px 100px', gap: 0, borderRadius: 1, overflow: 'hidden', border: '1px solid', borderColor: 'divider' }}>
+                            {/* Header */}
+                            <Box sx={{ backgroundColor: 'background.paper', p: 1.5, fontWeight: 600, borderBottom: '1px solid', borderColor: 'divider' }}>
+                              OBJECT ID
+                            </Box>
+                            <Box sx={{ backgroundColor: 'background.paper', p: 1.5, fontWeight: 600, borderBottom: '1px solid', borderColor: 'divider' }}>
+                              DESCRIPTION
+                            </Box>
+                            <Box sx={{ backgroundColor: 'background.paper', p: 1.5, fontWeight: 600, borderBottom: '1px solid', borderColor: 'divider' }}>
+                              QUANTITY
+                            </Box>
+                            <Box sx={{ backgroundColor: 'background.paper', p: 1.5, fontWeight: 600, borderBottom: '1px solid', borderColor: 'divider' }}>
+                              STATUS
+                            </Box>
+
+                            {/* Inventory Data Rows */}
+                            {inventoryObjects.length === 0 ? (
+                              <Box sx={{ gridColumn: '1 / -1', p: 2, textAlign: 'center', color: 'text.secondary' }}>
+                                No items in project inventory yet
+                              </Box>
+                            ) : (
+                              inventoryObjects.map((obj) => (
+                                <React.Fragment key={obj.id}>
+                                  <Box sx={{ p: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
+                                    {obj.objectId}
+                                  </Box>
+                                  <Box sx={{ p: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
+                                    {obj.description}
+                                  </Box>
+                                  <Box sx={{ p: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
+                                    —
+                                  </Box>
+                                  <Box sx={{ p: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
+                                    —
                                   </Box>
                                 </React.Fragment>
                               ))
@@ -1286,7 +1333,7 @@ const ProjectsPage: React.FC = () => {
 
       {/* Catalog Object Dialog */}
       <Dialog open={catalogObjectDialogOpen} onClose={() => setCatalogObjectDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Create Catalog Object</DialogTitle>
+        <DialogTitle>Add Object to Catalog</DialogTitle>
         <DialogContent sx={{ pt: 2 }}>
           <TextField
             autoFocus
@@ -1304,8 +1351,8 @@ const ProjectsPage: React.FC = () => {
             onChange={(e) => setCatalogObjectDesc(e.target.value)}
             margin="normal"
             multiline
-            rows={2}
-            placeholder="Enter object description"
+            rows={3}
+            placeholder="Enter detailed object description"
           />
           <TextField
             fullWidth
@@ -1313,7 +1360,7 @@ const ProjectsPage: React.FC = () => {
             value={catalogProcessArea}
             onChange={(e) => setCatalogProcessArea(e.target.value)}
             margin="normal"
-            placeholder="Enter process area"
+            placeholder="e.g., H2R, Finance, HR"
           />
         </DialogContent>
         <DialogActions>
@@ -1343,7 +1390,7 @@ const ProjectsPage: React.FC = () => {
             variant="contained"
             disabled={isCreatingCatalogObject || !catalogObjectId.trim() || !catalogObjectDesc.trim()}
           >
-            {isCreatingCatalogObject ? 'Creating...' : 'Create'}
+            {isCreatingCatalogObject ? 'Adding...' : 'Add Object'}
           </Button>
         </DialogActions>
       </Dialog>
