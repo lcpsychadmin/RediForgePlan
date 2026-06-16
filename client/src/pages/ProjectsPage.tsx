@@ -1634,7 +1634,6 @@ const ProjectsPage: React.FC = () => {
             disabled={isEditing}
             sx={{ textTransform: 'none' }}
           >
-          >
             {isEditing ? 'Saving...' : 'Save'}
           </Button>
         </DialogActions>
