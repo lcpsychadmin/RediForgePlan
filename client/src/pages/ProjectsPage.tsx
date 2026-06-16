@@ -1706,7 +1706,7 @@ const ProjectsPage: React.FC = () => {
                 // Create a task for this object
                 const response = await apiClient.post(`/api/tasks/project/${activeProjectId}`, {
                   taskType: 'custom',
-                  projectObjectId: inventoryItem.globalObjectId,
+                  projectObjectId: inventoryItem.id,
                   name: newDataObjectId,
                 });
 
