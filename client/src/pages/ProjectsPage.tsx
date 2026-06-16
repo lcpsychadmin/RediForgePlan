@@ -939,13 +939,16 @@ const ProjectsPage: React.FC = () => {
 
                     {/* Catalog Table */}
                     <Box sx={{ overflowX: 'auto' }}>
-                      <Box sx={{ display: 'grid', gridTemplateColumns: '150px 1fr', gap: 0, borderRadius: 1, overflow: 'hidden', border: '1px solid', borderColor: 'divider' }}>
-                        {/* Header */}
-                        <Box sx={{ backgroundColor: 'background.paper', p: 1.5, fontWeight: 600, borderBottom: '1px solid', borderColor: 'divider' }}>
+                      <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr 120px', gap: 0, borderRadius: 1, overflow: 'hidden', border: '1px solid', borderColor: 'primary.main' }}>
+                        {/* Header Row */}
+                        <Box sx={{ backgroundColor: 'primary.main', p: 1.5, fontWeight: 700, color: 'primary.contrastText', fontSize: '0.875rem', letterSpacing: '0.5px' }}>
                           OBJECT ID
                         </Box>
-                        <Box sx={{ backgroundColor: 'background.paper', p: 1.5, fontWeight: 600, borderBottom: '1px solid', borderColor: 'divider' }}>
+                        <Box sx={{ backgroundColor: 'primary.main', p: 1.5, fontWeight: 700, color: 'primary.contrastText', fontSize: '0.875rem', letterSpacing: '0.5px' }}>
                           DESCRIPTION
+                        </Box>
+                        <Box sx={{ backgroundColor: 'primary.main', p: 1.5, fontWeight: 700, color: 'primary.contrastText', fontSize: '0.875rem', letterSpacing: '0.5px', textAlign: 'center' }}>
+                          ACTIONS
                         </Box>
 
                         {/* Catalog Data Rows */}
@@ -956,11 +959,19 @@ const ProjectsPage: React.FC = () => {
                         ) : (
                           inventoryObjects.map((obj) => (
                             <React.Fragment key={obj.id}>
-                              <Box sx={{ p: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
+                              <Box sx={{ p: 1.5, borderBottom: '1px solid', borderColor: 'divider', backgroundColor: 'background.paper', fontFamily: 'monospace', fontSize: '0.9rem', color: 'primary.light' }}>
                                 {obj.objectId}
                               </Box>
-                              <Box sx={{ p: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
+                              <Box sx={{ p: 1.5, borderBottom: '1px solid', borderColor: 'divider', backgroundColor: 'background.paper', color: 'text.primary' }}>
                                 {obj.description}
+                              </Box>
+                              <Box sx={{ p: 1, borderBottom: '1px solid', borderColor: 'divider', backgroundColor: 'background.paper', display: 'flex', gap: 0.5, justifyContent: 'center', alignItems: 'center' }}>
+                                <IconButton size="small" sx={{ color: 'info.main', '&:hover': { backgroundColor: 'action.hover' } }} title="Edit">
+                                  <EditIcon sx={{ fontSize: '1.1rem' }} />
+                                </IconButton>
+                                <IconButton size="small" sx={{ color: 'error.main', '&:hover': { backgroundColor: 'action.hover' } }} title="Delete">
+                                  <DeleteIcon sx={{ fontSize: '1.1rem' }} />
+                                </IconButton>
                               </Box>
                             </React.Fragment>
                           ))
