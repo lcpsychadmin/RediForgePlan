@@ -500,7 +500,7 @@ const ProjectsPage: React.FC = () => {
         {/* Title and Stats Row */}
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            {selectedItem?.type === 'project' ? (
+            {selectedItem?.type === 'project' && selectedDetails ? (
               // Project-specific header
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
                 <FolderOutlinedIcon sx={{ fontSize: '2rem', color: (selectedDetails as Project).accentColor || '#90caf9', flexShrink: 0 }} />
@@ -548,7 +548,7 @@ const ProjectsPage: React.FC = () => {
                       Progress:
                     </Typography>
                     <Typography variant="body2" sx={{ fontWeight: 600, color: 'primary.main' }}>
-                      {(selectedDetails as Project).progressPercentage || 0}%
+                      {selectedDetails ? (selectedDetails as Project).progressPercentage || 0 : 0}%
                     </Typography>
                   </Box>
                 </>
@@ -817,12 +817,12 @@ const ProjectsPage: React.FC = () => {
                 <Card>
                   <CardHeader
                     avatar={
-                      selectedItem.type === 'project' ? (
+                      selectedItem.type === 'project' && selectedDetails ? (
                         <FolderOutlinedIcon sx={{ color: (selectedDetails as Project).accentColor || '#90caf9', fontSize: '2rem' }} />
                       ) : undefined
                     }
-                    title={selectedDetails.name}
-                    subheader={selectedDetails.description || (selectedItem.type === 'cycle' ? `${(selectedDetails as MockCycle).startDate} → ${(selectedDetails as MockCycle).endDate}` : '')}
+                    title={selectedDetails?.name}
+                    subheader={selectedDetails?.description || (selectedItem.type === 'cycle' ? `${(selectedDetails as MockCycle).startDate} → ${(selectedDetails as MockCycle).endDate}` : '')}
                   />
                   <Divider />
                   <CardContent>
