@@ -984,42 +984,40 @@ const ProjectsPage: React.FC = () => {
                             Select a project:
                           </Typography>
                           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                            {programs.length === 0 ? (
+                            {mockCycles.length === 0 ? (
                               <Typography variant="caption" color="textSecondary">
                                 No projects available
                               </Typography>
                             ) : (
-                              programs.map((program: Program) =>
-                                mockCycles.map((cycle: MockCycle) => {
-                                  const cycleProjects = projectsByMockCycle[cycle.id] || [];
-                                  return cycleProjects.map((project: Project) => (
-                                    <Box
-                                      key={project.id}
-                                      component="button"
-                                      onClick={() => setSelectedProjectForInventory(project.id)}
-                                      sx={{
-                                        px: 2,
-                                        py: 1,
-                                        borderRadius: '24px',
-                                        border: selectedProjectForInventory === project.id ? '2px solid' : '1px solid',
-                                        borderColor: selectedProjectForInventory === project.id ? 'primary.main' : 'divider',
-                                        backgroundColor: selectedProjectForInventory === project.id ? 'primary.lighter' : 'background.paper',
-                                        cursor: 'pointer',
-                                        textTransform: 'none',
-                                        fontWeight: selectedProjectForInventory === project.id ? 600 : 500,
-                                        fontSize: '0.875rem',
-                                        transition: 'all 0.2s',
-                                        '&:hover': {
-                                          borderColor: 'primary.main',
-                                          backgroundColor: 'primary.lighter',
-                                        },
-                                      }}
-                                    >
-                                      {project.name}
-                                    </Box>
-                                  ));
-                                })
-                              )
+                              mockCycles.flatMap((cycle: MockCycle) => {
+                                const cycleProjects = projectsByMockCycle[cycle.id] || [];
+                                return cycleProjects.map((project: Project) => (
+                                  <Box
+                                    key={project.id}
+                                    component="button"
+                                    onClick={() => setSelectedProjectForInventory(project.id)}
+                                    sx={{
+                                      px: 2,
+                                      py: 1,
+                                      borderRadius: '24px',
+                                      border: selectedProjectForInventory === project.id ? '2px solid' : '1px solid',
+                                      borderColor: selectedProjectForInventory === project.id ? 'primary.main' : 'divider',
+                                      backgroundColor: selectedProjectForInventory === project.id ? 'primary.lighter' : 'background.paper',
+                                      cursor: 'pointer',
+                                      textTransform: 'none',
+                                      fontWeight: selectedProjectForInventory === project.id ? 600 : 500,
+                                      fontSize: '0.875rem',
+                                      transition: 'all 0.2s',
+                                      '&:hover': {
+                                        borderColor: 'primary.main',
+                                        backgroundColor: 'primary.lighter',
+                                      },
+                                    }}
+                                  >
+                                    {project.name}
+                                  </Box>
+                                ));
+                              })
                             )}
                           </Box>
                         </Box>
