@@ -71,6 +71,8 @@ const ProjectsPage: React.FC = () => {
   const [newItemName, setNewItemName] = useState('');
   const [newItemDesc, setNewItemDesc] = useState('');
   const [isCreating, setIsCreating] = useState(false);
+  const [contextProgramId, setContextProgramId] = useState<string | null>(null);
+  const [contextCycleId, setContextCycleId] = useState<string | null>(null);
 
   const { data: programs = [], isLoading } = useQuery({
     queryKey: ['programs'],
@@ -119,7 +121,7 @@ const ProjectsPage: React.FC = () => {
     enabled: Object.keys(mockCycles).length > 0,
   });
 
-  const handleCreateProgram = async () => {
+  const handleCreateItem = async () => {
     if (!newItemName.trim()) {
       alert('Name is required');
       return;
@@ -127,14 +129,34 @@ const ProjectsPage: React.FC = () => {
 
     try {
       setIsCreating(true);
-      await apiClient.post('/api/programs', {
-        name: newItemName,
-        description: newItemDesc,
-      });
-      queryClient.invalidateQueries({ queryKey: ['programs'] });
+      if (dialogMode === 'program') {
+        await apiClient.post('/api/programs', {
+          name: newItemName,
+          description: newItemDesc,
+        });
+        queryClient.invalidateQueries({ queryKey: ['programs'] });
+      } else if (dialogMode === 'cycle' && contextProgramId) {
+        await apiClient.post(`/api/programs/${contextProgramId}/mock-cycles`, {
+          name: newItemName,
+          startDate: new Date().toISOString().split('T')[0],
+          endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        });
+        queryClient.invalidateQueries({ queryKey: ['mockCycles'] });
+        setExpandedPrograms(new Set(expandedPrograms).add(contextProgramId));
+      } else if (dialogMode === 'project' && contextCycleId) {
+        await apiClient.post(`/api/projects/by-cycle/${contextCycleId}`, {
+          name: newItemName,
+          startDate: new Date().toISOString().split('T')[0],
+          endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        });
+        queryClient.invalidateQueries({ queryKey: ['projectsByMockCycle'] });
+        setExpandedCycles(new Set(expandedCycles).add(contextCycleId));
+      }
       setNewItemName('');
       setNewItemDesc('');
       setCreateDialogOpen(false);
+      setContextProgramId(null);
+      setContextCycleId(null);
     } catch (error) {
       console.error('Failed to create:', error);
       alert('Failed to create. Please try again.');
@@ -163,8 +185,10 @@ const ProjectsPage: React.FC = () => {
     setExpandedCycles(newSet);
   };
 
-  const openCreateDialog = (mode: 'program' | 'cycle' | 'project') => {
+  const openCreateDialog = (mode: 'program' | 'cycle' | 'project', programId?: string, cycleId?: string) => {
     setDialogMode(mode);
+    setContextProgramId(programId || null);
+    setContextCycleId(cycleId || null);
     setNewItemName('');
     setNewItemDesc('');
     setCreateDialogOpen(true);
@@ -273,6 +297,19 @@ const ProjectsPage: React.FC = () => {
                   {/* Mock Cycles */}
                   {expandedPrograms.has(program.id) && (
                     <Box sx={{ pl: 2 }}>
+                      {/* Add Mock Cycle Button */}
+                      <Box sx={{ mb: 1 }}>
+                        <Button
+                          size="small"
+                          variant="text"
+                          startIcon={<AddIcon />}
+                          onClick={() => openCreateDialog('cycle', program.id)}
+                          sx={{ fontSize: '0.75rem', height: 28 }}
+                        >
+                          Add Mock Cycle
+                        </Button>
+                      </Box>
+
                       {mockCycles[program.id]?.map((cycle: MockCycle) => (
                         <Box key={cycle.id}>
                           <ListItemButton
@@ -313,6 +350,19 @@ const ProjectsPage: React.FC = () => {
                           {/* Projects */}
                           {expandedCycles.has(cycle.id) && (
                             <Box sx={{ pl: 2 }}>
+                              {/* Add Project Button */}
+                              <Box sx={{ mb: 1 }}>
+                                <Button
+                                  size="small"
+                                  variant="text"
+                                  startIcon={<AddIcon />}
+                                  onClick={() => openCreateDialog('project', undefined, cycle.id)}
+                                  sx={{ fontSize: '0.75rem', height: 28 }}
+                                >
+                                  Add Project
+                                </Button>
+                              </Box>
+
                               {projectsByMockCycle[cycle.id]?.map((project: Project) => (
                                 <ListItemButton
                                   key={project.id}
@@ -400,21 +450,23 @@ const ProjectsPage: React.FC = () => {
             margin="normal"
             placeholder="Enter name"
           />
-          <TextField
-            fullWidth
-            label="Description"
-            value={newItemDesc}
-            onChange={(e) => setNewItemDesc(e.target.value)}
-            margin="normal"
-            multiline
-            rows={3}
-            placeholder="Optional description"
-          />
+          {dialogMode === 'program' && (
+            <TextField
+              fullWidth
+              label="Description"
+              value={newItemDesc}
+              onChange={(e) => setNewItemDesc(e.target.value)}
+              margin="normal"
+              multiline
+              rows={3}
+              placeholder="Optional description"
+            />
+          )}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setCreateDialogOpen(false)}>Cancel</Button>
           <Button
-            onClick={handleCreateProgram}
+            onClick={handleCreateItem}
             variant="contained"
             disabled={isCreating || !newItemName.trim()}
           >
