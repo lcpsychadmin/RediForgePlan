@@ -25,6 +25,8 @@ import {
   Slider,
   Tabs,
   Tab,
+  Breadcrumbs,
+  Link,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
@@ -39,6 +41,7 @@ import SyncIcon from '@mui/icons-material/Sync';
 import StorageIcon from '@mui/icons-material/Storage';
 import GroupIcon from '@mui/icons-material/Group';
 import DownloadIcon from '@mui/icons-material/Download';
+import SearchIcon from '@mui/icons-material/Search';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Menu from '@mui/material/Menu';
 import { useNavigate } from 'react-router-dom';
@@ -832,7 +835,10 @@ const ProjectsPage: React.FC = () => {
             overflowY: 'auto',
             p: 2,
             flexShrink: 0,
-            backgroundColor: 'background.elevated',
+            backgroundColor: 'rgba(255, 255, 255, 0.05)',
+            border: '1px solid',
+            borderColor: 'rgba(255, 255, 255, 0.1)',
+            borderRadius: 0,
             display: 'flex',
             flexDirection: 'column',
           }}
@@ -1035,6 +1041,15 @@ const ProjectsPage: React.FC = () => {
                   />
                   <Divider />
                   <CardContent>
+                    {selectedItem.type === 'project' && (
+                      <>
+                        {/* Breadcrumbs */}
+                        <Breadcrumbs sx={{ mb: 2 }}>
+                          <Link color="inherit" href="#" sx={{ cursor: 'pointer' }}>Projects</Link>
+                          <Typography color="textSecondary">{selectedDetails?.name}</Typography>
+                        </Breadcrumbs>
+                      </>
+                    )}
                     <Typography variant="h6" sx={{ mb: 2 }}>
                       {selectedItem.type === 'program' && 'Program Details'}
                       {selectedItem.type === 'cycle' && 'Mock Cycle Details'}
@@ -1070,6 +1085,21 @@ const ProjectsPage: React.FC = () => {
                           </Button>
                         </Box>
 
+                        {/* Search and Filter */}
+                        <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
+                          <TextField
+                            placeholder="Search objects, tasks..."
+                            size="small"
+                            variant="outlined"
+                            sx={{ flex: 1, maxWidth: '300px' }}
+                            slotProps={{
+                              input: {
+                                startAdornment: <SearchIcon sx={{ mr: 1, color: 'textSecondary' }} />,
+                              }
+                            }}
+                          />
+                        </Box>
+
                         {/* Combined Task Display */}
                         <Box sx={{ mt: 3 }}>
                           {projectTasks.length === 0 && projectTaskGroups.length === 0 ? (
@@ -1096,8 +1126,9 @@ const ProjectsPage: React.FC = () => {
                                 
                                 return (
                                   <Box key={`obj-${objectId}`} sx={{
+                                    backgroundColor: 'rgba(91, 103, 202, 0.1)',
                                     border: '1px solid',
-                                    borderColor: 'divider',
+                                    borderColor: 'rgba(91, 103, 202, 0.3)',
                                     borderRadius: 1,
                                     overflow: 'hidden',
                                     backgroundColor: 'background.paper',
