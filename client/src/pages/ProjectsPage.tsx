@@ -186,6 +186,10 @@ const ProjectsPage: React.FC = () => {
   });
   const [isCreatingProjectInventoryItem, setIsCreatingProjectInventoryItem] = useState(false);
 
+  // Plan tab states
+  const [projectTasks, setProjectTasks] = useState<any[]>([]);
+  const [projectTaskGroups, setProjectTaskGroups] = useState<any[]>([]);
+
   const { data: programs = [], isLoading } = useQuery({
     queryKey: ['programs'],
     queryFn: async () => {
@@ -288,6 +292,35 @@ const ProjectsPage: React.FC = () => {
     };
 
     loadProjectInventory();
+  }, [activeProjectId]);
+
+  // Load tasks and task groups when project is selected
+  useEffect(() => {
+    const loadTasksAndGroups = async () => {
+      if (!activeProjectId) {
+        setProjectTasks([]);
+        setProjectTaskGroups([]);
+        return;
+      }
+
+      try {
+        // Load tasks
+        const tasksResponse = await apiClient.get(`/api/tasks/project/${activeProjectId}`);
+        const tasks = tasksResponse.data.data || [];
+        setProjectTasks(tasks);
+
+        // Load task groups
+        const groupsResponse = await apiClient.get(`/api/tasks/groups/project/${activeProjectId}`);
+        const groups = groupsResponse.data.data || [];
+        setProjectTaskGroups(groups);
+      } catch (error) {
+        console.error('Failed to load tasks:', error);
+        setProjectTasks([]);
+        setProjectTaskGroups([]);
+      }
+    };
+
+    loadTasksAndGroups();
   }, [activeProjectId]);
 
   const handleCreateItem = async () => {
@@ -1011,6 +1044,72 @@ const ProjectsPage: React.FC = () => {
                             Add Task Group
                           </Button>
                         </Box>
+
+                        {/* Tasks Display */}
+                        <Box sx={{ mt: 3 }}>
+                          <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>Tasks in Plan ({projectTasks.length})</Typography>
+                          {projectTasks.length === 0 ? (
+                            <Alert severity="info">No tasks added to plan yet</Alert>
+                          ) : (
+                            <Box sx={{
+                              display: 'grid',
+                              gridTemplateColumns: '1fr',
+                              gap: 1,
+                              border: '1px solid',
+                              borderColor: 'primary.main',
+                              borderRadius: 1,
+                              p: 2,
+                              backgroundColor: 'rgba(103, 58, 183, 0.05)',
+                            }}>
+                              {projectTasks.map((task) => (
+                                <Box key={task.id} sx={{
+                                  p: 1.5,
+                                  backgroundColor: 'background.paper',
+                                  border: '1px solid',
+                                  borderColor: 'divider',
+                                  borderRadius: 1,
+                                  display: 'flex',
+                                  justifyContent: 'space-between',
+                                  alignItems: 'center'
+                                }}>
+                                  <Box>
+                                    <Typography variant="body2" sx={{ fontWeight: 600 }}>{task.name || 'Unnamed Task'}</Typography>
+                                    <Typography variant="caption" color="textSecondary">Status: {task.status}</Typography>
+                                  </Box>
+                                </Box>
+                              ))}
+                            </Box>
+                          )}
+                        </Box>
+
+                        {/* Task Groups Display */}
+                        {projectTaskGroups.length > 0 && (
+                          <Box sx={{ mt: 3 }}>
+                            <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>Task Groups ({projectTaskGroups.length})</Typography>
+                            <Box sx={{
+                              display: 'grid',
+                              gridTemplateColumns: '1fr',
+                              gap: 1,
+                              border: '1px solid',
+                              borderColor: 'info.main',
+                              borderRadius: 1,
+                              p: 2,
+                              backgroundColor: 'rgba(33, 150, 243, 0.05)',
+                            }}>
+                              {projectTaskGroups.map((group) => (
+                                <Box key={group.id} sx={{
+                                  p: 1.5,
+                                  backgroundColor: 'background.paper',
+                                  border: '1px solid',
+                                  borderColor: 'divider',
+                                  borderRadius: 1,
+                                }}>
+                                  <Typography variant="body2" sx={{ fontWeight: 600 }}>{group.name}</Typography>
+                                </Box>
+                              ))}
+                            </Box>
+                          </Box>
+                        )}
                       </>
                     )}
                   </CardContent>
@@ -1711,6 +1810,8 @@ const ProjectsPage: React.FC = () => {
                 });
 
                 console.log('Task created successfully:', response.data);
+                const newTask = response.data.data;
+                setProjectTasks([...projectTasks, newTask]);
                 setDataObjectDialogOpen(false);
                 setNewDataObjectId('');
                 setNewDataObjectName('');
@@ -1776,6 +1877,8 @@ const ProjectsPage: React.FC = () => {
                 });
 
                 console.log('Task group created successfully:', response.data);
+                const newGroup = response.data.data;
+                setProjectTaskGroups([...projectTaskGroups, newGroup]);
                 setTaskGroupDialogOpen(false);
                 setNewTaskGroupName('');
               } catch (error) {
