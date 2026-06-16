@@ -1,6 +1,6 @@
 // client/src/pages/ProjectsPage.tsx
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Card,
@@ -248,6 +248,44 @@ const ProjectsPage: React.FC = () => {
       return objects;
     },
   });
+
+  // Fetch project inventory items when a project is selected
+  useEffect(() => {
+    const loadProjectInventory = async () => {
+      if (!selectedProjectForInventory) {
+        setProjectInventoryItems([]);
+        return;
+      }
+
+      try {
+        const response = await apiClient.get(`/api/project-objects/project/${selectedProjectForInventory}`);
+        const items = response.data.data || [];
+        setProjectInventoryItems(items.map((item: any) => ({
+          id: item.id,
+          projectId: item.projectId,
+          dataObjectId: item.objectId,
+          objectId: item.objectId,
+          globalObjectId: item.globalObjectId,
+          processArea: item.processArea,
+          complexity: item.complexity,
+          deploymentDisposition: item.deploymentDisposition,
+          buildType: item.buildType,
+          objectType: item.objectType,
+          cutoverPhase: item.cutoverPhase,
+          ddmApproach: item.ddmApproach,
+          riskSecurityType: item.riskSecurityType,
+          migrationType: item.migrationType,
+          factorType: item.factorType,
+          loadMethod: item.loadMethod,
+        })));
+      } catch (error) {
+        console.error('Failed to load project inventory:', error);
+        setProjectInventoryItems([]);
+      }
+    };
+
+    loadProjectInventory();
+  }, [selectedProjectForInventory]);
 
   const handleCreateItem = async () => {
     if (!newItemName.trim()) {
@@ -562,7 +600,7 @@ const ProjectsPage: React.FC = () => {
     
     try {
       setIsDeletingInventoryItem(true);
-      await apiClient.delete(`/api/project-inventory/${deletingInventoryItemId}`);
+      await apiClient.delete(`/api/project-objects/${deletingInventoryItemId}`);
       setProjectInventoryItems(projectInventoryItems.filter(item => item.id !== deletingInventoryItemId));
       setDeletingInventoryItemId(null);
       alert('Item deleted successfully');
@@ -2045,29 +2083,82 @@ const ProjectsPage: React.FC = () => {
               try {
                 setIsCreatingProjectInventoryItem(true);
                 
+                // Find the global object ID from the selected dataObjectId
+                const globalObj = inventoryObjects.find(obj => obj.objectId === projectInventoryItem.dataObjectId);
+                if (!globalObj) {
+                  alert('Selected object not found');
+                  return;
+                }
+
                 if (editingInventoryItemId) {
                   // Update existing item
-                  await apiClient.put(`/api/project-inventory/${editingInventoryItemId}`, {
-                    ...projectInventoryItem,
-                    projectId: selectedProjectForInventory,
+                  await apiClient.put(`/api/project-objects/${editingInventoryItemId}`, {
+                    complexity: projectInventoryItem.complexity || null,
+                    deploymentDisposition: projectInventoryItem.deploymentDisposition || null,
+                    buildType: projectInventoryItem.buildType || null,
+                    objectType: projectInventoryItem.objectType || null,
+                    cutoverPhase: projectInventoryItem.cutoverPhase || null,
+                    ddmApproach: projectInventoryItem.ddmApproach || null,
+                    riskSecurityType: projectInventoryItem.riskSecurityType || null,
+                    migrationType: projectInventoryItem.migrationType || null,
+                    factorType: projectInventoryItem.factorType || null,
+                    loadMethod: projectInventoryItem.loadMethod || null,
                   });
+                  
+                  // Update local state - map backend response fields to frontend fields
                   setProjectInventoryItems(projectInventoryItems.map(item =>
                     item.id === editingInventoryItemId 
-                      ? { ...item, ...projectInventoryItem, projectId: selectedProjectForInventory } 
+                      ? {
+                          ...item,
+                          complexity: projectInventoryItem.complexity,
+                          deploymentDisposition: projectInventoryItem.deploymentDisposition,
+                          buildType: projectInventoryItem.buildType,
+                          objectType: projectInventoryItem.objectType,
+                          cutoverPhase: projectInventoryItem.cutoverPhase,
+                          ddmApproach: projectInventoryItem.ddmApproach,
+                          riskSecurityType: projectInventoryItem.riskSecurityType,
+                          migrationType: projectInventoryItem.migrationType,
+                          factorType: projectInventoryItem.factorType,
+                          loadMethod: projectInventoryItem.loadMethod,
+                        }
                       : item
                   ));
                   setEditingInventoryItemId(null);
                 } else {
                   // Add new item
-                  const response = await apiClient.post('/api/project-inventory', {
-                    ...projectInventoryItem,
-                    projectId: selectedProjectForInventory,
+                  const response = await apiClient.post(`/api/project-objects/project/${selectedProjectForInventory}`, {
+                    globalObjectId: globalObj.id,
+                    complexity: projectInventoryItem.complexity || null,
+                    deploymentDisposition: projectInventoryItem.deploymentDisposition || null,
+                    buildType: projectInventoryItem.buildType || null,
+                    objectType: projectInventoryItem.objectType || null,
+                    cutoverPhase: projectInventoryItem.cutoverPhase || null,
+                    ddmApproach: projectInventoryItem.ddmApproach || null,
+                    riskSecurityType: projectInventoryItem.riskSecurityType || null,
+                    migrationType: projectInventoryItem.migrationType || null,
+                    factorType: projectInventoryItem.factorType || null,
+                    loadMethod: projectInventoryItem.loadMethod || null,
                   });
                   
-                  const newItem = response.data.data || {
-                    id: Math.random().toString(36).substr(2, 9),
-                    ...projectInventoryItem,
-                    projectId: selectedProjectForInventory,
+                  // Map the API response to frontend format
+                  const apiData = response.data.data;
+                  const newItem = {
+                    id: apiData.id,
+                    projectId: apiData.projectId,
+                    dataObjectId: apiData.objectId,
+                    objectId: apiData.objectId,
+                    globalObjectId: apiData.globalObjectId,
+                    processArea: apiData.processArea,
+                    complexity: apiData.complexity,
+                    deploymentDisposition: apiData.deploymentDisposition,
+                    buildType: apiData.buildType,
+                    objectType: apiData.objectType,
+                    cutoverPhase: apiData.cutoverPhase,
+                    ddmApproach: apiData.ddmApproach,
+                    riskSecurityType: apiData.riskSecurityType,
+                    migrationType: apiData.migrationType,
+                    factorType: apiData.factorType,
+                    loadMethod: apiData.loadMethod,
                   };
                   setProjectInventoryItems([...projectInventoryItems, newItem]);
                 }
