@@ -109,8 +109,7 @@ const Sidebar: React.FC<{ open: boolean; onClose: () => void }> = ({ open, onClo
           borderRight: `1px solid ${palette.divider}`,
           backgroundImage: 'none',
           position: 'fixed',
-          height: '100vh',
-          mt: '64px',
+          height: 'calc(100vh - 64px)',
           top: 64,
         },
       }}

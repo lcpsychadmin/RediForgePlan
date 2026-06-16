@@ -15,24 +15,21 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       {/* TopNav at top */}
       <TopNav onMenuClick={() => {}} />
       
-      {/* Below TopNav: Sidebar + Main Content */}
-      <Box sx={{ display: 'flex', flex: 1 }}>
-        {/* Permanent Sidebar */}
-        <Sidebar open={true} onClose={() => {}} />
-        
-        {/* Main Content */}
-        <Box
-          component="main"
-          sx={{
-            flexGrow: 1,
-            p: 3,
-            ml: `${DRAWER_WIDTH}px`,
-            width: `calc(100% - ${DRAWER_WIDTH}px)`,
-            overflow: 'auto',
-          }}
-        >
-          <Container maxWidth="lg">{children}</Container>
-        </Box>
+      {/* Sidebar (fixed, doesn't participate in flex) */}
+      <Sidebar open={true} onClose={() => {}} />
+      
+      {/* Main Content Area - below header, to the right of sidebar */}
+      <Box
+        component="main"
+        sx={{
+          mt: '64px',
+          ml: `${DRAWER_WIDTH}px`,
+          flex: 1,
+          p: 3,
+          overflow: 'auto',
+        }}
+      >
+        <Container maxWidth="lg">{children}</Container>
       </Box>
     </Box>
   );
