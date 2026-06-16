@@ -715,192 +715,243 @@ const ProjectsPage: React.FC = () => {
           sx={{
             width: '280px',
             overflowY: 'auto',
-            p: 2,
             flexShrink: 0,
-            backgroundColor: 'rgba(255, 255, 255, 0.05)',
-            border: '1px solid',
-            borderColor: 'rgba(255, 255, 255, 0.1)',
+            backgroundColor: 'rgba(255, 255, 255, 0.03)',
+            borderRight: '1px solid rgba(255, 255, 255, 0.08)',
+            borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+            borderTop: 'none',
+            borderLeft: 'none',
             borderRadius: 0,
             display: 'flex',
             flexDirection: 'column',
           }}
         >
-          <Box sx={{ flex: 1, overflowY: 'auto' }}>
+          <Box sx={{ flex: 1, overflowY: 'auto', pt: 1 }}>
             {programs.length === 0 ? (
-              <Typography variant="caption" color="textSecondary">
+              <Typography variant="caption" color="textSecondary" sx={{ px: 2 }}>
                 No programs
               </Typography>
             ) : (
               <List sx={{ p: 0 }}>
-                {programs.map((program: Program) => (
-                  <Box key={program.id}>
-                    {/* Program Item */}
-                    <Box
-                      sx={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        py: 1,
-                        px: 1,
-                        borderRadius: 1,
-                        backgroundColor: selectedItem?.type === 'program' && selectedItem?.id === program.id ? 'primary.lighter' : 'transparent',
-                        cursor: 'pointer',
-                        '&:hover': { backgroundColor: 'action.hover' },
-                      }}
-                    >
+                {programs.map((program: Program) => {
+                  const isProgramSelected = selectedItem?.type === 'program' && selectedItem?.id === program.id;
+                  const isProgramExpanded = expandedPrograms.has(program.id);
+                  return (
+                    <Box key={program.id}>
+                      {/* Program Row */}
                       <Box
+                        sx={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          py: 0.75,
+                          pl: 1,
+                          pr: 0.5,
+                          cursor: 'pointer',
+                          position: 'relative',
+                          backgroundColor: isProgramSelected ? 'rgba(91, 103, 202, 0.15)' : 'transparent',
+                          borderRight: isProgramSelected ? '2px solid' : '2px solid transparent',
+                          borderRightColor: isProgramSelected ? 'primary.main' : 'transparent',
+                          '&:hover': { backgroundColor: isProgramSelected ? 'rgba(91, 103, 202, 0.15)' : 'rgba(255,255,255,0.05)' },
+                        }}
                         onClick={() => {
                           setSelectedItem({ type: 'program', id: program.id });
                           toggleProgramExpanded(program.id);
                         }}
-                        sx={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 1 }}
                       >
-                        <CorporateFareIcon sx={{ fontSize: '1.4rem', color: 'primary.main', flexShrink: 0 }} />
-                        <Typography variant="subtitle2" sx={{ fontWeight: 600, noWrap: true, letterSpacing: 0.3 }}>
+                        {/* Expand arrow */}
+                        <Box sx={{ width: 20, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          {isProgramExpanded
+                            ? <ExpandMoreIcon sx={{ fontSize: '1rem', opacity: 0.6 }} />
+                            : <ChevronRightIcon sx={{ fontSize: '1rem', opacity: 0.6 }} />
+                          }
+                        </Box>
+                        <CorporateFareIcon sx={{ fontSize: '1.1rem', color: 'primary.light', flexShrink: 0, mx: 0.75 }} />
+                        <Typography variant="body2" sx={{ fontWeight: 600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {program.name}
                         </Typography>
-                      </Box>
-                      <IconButton
-                        size="small"
-                        onClick={(e) => {
-                          setMenuAnchorEl(e.currentTarget);
-                          setMenuType('program');
-                          setMenuItemId(program.id);
-                        }}
-                        sx={{ ml: 1 }}
-                      >
-                        <MoreVertIcon fontSize="small" />
-                      </IconButton>
-                    </Box>
-
-                    {/* Mock Cycles */}
-                    {expandedPrograms.has(program.id) && (
-                      <Box sx={{ pl: 2 }}>
-                        {mockCycles[program.id]?.map((cycle: MockCycle) => (
-                          <Box key={cycle.id}>
-                            <Box
-                              sx={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                py: 0.75,
-                                px: 1,
-                                borderRadius: 1,
-                                backgroundColor: selectedItem?.type === 'cycle' && selectedItem?.id === cycle.id ? 'primary.lighter' : 'transparent',
-                                cursor: 'pointer',
-                                '&:hover': { backgroundColor: 'action.hover' },
-                              }}
-                            >
-                              <Box
-                                onClick={() => {
-                                  setSelectedItem({ type: 'cycle', id: cycle.id, programId: program.id });
-                                  toggleCycleExpanded(cycle.id);
-                                }}
-                                sx={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 1 }}
-                              >
-                                <SyncIcon sx={{ fontSize: '1.1rem', color: 'info.main', flexShrink: 0 }} />
-                                <Typography variant="body2" sx={{ fontWeight: 500, noWrap: true }}>
-                                  {cycle.name}
-                                </Typography>
-                              </Box>
-                              <IconButton
-                                size="small"
-                                onClick={(e) => {
-                                  setMenuAnchorEl(e.currentTarget);
-                                  setMenuType('cycle');
-                                  setMenuItemId(cycle.id);
-                                }}
-                                sx={{ ml: 1 }}
-                              >
-                                <MoreVertIcon fontSize="small" />
-                              </IconButton>
-                            </Box>
-
-                            {/* Projects */}
-                            {expandedCycles.has(cycle.id) && (
-                              <Box sx={{ pl: 2 }}>
-                                {projectsByMockCycle[cycle.id]?.map((project: Project) => (
-                                  <Box
-                                    key={project.id}
-                                    sx={{
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      py: 0.5,
-                                      px: 1,
-                                      borderRadius: 1,
-                                      backgroundColor: selectedItem?.type === 'project' && selectedItem?.id === project.id ? 'primary.lighter' : 'transparent',
-                                      cursor: 'pointer',
-                                      '&:hover': { backgroundColor: 'action.hover' },
-                                    }}
-                                  >
-                                    <Box
-                                      onClick={() =>
-                                        setSelectedItem({ type: 'project', id: project.id, cycleId: cycle.id })
-                                      }
-                                      sx={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 1 }}
-                                    >
-                                      <FolderOutlinedIcon sx={{ fontSize: '1.1rem', color: project.accentColor || '#90caf9', flexShrink: 0 }} />
-                                      <Typography variant="caption" sx={{ noWrap: true, fontWeight: 500, flex: 1 }}>
-                                        {project.name}
-                                      </Typography>
-                                      <Typography variant="caption" sx={{ noWrap: true, color: 'text.secondary', fontWeight: 500 }}>
-                                        {project.progressPercentage || 0}%
-                                      </Typography>
-                                    </Box>
-                                    <IconButton
-                                      size="small"
-                                      onClick={(e) => {
-                                        setMenuAnchorEl(e.currentTarget);
-                                        setMenuType('project');
-                                        setMenuItemId(project.id);
-                                      }}
-                                      sx={{ ml: 1 }}
-                                    >
-                                      <MoreVertIcon fontSize="small" />
-                                    </IconButton>
-                                  </Box>
-                                ))}
-                                {/* Add Project Button */}
-                                <Button
-                                  size="small"
-                                  variant="text"
-                                  startIcon={<AddIcon />}
-                                  onClick={() => openCreateDialog('project', undefined, cycle.id)}
-                                  sx={{ fontSize: '0.75rem', height: 28, mt: 0.5 }}
-                                >
-                                  Add Project
-                                </Button>
-                              </Box>
-                            )}
-                          </Box>
-                        ))}
-                        {/* Add Mock Cycle Button */}
-                        <Button
+                        <IconButton
                           size="small"
-                          variant="text"
-                          startIcon={<AddIcon />}
-                          onClick={() => openCreateDialog('cycle', program.id)}
-                          sx={{ fontSize: '0.75rem', height: 28, mt: 1 }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setMenuAnchorEl(e.currentTarget);
+                            setMenuType('program');
+                            setMenuItemId(program.id);
+                          }}
+                          sx={{ opacity: 0.5, '&:hover': { opacity: 1 } }}
                         >
-                          Add Mock Cycle
-                        </Button>
+                          <MoreVertIcon sx={{ fontSize: '1rem' }} />
+                        </IconButton>
                       </Box>
-                    )}
-                  </Box>
-                ))}
+
+                      {/* Cycles (with tree line) */}
+                      {isProgramExpanded && (
+                        <Box sx={{ position: 'relative', ml: 3.5 }}>
+                          {/* Vertical tree line */}
+                          <Box sx={{
+                            position: 'absolute',
+                            left: 8,
+                            top: 0,
+                            bottom: 32,
+                            width: '1px',
+                            backgroundColor: 'rgba(255,255,255,0.12)',
+                          }} />
+
+                          {mockCycles[program.id]?.map((cycle: MockCycle) => {
+                            const isCycleSelected = selectedItem?.type === 'cycle' && selectedItem?.id === cycle.id;
+                            const isCycleExpanded = expandedCycles.has(cycle.id);
+                            return (
+                              <Box key={cycle.id}>
+                                {/* Cycle Row */}
+                                <Box
+                                  sx={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    py: 0.6,
+                                    pl: 1,
+                                    pr: 0.5,
+                                    cursor: 'pointer',
+                                    backgroundColor: isCycleSelected ? 'rgba(91, 103, 202, 0.15)' : 'transparent',
+                                    borderRight: isCycleSelected ? '2px solid' : '2px solid transparent',
+                                    borderRightColor: isCycleSelected ? 'primary.main' : 'transparent',
+                                    '&:hover': { backgroundColor: isCycleSelected ? 'rgba(91, 103, 202, 0.15)' : 'rgba(255,255,255,0.05)' },
+                                  }}
+                                  onClick={() => {
+                                    setSelectedItem({ type: 'cycle', id: cycle.id, programId: program.id });
+                                    toggleCycleExpanded(cycle.id);
+                                  }}
+                                >
+                                  {/* Tree connector */}
+                                  <Box sx={{ width: 8, flexShrink: 0 }} />
+                                  {/* Expand arrow */}
+                                  <Box sx={{ width: 16, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    {isCycleExpanded
+                                      ? <ExpandMoreIcon sx={{ fontSize: '0.85rem', opacity: 0.6 }} />
+                                      : <ChevronRightIcon sx={{ fontSize: '0.85rem', opacity: 0.6 }} />
+                                    }
+                                  </Box>
+                                  <SyncIcon sx={{ fontSize: '0.95rem', color: 'info.light', flexShrink: 0, mx: 0.5 }} />
+                                  <Typography variant="body2" sx={{ fontWeight: 500, fontSize: '0.8rem', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    {cycle.name}
+                                  </Typography>
+                                  <IconButton
+                                    size="small"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setMenuAnchorEl(e.currentTarget);
+                                      setMenuType('cycle');
+                                      setMenuItemId(cycle.id);
+                                    }}
+                                    sx={{ opacity: 0.5, '&:hover': { opacity: 1 } }}
+                                  >
+                                    <MoreVertIcon sx={{ fontSize: '0.9rem' }} />
+                                  </IconButton>
+                                </Box>
+
+                                {/* Projects (with tree line) */}
+                                {isCycleExpanded && (
+                                  <Box sx={{ position: 'relative', ml: 3 }}>
+                                    {/* Vertical tree line */}
+                                    <Box sx={{
+                                      position: 'absolute',
+                                      left: 8,
+                                      top: 0,
+                                      bottom: 28,
+                                      width: '1px',
+                                      backgroundColor: 'rgba(255,255,255,0.12)',
+                                    }} />
+
+                                    {projectsByMockCycle[cycle.id]?.map((project: Project) => {
+                                      const isProjectSelected = selectedItem?.type === 'project' && selectedItem?.id === project.id;
+                                      const accentColor = project.accentColor || '#90caf9';
+                                      return (
+                                        <Box
+                                          key={project.id}
+                                          sx={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            py: 0.5,
+                                            pl: 1,
+                                            pr: 0.5,
+                                            cursor: 'pointer',
+                                            backgroundColor: isProjectSelected ? `${accentColor}22` : 'transparent',
+                                            borderRight: isProjectSelected ? `2px solid ${accentColor}` : '2px solid transparent',
+                                            '&:hover': { backgroundColor: isProjectSelected ? `${accentColor}22` : 'rgba(255,255,255,0.05)' },
+                                          }}
+                                          onClick={() => setSelectedItem({ type: 'project', id: project.id, cycleId: cycle.id })}
+                                        >
+                                          {/* Tree connector */}
+                                          <Box sx={{ width: 8, flexShrink: 0 }} />
+                                          <FolderOutlinedIcon sx={{ fontSize: '0.95rem', color: accentColor, flexShrink: 0, mx: 0.5 }} />
+                                          <Typography variant="caption" sx={{ fontWeight: 500, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                            {project.name}
+                                          </Typography>
+                                          <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 500, mr: 0.5, flexShrink: 0 }}>
+                                            {project.progressPercentage || 0}%
+                                          </Typography>
+                                          <IconButton
+                                            size="small"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setMenuAnchorEl(e.currentTarget);
+                                              setMenuType('project');
+                                              setMenuItemId(project.id);
+                                            }}
+                                            sx={{ opacity: 0.5, '&:hover': { opacity: 1 } }}
+                                          >
+                                            <MoreVertIcon sx={{ fontSize: '0.9rem' }} />
+                                          </IconButton>
+                                        </Box>
+                                      );
+                                    })}
+
+                                    {/* Add Project */}
+                                    <Button
+                                      size="small"
+                                      variant="text"
+                                      startIcon={<AddIcon sx={{ fontSize: '0.85rem !important' }} />}
+                                      onClick={() => openCreateDialog('project', undefined, cycle.id)}
+                                      sx={{ fontSize: '0.72rem', height: 26, mt: 0.25, color: 'text.secondary', textTransform: 'none', pl: 1 }}
+                                    >
+                                      Add Project
+                                    </Button>
+                                  </Box>
+                                )}
+                              </Box>
+                            );
+                          })}
+
+                          {/* Add Mock Cycle */}
+                          <Button
+                            size="small"
+                            variant="text"
+                            startIcon={<AddIcon sx={{ fontSize: '0.85rem !important' }} />}
+                            onClick={() => openCreateDialog('cycle', program.id)}
+                            sx={{ fontSize: '0.72rem', height: 26, mt: 0.25, color: 'text.secondary', textTransform: 'none', pl: 1 }}
+                          >
+                            Add Mock Cycle
+                          </Button>
+                        </Box>
+                      )}
+                    </Box>
+                  );
+                })}
               </List>
             )}
           </Box>
 
           {/* Add Program Button at Bottom */}
-          <Button
-            variant="contained"
-            size="small"
-            startIcon={<AddIcon />}
-            fullWidth
-            onClick={() => openCreateDialog('program')}
-            sx={{ mt: 2 }}
-          >
-            Add Program
-          </Button>
+          <Box sx={{ p: 2, borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+            <Button
+              variant="text"
+              size="small"
+              startIcon={<AddIcon />}
+              fullWidth
+              onClick={() => openCreateDialog('program')}
+              sx={{ textTransform: 'none', justifyContent: 'flex-start', color: 'text.secondary', fontWeight: 500, '&:hover': { color: 'primary.light' } }}
+            >
+              Add Program
+            </Button>
+          </Box>
         </Paper>
 
         {/* Right Content Area - Details */}
