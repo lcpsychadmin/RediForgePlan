@@ -438,42 +438,92 @@ const ProjectsPage: React.FC = () => {
         {/* Title and Stats Row */}
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-              <StorageIcon sx={{ fontSize: '2rem', color: 'primary.main' }} />
-              <Typography variant="h5" sx={{ fontWeight: 600 }}>
-                Migration Plan
-              </Typography>
-            </Box>
+            {selectedItem?.type === 'project' ? (
+              // Project-specific header
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                <FolderOutlinedIcon sx={{ fontSize: '2rem', color: (selectedDetails as Project).accentColor || '#90caf9', flexShrink: 0 }} />
+                <Box>
+                  <Typography variant="h5" sx={{ fontWeight: 600 }}>
+                    {selectedDetails?.name}
+                  </Typography>
+                  <Typography variant="caption" color="textSecondary">
+                    Project
+                  </Typography>
+                </Box>
+              </Box>
+            ) : (
+              // Default Migration Plan header
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                <StorageIcon sx={{ fontSize: '2rem', color: 'primary.main' }} />
+                <Typography variant="h5" sx={{ fontWeight: 600 }}>
+                  Migration Plan
+                </Typography>
+              </Box>
+            )}
+            
             <Box sx={{ display: 'flex', gap: 3, ml: 3 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Typography variant="body2" color="textSecondary">
-                  Programs:
-                </Typography>
-                <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                  {programs.length}
-                </Typography>
-              </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Typography variant="body2" color="textSecondary">
-                  Cycles:
-                </Typography>
-                <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                  {Object.values(mockCycles).flat().length}
-                </Typography>
-              </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Typography variant="body2" color="textSecondary">
-                  Objects:
-                </Typography>
-                <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                  46
-                </Typography>
-              </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Typography variant="body2" sx={{ fontWeight: 600, color: 'primary.main' }}>
-                  0%
-                </Typography>
-              </Box>
+              {selectedItem?.type === 'project' ? (
+                // Task progress breakdown for project
+                <>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Typography variant="body2" color="textSecondary">
+                      Tasks in Plan:
+                    </Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                      0
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Typography variant="body2" color="textSecondary">
+                      Tasks in Inventory:
+                    </Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                      0
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Typography variant="body2" color="textSecondary">
+                      Progress:
+                    </Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 600, color: 'primary.main' }}>
+                      {(selectedDetails as Project).progressPercentage || 0}%
+                    </Typography>
+                  </Box>
+                </>
+              ) : (
+                // Default stats
+                <>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Typography variant="body2" color="textSecondary">
+                      Programs:
+                    </Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                      {programs.length}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Typography variant="body2" color="textSecondary">
+                      Cycles:
+                    </Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                      {Object.values(mockCycles).flat().length}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Typography variant="body2" color="textSecondary">
+                      Objects:
+                    </Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                      46
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 600, color: 'primary.main' }}>
+                      0%
+                    </Typography>
+                  </Box>
+                </>
+              )}
             </Box>
           </Box>
           <Box sx={{ display: 'flex', gap: 1.5 }}>
