@@ -1,10 +1,12 @@
 import React from 'react';
-import { AppBar, Toolbar, IconButton, Typography, Box, Menu, MenuItem } from '@mui/material';
-import MenuIcon from '@mui/icons-material/Menu';
+import { AppBar, Toolbar, IconButton, Typography, Box, Menu, MenuItem, Divider } from '@mui/material';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import LogoutIcon from '@mui/icons-material/Logout';
+import DashboardIcon from '@mui/icons-material/Dashboard';
+import FolderOpenIcon from '@mui/icons-material/FolderOpen';
+import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import { useAuth } from '../contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 interface TopNavProps {
   onMenuClick: () => void;
@@ -13,6 +15,7 @@ interface TopNavProps {
 const TopNav: React.FC<TopNavProps> = ({ onMenuClick }) => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
 
   const handleMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
@@ -23,24 +26,23 @@ const TopNav: React.FC<TopNavProps> = ({ onMenuClick }) => {
     setAnchorEl(null);
   };
 
+  const handleNavigate = (path: string) => {
+    navigate(path);
+    handleMenuClose();
+  };
+
   const handleLogout = async () => {
     await logout();
     handleMenuClose();
     navigate('/login');
   };
 
+  const isActive = (path: string) => location.pathname === path || location.pathname.startsWith(path);
+
   return (
     <AppBar position="fixed" sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}>
       <Toolbar>
-        <IconButton
-          color="inherit"
-          edge="start"
-          onClick={onMenuClick}
-          sx={{ mr: 2 }}
-        >
-          <MenuIcon />
-        </IconButton>
-        <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
+        <Typography variant="h6" component="div" sx={{ flexGrow: 1, fontWeight: 700 }}>
           RediForge
         </Typography>
         <Box>
@@ -48,17 +50,60 @@ const TopNav: React.FC<TopNavProps> = ({ onMenuClick }) => {
             <AccountCircleIcon />
           </IconButton>
           <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={handleMenuClose}>
+            {/* User Info */}
             <MenuItem disabled>
               <Box>
-                <Typography variant="body2">{user?.email || 'User'}</Typography>
-                <Typography variant="caption" color="textSecondary">
+                <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                  {user?.email || 'User'}
+                </Typography>
+                <Typography variant="caption" color="textSecondary" sx={{ textTransform: 'uppercase' }}>
                   {user?.role}
                 </Typography>
               </Box>
             </MenuItem>
-            <MenuItem onClick={handleLogout} sx={{ mt: 1 }}>
-              <LogoutIcon sx={{ mr: 1 }} />
-              Logout
+
+            <Divider sx={{ my: 1 }} />
+
+            {/* Navigation */}
+            <MenuItem
+              onClick={() => handleNavigate('/dashboard')}
+              selected={isActive('/dashboard')}
+              sx={{ display: 'flex', gap: 1 }}
+            >
+              <DashboardIcon fontSize="small" />
+              <Typography variant="body2">Dashboard</Typography>
+            </MenuItem>
+
+            <MenuItem
+              onClick={() => handleNavigate('/projects')}
+              selected={isActive('/projects')}
+              sx={{ display: 'flex', gap: 1 }}
+            >
+              <FolderOpenIcon fontSize="small" />
+              <Typography variant="body2">Projects</Typography>
+            </MenuItem>
+
+            {/* Admin Section */}
+            {user?.role === 'admin' && (
+              <>
+                <Divider sx={{ my: 1 }} />
+                <MenuItem
+                  onClick={() => handleNavigate('/admin/users')}
+                  selected={isActive('/admin/users')}
+                  sx={{ display: 'flex', gap: 1 }}
+                >
+                  <AdminPanelSettingsIcon fontSize="small" />
+                  <Typography variant="body2">User Management</Typography>
+                </MenuItem>
+              </>
+            )}
+
+            <Divider sx={{ my: 1 }} />
+
+            {/* Logout */}
+            <MenuItem onClick={handleLogout}>
+              <LogoutIcon sx={{ mr: 1, fontSize: '1.2rem' }} />
+              <Typography variant="body2">Logout</Typography>
             </MenuItem>
           </Menu>
         </Box>

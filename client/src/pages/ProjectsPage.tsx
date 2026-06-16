@@ -201,7 +201,7 @@ const ProjectsPage: React.FC = () => {
 
   return (
     <Layout>
-      <Box sx={{ display: 'flex', height: 'calc(100vh - 150px)', gap: 2 }}>
+      <Box sx={{ display: 'flex', height: 'calc(100vh - 180px)', gap: 2, mx: -3, px: 3 }}>
         {/* Left Sidebar - Hierarchy Tree */}
         <Paper
           sx={{
