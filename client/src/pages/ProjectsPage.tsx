@@ -1679,13 +1679,39 @@ const ProjectsPage: React.FC = () => {
             Cancel
           </Button>
           <Button
-            onClick={() => {
-              if (selectedItem?.type === 'project') {
-                // TODO: Add selected object to project plan
+            onClick={async () => {
+              if (selectedItem?.type !== 'project' || !selectedProjectForInventory) {
+                alert('Please select a project first');
+                return;
               }
-              setDataObjectDialogOpen(false);
-              setNewDataObjectId('');
-              setNewDataObjectName('');
+
+              try {
+                setIsCreatingDataObject(true);
+                
+                // Find the project object for the selected inventory item
+                const inventoryItem = projectInventoryItems.find(item => item.objectId === newDataObjectId);
+                if (!inventoryItem) {
+                  alert('Selected object not found');
+                  return;
+                }
+
+                // Create a task for this object
+                const response = await apiClient.post(`/api/tasks/project/${selectedProjectForInventory}`, {
+                  taskType: 'custom',
+                  projectObjectId: inventoryItem.globalObjectId,
+                  name: newDataObjectId,
+                });
+
+                console.log('Task created successfully:', response.data);
+                setDataObjectDialogOpen(false);
+                setNewDataObjectId('');
+                setNewDataObjectName('');
+              } catch (error) {
+                console.error('Failed to add object to plan:', error);
+                alert('Failed to add object to plan');
+              } finally {
+                setIsCreatingDataObject(false);
+              }
             }}
             variant="contained"
             disabled={isCreatingDataObject || !newDataObjectId.trim()}
@@ -1698,7 +1724,9 @@ const ProjectsPage: React.FC = () => {
 
       {/* Task Group Dialog */}
       <Dialog open={taskGroupDialogOpen} onClose={() => setTaskGroupDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Add Task Group</DialogTitle>
+        <DialogTitle sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', pb: 2 }}>
+          Add Task Group
+        </DialogTitle>
         <DialogContent sx={{ pt: 2 }}>
           <TextField
             autoFocus
@@ -1708,23 +1736,45 @@ const ProjectsPage: React.FC = () => {
             onChange={(e) => setNewTaskGroupName(e.target.value)}
             margin="normal"
             placeholder="e.g., Data Validation Tasks"
+            variant="outlined"
+            size="small"
           />
         </DialogContent>
-        <DialogActions>
+        <DialogActions sx={{ gap: 1, p: 2, borderTop: '1px solid', borderColor: 'divider' }}>
           <Button onClick={() => {
             setTaskGroupDialogOpen(false);
             setNewTaskGroupName('');
-          }}>
+          }}
+          sx={{ textTransform: 'none' }}>
             Cancel
           </Button>
           <Button
-            onClick={() => {
-              // TODO: Implement API call to create task group
-              setTaskGroupDialogOpen(false);
-              setNewTaskGroupName('');
+            onClick={async () => {
+              if (selectedItem?.type !== 'project' || !selectedProjectForInventory) {
+                alert('Please select a project first');
+                return;
+              }
+
+              try {
+                setIsCreatingTaskGroup(true);
+                
+                const response = await apiClient.post(`/api/tasks/groups/project/${selectedProjectForInventory}`, {
+                  name: newTaskGroupName,
+                });
+
+                console.log('Task group created successfully:', response.data);
+                setTaskGroupDialogOpen(false);
+                setNewTaskGroupName('');
+              } catch (error) {
+                console.error('Failed to create task group:', error);
+                alert('Failed to create task group');
+              } finally {
+                setIsCreatingTaskGroup(false);
+              }
             }}
             variant="contained"
             disabled={isCreatingTaskGroup || !newTaskGroupName.trim()}
+            sx={{ textTransform: 'none' }}
           >
             {isCreatingTaskGroup ? 'Creating...' : 'Create'}
           </Button>
