@@ -23,6 +23,8 @@ import {
   Paper,
   MenuItem,
   Slider,
+  Tabs,
+  Tab,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
@@ -33,6 +35,9 @@ import EditIcon from '@mui/icons-material/Edit';
 import FolderOutlinedIcon from '@mui/icons-material/FolderOutlined';
 import CorporateFareIcon from '@mui/icons-material/CorporateFare';
 import SyncIcon from '@mui/icons-material/Sync';
+import StorageIcon from '@mui/icons-material/Storage';
+import GroupIcon from '@mui/icons-material/Group';
+import DownloadIcon from '@mui/icons-material/Download';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Menu from '@mui/material/Menu';
 import { useNavigate } from 'react-router-dom';
@@ -75,6 +80,7 @@ const ProjectsPage: React.FC = () => {
   
   // State for selected item
   const [selectedItem, setSelectedItem] = useState<SelectableItem | null>(null);
+  const [tabValue, setTabValue] = useState(0);
   
   // Dialog states
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -416,7 +422,77 @@ const ProjectsPage: React.FC = () => {
 
   return (
     <Layout>
-      <Box sx={{ display: 'flex', height: 'calc(100vh - 180px)', gap: 2, mx: -3, px: 3 }}>
+      {/* Header Section */}
+      <Box sx={{ mb: 3 }}>
+        {/* Title and Stats Row */}
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+              <StorageIcon sx={{ fontSize: '2rem', color: 'primary.main' }} />
+              <Typography variant="h5" sx={{ fontWeight: 600 }}>
+                Migration Plan
+              </Typography>
+            </Box>
+            <Box sx={{ display: 'flex', gap: 3, ml: 3 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Typography variant="body2" color="textSecondary">
+                  Programs:
+                </Typography>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                  {programs.length}
+                </Typography>
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Typography variant="body2" color="textSecondary">
+                  Cycles:
+                </Typography>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                  {Object.values(mockCycles).flat().length}
+                </Typography>
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Typography variant="body2" color="textSecondary">
+                  Objects:
+                </Typography>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                  46
+                </Typography>
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Typography variant="body2" sx={{ fontWeight: 600, color: 'primary.main' }}>
+                  0%
+                </Typography>
+              </Box>
+            </Box>
+          </Box>
+          <Box sx={{ display: 'flex', gap: 1.5 }}>
+            <Button
+              variant="outlined"
+              startIcon={<GroupIcon />}
+              sx={{ textTransform: 'none', fontWeight: 500 }}
+            >
+              People
+            </Button>
+            <Button
+              variant="outlined"
+              startIcon={<DownloadIcon />}
+              sx={{ textTransform: 'none', fontWeight: 500 }}
+            >
+              Export CSV
+            </Button>
+          </Box>
+        </Box>
+        
+        {/* Tabs */}
+        <Tabs value={tabValue} onChange={(e, newValue) => setTabValue(newValue)}>
+          <Tab label="Plan" icon={<Box sx={{ width: '24px', height: '24px', background: 'linear-gradient(135deg, #5B67CA 0%, #3B4DB3 100%)', borderRadius: '2px' }} />} iconPosition="start" />
+          <Tab label="Inventory" />
+        </Tabs>
+        <Divider sx={{ mt: 2, mb: 2 }} />
+      </Box>
+
+      {/* Main Content Area */}
+      <Box sx={{ display: 'flex', height: 'calc(100vh - 320px)', gap: 2, mx: -3, px: 3 }}>
         {/* Left Sidebar - Hierarchy Tree */}
         <Paper
           sx={{
