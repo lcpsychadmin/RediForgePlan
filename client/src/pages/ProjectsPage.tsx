@@ -21,11 +21,16 @@ import {
   TextField,
   Divider,
   Paper,
+  MenuItem,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import MoreVertIcon from '@mui/icons-material/MoreVert';
+import DeleteIcon from '@mui/icons-material/Delete';
+import EditIcon from '@mui/icons-material/Edit';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import Menu from '@mui/material/Menu';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../api/client';
 import Layout from '../components/Layout';
@@ -73,6 +78,11 @@ const ProjectsPage: React.FC = () => {
   const [isCreating, setIsCreating] = useState(false);
   const [contextProgramId, setContextProgramId] = useState<string | null>(null);
   const [contextCycleId, setContextCycleId] = useState<string | null>(null);
+  
+  // Context menu states
+  const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
+  const [menuType, setMenuType] = useState<'program' | 'cycle' | 'project' | null>(null);
+  const [menuItemId, setMenuItemId] = useState<string | null>(null);
 
   const { data: programs = [], isLoading } = useQuery({
     queryKey: ['programs'],
@@ -234,161 +244,180 @@ const ProjectsPage: React.FC = () => {
             p: 2,
             flexShrink: 0,
             backgroundColor: 'background.elevated',
+            display: 'flex',
+            flexDirection: 'column',
           }}
         >
-          <Box sx={{ mb: 2 }}>
-            <Button
-              variant="contained"
-              size="small"
-              startIcon={<AddIcon />}
-              fullWidth
-              onClick={() => openCreateDialog('program')}
-            >
-              Add Program
-            </Button>
-          </Box>
-
-          <Divider sx={{ mb: 2 }} />
-
-          {programs.length === 0 ? (
-            <Typography variant="caption" color="textSecondary">
-              No programs
-            </Typography>
-          ) : (
-            <List sx={{ p: 0 }}>
-              {programs.map((program: Program) => (
-                <Box key={program.id}>
-                  {/* Program Item */}
-                  <ListItemButton
-                    onClick={() => toggleProgramExpanded(program.id)}
-                    selected={selectedItem?.type === 'program' && selectedItem?.id === program.id}
-                    sx={{
-                      pl: 1,
-                      py: 1,
-                      '&.Mui-selected': { backgroundColor: 'primary.lighter' },
-                    }}
-                  >
+          <Box sx={{ flex: 1, overflowY: 'auto' }}>
+            {programs.length === 0 ? (
+              <Typography variant="caption" color="textSecondary">
+                No programs
+              </Typography>
+            ) : (
+              <List sx={{ p: 0 }}>
+                {programs.map((program: Program) => (
+                  <Box key={program.id}>
+                    {/* Program Item */}
                     <Box
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedItem({ type: 'program', id: program.id });
-                      }}
-                      sx={{ flex: 1 }}
-                    >
-                      <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                        {program.name}
-                      </Typography>
-                    </Box>
-                    <IconButton
-                      size="small"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggleProgramExpanded(program.id);
+                      sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        py: 1,
+                        px: 1,
+                        borderRadius: 1,
+                        backgroundColor: selectedItem?.type === 'program' && selectedItem?.id === program.id ? 'primary.lighter' : 'transparent',
+                        cursor: 'pointer',
+                        '&:hover': { backgroundColor: 'action.hover' },
                       }}
                     >
-                      {expandedPrograms.has(program.id) ? (
-                        <ExpandMoreIcon fontSize="small" />
-                      ) : (
-                        <ChevronRightIcon fontSize="small" />
-                      )}
-                    </IconButton>
-                  </ListItemButton>
-
-                  {/* Mock Cycles */}
-                  {expandedPrograms.has(program.id) && (
-                    <Box sx={{ pl: 2 }}>
-                      {/* Add Mock Cycle Button */}
-                      <Box sx={{ mb: 1 }}>
-                        <Button
-                          size="small"
-                          variant="text"
-                          startIcon={<AddIcon />}
-                          onClick={() => openCreateDialog('cycle', program.id)}
-                          sx={{ fontSize: '0.75rem', height: 28 }}
-                        >
-                          Add Mock Cycle
-                        </Button>
+                      <Box
+                        onClick={() => {
+                          setSelectedItem({ type: 'program', id: program.id });
+                          toggleProgramExpanded(program.id);
+                        }}
+                        sx={{ flex: 1, minWidth: 0 }}
+                      >
+                        <Typography variant="body2" sx={{ fontWeight: 500, noWrap: true }}>
+                          {program.name}
+                        </Typography>
                       </Box>
+                      <IconButton
+                        size="small"
+                        onClick={(e) => {
+                          setMenuAnchorEl(e.currentTarget);
+                          setMenuType('program');
+                          setMenuItemId(program.id);
+                        }}
+                        sx={{ ml: 1 }}
+                      >
+                        <MoreVertIcon fontSize="small" />
+                      </IconButton>
+                    </Box>
 
-                      {mockCycles[program.id]?.map((cycle: MockCycle) => (
-                        <Box key={cycle.id}>
-                          <ListItemButton
-                            onClick={() => toggleCycleExpanded(cycle.id)}
-                            selected={selectedItem?.type === 'cycle' && selectedItem?.id === cycle.id}
-                            sx={{
-                              py: 0.75,
-                              pl: 1,
-                              '&.Mui-selected': { backgroundColor: 'primary.lighter' },
-                            }}
-                          >
+                    {/* Mock Cycles */}
+                    {expandedPrograms.has(program.id) && (
+                      <Box sx={{ pl: 2 }}>
+                        {mockCycles[program.id]?.map((cycle: MockCycle) => (
+                          <Box key={cycle.id}>
                             <Box
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedItem({ type: 'cycle', id: cycle.id, programId: program.id });
+                              sx={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                py: 0.75,
+                                px: 1,
+                                borderRadius: 1,
+                                backgroundColor: selectedItem?.type === 'cycle' && selectedItem?.id === cycle.id ? 'primary.lighter' : 'transparent',
+                                cursor: 'pointer',
+                                '&:hover': { backgroundColor: 'action.hover' },
                               }}
-                              sx={{ flex: 1 }}
                             >
-                              <Typography variant="caption" sx={{ fontWeight: 500 }}>
-                                {cycle.name}
-                              </Typography>
+                              <Box
+                                onClick={() => {
+                                  setSelectedItem({ type: 'cycle', id: cycle.id, programId: program.id });
+                                  toggleCycleExpanded(cycle.id);
+                                }}
+                                sx={{ flex: 1, minWidth: 0 }}
+                              >
+                                <Typography variant="caption" sx={{ fontWeight: 500, noWrap: true }}>
+                                  {cycle.name}
+                                </Typography>
+                              </Box>
+                              <IconButton
+                                size="small"
+                                onClick={(e) => {
+                                  setMenuAnchorEl(e.currentTarget);
+                                  setMenuType('cycle');
+                                  setMenuItemId(cycle.id);
+                                }}
+                                sx={{ ml: 1 }}
+                              >
+                                <MoreVertIcon fontSize="small" />
+                              </IconButton>
                             </Box>
-                            <IconButton
-                              size="small"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                toggleCycleExpanded(cycle.id);
-                              }}
-                            >
-                              {expandedCycles.has(cycle.id) ? (
-                                <ExpandMoreIcon fontSize="small" />
-                              ) : (
-                                <ChevronRightIcon fontSize="small" />
-                              )}
-                            </IconButton>
-                          </ListItemButton>
 
-                          {/* Projects */}
-                          {expandedCycles.has(cycle.id) && (
-                            <Box sx={{ pl: 2 }}>
-                              {/* Add Project Button */}
-                              <Box sx={{ mb: 1 }}>
+                            {/* Projects */}
+                            {expandedCycles.has(cycle.id) && (
+                              <Box sx={{ pl: 2 }}>
+                                {projectsByMockCycle[cycle.id]?.map((project: Project) => (
+                                  <Box
+                                    key={project.id}
+                                    sx={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      py: 0.5,
+                                      px: 1,
+                                      borderRadius: 1,
+                                      backgroundColor: selectedItem?.type === 'project' && selectedItem?.id === project.id ? 'primary.lighter' : 'transparent',
+                                      cursor: 'pointer',
+                                      '&:hover': { backgroundColor: 'action.hover' },
+                                    }}
+                                  >
+                                    <Box
+                                      onClick={() =>
+                                        setSelectedItem({ type: 'project', id: project.id, cycleId: cycle.id })
+                                      }
+                                      sx={{ flex: 1, minWidth: 0 }}
+                                    >
+                                      <Typography variant="caption" sx={{ noWrap: true }}>
+                                        {project.name}
+                                      </Typography>
+                                    </Box>
+                                    <IconButton
+                                      size="small"
+                                      onClick={(e) => {
+                                        setMenuAnchorEl(e.currentTarget);
+                                        setMenuType('project');
+                                        setMenuItemId(project.id);
+                                      }}
+                                      sx={{ ml: 1 }}
+                                    >
+                                      <MoreVertIcon fontSize="small" />
+                                    </IconButton>
+                                  </Box>
+                                ))}
+                                {/* Add Project Button */}
                                 <Button
                                   size="small"
                                   variant="text"
                                   startIcon={<AddIcon />}
                                   onClick={() => openCreateDialog('project', undefined, cycle.id)}
-                                  sx={{ fontSize: '0.75rem', height: 28 }}
+                                  sx={{ fontSize: '0.75rem', height: 28, mt: 0.5 }}
                                 >
                                   Add Project
                                 </Button>
                               </Box>
+                            )}
+                          </Box>
+                        ))}
+                        {/* Add Mock Cycle Button */}
+                        <Button
+                          size="small"
+                          variant="text"
+                          startIcon={<AddIcon />}
+                          onClick={() => openCreateDialog('cycle', program.id)}
+                          sx={{ fontSize: '0.75rem', height: 28, mt: 1 }}
+                        >
+                          Add Mock Cycle
+                        </Button>
+                      </Box>
+                    )}
+                  </Box>
+                ))}
+              </List>
+            )}
+          </Box>
 
-                              {projectsByMockCycle[cycle.id]?.map((project: Project) => (
-                                <ListItemButton
-                                  key={project.id}
-                                  onClick={() =>
-                                    setSelectedItem({ type: 'project', id: project.id, cycleId: cycle.id })
-                                  }
-                                  selected={selectedItem?.type === 'project' && selectedItem?.id === project.id}
-                                  sx={{
-                                    py: 0.5,
-                                    pl: 1,
-                                    '&.Mui-selected': { backgroundColor: 'primary.lighter' },
-                                  }}
-                                >
-                                  <Typography variant="caption">{project.name}</Typography>
-                                </ListItemButton>
-                              ))}
-                            </Box>
-                          )}
-                        </Box>
-                      ))}
-                    </Box>
-                  )}
-                </Box>
-              ))}
-            </List>
-          )}
+          {/* Add Program Button at Bottom */}
+          <Button
+            variant="contained"
+            size="small"
+            startIcon={<AddIcon />}
+            fullWidth
+            onClick={() => openCreateDialog('program')}
+            sx={{ mt: 2 }}
+          >
+            Add Program
+          </Button>
         </Paper>
 
         {/* Right Content Area - Details */}
@@ -474,6 +503,56 @@ const ProjectsPage: React.FC = () => {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Context Menu */}
+      <Menu
+        anchorEl={menuAnchorEl}
+        open={Boolean(menuAnchorEl)}
+        onClose={() => setMenuAnchorEl(null)}
+      >
+        <MenuItem
+          onClick={() => {
+            // TODO: Implement edit
+            setMenuAnchorEl(null);
+          }}
+        >
+          <EditIcon fontSize="small" sx={{ mr: 1 }} /> Edit
+        </MenuItem>
+        <MenuItem
+          onClick={async () => {
+            if (!menuItemId || !menuType) return;
+            if (!confirm(`Delete this ${menuType}?`)) return;
+
+            try {
+              if (menuType === 'program') {
+                await apiClient.delete(`/api/programs/${menuItemId}`);
+              } else if (menuType === 'cycle') {
+                await apiClient.delete(`/api/mock-cycles/${menuItemId}`);
+              } else if (menuType === 'project') {
+                await apiClient.delete(`/api/projects/${menuItemId}`);
+              }
+              
+              // Invalidate queries
+              queryClient.invalidateQueries({ queryKey: ['programs'] });
+              queryClient.invalidateQueries({ queryKey: ['mockCycles'] });
+              queryClient.invalidateQueries({ queryKey: ['projectsByMockCycle'] });
+              
+              // Clear selection if we deleted the selected item
+              if (selectedItem?.id === menuItemId) {
+                setSelectedItem(null);
+              }
+              
+              setMenuAnchorEl(null);
+            } catch (error) {
+              console.error('Failed to delete:', error);
+              alert('Failed to delete. Please try again.');
+            }
+          }}
+          sx={{ color: 'error.main' }}
+        >
+          <DeleteIcon fontSize="small" sx={{ mr: 1 }} /> Delete
+        </MenuItem>
+      </Menu>
     </Layout>
   );
 };
