@@ -4,13 +4,26 @@ import TopNav from './TopNav';
 
 interface LayoutProps {
   children: React.ReactNode;
+  programCount?: number;
+  objectCount?: number;
+  completionPercentage?: number;
 }
 
-const Layout: React.FC<LayoutProps> = ({ children }) => {
+const Layout: React.FC<LayoutProps> = ({ 
+  children,
+  programCount = 0,
+  objectCount = 0,
+  completionPercentage = 0
+}) => {
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh', flexDirection: 'column' }}>
       {/* TopNav at top */}
-      <TopNav onMenuClick={() => {}} />
+      <TopNav 
+        onMenuClick={() => {}} 
+        programCount={programCount}
+        objectCount={objectCount}
+        completionPercentage={completionPercentage}
+      />
       
       {/* Main Content Area - full width below header */}
       <Box

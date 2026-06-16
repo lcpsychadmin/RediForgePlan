@@ -1,23 +1,35 @@
 import React from 'react';
-import { AppBar, Toolbar, IconButton, Typography, Box, Menu, MenuItem, Divider } from '@mui/material';
+import { AppBar, Toolbar, IconButton, Typography, Box, Menu, MenuItem, Divider, Button } from '@mui/material';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import LogoutIcon from '@mui/icons-material/Logout';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import FolderOpenIcon from '@mui/icons-material/FolderOpen';
 import SettingsIcon from '@mui/icons-material/Settings';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
+import StorageIcon from '@mui/icons-material/Storage';
+import GroupIcon from '@mui/icons-material/Group';
+import DownloadIcon from '@mui/icons-material/Download';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 
 interface TopNavProps {
   onMenuClick: () => void;
+  programCount?: number;
+  objectCount?: number;
+  completionPercentage?: number;
 }
 
-const TopNav: React.FC<TopNavProps> = ({ onMenuClick }) => {
+const TopNav: React.FC<TopNavProps> = ({ 
+  onMenuClick, 
+  programCount = 0, 
+  objectCount = 0, 
+  completionPercentage = 0 
+}) => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
+  const isProjectsPage = location.pathname === '/projects';
 
   const handleMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
@@ -43,9 +55,74 @@ const TopNav: React.FC<TopNavProps> = ({ onMenuClick }) => {
   return (
     <AppBar position="fixed" sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}>
       <Toolbar>
-        <Typography variant="h6" component="div" sx={{ flexGrow: 1, fontWeight: 700 }}>
-          RediForge
-        </Typography>
+        {isProjectsPage ? (
+          <>
+            {/* Projects Page Header */}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+              <StorageIcon sx={{ fontSize: '1.5rem' }} />
+              <Typography variant="h6" component="div" sx={{ fontWeight: 700 }}>
+                Migration Plan
+              </Typography>
+            </Box>
+
+            {/* Stats */}
+            <Box sx={{ display: 'flex', gap: 2.5, alignItems: 'center', borderLeft: '1px solid', borderColor: 'rgba(255, 255, 255, 0.2)', pl: 3, ml: 3 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                <Typography variant="caption">
+                  Programs:
+                </Typography>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                  {programCount}
+                </Typography>
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                <Typography variant="caption">
+                  Objects:
+                </Typography>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                  {objectCount}
+                </Typography>
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                <Typography variant="body2" sx={{ fontWeight: 600, color: 'primary.light' }}>
+                  {completionPercentage}%
+                </Typography>
+              </Box>
+            </Box>
+
+            {/* Spacer */}
+            <Box sx={{ flexGrow: 1 }} />
+
+            {/* Action Buttons */}
+            <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mr: 2 }}>
+              <Button
+                variant="text"
+                size="small"
+                startIcon={<GroupIcon />}
+                sx={{ textTransform: 'none', fontWeight: 500, color: 'white' }}
+              >
+                People
+              </Button>
+              <Button
+                variant="contained"
+                size="small"
+                startIcon={<DownloadIcon />}
+                sx={{ textTransform: 'none', fontWeight: 500 }}
+              >
+                Export CSV
+              </Button>
+            </Box>
+          </>
+        ) : (
+          <>
+            {/* Default Header */}
+            <Typography variant="h6" component="div" sx={{ flexGrow: 1, fontWeight: 700 }}>
+              RediForge
+            </Typography>
+          </>
+        )}
+
+        {/* Account Menu - Always on Right */}
         <Box>
           <IconButton color="inherit" onClick={handleMenuOpen}>
             <AccountCircleIcon />
