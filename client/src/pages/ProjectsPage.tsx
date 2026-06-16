@@ -127,6 +127,16 @@ const ProjectsPage: React.FC = () => {
   const [newTaskGroupName, setNewTaskGroupName] = useState('');
   const [isCreatingTaskGroup, setIsCreatingTaskGroup] = useState(false);
 
+  // Inventory states
+  const [inventorySubTab, setInventorySubTab] = useState(0);
+  const [inventoryObjects, setInventoryObjects] = useState<{ id: string; objectId: string; description: string; processArea: string }[]>([]);
+  const [inventorySearchTerm, setInventorySearchTerm] = useState('');
+  const [catalogObjectDialogOpen, setCatalogObjectDialogOpen] = useState(false);
+  const [catalogObjectId, setCatalogObjectId] = useState('');
+  const [catalogObjectDesc, setCatalogObjectDesc] = useState('');
+  const [catalogProcessArea, setCatalogProcessArea] = useState('');
+  const [isCreatingCatalogObject, setIsCreatingCatalogObject] = useState(false);
+
   const { data: programs = [], isLoading } = useQuery({
     queryKey: ['programs'],
     queryFn: async () => {
@@ -749,56 +759,196 @@ const ProjectsPage: React.FC = () => {
           {!selectedItem ? (
             <Alert severity="info">Select an item from the list to view details</Alert>
           ) : selectedDetails ? (
-            <Card>
-              <CardHeader
-                avatar={
-                  selectedItem.type === 'project' ? (
-                    <FolderOutlinedIcon sx={{ color: (selectedDetails as Project).accentColor || '#90caf9', fontSize: '2rem' }} />
-                  ) : undefined
-                }
-                title={selectedDetails.name}
-                subheader={selectedDetails.description || (selectedItem.type === 'cycle' ? `${(selectedDetails as MockCycle).startDate} → ${(selectedDetails as MockCycle).endDate}` : '')}
-              />
-              <Divider />
-              <CardContent>
-                <Typography variant="h6" sx={{ mb: 2 }}>
-                  {selectedItem.type === 'program' && 'Program Details'}
-                  {selectedItem.type === 'cycle' && 'Mock Cycle Details'}
-                  {selectedItem.type === 'project' && 'Project Details'}
-                </Typography>
-                
-                {selectedItem.type === 'project' && (
-                  <>
-                    {/* Action Buttons */}
-                    <Box sx={{ display: 'flex', gap: 1.5, mb: 3 }}>
-                      <Button
-                        variant="contained"
-                        startIcon={<AddIcon />}
-                        onClick={() => setDataObjectDialogOpen(true)}
-                        sx={{
-                          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                          textTransform: 'none',
-                          fontWeight: 600,
-                        }}
-                      >
-                        Add Data Object
-                      </Button>
-                      <Button
-                        variant="outlined"
-                        startIcon={<AddIcon />}
-                        onClick={() => setTaskGroupDialogOpen(true)}
-                        sx={{
-                          textTransform: 'none',
-                          fontWeight: 600,
-                        }}
-                      >
-                        Add Task Group
-                      </Button>
-                    </Box>
-                  </>
-                )}
-              </CardContent>
-            </Card>
+            <>
+              {/* Plan Tab Content */}
+              {tabValue === 0 && (
+                <Card>
+                  <CardHeader
+                    avatar={
+                      selectedItem.type === 'project' ? (
+                        <FolderOutlinedIcon sx={{ color: (selectedDetails as Project).accentColor || '#90caf9', fontSize: '2rem' }} />
+                      ) : undefined
+                    }
+                    title={selectedDetails.name}
+                    subheader={selectedDetails.description || (selectedItem.type === 'cycle' ? `${(selectedDetails as MockCycle).startDate} → ${(selectedDetails as MockCycle).endDate}` : '')}
+                  />
+                  <Divider />
+                  <CardContent>
+                    <Typography variant="h6" sx={{ mb: 2 }}>
+                      {selectedItem.type === 'program' && 'Program Details'}
+                      {selectedItem.type === 'cycle' && 'Mock Cycle Details'}
+                      {selectedItem.type === 'project' && 'Project Details'}
+                    </Typography>
+                    
+                    {selectedItem.type === 'project' && (
+                      <>
+                        {/* Action Buttons */}
+                        <Box sx={{ display: 'flex', gap: 1.5, mb: 3 }}>
+                          <Button
+                            variant="contained"
+                            startIcon={<AddIcon />}
+                            onClick={() => setDataObjectDialogOpen(true)}
+                            sx={{
+                              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                              textTransform: 'none',
+                              fontWeight: 600,
+                            }}
+                          >
+                            Add Data Object
+                          </Button>
+                          <Button
+                            variant="outlined"
+                            startIcon={<AddIcon />}
+                            onClick={() => setTaskGroupDialogOpen(true)}
+                            sx={{
+                              textTransform: 'none',
+                              fontWeight: 600,
+                            }}
+                          >
+                            Add Task Group
+                          </Button>
+                        </Box>
+                      </>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Inventory Tab Content */}
+              {tabValue === 1 && selectedItem.type === 'project' && (
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  {/* Inventory Sub-Tabs */}
+                  <Box sx={{ display: 'flex', gap: 1 }}>
+                    <Button
+                      variant={inventorySubTab === 0 ? 'contained' : 'outlined'}
+                      startIcon={<Box sx={{ display: 'flex' }} />}
+                      onClick={() => setInventorySubTab(0)}
+                      sx={{ textTransform: 'none', fontWeight: 600 }}
+                    >
+                      Object Catalog
+                    </Button>
+                    <Button
+                      variant={inventorySubTab === 1 ? 'contained' : 'outlined'}
+                      startIcon={<Box sx={{ display: 'flex' }} />}
+                      onClick={() => setInventorySubTab(1)}
+                      sx={{ textTransform: 'none', fontWeight: 600 }}
+                    >
+                      Project Inventory
+                    </Button>
+                  </Box>
+
+                  {/* Object Catalog Sub-Tab */}
+                  {inventorySubTab === 0 && (
+                    <Card>
+                      <CardContent>
+                        <Typography variant="h6" sx={{ mb: 3 }}>
+                          Object Catalog
+                        </Typography>
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                          <TextField
+                            fullWidth
+                            label="Object ID"
+                            placeholder="e.g., H2R.CNV.068"
+                            size="small"
+                          />
+                          <TextField
+                            fullWidth
+                            label="Description"
+                            placeholder="Enter object description"
+                            multiline
+                            rows={2}
+                            size="small"
+                          />
+                          <TextField
+                            fullWidth
+                            label="Process Area"
+                            placeholder="Enter process area"
+                            size="small"
+                          />
+                          <Button
+                            variant="contained"
+                            sx={{
+                              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                              textTransform: 'none',
+                              fontWeight: 600,
+                              alignSelf: 'flex-start',
+                            }}
+                            onClick={() => setCatalogObjectDialogOpen(true)}
+                          >
+                            Create Object
+                          </Button>
+                        </Box>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Project Inventory Sub-Tab */}
+                  {inventorySubTab === 1 && (
+                    <Card>
+                      <CardContent>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                          <Typography variant="h6">
+                            Project Inventory
+                          </Typography>
+                          <Button
+                            variant="contained"
+                            sx={{
+                              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                              textTransform: 'none',
+                              fontWeight: 600,
+                            }}
+                            startIcon={<AddIcon />}
+                          >
+                            Add Object
+                          </Button>
+                        </Box>
+                        
+                        {/* Search Bar */}
+                        <TextField
+                          fullWidth
+                          placeholder="Search catalog..."
+                          size="small"
+                          value={inventorySearchTerm}
+                          onChange={(e) => setInventorySearchTerm(e.target.value)}
+                          sx={{ mb: 2 }}
+                        />
+
+                        {/* Inventory Table */}
+                        <Box sx={{ overflowX: 'auto' }}>
+                          <Box sx={{ display: 'grid', gridTemplateColumns: '150px 1fr', gap: 0, borderRadius: 1, overflow: 'hidden', border: '1px solid', borderColor: 'divider' }}>
+                            {/* Header */}
+                            <Box sx={{ backgroundColor: 'background.paper', p: 1.5, fontWeight: 600, borderBottom: '1px solid', borderColor: 'divider' }}>
+                              OBJECT ID
+                            </Box>
+                            <Box sx={{ backgroundColor: 'background.paper', p: 1.5, fontWeight: 600, borderBottom: '1px solid', borderColor: 'divider' }}>
+                              DESCRIPTION
+                            </Box>
+
+                            {/* Sample Data Rows */}
+                            {inventoryObjects.length === 0 ? (
+                              <Box sx={{ gridColumn: '1 / -1', p: 2, textAlign: 'center', color: 'text.secondary' }}>
+                                No objects in inventory yet
+                              </Box>
+                            ) : (
+                              inventoryObjects.map((obj) => (
+                                <React.Fragment key={obj.id}>
+                                  <Box sx={{ p: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
+                                    {obj.objectId}
+                                  </Box>
+                                  <Box sx={{ p: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
+                                    {obj.description}
+                                  </Box>
+                                </React.Fragment>
+                              ))
+                            )}
+                          </Box>
+                        </Box>
+                      </CardContent>
+                    </Card>
+                  )}
+                </Box>
+              )}
+            </>
           ) : null}
         </Box>
       </Box>
@@ -1130,6 +1280,70 @@ const ProjectsPage: React.FC = () => {
             disabled={isCreatingTaskGroup || !newTaskGroupName.trim()}
           >
             {isCreatingTaskGroup ? 'Creating...' : 'Create'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Catalog Object Dialog */}
+      <Dialog open={catalogObjectDialogOpen} onClose={() => setCatalogObjectDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Create Catalog Object</DialogTitle>
+        <DialogContent sx={{ pt: 2 }}>
+          <TextField
+            autoFocus
+            fullWidth
+            label="Object ID"
+            value={catalogObjectId}
+            onChange={(e) => setCatalogObjectId(e.target.value)}
+            margin="normal"
+            placeholder="e.g., H2R.CNV.068"
+          />
+          <TextField
+            fullWidth
+            label="Description"
+            value={catalogObjectDesc}
+            onChange={(e) => setCatalogObjectDesc(e.target.value)}
+            margin="normal"
+            multiline
+            rows={2}
+            placeholder="Enter object description"
+          />
+          <TextField
+            fullWidth
+            label="Process Area"
+            value={catalogProcessArea}
+            onChange={(e) => setCatalogProcessArea(e.target.value)}
+            margin="normal"
+            placeholder="Enter process area"
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => {
+            setCatalogObjectDialogOpen(false);
+            setCatalogObjectId('');
+            setCatalogObjectDesc('');
+            setCatalogProcessArea('');
+          }}>
+            Cancel
+          </Button>
+          <Button
+            onClick={() => {
+              // TODO: Implement API call to create catalog object
+              const newObject = {
+                id: Math.random().toString(36).substr(2, 9),
+                objectId: catalogObjectId,
+                description: catalogObjectDesc,
+                processArea: catalogProcessArea,
+              };
+              setInventoryObjects([...inventoryObjects, newObject]);
+              setCatalogObjectDialogOpen(false);
+              setCatalogObjectId('');
+              setCatalogObjectDesc('');
+              setCatalogProcessArea('');
+            }}
+            variant="contained"
+            disabled={isCreatingCatalogObject || !catalogObjectId.trim() || !catalogObjectDesc.trim()}
+          >
+            {isCreatingCatalogObject ? 'Creating...' : 'Create'}
           </Button>
         </DialogActions>
       </Dialog>
