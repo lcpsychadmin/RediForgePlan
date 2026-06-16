@@ -59,15 +59,28 @@ export class ProgramService {
   }
 
   async deleteProgram(programId: string) {
-    const cycleCount = await db.query(
-      'SELECT COUNT(*) FROM mock_cycles WHERE program_id = $1',
+    // Cascade delete: first get all mock cycles for this program
+    const cyclesResult = await db.query(
+      'SELECT id FROM mock_cycles WHERE program_id = $1',
       [programId]
     );
 
-    if (parseInt(cycleCount.rows[0].count) > 0) {
-      throw new Error('Cannot delete program with existing mock cycles');
+    // Delete all projects in those mock cycles
+    const cycleIds = cyclesResult.rows.map(r => r.id);
+    if (cycleIds.length > 0) {
+      await db.query(
+        'DELETE FROM projects WHERE mock_cycle_id = ANY($1)',
+        [cycleIds]
+      );
     }
 
+    // Delete all mock cycles for this program
+    await db.query(
+      'DELETE FROM mock_cycles WHERE program_id = $1',
+      [programId]
+    );
+
+    // Finally delete the program
     const result = await db.query(
       'DELETE FROM programs WHERE id = $1 RETURNING id',
       [programId]
@@ -152,15 +165,13 @@ export class ProgramService {
   }
 
   async deleteMockCycle(mockCycleId: string) {
-    const projectCount = await db.query(
-      'SELECT COUNT(*) FROM projects WHERE mock_cycle_id = $1',
+    // Cascade delete: first delete all projects in this mock cycle
+    await db.query(
+      'DELETE FROM projects WHERE mock_cycle_id = $1',
       [mockCycleId]
     );
 
-    if (parseInt(projectCount.rows[0].count) > 0) {
-      throw new Error('Cannot delete mock cycle with existing projects');
-    }
-
+    // Then delete the mock cycle
     const result = await db.query(
       'DELETE FROM mock_cycles WHERE id = $1 RETURNING id',
       [mockCycleId]
