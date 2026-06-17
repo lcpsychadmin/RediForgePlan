@@ -164,14 +164,8 @@ export class ProjectObjectService {
   }
 
   async deleteProjectObject(projectObjectId: string) {
-    const taskCount = await db.query(
-      'SELECT COUNT(*) FROM tasks WHERE project_object_id = $1',
-      [projectObjectId]
-    );
-
-    if (parseInt(taskCount.rows[0].count) > 0) {
-      throw new Error('Cannot delete project object with existing tasks');
-    }
+    // Delete all tasks for this object first (cascade), then delete the object
+    await db.query('DELETE FROM tasks WHERE project_object_id = $1', [projectObjectId]);
 
     const result = await db.query(
       'DELETE FROM project_objects WHERE id = $1 RETURNING id',

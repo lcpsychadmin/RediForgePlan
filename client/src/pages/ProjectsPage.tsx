@@ -486,9 +486,10 @@ const ProjectsPage: React.FC = () => {
       }
       
       setDeleteDialogOpen(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to delete:', error);
-      alert('Failed to delete. Please try again.');
+      const msg = error?.response?.data?.message || error?.response?.status || error?.message || 'Unknown error';
+      alert(`Failed to delete: ${msg}`);
     } finally {
       setIsDeleting(false);
     }
