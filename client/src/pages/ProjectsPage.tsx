@@ -1463,6 +1463,14 @@ const ProjectsPage: React.FC = () => {
                                                   <ChatBubbleOutlineIcon sx={{ fontSize: '0.9rem' }} />
                                                 </IconButton>
                                               </Badge>
+                                              <IconButton size="small" onClick={async () => {
+                                                await loadTaskDeps(task.id);
+                                                setDepDialogTaskId(task.id);
+                                                const all = await apiClient.get(`/api/tasks/project/${activeProjectId}`);
+                                                setCycleTasksForDep(all.data.data || []);
+                                              }} sx={{ opacity: 0.6, '&:hover': { opacity: 1 } }}>
+                                                <ChevronRightIcon sx={{ fontSize: '0.9rem' }} />
+                                              </IconButton>
                                               <IconButton size="small" onClick={() => openDeleteDialog('taskSingle' as any, task.id, task.name)} sx={{ opacity: 0.6, '&:hover': { opacity: 1 } }}>
                                                 <DeleteIcon sx={{ fontSize: '0.9rem' }} />
                                               </IconButton>
