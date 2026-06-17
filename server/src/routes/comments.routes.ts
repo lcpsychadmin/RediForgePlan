@@ -49,7 +49,7 @@ router.post('/task/:taskId', requireAuth, async (req: any, res, next) => {
     const notified = new Set<string>();
     for (const token of mentionTokens) {
       const recipientId = await commentsService.findUserIdByMention(token);
-      if (recipientId && recipientId !== userId && !notified.has(recipientId)) {
+      if (recipientId && !notified.has(recipientId)) {
         notified.add(recipientId);
         await commentsService.createNotification(
           recipientId,
