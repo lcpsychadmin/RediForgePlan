@@ -1092,6 +1092,11 @@ const ProjectsPage: React.FC = () => {
                     const completedTasks = projectTasks.filter(t => t.status === 'complete').length;
                     const progressPct = projectTasks.length > 0 ? Math.round((completedTasks / projectTasks.length) * 100) : 0;
                     const allObjectIds = Array.from(new Set(projectTasks.filter(t => t.projectObjectId).map(t => t.projectObjectId)));
+                    const taskFieldSx = {
+                      '& .MuiInputBase-root': { fontSize: '0.72rem', height: 26 },
+                      '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': { borderColor: accentColor },
+                      '& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: accentColor },
+                    };
                     return (
                       <Box>
                         {/* Breadcrumbs */}
@@ -1214,11 +1219,11 @@ const ProjectsPage: React.FC = () => {
                                               <Box sx={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: getTaskStatusColor(task.status), flexShrink: 0 }} />
                                               <TextField size="small" value={task.name || ''} onBlur={e => updateTaskInline(task.id, 'name', e.target.value)}
                                                 onChange={e => setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, name: e.target.value } : t))}
-                                                sx={{ '& .MuiInputBase-root': { fontSize: '0.72rem', height: 26 }, flex: 1 }} />
+                                                sx={{ ...taskFieldSx, flex: 1 }} />
                                             </Box>
                                             {/* Status dropdown */}
                                             <TextField select size="small" value={task.status} onChange={e => updateTaskInline(task.id, 'status', e.target.value)}
-                                              sx={{ '& .MuiInputBase-root': { fontSize: '0.72rem', height: 26 } }}>
+                                              sx={taskFieldSx}>
                                               <MenuItem value="not_started">Not Started</MenuItem>
                                               <MenuItem value="in_progress">In Progress</MenuItem>
                                               <MenuItem value="complete">Completed</MenuItem>
@@ -1226,7 +1231,7 @@ const ProjectsPage: React.FC = () => {
                                             </TextField>
                                             {/* Assigned To */}
                                             <TextField select size="small" value={task.assignedTo || ''} onChange={e => updateTaskInline(task.id, 'assignedTo', e.target.value)}
-                                              sx={{ '& .MuiInputBase-root': { fontSize: '0.72rem', height: 26 } }}>
+                                              sx={taskFieldSx}>
                                               <MenuItem value=""><em>Unassigned</em></MenuItem>
                                               {people.map(p => <MenuItem key={p.id} value={p.name}>{p.name}</MenuItem>)}
                                             </TextField>
@@ -1234,14 +1239,14 @@ const ProjectsPage: React.FC = () => {
                                             <TextField size="small" type="date" value={task.startDate || ''} onChange={e => {
                                               updateTaskInline(task.id, 'startDate', e.target.value);
                                               if (task.duration) updateTaskInline(task.id, 'endDate', calcEndDate(e.target.value, task.duration, task.durationUnit || 'hours'));
-                                            }} sx={{ '& .MuiInputBase-root': { fontSize: '0.72rem', height: 26 } }} />
+                                            }} sx={taskFieldSx} />
                                             {/* End Date */}
                                             <TextField size="small" type="date" value={task.endDate || ''} onChange={e => updateTaskInline(task.id, 'endDate', e.target.value)}
-                                              sx={{ '& .MuiInputBase-root': { fontSize: '0.72rem', height: 26 } }} />
+                                              sx={taskFieldSx} />
                                             {/* Notes */}
                                             <TextField size="small" placeholder="Notes..." value={task.notes || ''} onBlur={e => updateTaskInline(task.id, 'notes', e.target.value)}
                                               onChange={e => setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, notes: e.target.value } : t))}
-                                              sx={{ '& .MuiInputBase-root': { fontSize: '0.72rem', height: 26 } }} />
+                                              sx={taskFieldSx} />
                                             {/* Actions */}
                                             <Box sx={{ display: 'flex', gap: 0.5 }}>
                                               <IconButton size="small" title="Dependencies" onClick={async () => {
@@ -1315,27 +1320,27 @@ const ProjectsPage: React.FC = () => {
                                               <Box sx={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: getTaskStatusColor(task.status), flexShrink: 0 }} />
                                               <TextField size="small" value={task.name || ''} onBlur={e => updateTaskInline(task.id, 'name', e.target.value)}
                                                 onChange={e => setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, name: e.target.value } : t))}
-                                                sx={{ '& .MuiInputBase-root': { fontSize: '0.72rem', height: 26 }, flex: 1 }} />
+                                                sx={{ ...taskFieldSx, flex: 1 }} />
                                             </Box>
                                             <TextField select size="small" value={task.status} onChange={e => updateTaskInline(task.id, 'status', e.target.value)}
-                                              sx={{ '& .MuiInputBase-root': { fontSize: '0.72rem', height: 26 } }}>
+                                              sx={taskFieldSx}>
                                               <MenuItem value="not_started">Not Started</MenuItem>
                                               <MenuItem value="in_progress">In Progress</MenuItem>
                                               <MenuItem value="complete">Completed</MenuItem>
                                               <MenuItem value="blocked">Blocked</MenuItem>
                                             </TextField>
                                             <TextField select size="small" value={task.assignedTo || ''} onChange={e => updateTaskInline(task.id, 'assignedTo', e.target.value)}
-                                              sx={{ '& .MuiInputBase-root': { fontSize: '0.72rem', height: 26 } }}>
+                                              sx={taskFieldSx}>
                                               <MenuItem value=""><em>Unassigned</em></MenuItem>
                                               {people.map(p => <MenuItem key={p.id} value={p.name}>{p.name}</MenuItem>)}
                                             </TextField>
                                             <TextField size="small" type="date" value={task.startDate || ''} onChange={e => updateTaskInline(task.id, 'startDate', e.target.value)}
-                                              sx={{ '& .MuiInputBase-root': { fontSize: '0.72rem', height: 26 } }} />
+                                              sx={taskFieldSx} />
                                             <TextField size="small" type="date" value={task.endDate || ''} onChange={e => updateTaskInline(task.id, 'endDate', e.target.value)}
-                                              sx={{ '& .MuiInputBase-root': { fontSize: '0.72rem', height: 26 } }} />
+                                              sx={taskFieldSx} />
                                             <TextField size="small" placeholder="Notes..." value={task.notes || ''} onBlur={e => updateTaskInline(task.id, 'notes', e.target.value)}
                                               onChange={e => setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, notes: e.target.value } : t))}
-                                              sx={{ '& .MuiInputBase-root': { fontSize: '0.72rem', height: 26 } }} />
+                                              sx={taskFieldSx} />
                                             <Box sx={{ display: 'flex', gap: 0.5 }}>
                                               <IconButton size="small" onClick={() => openDeleteDialog('taskSingle' as any, task.id, task.name)} sx={{ opacity: 0.6, '&:hover': { opacity: 1 } }}>
                                                 <DeleteIcon sx={{ fontSize: '0.9rem' }} />
