@@ -1179,17 +1179,35 @@ const ProjectsPage: React.FC = () => {
                             } else {
                               [month, day, year] = parts;
                             }
-                            return new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+                            return { year: parseInt(year), month: parseInt(month), day: parseInt(day) };
                           };
+                          
                           const tasksWithDates = allPlanTasks.filter(t => t.startDate || t.endDate);
                           if (tasksWithDates.length === 0) return null;
-                          const startDates = tasksWithDates.filter(t => t.startDate).map(t => parseLocalDate(t.startDate).getTime());
-                          const endDates = tasksWithDates.filter(t => t.endDate).map(t => parseLocalDate(t.endDate).getTime());
-                          const minStart = startDates.length > 0 ? new Date(Math.min(...startDates)) : null;
-                          const maxEnd = endDates.length > 0 ? new Date(Math.max(...endDates)) : null;
-                          if (!minStart || !maxEnd) return null;
-                          const startStr = minStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                          const endStr = maxEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                          
+                          const allDates = tasksWithDates.flatMap(t => [t.startDate, t.endDate].filter(d => d && d.trim()));
+                          if (allDates.length === 0) return null;
+                          
+                          const parsedDates = allDates.map(d => parseLocalDate(d));
+                          
+                          const minDate = parsedDates.reduce((min, d) => {
+                            if (d.year < min.year) return d;
+                            if (d.year === min.year && d.month < min.month) return d;
+                            if (d.year === min.year && d.month === min.month && d.day < min.day) return d;
+                            return min;
+                          });
+                          
+                          const maxDate = parsedDates.reduce((max, d) => {
+                            if (d.year > max.year) return d;
+                            if (d.year === max.year && d.month > max.month) return d;
+                            if (d.year === max.year && d.month === max.month && d.day > max.day) return d;
+                            return max;
+                          });
+                          
+                          const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                          const startStr = `${monthNames[minDate.month - 1]} ${minDate.day}`;
+                          const endStr = `${monthNames[maxDate.month - 1]} ${maxDate.day}`;
+                          
                           return (
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
                               <EventIcon sx={{ fontSize: '0.9rem', color: 'text.disabled' }} />
