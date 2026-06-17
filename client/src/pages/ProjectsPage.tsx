@@ -1290,8 +1290,9 @@ const ProjectsPage: React.FC = () => {
                                     <IconButton size="small" onClick={(e) => { e.stopPropagation(); setMenuAnchorEl(e.currentTarget); setMenuType('task'); setMenuItemId(objectId || ''); }}><MoreVertIcon sx={{ fontSize: '1rem' }} /></IconButton>
                                   </Box>
                                   {/* Timeline and Status Info Line */}
-                                  {inventoryObject?.startDate && inventoryObject?.endDate && (() => {
+                                  {tasksForObject.length > 0 && (() => {
                                     const parseLocalDate = (dateString: string) => {
+                                      if (!dateString) return null;
                                       const parts = dateString.trim().split(/[-\/]/);
                                       if (parts.length !== 3) return null;
                                       let year: number, month: number, day: number;
@@ -1309,13 +1310,30 @@ const ProjectsPage: React.FC = () => {
                                       if (year < 1900 || year > 2100 || month < 1 || month > 12 || day < 1 || day > 31) return null;
                                       return { year, month, day };
                                     };
-                                    const startParsed = parseLocalDate(inventoryObject.startDate);
-                                    const endParsed = parseLocalDate(inventoryObject.endDate);
-                                    if (!startParsed || !endParsed) return null;
+                                    
+                                    // Find min start date and max end date from all tasks
+                                    let minStart = null;
+                                    let maxEnd = null;
+                                    for (const task of tasksForObject) {
+                                      const startParsed = task.startDate ? parseLocalDate(task.startDate) : null;
+                                      const endParsed = task.endDate ? parseLocalDate(task.endDate) : null;
+                                      if (startParsed) {
+                                        if (!minStart || startParsed.year < minStart.year || (startParsed.year === minStart.year && startParsed.month < minStart.month) || (startParsed.year === minStart.year && startParsed.month === minStart.month && startParsed.day < minStart.day)) {
+                                          minStart = startParsed;
+                                        }
+                                      }
+                                      if (endParsed) {
+                                        if (!maxEnd || endParsed.year > maxEnd.year || (endParsed.year === maxEnd.year && endParsed.month > maxEnd.month) || (endParsed.year === maxEnd.year && endParsed.month === maxEnd.month && endParsed.day > maxEnd.day)) {
+                                          maxEnd = endParsed;
+                                        }
+                                      }
+                                    }
+                                    
+                                    if (!minStart || !maxEnd) return null;
                                     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-                                    const timelineStr = `${monthNames[startParsed.month - 1]} ${startParsed.day} → ${monthNames[endParsed.month - 1]} ${endParsed.day}`;
+                                    const timelineStr = `${monthNames[minStart.month - 1]} ${minStart.day} → ${monthNames[maxEnd.month - 1]} ${maxEnd.day}`;
                                     const today = new Date();
-                                    const endDate = new Date(endParsed.year, endParsed.month - 1, endParsed.day);
+                                    const endDate = new Date(maxEnd.year, maxEnd.month - 1, maxEnd.day);
                                     const isBehind = today > endDate || overallStatus === 'blocked';
                                     return (
                                       <Box sx={{ px: 2.5, py: 0.4, display: 'flex', alignItems: 'center', gap: 1, backgroundColor: 'rgba(255,255,255,0.01)', borderBottom: '1px solid rgba(255,255,255,0.04)', fontSize: '0.75rem' }}>
@@ -1454,8 +1472,9 @@ const ProjectsPage: React.FC = () => {
                                     <IconButton size="small" onClick={(e) => { e.stopPropagation(); setMenuAnchorEl(e.currentTarget); setMenuType('taskGroup'); setMenuItemId(group.id); }}><MoreVertIcon sx={{ fontSize: '1rem' }} /></IconButton>
                                   </Box>
                                   {/* Timeline and Status Info Line for Task Group */}
-                                  {group?.startDate && group?.endDate && (() => {
+                                  {groupTasks.length > 0 && (() => {
                                     const parseLocalDate = (dateString: string) => {
+                                      if (!dateString) return null;
                                       const parts = dateString.trim().split(/[-\/]/);
                                       if (parts.length !== 3) return null;
                                       let year: number, month: number, day: number;
@@ -1473,13 +1492,30 @@ const ProjectsPage: React.FC = () => {
                                       if (year < 1900 || year > 2100 || month < 1 || month > 12 || day < 1 || day > 31) return null;
                                       return { year, month, day };
                                     };
-                                    const startParsed = parseLocalDate(group.startDate);
-                                    const endParsed = parseLocalDate(group.endDate);
-                                    if (!startParsed || !endParsed) return null;
+                                    
+                                    // Find min start date and max end date from all tasks in group
+                                    let minStart = null;
+                                    let maxEnd = null;
+                                    for (const task of groupTasks) {
+                                      const startParsed = task.startDate ? parseLocalDate(task.startDate) : null;
+                                      const endParsed = task.endDate ? parseLocalDate(task.endDate) : null;
+                                      if (startParsed) {
+                                        if (!minStart || startParsed.year < minStart.year || (startParsed.year === minStart.year && startParsed.month < minStart.month) || (startParsed.year === minStart.year && startParsed.month === minStart.month && startParsed.day < minStart.day)) {
+                                          minStart = startParsed;
+                                        }
+                                      }
+                                      if (endParsed) {
+                                        if (!maxEnd || endParsed.year > maxEnd.year || (endParsed.year === maxEnd.year && endParsed.month > maxEnd.month) || (endParsed.year === maxEnd.year && endParsed.month === maxEnd.month && endParsed.day > maxEnd.day)) {
+                                          maxEnd = endParsed;
+                                        }
+                                      }
+                                    }
+                                    
+                                    if (!minStart || !maxEnd) return null;
                                     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-                                    const timelineStr = `${monthNames[startParsed.month - 1]} ${startParsed.day} → ${monthNames[endParsed.month - 1]} ${endParsed.day}`;
+                                    const timelineStr = `${monthNames[minStart.month - 1]} ${minStart.day} → ${monthNames[maxEnd.month - 1]} ${maxEnd.day}`;
                                     const today = new Date();
-                                    const endDate = new Date(endParsed.year, endParsed.month - 1, endParsed.day);
+                                    const endDate = new Date(maxEnd.year, maxEnd.month - 1, maxEnd.day);
                                     const isBehind = today > endDate || overallStatus === 'blocked';
                                     return (
                                       <Box sx={{ px: 2.5, py: 0.4, display: 'flex', alignItems: 'center', gap: 1, backgroundColor: 'rgba(255,255,255,0.01)', borderBottom: '1px solid rgba(255,255,255,0.04)', fontSize: '0.75rem' }}>
