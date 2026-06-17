@@ -745,13 +745,13 @@ const ProjectsPage: React.FC = () => {
                           display: 'flex',
                           alignItems: 'center',
                           py: 0.75,
-                          pl: 1,
+                          pl: 0,
                           pr: 0.5,
                           cursor: 'pointer',
                           position: 'relative',
                           backgroundColor: isProgramSelected ? 'rgba(91, 103, 202, 0.15)' : 'transparent',
-                          borderRight: isProgramSelected ? '2px solid' : '2px solid transparent',
-                          borderRightColor: isProgramSelected ? 'primary.main' : 'transparent',
+                          borderLeft: isProgramSelected ? '3px solid #5B67CA' : '3px solid transparent',
+                          borderRadius: isProgramSelected ? '0 4px 4px 0' : 0,
                           '&:hover': { backgroundColor: isProgramSelected ? 'rgba(91, 103, 202, 0.15)' : 'rgba(255,255,255,0.05)' },
                         }}
                         onClick={() => {
@@ -766,8 +766,8 @@ const ProjectsPage: React.FC = () => {
                             : <ChevronRightIcon sx={{ fontSize: '1rem', opacity: 0.6 }} />
                           }
                         </Box>
-                        <CorporateFareIcon sx={{ fontSize: '1.1rem', color: 'primary.light', flexShrink: 0, mx: 0.75 }} />
-                        <Typography variant="body2" sx={{ fontWeight: 600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <CorporateFareIcon sx={{ fontSize: '1.1rem', color: isProgramSelected ? '#5B67CA' : 'primary.light', flexShrink: 0, mx: 0.75 }} />
+                        <Typography variant="body2" sx={{ fontWeight: 600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: isProgramSelected ? '#5B67CA' : 'inherit' }}>
                           {program.name}
                         </Typography>
                         <IconButton
@@ -808,12 +808,12 @@ const ProjectsPage: React.FC = () => {
                                     display: 'flex',
                                     alignItems: 'center',
                                     py: 0.6,
-                                    pl: 1,
+                                    pl: 0,
                                     pr: 0.5,
                                     cursor: 'pointer',
                                     backgroundColor: isCycleSelected ? 'rgba(91, 103, 202, 0.15)' : 'transparent',
-                                    borderRight: isCycleSelected ? '2px solid' : '2px solid transparent',
-                                    borderRightColor: isCycleSelected ? 'primary.main' : 'transparent',
+                                    borderLeft: isCycleSelected ? '3px solid #5B67CA' : '3px solid transparent',
+                                    borderRadius: isCycleSelected ? '0 4px 4px 0' : 0,
                                     '&:hover': { backgroundColor: isCycleSelected ? 'rgba(91, 103, 202, 0.15)' : 'rgba(255,255,255,0.05)' },
                                   }}
                                   onClick={() => {
@@ -830,8 +830,8 @@ const ProjectsPage: React.FC = () => {
                                       : <ChevronRightIcon sx={{ fontSize: '0.85rem', opacity: 0.6 }} />
                                     }
                                   </Box>
-                                  <SyncIcon sx={{ fontSize: '0.95rem', color: 'info.light', flexShrink: 0, mx: 0.5 }} />
-                                  <Typography variant="body2" sx={{ fontWeight: 500, fontSize: '0.8rem', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  <SyncIcon sx={{ fontSize: '0.95rem', color: isCycleSelected ? '#5B67CA' : 'info.light', flexShrink: 0, mx: 0.5 }} />
+                                  <Typography variant="body2" sx={{ fontWeight: 500, fontSize: '0.8rem', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: isCycleSelected ? '#5B67CA' : 'inherit' }}>
                                     {cycle.name}
                                   </Typography>
                                   <IconButton
@@ -871,11 +871,12 @@ const ProjectsPage: React.FC = () => {
                                             display: 'flex',
                                             alignItems: 'center',
                                             py: 0.5,
-                                            pl: 1,
+                                            pl: 0,
                                             pr: 0.5,
                                             cursor: 'pointer',
                                             backgroundColor: isProjectSelected ? `${accentColor}22` : 'transparent',
-                                            borderRight: isProjectSelected ? `2px solid ${accentColor}` : '2px solid transparent',
+                                            borderLeft: isProjectSelected ? `3px solid ${accentColor}` : '3px solid transparent',
+                                            borderRadius: isProjectSelected ? '0 4px 4px 0' : 0,
                                             '&:hover': { backgroundColor: isProjectSelected ? `${accentColor}22` : 'rgba(255,255,255,0.05)' },
                                           }}
                                           onClick={() => setSelectedItem({ type: 'project', id: project.id, cycleId: cycle.id })}
@@ -883,7 +884,7 @@ const ProjectsPage: React.FC = () => {
                                           {/* Tree connector */}
                                           <Box sx={{ width: 8, flexShrink: 0 }} />
                                           <FolderOutlinedIcon sx={{ fontSize: '0.95rem', color: accentColor, flexShrink: 0, mx: 0.5 }} />
-                                          <Typography variant="caption" sx={{ fontWeight: 500, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                          <Typography variant="caption" sx={{ fontWeight: 500, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: isProjectSelected ? accentColor : 'inherit' }}>
                                             {project.name}
                                           </Typography>
                                           <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 500, mr: 0.5, flexShrink: 0 }}>
@@ -911,7 +912,7 @@ const ProjectsPage: React.FC = () => {
                                       variant="text"
                                       startIcon={<AddIcon sx={{ fontSize: '0.85rem !important' }} />}
                                       onClick={() => openCreateDialog('project', undefined, cycle.id)}
-                                      sx={{ fontSize: '0.72rem', height: 26, mt: 0.25, color: 'text.disabled', textTransform: 'none', pl: 1, '&:hover': { color: 'primary.light' } }}
+                                      sx={{ fontSize: '0.72rem', height: 26, mt: 0.25, color: '#7C83D0', textTransform: 'none', pl: 1, '&:hover': { color: '#5B67CA' } }}
                                     >
                                       Add Project
                                     </Button>
@@ -927,7 +928,7 @@ const ProjectsPage: React.FC = () => {
                             variant="text"
                             startIcon={<AddIcon sx={{ fontSize: '0.85rem !important' }} />}
                             onClick={() => openCreateDialog('cycle', program.id)}
-                            sx={{ fontSize: '0.72rem', height: 26, mt: 0.25, color: 'text.disabled', textTransform: 'none', pl: 1, '&:hover': { color: 'primary.light' } }}
+                            sx={{ fontSize: '0.72rem', height: 26, mt: 0.25, color: '#64B5F6', textTransform: 'none', pl: 1, '&:hover': { color: '#90CAF9' } }}
                           >
                             Add Mock Cycle
                           </Button>
@@ -948,7 +949,7 @@ const ProjectsPage: React.FC = () => {
               startIcon={<AddIcon />}
               fullWidth
               onClick={() => openCreateDialog('program')}
-              sx={{ textTransform: 'none', justifyContent: 'flex-start', color: 'text.secondary', fontWeight: 500, '&:hover': { color: 'primary.light' } }}
+              sx={{ textTransform: 'none', justifyContent: 'flex-start', color: '#7C83D0', fontWeight: 500, '&:hover': { color: '#5B67CA' } }}
             >
               Add Program
             </Button>
