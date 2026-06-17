@@ -25,10 +25,11 @@ interface TaskCommentsModalProps {
   taskName: string;
   accentColor: string;
   people: { id: string; name: string }[];
+  onCommentsChange?: (commentCount: number) => void;
 }
 
 export const TaskCommentsModal: React.FC<TaskCommentsModalProps> = ({
-  open, onClose, taskId, taskName, accentColor, people,
+  open, onClose, taskId, taskName, accentColor, people, onCommentsChange,
 }) => {
   const { user } = useAuth();
   const [comments, setComments] = useState<Comment[]>([]);
@@ -79,7 +80,12 @@ export const TaskCommentsModal: React.FC<TaskCommentsModalProps> = ({
     try {
       setError(null);
       const res = await apiClient.post(`/api/comments/task/${taskId}`, { content: content.trim() });
-      setComments(prev => [...prev, res.data.data]);
+      const newComment = res.data.data;
+      setComments(prev => {
+        const updated = [...prev, newComment];
+        onCommentsChange?.(updated.length);
+        return updated;
+      });
       setContent('');
     } catch (e: any) { 
       console.error('Comment submission error:', e);
@@ -89,7 +95,11 @@ export const TaskCommentsModal: React.FC<TaskCommentsModalProps> = ({
 
   const handleDelete = async (commentId: string) => {
     await apiClient.delete(`/api/comments/${commentId}`);
-    setComments(prev => prev.filter(c => c.id !== commentId));
+    setComments(prev => {
+      const updated = prev.filter(c => c.id !== commentId);
+      onCommentsChange?.(updated.length);
+      return updated;
+    });
   };
 
   const renderContent = (text: string) => {

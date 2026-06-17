@@ -26,6 +26,7 @@ import {
   Slider,
   Breadcrumbs,
   Link,
+  Badge,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
@@ -208,6 +209,7 @@ const ProjectsPage: React.FC = () => {
   // Comment modal state
   const [commentModalTask, setCommentModalTask] = useState<{ id: string; name: string } | null>(null);
   const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
+  const [taskCommentCounts, setTaskCommentCounts] = useState<Record<string, number>>({});
 
   // People sidebar state
   const [peopleSidebarOpen, setPeopleSidebarOpen] = useState(false);
@@ -350,6 +352,7 @@ const ProjectsPage: React.FC = () => {
       if (!activeProjectId) {
         setProjectTasks([]);
         setProjectTaskGroups([]);
+        setTaskCommentCounts({});
         return;
       }
 
@@ -363,6 +366,18 @@ const ProjectsPage: React.FC = () => {
         const groupsResponse = await apiClient.get(`/api/tasks/groups/project/${activeProjectId}`);
         const groups = groupsResponse.data.data || [];
         setProjectTaskGroups(groups);
+
+        // Fetch comment counts for each task
+        const commentCounts: Record<string, number> = {};
+        for (const task of tasks) {
+          try {
+            const commentsRes = await apiClient.get(`/api/comments/task/${task.id}`);
+            commentCounts[task.id] = (commentsRes.data.data || []).length;
+          } catch (e) {
+            commentCounts[task.id] = 0;
+          }
+        }
+        setTaskCommentCounts(commentCounts);
       } catch (error) {
         console.error('Failed to load tasks:', error);
         setProjectTasks([]);
@@ -1292,10 +1307,12 @@ const ProjectsPage: React.FC = () => {
                                               sx={taskFieldSx} />
                                             {/* Actions */}
                                             <Box sx={{ display: 'flex', gap: 0.25, alignItems: 'center' }}>
-                                              <IconButton size="small" title="Discussion" onClick={() => setCommentModalTask({ id: task.id, name: task.name || 'Task' })}
-                                                sx={{ opacity: 0.6, '&:hover': { opacity: 1, color: accentColor } }}>
-                                                <ChatBubbleOutlineIcon sx={{ fontSize: '0.9rem' }} />
-                                              </IconButton>
+                                              <Badge badgeContent={taskCommentCounts[task.id] || 0} color="primary">
+                                                <IconButton size="small" title="Discussion" onClick={() => setCommentModalTask({ id: task.id, name: task.name || 'Task' })}
+                                                  sx={{ opacity: 0.6, '&:hover': { opacity: 1, color: accentColor } }}>
+                                                  <ChatBubbleOutlineIcon sx={{ fontSize: '0.9rem' }} />
+                                                </IconButton>
+                                              </Badge>
                                               <IconButton size="small" title="Dependencies" onClick={async () => {
                                                 await loadTaskDeps(task.id);
                                                 setDepDialogTaskId(task.id);
@@ -1408,10 +1425,12 @@ const ProjectsPage: React.FC = () => {
                                               slotProps={{ htmlInput: { min: 0, max: 100 } }}
                                               sx={{ ...taskFieldSx, '& input': { textAlign: 'center', px: 0.5 } }} />
                                             <Box sx={{ display: 'flex', gap: 0.25, alignItems: 'center' }}>
-                                              <IconButton size="small" title="Discussion" onClick={() => setCommentModalTask({ id: task.id, name: task.name || 'Task' })}
-                                                sx={{ opacity: 0.6, '&:hover': { opacity: 1, color: accentColor } }}>
-                                                <ChatBubbleOutlineIcon sx={{ fontSize: '0.9rem' }} />
-                                              </IconButton>
+                                              <Badge badgeContent={taskCommentCounts[task.id] || 0} color="primary">
+                                                <IconButton size="small" title="Discussion" onClick={() => setCommentModalTask({ id: task.id, name: task.name || 'Task' })}
+                                                  sx={{ opacity: 0.6, '&:hover': { opacity: 1, color: accentColor } }}>
+                                                  <ChatBubbleOutlineIcon sx={{ fontSize: '0.9rem' }} />
+                                                </IconButton>
+                                              </Badge>
                                               <IconButton size="small" onClick={() => openDeleteDialog('taskSingle' as any, task.id, task.name)} sx={{ opacity: 0.6, '&:hover': { opacity: 1 } }}>
                                                 <DeleteIcon sx={{ fontSize: '0.9rem' }} />
                                               </IconButton>
@@ -2296,6 +2315,7 @@ const ProjectsPage: React.FC = () => {
             return '#00BFA5';
           })()}
           people={people}
+          onCommentsChange={(count) => setTaskCommentCounts(prev => ({ ...prev, [commentModalTask.id]: count }))}
         />
       )}
 
