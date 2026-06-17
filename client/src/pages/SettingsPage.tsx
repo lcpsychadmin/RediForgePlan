@@ -100,9 +100,17 @@ const SettingsPage: React.FC = () => {
   const [newTemplateDuration, setNewTemplateDuration] = useState('8');
   const [newTemplateUnit, setNewTemplateUnit] = useState('hours');
 
+  // People roles
+  const [roles, setRoles] = useState<any[]>([]);
+  const [newRoleName, setNewRoleName] = useState('');
+  const [addRoleOpen, setAddRoleOpen] = useState(false);
+
   useEffect(() => {
     apiClient.get('/api/tasks/templates/defaults').then(res => {
       setTemplates(res.data.data || []);
+    }).catch(() => {});
+    apiClient.get('/api/people/roles').then(res => {
+      setRoles(res.data.data || []);
     }).catch(() => {});
   }, []);
 
@@ -224,6 +232,42 @@ const SettingsPage: React.FC = () => {
                   No values in this picklist
                 </Typography>
               )}
+
+              {/* People Roles Section */}
+              <Box sx={{ mt: 4, pt: 3, borderTop: '1px solid', borderColor: 'divider' }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                  <Box>
+                    <Typography variant="h6" sx={{ fontWeight: 600 }}>People Roles</Typography>
+                    <Typography variant="body2" color="text.secondary">Roles available when assigning people to tasks.</Typography>
+                  </Box>
+                  <Button size="small" variant="contained" startIcon={<AddIcon />} onClick={() => setAddRoleOpen(true)} sx={{ textTransform: 'none' }}>Add Role</Button>
+                </Box>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
+                  {roles.map(role => (
+                    <Box key={role.id} sx={{ display: 'flex', alignItems: 'center', gap: 2, py: 0.75, px: 1.5, borderRadius: 1, backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
+                      <Typography variant="body2" sx={{ flex: 1, fontWeight: 500 }}>{role.name}</Typography>
+                      <IconButton size="small" onClick={async () => {
+                        await apiClient.delete(`/api/people/roles/${role.id}`);
+                        setRoles(prev => prev.filter(r => r.id !== role.id));
+                      }}>
+                        <DeleteIcon sx={{ fontSize: '1rem' }} />
+                      </IconButton>
+                    </Box>
+                  ))}
+                </Box>
+                {addRoleOpen && (
+                  <Box sx={{ display: 'flex', gap: 1, mt: 1.5, alignItems: 'center' }}>
+                    <TextField size="small" placeholder="Role name" value={newRoleName} onChange={e => setNewRoleName(e.target.value)} autoFocus sx={{ flex: 1 }} />
+                    <Button size="small" variant="contained" sx={{ textTransform: 'none' }} disabled={!newRoleName.trim()} onClick={async () => {
+                      const res = await apiClient.post('/api/people/roles', { name: newRoleName.trim() });
+                      setRoles(prev => [...prev, res.data.data]);
+                      setNewRoleName('');
+                      setAddRoleOpen(false);
+                    }}>Add</Button>
+                    <Button size="small" sx={{ textTransform: 'none' }} onClick={() => { setAddRoleOpen(false); setNewRoleName(''); }}>Cancel</Button>
+                  </Box>
+                )}
+              </Box>
 
               {/* Default Task Templates Section */}
               <Box sx={{ mt: 4, pt: 3, borderTop: '1px solid', borderColor: 'divider' }}>

@@ -206,6 +206,7 @@ const ProjectsPage: React.FC = () => {
   // People sidebar state
   const [peopleSidebarOpen, setPeopleSidebarOpen] = useState(false);
   const [people, setPeople] = useState<any[]>([]);
+  const [peopleRoles, setPeopleRoles] = useState<string[]>([]);
   const [addPersonOpen, setAddPersonOpen] = useState(false);
   const [newPersonName, setNewPersonName] = useState('');
   const [newPersonRole, setNewPersonRole] = useState('');
@@ -290,6 +291,9 @@ const ProjectsPage: React.FC = () => {
   useEffect(() => {
     apiClient.get('/api/people').then(res => {
       setPeople(res.data.data || []);
+    }).catch(() => {});
+    apiClient.get('/api/people/roles').then(res => {
+      setPeopleRoles((res.data.data || []).map((r: any) => r.name));
     }).catch(() => {});
   }, []);
 
@@ -2077,7 +2081,10 @@ const ProjectsPage: React.FC = () => {
                 {editingPersonId === person.id ? (
                   <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 110px 1fr 80px', gap: 0.5, px: 2, py: 1, alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
                     <TextField size="small" value={editPersonName} onChange={e => setEditPersonName(e.target.value)} sx={{ '& .MuiInputBase-root': { fontSize: '0.8rem', height: 28 } }} />
-                    <TextField size="small" value={editPersonRole} onChange={e => setEditPersonRole(e.target.value)} sx={{ '& .MuiInputBase-root': { fontSize: '0.8rem', height: 28 } }} />
+                    <TextField select size="small" value={editPersonRole} onChange={e => setEditPersonRole(e.target.value)} sx={{ '& .MuiInputBase-root': { fontSize: '0.8rem', height: 28 } }}>
+                      <MenuItem value=""><em>None</em></MenuItem>
+                      {peopleRoles.map(r => <MenuItem key={r} value={r}>{r}</MenuItem>)}
+                    </TextField>
                     <TextField size="small" value={editPersonEmail} onChange={e => setEditPersonEmail(e.target.value)} sx={{ '& .MuiInputBase-root': { fontSize: '0.8rem', height: 28 } }} />
                     <Box sx={{ display: 'flex', gap: 0.5 }}>
                       <IconButton size="small" onClick={async () => {
@@ -2113,7 +2120,10 @@ const ProjectsPage: React.FC = () => {
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                 <Box sx={{ display: 'flex', gap: 1 }}>
                   <TextField size="small" placeholder="Name *" value={newPersonName} onChange={e => setNewPersonName(e.target.value)} sx={{ flex: 1 }} autoFocus />
-                  <TextField size="small" placeholder="Role" value={newPersonRole} onChange={e => setNewPersonRole(e.target.value)} sx={{ flex: 1 }} />
+                  <TextField select size="small" value={newPersonRole} onChange={e => setNewPersonRole(e.target.value)} sx={{ flex: 1 }} label="Role">
+                    <MenuItem value=""><em>None</em></MenuItem>
+                    {peopleRoles.map(r => <MenuItem key={r} value={r}>{r}</MenuItem>)}
+                  </TextField>
                 </Box>
                 <TextField size="small" placeholder="Email" value={newPersonEmail} onChange={e => setNewPersonEmail(e.target.value)} fullWidth />
                 <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
