@@ -1084,7 +1084,8 @@ const ProjectsPage: React.FC = () => {
                               const tasksForObject = projectTasks.filter(t => t.projectObjectId === objectId);
                               const inventoryObject = projectInventoryItems.find(obj => obj.id === objectId);
                               const objectName = inventoryObject?.objectId || 'Unknown Object';
-                              const description = inventoryObject?.description || '';
+                              const globalObj = inventoryObjects.find(o => o.id === inventoryObject?.globalObjectId || o.objectId === inventoryObject?.objectId);
+                              const description = globalObj?.description || inventoryObject?.description || '';
                               const isExpanded = expandedObjects.has(objectId || '');
                               if (planSearchTerm && !objectName.toLowerCase().includes(planSearchTerm.toLowerCase()) && !description.toLowerCase().includes(planSearchTerm.toLowerCase())) return null;
                               if (planStatusFilter && !tasksForObject.some(t => t.status === planStatusFilter)) return null;
