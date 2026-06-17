@@ -46,7 +46,7 @@ import SearchIcon from '@mui/icons-material/Search';
 import EventIcon from '@mui/icons-material/Event';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Menu from '@mui/material/Menu';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import apiClient from '../api/client';
 import Layout from '../components/Layout';
 
@@ -78,6 +78,7 @@ type SelectableItem = { type: 'program'; id: string } | { type: 'cycle'; id: str
 
 const ProjectsPage: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const queryClient = useQueryClient();
   
   // State for expanded nodes in tree
@@ -390,6 +391,33 @@ const ProjectsPage: React.FC = () => {
 
     loadTasksAndGroups();
   }, [activeProjectId]);
+
+  // Hydrate notification navigation target from URL query params.
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const openTask = params.get('openTask');
+    if (!openTask) return;
+
+    const projectId = params.get('projectId');
+    const taskName = params.get('taskName') || 'Task';
+
+    if (projectId) {
+      sessionStorage.setItem('pendingNotificationTarget', JSON.stringify({ projectId, taskId: openTask, taskName }));
+      return;
+    }
+
+    // Fallback if projectId was not passed: fetch task by id to resolve owning project.
+    apiClient.get(`/api/tasks/${openTask}`).then((res) => {
+      const task = res.data?.data;
+      if (task?.projectId) {
+        sessionStorage.setItem('pendingNotificationTarget', JSON.stringify({
+          projectId: task.projectId,
+          taskId: openTask,
+          taskName: task.name || taskName,
+        }));
+      }
+    }).catch(() => {});
+  }, [location.search]);
 
   // Handle navigation from notification click: select target project.
   useEffect(() => {

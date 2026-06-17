@@ -105,7 +105,10 @@ const TopNav: React.FC<TopNavProps> = ({
     }
 
     setNotifAnchorEl(null);
-    navigate('/projects');
+    const taskIdParam = encodeURIComponent(n.taskId || '');
+    const projectIdParam = n.projectId ? `&projectId=${encodeURIComponent(n.projectId)}` : '';
+    const taskNameParam = n.taskName ? `&taskName=${encodeURIComponent(n.taskName)}` : '';
+    navigate(`/projects?openTask=${taskIdParam}${projectIdParam}${taskNameParam}`);
   };
 
   const handleDismissNotification = async (notificationId: string, isRead: boolean) => {
