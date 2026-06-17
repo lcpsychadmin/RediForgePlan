@@ -428,31 +428,49 @@ const ProjectsPage: React.FC = () => {
     try { target = JSON.parse(raw); } catch { return; }
     if (!target.projectId) return;
 
-    if (selectedItem?.type === 'project' && selectedItem.id === target.projectId) return;
-
-    let matchedCycleId: string | null = null;
-    for (const [cycleId, projects] of Object.entries(projectsByMockCycle as Record<string, any[]>)) {
-      if ((projects || []).some((p: any) => p.id === target.projectId)) {
-        matchedCycleId = cycleId;
-        break;
+    const selectNotificationProject = async () => {
+      if (selectedItem?.type === 'project' && selectedItem.id === target.projectId) {
+        setTabValue(0);
+        return;
       }
-    }
-    if (!matchedCycleId) return;
 
-    let matchedProgramId: string | null = null;
-    for (const [programId, cycles] of Object.entries(mockCycles as Record<string, any[]>)) {
-      if ((cycles || []).some((c: any) => c.id === matchedCycleId)) {
-        matchedProgramId = programId;
-        break;
+      let matchedCycleId: string | null = null;
+      for (const [cycleId, projects] of Object.entries(projectsByMockCycle as Record<string, any[]>)) {
+        if ((projects || []).some((p: any) => p.id === target.projectId)) {
+          matchedCycleId = cycleId;
+          break;
+        }
       }
-    }
 
-    if (matchedProgramId) {
-      setExpandedPrograms(prev => new Set(prev).add(matchedProgramId as string));
-    }
-    setExpandedCycles(prev => new Set(prev).add(matchedCycleId as string));
-    setSelectedItem({ type: 'project', id: target.projectId, cycleId: matchedCycleId });
-    setTabValue(0);
+      // Fallback: resolve cycle directly from project API if tree maps are not ready yet.
+      if (!matchedCycleId) {
+        try {
+          const res = await apiClient.get(`/api/projects/${target.projectId}`);
+          matchedCycleId = res.data?.data?.mockCycleId || null;
+        } catch {
+          matchedCycleId = null;
+        }
+      }
+
+      if (!matchedCycleId) return;
+
+      let matchedProgramId: string | null = null;
+      for (const [programId, cycles] of Object.entries(mockCycles as Record<string, any[]>)) {
+        if ((cycles || []).some((c: any) => c.id === matchedCycleId)) {
+          matchedProgramId = programId;
+          break;
+        }
+      }
+
+      if (matchedProgramId) {
+        setExpandedPrograms(prev => new Set(prev).add(matchedProgramId as string));
+      }
+      setExpandedCycles(prev => new Set(prev).add(matchedCycleId as string));
+      setSelectedItem({ type: 'project', id: target.projectId, cycleId: matchedCycleId });
+      setTabValue(0);
+    };
+
+    selectNotificationProject();
   }, [projectsByMockCycle, mockCycles, selectedItem]);
 
   // Once tasks load for the selected project, open the discussion modal for the target task.
@@ -466,9 +484,8 @@ const ProjectsPage: React.FC = () => {
     if (!target.projectId || !target.taskId || target.projectId !== activeProjectId) return;
 
     const task = projectTasks.find((t: any) => t.id === target.taskId);
-    if (!task) return;
 
-    setCommentModalTask({ id: task.id, name: task.name || target.taskName || 'Task' });
+    setCommentModalTask({ id: target.taskId, name: task?.name || target.taskName || 'Task' });
     sessionStorage.removeItem('pendingNotificationTarget');
   }, [activeProjectId, projectTasks]);
 
