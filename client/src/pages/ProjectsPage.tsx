@@ -45,6 +45,7 @@ import CorporateFareIcon from '@mui/icons-material/CorporateFare';
 import SyncIcon from '@mui/icons-material/Sync';
 import SearchIcon from '@mui/icons-material/Search';
 import EventIcon from '@mui/icons-material/Event';
+import ViewListIcon from '@mui/icons-material/ViewList';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Menu from '@mui/material/Menu';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -910,6 +911,18 @@ const ProjectsPage: React.FC = () => {
   const handleDeleteCatalogObject = (obj: any) => {
     setDeletingCatalogObjectId(obj.id);
     setDeletingCatalogObjectName(obj.objectId);
+  };
+
+  const handleCatalogProcessAreaChange = async (objectId: string, processArea: string) => {
+    try {
+      await apiClient.put(`/api/global-objects/${objectId}`, {
+        processArea,
+      });
+      setInventoryObjects(prev => prev.map(obj => obj.id === objectId ? { ...obj, processArea } : obj));
+    } catch (error) {
+      console.error('Failed to update process area:', error);
+      alert('Failed to update process area. Please try again.');
+    }
   };
 
   // Confirm delete catalog object
@@ -2087,31 +2100,45 @@ const ProjectsPage: React.FC = () => {
               {/* Inventory Sub-Tabs */}
               <Box sx={{ display: 'flex', gap: 1, overflow: 'visible' }}>
                 <Button
-                  variant={inventorySubTab === 0 ? 'contained' : 'outlined'}
+                  variant={inventorySubTab === 0 ? 'contained' : 'text'}
                   onClick={() => setInventorySubTab(0)}
+                  startIcon={<ViewListIcon sx={{ fontSize: '0.95rem !important' }} />}
                   sx={{ 
-                    textTransform: 'none', 
-                    fontWeight: 600,
-                    borderRadius: '8px',
+                    textTransform: 'none',
+                    fontWeight: 700,
+                    fontSize: '0.8rem',
+                    borderRadius: '999px',
+                    px: 1.8,
+                    py: 0.55,
+                    minHeight: 34,
+                    background: inventorySubTab === 0 ? 'linear-gradient(135deg, #4C8DFF 0%, #5FA2FF 100%)' : 'rgba(29,45,76,0.72)',
+                    color: inventorySubTab === 0 ? '#F5FAFF' : '#9FB0D8',
+                    border: inventorySubTab === 0 ? '1px solid rgba(102,163,255,0.7)' : '1px solid rgba(89,112,160,0.35)',
                     '&:hover': {
-                      backgroundColor: inventorySubTab === 0 ? undefined : 'action.hover',
-                      borderColor: 'transparent',
-                    }
+                      background: inventorySubTab === 0 ? 'linear-gradient(135deg, #4C8DFF 0%, #5FA2FF 100%)' : 'rgba(35,54,90,0.9)',
+                    },
                   }}
                 >
                   Object Catalog
                 </Button>
                 <Button
-                  variant={inventorySubTab === 1 ? 'contained' : 'outlined'}
+                  variant={inventorySubTab === 1 ? 'contained' : 'text'}
                   onClick={() => setInventorySubTab(1)}
+                  startIcon={<FolderOutlinedIcon sx={{ fontSize: '0.95rem !important' }} />}
                   sx={{ 
-                    textTransform: 'none', 
-                    fontWeight: 600,
-                    borderRadius: '8px',
+                    textTransform: 'none',
+                    fontWeight: 700,
+                    fontSize: '0.8rem',
+                    borderRadius: '999px',
+                    px: 1.8,
+                    py: 0.55,
+                    minHeight: 34,
+                    background: inventorySubTab === 1 ? 'linear-gradient(135deg, #4C8DFF 0%, #5FA2FF 100%)' : 'rgba(29,45,76,0.72)',
+                    color: inventorySubTab === 1 ? '#F5FAFF' : '#9FB0D8',
+                    border: inventorySubTab === 1 ? '1px solid rgba(102,163,255,0.7)' : '1px solid rgba(89,112,160,0.35)',
                     '&:hover': {
-                      backgroundColor: inventorySubTab === 1 ? undefined : 'action.hover',
-                      borderColor: 'transparent',
-                    }
+                      background: inventorySubTab === 1 ? 'linear-gradient(135deg, #4C8DFF 0%, #5FA2FF 100%)' : 'rgba(35,54,90,0.9)',
+                    },
                   }}
                 >
                   Project Inventory
@@ -2120,18 +2147,20 @@ const ProjectsPage: React.FC = () => {
 
               {/* Object Catalog Sub-Tab */}
               {inventorySubTab === 0 && (
-                <Card sx={{ backgroundColor: 'background.paper' }}>
+                <Card sx={{ backgroundColor: 'rgba(9, 19, 47, 0.9)', border: '1px solid rgba(80,115,181,0.35)', borderRadius: 2 }}>
                   <CardContent sx={{ p: 2 }}>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-                      <Typography variant="h6">
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                      <Typography variant="h6" sx={{ color: '#DCE6FF', fontWeight: 700, fontSize: '1rem' }}>
                         Object Catalog
                       </Typography>
                       <Button
                         variant="contained"
                         sx={{
-                          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                          background: 'linear-gradient(135deg, #6A7DFF 0%, #6B8BFF 100%)',
                           textTransform: 'none',
                           fontWeight: 600,
+                          borderRadius: '10px',
+                          boxShadow: 'none',
                         }}
                         startIcon={<AddIcon />}
                         onClick={() => setCatalogObjectDialogOpen(true)}
@@ -2139,88 +2168,86 @@ const ProjectsPage: React.FC = () => {
                         Add Object
                       </Button>
                     </Box>
-                    
-                    {/* Search Bar */}
+
                     <TextField
                       fullWidth
                       placeholder="Search catalog..."
                       size="small"
-                      value={inventorySearchTerm}
-                      onChange={(e) => setInventorySearchTerm(e.target.value)}
-                      sx={{ mb: 2 }}
+                      value={catalogSearchTerm}
+                      onChange={(e) => setCatalogSearchTerm(e.target.value)}
+                      sx={{
+                        mb: 2,
+                        '& .MuiOutlinedInput-root': {
+                          borderRadius: '10px',
+                          backgroundColor: 'rgba(13, 27, 60, 0.7)',
+                          color: '#D6E2FF',
+                        },
+                        '& .MuiOutlinedInput-notchedOutline': {
+                          borderColor: 'rgba(96, 127, 189, 0.45)',
+                        },
+                        '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': {
+                          borderColor: 'rgba(114, 153, 227, 0.6)',
+                        },
+                      }}
+                      slotProps={{ input: { startAdornment: <SearchIcon sx={{ mr: 0.75, color: '#7F95C6', fontSize: '1rem' }} /> } }}
                     />
 
-                    {/* Catalog Table */}
                     <Box sx={{ overflowX: 'auto' }}>
-                      {/* Table Controls */}
-                      <Box sx={{ display: 'flex', gap: 2, mb: 2, alignItems: 'center', flexWrap: 'wrap' }}>
-                        <TextField
-                          size="small"
-                          placeholder="Search by ID or description..."
-                          value={catalogSearchTerm}
-                          onChange={(e) => setCatalogSearchTerm(e.target.value)}
-                          sx={{ flex: 1, minWidth: '200px' }}
-                        />
-                        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-                          <Typography variant="caption" sx={{ fontWeight: 600 }}>Sort by:</Typography>
-                          <Box
-                            component="select"
-                            value={catalogSortColumn}
-                            onChange={(e) => setCatalogSortColumn(e.target.value as 'objectId' | 'description')}
-                            sx={{
-                              p: '8px 12px',
-                              border: '1px solid',
-                              borderColor: 'divider',
-                              borderRadius: '4px',
-                              fontSize: '0.875rem',
-                              cursor: 'pointer'
-                            }}
-                          >
-                            <option value="objectId">Object ID</option>
-                            <option value="description">Description</option>
-                          </Box>
-                          <Button
-                            size="small"
-                            onClick={() => setCatalogSortDirection(catalogSortDirection === 'asc' ? 'desc' : 'asc')}
-                            sx={{ minWidth: 'auto' }}
-                          >
-                            {catalogSortDirection === 'asc' ? '↑' : '↓'}
-                          </Button>
-                        </Box>
-                      </Box>
-
-                      {/* Grid Table */}
-                      <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr 120px', gap: 0, borderRadius: 1, overflow: 'hidden', border: '1px solid', borderColor: 'primary.main' }}>
+                      <Box sx={{ display: 'grid', gridTemplateColumns: '0.95fr 2fr 0.85fr 0.6fr', gap: 0, borderRadius: 1.25, overflow: 'hidden', border: '1px solid rgba(92, 127, 194, 0.45)' }}>
                         {/* Header Row */}
-                        <Box sx={{ backgroundColor: 'primary.main', p: 1, fontWeight: 700, color: 'primary.contrastText', fontSize: '0.75rem', letterSpacing: '0.5px' }}>
+                        <Box sx={{ backgroundColor: 'rgba(22, 39, 78, 0.95)', p: 1, fontWeight: 700, color: '#A9BCDF', fontSize: '0.72rem', letterSpacing: '0.4px' }}>
                           OBJECT ID
                         </Box>
-                        <Box sx={{ backgroundColor: 'primary.main', p: 1, fontWeight: 700, color: 'primary.contrastText', fontSize: '0.75rem', letterSpacing: '0.5px' }}>
+                        <Box sx={{ backgroundColor: 'rgba(22, 39, 78, 0.95)', p: 1, fontWeight: 700, color: '#A9BCDF', fontSize: '0.72rem', letterSpacing: '0.4px' }}>
                           DESCRIPTION
                         </Box>
-                        <Box sx={{ backgroundColor: 'primary.main', p: 1, fontWeight: 700, color: 'primary.contrastText', fontSize: '0.75rem', letterSpacing: '0.5px', textAlign: 'center' }}>
+                        <Box sx={{ backgroundColor: 'rgba(22, 39, 78, 0.95)', p: 1, fontWeight: 700, color: '#A9BCDF', fontSize: '0.72rem', letterSpacing: '0.4px' }}>
+                          PROCESS AREA
+                        </Box>
+                        <Box sx={{ backgroundColor: 'rgba(22, 39, 78, 0.95)', p: 1, fontWeight: 700, color: '#A9BCDF', fontSize: '0.72rem', letterSpacing: '0.4px', textAlign: 'center' }}>
                           ACTIONS
                         </Box>
 
                         {/* Catalog Data Rows */}
                         {getFilteredSortedCatalogObjects().length === 0 ? (
-                          <Box sx={{ gridColumn: '1 / -1', p: 2, textAlign: 'center', color: 'text.secondary', fontSize: '0.875rem' }}>
+                          <Box sx={{ gridColumn: '1 / -1', p: 2, textAlign: 'center', color: '#8EA3CB', fontSize: '0.85rem', backgroundColor: 'rgba(17, 30, 63, 0.82)' }}>
                             {inventoryObjects.length === 0 ? 'No objects in catalog yet' : 'No results matching your search'}
                           </Box>
                         ) : (
-                          getFilteredSortedCatalogObjects().map((obj) => (
+                          getFilteredSortedCatalogObjects().map((obj, idx) => (
                             <React.Fragment key={obj.id}>
-                              <Box sx={{ p: 1, borderBottom: '1px solid', borderColor: 'divider', backgroundColor: 'background.paper', fontFamily: 'monospace', fontSize: '0.8rem', color: 'primary.light' }}>
+                              <Box sx={{ p: 1, borderBottom: '1px solid rgba(83,110,165,0.26)', backgroundColor: idx % 2 === 0 ? 'rgba(20, 35, 70, 0.9)' : 'rgba(16, 30, 60, 0.9)', fontFamily: 'monospace', fontSize: '0.8rem', color: '#D6E2FF', fontWeight: 700 }}>
                                 {obj.objectId}
                               </Box>
-                              <Box sx={{ p: 1, borderBottom: '1px solid', borderColor: 'divider', backgroundColor: 'background.paper', color: 'text.primary', fontSize: '0.8rem' }}>
+                              <Box sx={{ p: 1, borderBottom: '1px solid rgba(83,110,165,0.26)', backgroundColor: idx % 2 === 0 ? 'rgba(20, 35, 70, 0.9)' : 'rgba(16, 30, 60, 0.9)', color: '#BFD0F3', fontSize: '0.8rem' }}>
                                 {obj.description}
                               </Box>
-                              <Box sx={{ p: 0.75, borderBottom: '1px solid', borderColor: 'divider', backgroundColor: 'background.paper', display: 'flex', gap: 0.25, justifyContent: 'center', alignItems: 'center' }}>
+                              <Box sx={{ p: 0.75, borderBottom: '1px solid rgba(83,110,165,0.26)', backgroundColor: idx % 2 === 0 ? 'rgba(20, 35, 70, 0.9)' : 'rgba(16, 30, 60, 0.9)' }}>
+                                <Box
+                                  component="select"
+                                  value={obj.processArea || ''}
+                                  onChange={(e) => handleCatalogProcessAreaChange(obj.id, e.target.value)}
+                                  sx={{
+                                    width: '100%',
+                                    p: '4px 8px',
+                                    border: '1px solid rgba(94,123,180,0.45)',
+                                    borderRadius: '6px',
+                                    fontSize: '0.78rem',
+                                    color: '#DBE7FF',
+                                    backgroundColor: 'rgba(10, 22, 49, 0.9)',
+                                  }}
+                                >
+                                  <option value="">-</option>
+                                  {processAreaOptions.map((area) => (
+                                    <option key={area} value={area}>{area}</option>
+                                  ))}
+                                </Box>
+                              </Box>
+                              <Box sx={{ p: 0.75, borderBottom: '1px solid rgba(83,110,165,0.26)', backgroundColor: idx % 2 === 0 ? 'rgba(20, 35, 70, 0.9)' : 'rgba(16, 30, 60, 0.9)', display: 'flex', gap: 0.25, justifyContent: 'center', alignItems: 'center' }}>
                                 <IconButton
                                   size="small"
                                   onClick={() => handleEditCatalogObject(obj)}
-                                  sx={{ color: 'info.main', '&:hover': { backgroundColor: 'action.hover' } }}
+                                  sx={{ color: '#86A9E8', '&:hover': { backgroundColor: 'rgba(68, 100, 160, 0.2)' } }}
                                   title="Edit"
                                 >
                                   <EditIcon sx={{ fontSize: '1rem' }} />
@@ -2228,7 +2255,7 @@ const ProjectsPage: React.FC = () => {
                                 <IconButton
                                   size="small"
                                   onClick={() => handleDeleteCatalogObject(obj)}
-                                  sx={{ color: 'error.main', '&:hover': { backgroundColor: 'action.hover' } }}
+                                  sx={{ color: '#88A0C7', '&:hover': { backgroundColor: 'rgba(68, 100, 160, 0.2)' } }}
                                   title="Delete"
                                 >
                                   <DeleteIcon sx={{ fontSize: '1rem' }} />
