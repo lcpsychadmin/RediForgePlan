@@ -1171,42 +1171,38 @@ const ProjectsPage: React.FC = () => {
 
                         {/* Timeline */}
                         {(() => {
+                          if (!project.startDate || !project.endDate) return null;
+                          
                           const parseLocalDate = (dateString: string) => {
-                            const parts = dateString.split(/[-\/]/);
-                            let year, month, day;
-                            if (dateString.includes('-') && parts[0].length === 4) {
-                              [year, month, day] = parts;
+                            if (!dateString || typeof dateString !== 'string') return null;
+                            const parts = dateString.trim().split(/[-\/]/);
+                            if (parts.length !== 3) return null;
+                            
+                            let year: number, month: number, day: number;
+                            if (parts[0].length === 4) {
+                              year = parseInt(parts[0]);
+                              month = parseInt(parts[1]);
+                              day = parseInt(parts[2]);
+                            } else if (parts[2].length === 4) {
+                              month = parseInt(parts[0]);
+                              day = parseInt(parts[1]);
+                              year = parseInt(parts[2]);
                             } else {
-                              [month, day, year] = parts;
+                              return null;
                             }
-                            return { year: parseInt(year), month: parseInt(month), day: parseInt(day) };
+                            
+                            if (year < 1900 || year > 2100 || month < 1 || month > 12 || day < 1 || day > 31) return null;
+                            return { year, month, day };
                           };
                           
-                          const tasksWithDates = allPlanTasks.filter(t => t.startDate || t.endDate);
-                          if (tasksWithDates.length === 0) return null;
+                          const startDateParsed = parseLocalDate(project.startDate);
+                          const endDateParsed = parseLocalDate(project.endDate);
                           
-                          const allDates = tasksWithDates.flatMap(t => [t.startDate, t.endDate].filter(d => d && d.trim()));
-                          if (allDates.length === 0) return null;
-                          
-                          const parsedDates = allDates.map(d => parseLocalDate(d));
-                          
-                          const minDate = parsedDates.reduce((min, d) => {
-                            if (d.year < min.year) return d;
-                            if (d.year === min.year && d.month < min.month) return d;
-                            if (d.year === min.year && d.month === min.month && d.day < min.day) return d;
-                            return min;
-                          });
-                          
-                          const maxDate = parsedDates.reduce((max, d) => {
-                            if (d.year > max.year) return d;
-                            if (d.year === max.year && d.month > max.month) return d;
-                            if (d.year === max.year && d.month === max.month && d.day > max.day) return d;
-                            return max;
-                          });
+                          if (!startDateParsed || !endDateParsed) return null;
                           
                           const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-                          const startStr = `${monthNames[minDate.month - 1]} ${minDate.day}`;
-                          const endStr = `${monthNames[maxDate.month - 1]} ${maxDate.day}`;
+                          const startStr = `${monthNames[startDateParsed.month - 1]} ${startDateParsed.day}`;
+                          const endStr = `${monthNames[endDateParsed.month - 1]} ${endDateParsed.day}`;
                           
                           return (
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
