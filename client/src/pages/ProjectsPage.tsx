@@ -216,6 +216,12 @@ const ProjectsPage: React.FC = () => {
   const [objectOrder, setObjectOrder] = useState<string[]>([]);
   const [taskGroupOrder, setTaskGroupOrder] = useState<string[]>([]);
   const [dragItem, setDragItem] = useState<{ type: 'object' | 'taskGroup'; id: string } | null>(null);
+  const [treeDragItem, setTreeDragItem] = useState<
+    | { type: 'program'; id: string }
+    | { type: 'cycle'; id: string; programId: string }
+    | { type: 'project'; id: string; cycleId: string }
+    | null
+  >(null);
   const [treeOrder, setTreeOrder] = useState<{ programs: string[]; cycles: Record<string, string[]>; projects: Record<string, string[]> }>({
     programs: [],
     cycles: {},
@@ -1099,6 +1105,29 @@ const ProjectsPage: React.FC = () => {
                     <Box key={program.id}>
                       {/* Program Row */}
                       <Box
+                        draggable
+                        onDragStart={(e) => {
+                          const payload = JSON.stringify({ type: 'program', id: program.id });
+                          e.dataTransfer.setData('text/plain', payload);
+                          e.dataTransfer.effectAllowed = 'move';
+                          setTreeDragItem({ type: 'program', id: program.id });
+                        }}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          e.dataTransfer.dropEffect = 'move';
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          const raw = e.dataTransfer.getData('text/plain');
+                          let parsed: any = null;
+                          try { parsed = raw ? JSON.parse(raw) : null; } catch { parsed = null; }
+                          const dragId = parsed?.type === 'program' ? parsed.id : treeDragItem?.type === 'program' ? treeDragItem.id : null;
+                          if (!dragId) return;
+                          const orderedIds = mergeOrder(treeOrder.programs, programs.map((p: Program) => p.id));
+                          setTreeOrder(prev => ({ ...prev, programs: reorderByDrop(orderedIds, dragId, program.id) }));
+                          setTreeDragItem(null);
+                        }}
+                        onDragEnd={() => setTreeDragItem(null)}
                         sx={{
                           display: 'flex',
                           alignItems: 'center',
@@ -1172,6 +1201,39 @@ const ProjectsPage: React.FC = () => {
                               <Box key={cycle.id}>
                                 {/* Cycle Row */}
                                 <Box
+                                  draggable
+                                  onDragStart={(e) => {
+                                    const payload = JSON.stringify({ type: 'cycle', id: cycle.id, programId: program.id });
+                                    e.dataTransfer.setData('text/plain', payload);
+                                    e.dataTransfer.effectAllowed = 'move';
+                                    setTreeDragItem({ type: 'cycle', id: cycle.id, programId: program.id });
+                                  }}
+                                  onDragOver={(e) => {
+                                    e.preventDefault();
+                                    e.dataTransfer.dropEffect = 'move';
+                                  }}
+                                  onDrop={(e) => {
+                                    e.preventDefault();
+                                    const raw = e.dataTransfer.getData('text/plain');
+                                    let parsed: any = null;
+                                    try { parsed = raw ? JSON.parse(raw) : null; } catch { parsed = null; }
+                                    const dragged = parsed?.type === 'cycle'
+                                      ? parsed
+                                      : treeDragItem?.type === 'cycle'
+                                        ? treeDragItem
+                                        : null;
+                                    if (!dragged || dragged.programId !== program.id) return;
+                                    const orderedIds = mergeOrder(treeOrder.cycles[program.id] || [], (mockCycles[program.id] || []).map((c: MockCycle) => c.id));
+                                    setTreeOrder(prev => ({
+                                      ...prev,
+                                      cycles: {
+                                        ...prev.cycles,
+                                        [program.id]: reorderByDrop(orderedIds, dragged.id, cycle.id),
+                                      },
+                                    }));
+                                    setTreeDragItem(null);
+                                  }}
+                                  onDragEnd={() => setTreeDragItem(null)}
                                   sx={{
                                     display: 'flex',
                                     alignItems: 'center',
@@ -1253,6 +1315,39 @@ const ProjectsPage: React.FC = () => {
                                       return (
                                         <Box
                                           key={project.id}
+                                          draggable
+                                          onDragStart={(e) => {
+                                            const payload = JSON.stringify({ type: 'project', id: project.id, cycleId: cycle.id });
+                                            e.dataTransfer.setData('text/plain', payload);
+                                            e.dataTransfer.effectAllowed = 'move';
+                                            setTreeDragItem({ type: 'project', id: project.id, cycleId: cycle.id });
+                                          }}
+                                          onDragOver={(e) => {
+                                            e.preventDefault();
+                                            e.dataTransfer.dropEffect = 'move';
+                                          }}
+                                          onDrop={(e) => {
+                                            e.preventDefault();
+                                            const raw = e.dataTransfer.getData('text/plain');
+                                            let parsed: any = null;
+                                            try { parsed = raw ? JSON.parse(raw) : null; } catch { parsed = null; }
+                                            const dragged = parsed?.type === 'project'
+                                              ? parsed
+                                              : treeDragItem?.type === 'project'
+                                                ? treeDragItem
+                                                : null;
+                                            if (!dragged || dragged.cycleId !== cycle.id) return;
+                                            const orderedIds = mergeOrder(treeOrder.projects[cycle.id] || [], (projectsByMockCycle[cycle.id] || []).map((p: Project) => p.id));
+                                            setTreeOrder(prev => ({
+                                              ...prev,
+                                              projects: {
+                                                ...prev.projects,
+                                                [cycle.id]: reorderByDrop(orderedIds, dragged.id, project.id),
+                                              },
+                                            }));
+                                            setTreeDragItem(null);
+                                          }}
+                                          onDragEnd={() => setTreeDragItem(null)}
                                           sx={{
                                             display: 'flex',
                                             alignItems: 'center',
@@ -1541,10 +1636,12 @@ const ProjectsPage: React.FC = () => {
                                   onDragStart={(e) => {
                                     const payload = JSON.stringify({ type: 'object', id: objectId || '' });
                                     e.dataTransfer.setData('text/plain', payload);
+                                    e.dataTransfer.effectAllowed = 'move';
                                     setDragItem({ type: 'object', id: objectId || '' });
                                   }}
                                   onDragOver={(e) => {
-                                    if (dragItem?.type === 'object') e.preventDefault();
+                                    e.preventDefault();
+                                    e.dataTransfer.dropEffect = 'move';
                                   }}
                                   onDrop={(e) => {
                                     e.preventDefault();
@@ -1754,10 +1851,12 @@ const ProjectsPage: React.FC = () => {
                                   onDragStart={(e) => {
                                     const payload = JSON.stringify({ type: 'taskGroup', id: group.id });
                                     e.dataTransfer.setData('text/plain', payload);
+                                    e.dataTransfer.effectAllowed = 'move';
                                     setDragItem({ type: 'taskGroup', id: group.id });
                                   }}
                                   onDragOver={(e) => {
-                                    if (dragItem?.type === 'taskGroup') e.preventDefault();
+                                    e.preventDefault();
+                                    e.dataTransfer.dropEffect = 'move';
                                   }}
                                   onDrop={(e) => {
                                     e.preventDefault();
