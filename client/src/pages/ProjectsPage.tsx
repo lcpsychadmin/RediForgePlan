@@ -1049,7 +1049,7 @@ const ProjectsPage: React.FC = () => {
                         </Box>
 
                         {/* Action Buttons */}
-                        <Box sx={{ display: 'flex', gap: 1.5, mb: 3 }}>
+                        <Box sx={{ display: 'flex', gap: 1.5, mb: 3, justifyContent: 'flex-end' }}>
                           <Button variant="contained" startIcon={<AddIcon />} onClick={() => setDataObjectDialogOpen(true)}
                             sx={{ background: `linear-gradient(135deg, ${accentColor} 0%, ${accentColor}99 100%)`, textTransform: 'none', fontWeight: 600, boxShadow: 'none' }}>
                             Add Data Object
