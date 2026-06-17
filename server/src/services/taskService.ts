@@ -14,6 +14,7 @@ interface TaskInput {
   assignedTo?: string;
   duration?: number;
   durationUnit?: string;
+  progressPercentage?: number;
   draUserId?: string;
   developerUserId?: string;
   notes?: string;
@@ -115,7 +116,7 @@ export class TaskService {
   async getTasksByProject(projectId: string, filters?: { status?: string; taskType?: string; draUserId?: string; developerUserId?: string; projectObjectId?: string; taskGroupId?: string }) {
     let query = `
       SELECT t.id, t.project_id, t.project_object_id, t.task_group_id, t.task_type, t.name, t.status,
-             t.start_date, t.end_date, t.assigned_to, t.duration, t.duration_unit,
+             t.start_date, t.end_date, t.assigned_to, t.duration, t.duration_unit, t.progress_percentage,
              t.dra_user_id, t.developer_user_id, t.notes, t.created_at, t.updated_at
       FROM tasks t
       WHERE t.project_id = $1
@@ -163,7 +164,7 @@ export class TaskService {
   async getTaskById(taskId: string) {
     const result = await db.query(
       `SELECT t.id, t.project_id, t.project_object_id, t.task_group_id, t.task_type, t.name, t.status,
-              t.start_date, t.end_date, t.assigned_to, t.duration, t.duration_unit,
+              t.start_date, t.end_date, t.assigned_to, t.duration, t.duration_unit, t.progress_percentage,
               t.dra_user_id, t.developer_user_id, t.notes, t.created_at, t.updated_at
        FROM tasks t
        WHERE t.id = $1`,
@@ -181,10 +182,10 @@ export class TaskService {
     const result = await db.query(
       `INSERT INTO tasks (
         project_id, project_object_id, task_group_id, task_type, name, status,
-        start_date, end_date, assigned_to, duration, duration_unit, dra_user_id, developer_user_id, notes
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+        start_date, end_date, assigned_to, duration, duration_unit, progress_percentage, dra_user_id, developer_user_id, notes
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
        RETURNING id, project_id, project_object_id, task_group_id, task_type, name, status,
-                 start_date, end_date, assigned_to, duration, duration_unit,
+                 start_date, end_date, assigned_to, duration, duration_unit, progress_percentage,
                  dra_user_id, developer_user_id, notes, created_at, updated_at`,
       [
         projectId,
@@ -198,6 +199,7 @@ export class TaskService {
         data.assignedTo || null,
         data.duration || null,
         data.durationUnit || 'hours',
+        data.progressPercentage || 0,
         data.draUserId || null,
         data.developerUserId || null,
         data.notes || null,
@@ -220,6 +222,7 @@ export class TaskService {
       assignedTo: 'assigned_to',
       duration: 'duration',
       durationUnit: 'duration_unit',
+      progressPercentage: 'progress_percentage',
       draUserId: 'dra_user_id',
       developerUserId: 'developer_user_id',
       notes: 'notes',
@@ -385,6 +388,7 @@ export class TaskService {
       assignedTo: row.assigned_to,
       duration: row.duration,
       durationUnit: row.duration_unit,
+      progressPercentage: row.progress_percentage ?? 0,
       draUserId: row.dra_user_id,
       developerUserId: row.developer_user_id,
       notes: row.notes,

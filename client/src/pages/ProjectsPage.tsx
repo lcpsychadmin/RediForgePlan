@@ -764,8 +764,9 @@ const ProjectsPage: React.FC = () => {
 
   const updateTaskInline = async (taskId: string, field: string, value: string) => {
     try {
-      await apiClient.patch(`/api/tasks/${taskId}`, { [field]: value });
-      setProjectTasks(prev => prev.map(t => t.id === taskId ? { ...t, [field]: value } : t));
+      const payload = field === 'progressPercentage' ? { [field]: parseInt(value) || 0 } : { [field]: value };
+      await apiClient.patch(`/api/tasks/${taskId}`, payload);
+      setProjectTasks(prev => prev.map(t => t.id === taskId ? { ...t, [field]: field === 'progressPercentage' ? parseInt(value) || 0 : value } : t));
     } catch (e) { console.error('Failed to update task', e); }
   };
 
@@ -1207,15 +1208,15 @@ const ProjectsPage: React.FC = () => {
                                         </Box>
                                       )}
                                       {/* Table header */}
-                                      <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 130px 160px 110px 110px 1fr 80px', gap: 0, px: 2, py: 0.5, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                                        {['PHASE', 'STATUS', 'ASSIGNED TO', 'START DATE', 'END DATE', 'NOTES', 'ACTIONS'].map(h => (
+                                      <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 120px 150px 100px 100px 60px 1fr 60px', gap: 0, px: 2, py: 0.5, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                                        {['PHASE', 'STATUS', 'ASSIGNED TO', 'START DATE', 'END DATE', '%', 'NOTES', 'ACTIONS'].map(h => (
                                           <Typography key={h} variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', letterSpacing: '0.05em', fontWeight: 600 }}>{h}</Typography>
                                         ))}
                                       </Box>
                                       {tasksForObject.length === 0
                                         ? <Typography variant="caption" color="text.disabled" sx={{ px: 2, py: 1, display: 'block' }}>No tasks</Typography>
                                         : tasksForObject.map((task) => (
-                                          <Box key={task.id} sx={{ display: 'grid', gridTemplateColumns: '1fr 130px 160px 110px 110px 1fr 80px', gap: 0, px: 2, py: 0.5, alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.03)', '&:hover': { backgroundColor: 'rgba(255,255,255,0.02)' } }}>
+                                          <Box key={task.id} sx={{ display: 'grid', gridTemplateColumns: '1fr 120px 150px 100px 100px 60px 1fr 60px', gap: 0, px: 2, py: 0.5, alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.03)', '&:hover': { backgroundColor: 'rgba(255,255,255,0.02)' } }}>
                                             {/* Phase name */}
                                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
                                               <Box sx={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: getTaskStatusColor(task.status), flexShrink: 0 }} />
@@ -1224,7 +1225,12 @@ const ProjectsPage: React.FC = () => {
                                                 sx={{ ...taskFieldSx, flex: 1 }} />
                                             </Box>
                                             {/* Status dropdown */}
-                                            <TextField select size="small" value={task.status} onChange={e => updateTaskInline(task.id, 'status', e.target.value)}
+                                            <TextField select size="small" value={task.status} onChange={e => {
+                                              const newStatus = e.target.value;
+                                              updateTaskInline(task.id, 'status', newStatus);
+                                              if (newStatus === 'complete') updateTaskInline(task.id, 'progressPercentage', '100');
+                                              else if (newStatus !== 'in_progress') updateTaskInline(task.id, 'progressPercentage', '0');
+                                            }}
                                               sx={taskFieldSx}>
                                               <MenuItem value="not_started">Not Started</MenuItem>
                                               <MenuItem value="in_progress">In Progress</MenuItem>
@@ -1245,6 +1251,15 @@ const ProjectsPage: React.FC = () => {
                                             {/* End Date */}
                                             <TextField size="small" type="date" value={task.endDate || ''} onChange={e => updateTaskInline(task.id, 'endDate', e.target.value)}
                                               sx={taskFieldSx} />
+                                            {/* % Complete */}
+                                            <TextField size="small" type="number" value={task.progressPercentage ?? 0}
+                                              disabled={task.status !== 'in_progress'}
+                                              onChange={e => {
+                                                const val = Math.min(100, Math.max(0, parseInt(e.target.value) || 0));
+                                                updateTaskInline(task.id, 'progressPercentage', String(val));
+                                              }}
+                                              slotProps={{ htmlInput: { min: 0, max: 100 } }}
+                                              sx={{ ...taskFieldSx, '& input': { textAlign: 'center', px: 0.5 } }} />
                                             {/* Notes */}
                                             <TextField size="small" placeholder="Notes..." value={task.notes || ''} onBlur={e => updateTaskInline(task.id, 'notes', e.target.value)}
                                               onChange={e => setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, notes: e.target.value } : t))}
@@ -1309,22 +1324,27 @@ const ProjectsPage: React.FC = () => {
                                   {isExpanded && (
                                     <Box sx={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
                                       {/* Table header */}
-                                      <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 130px 160px 110px 110px 1fr 80px', gap: 0, px: 2, py: 0.5, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                                        {['TASK', 'STATUS', 'ASSIGNED TO', 'START DATE', 'END DATE', 'NOTES', 'ACTIONS'].map(h => (
+                                      <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 120px 150px 100px 100px 60px 1fr 60px', gap: 0, px: 2, py: 0.5, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                                        {['TASK', 'STATUS', 'ASSIGNED TO', 'START DATE', 'END DATE', '%', 'NOTES', 'ACTIONS'].map(h => (
                                           <Typography key={h} variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', letterSpacing: '0.05em', fontWeight: 600 }}>{h}</Typography>
                                         ))}
                                       </Box>
                                       {groupTasks.length === 0
                                         ? <Typography variant="caption" color="text.disabled" sx={{ px: 2, py: 1, display: 'block' }}>No tasks</Typography>
                                         : groupTasks.map((task) => (
-                                          <Box key={task.id} sx={{ display: 'grid', gridTemplateColumns: '1fr 130px 160px 110px 110px 1fr 80px', gap: 0, px: 2, py: 0.5, alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.03)', '&:hover': { backgroundColor: 'rgba(255,255,255,0.02)' } }}>
+                                          <Box key={task.id} sx={{ display: 'grid', gridTemplateColumns: '1fr 120px 150px 100px 100px 60px 1fr 60px', gap: 0, px: 2, py: 0.5, alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.03)', '&:hover': { backgroundColor: 'rgba(255,255,255,0.02)' } }}>
                                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
                                               <Box sx={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: getTaskStatusColor(task.status), flexShrink: 0 }} />
                                               <TextField size="small" value={task.name || ''} onBlur={e => updateTaskInline(task.id, 'name', e.target.value)}
                                                 onChange={e => setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, name: e.target.value } : t))}
                                                 sx={{ ...taskFieldSx, flex: 1 }} />
                                             </Box>
-                                            <TextField select size="small" value={task.status} onChange={e => updateTaskInline(task.id, 'status', e.target.value)}
+                                            <TextField select size="small" value={task.status} onChange={e => {
+                                              const newStatus = e.target.value;
+                                              updateTaskInline(task.id, 'status', newStatus);
+                                              if (newStatus === 'complete') updateTaskInline(task.id, 'progressPercentage', '100');
+                                              else if (newStatus !== 'in_progress') updateTaskInline(task.id, 'progressPercentage', '0');
+                                            }}
                                               sx={taskFieldSx}>
                                               <MenuItem value="not_started">Not Started</MenuItem>
                                               <MenuItem value="in_progress">In Progress</MenuItem>
@@ -1340,6 +1360,15 @@ const ProjectsPage: React.FC = () => {
                                               sx={taskFieldSx} />
                                             <TextField size="small" type="date" value={task.endDate || ''} onChange={e => updateTaskInline(task.id, 'endDate', e.target.value)}
                                               sx={taskFieldSx} />
+                                            {/* % Complete */}
+                                            <TextField size="small" type="number" value={task.progressPercentage ?? 0}
+                                              disabled={task.status !== 'in_progress'}
+                                              onChange={e => {
+                                                const val = Math.min(100, Math.max(0, parseInt(e.target.value) || 0));
+                                                updateTaskInline(task.id, 'progressPercentage', String(val));
+                                              }}
+                                              slotProps={{ htmlInput: { min: 0, max: 100 } }}
+                                              sx={{ ...taskFieldSx, '& input': { textAlign: 'center', px: 0.5 } }} />
                                             <TextField size="small" placeholder="Notes..." value={task.notes || ''} onBlur={e => updateTaskInline(task.id, 'notes', e.target.value)}
                                               onChange={e => setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, notes: e.target.value } : t))}
                                               sx={taskFieldSx} />
