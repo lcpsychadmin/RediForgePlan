@@ -1289,6 +1289,44 @@ const ProjectsPage: React.FC = () => {
                                     <Box sx={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: getTaskStatusColor(overallStatus), flexShrink: 0 }} />
                                     <IconButton size="small" onClick={(e) => { e.stopPropagation(); setMenuAnchorEl(e.currentTarget); setMenuType('task'); setMenuItemId(objectId || ''); }}><MoreVertIcon sx={{ fontSize: '1rem' }} /></IconButton>
                                   </Box>
+                                  {/* Timeline and Status Info Line */}
+                                  {inventoryObject?.startDate && inventoryObject?.endDate && (() => {
+                                    const parseLocalDate = (dateString: string) => {
+                                      const parts = dateString.trim().split(/[-\/]/);
+                                      if (parts.length !== 3) return null;
+                                      let year: number, month: number, day: number;
+                                      if (parts[0].length === 4) {
+                                        year = parseInt(parts[0]);
+                                        month = parseInt(parts[1]);
+                                        day = parseInt(parts[2]);
+                                      } else if (parts[2].length === 4) {
+                                        month = parseInt(parts[0]);
+                                        day = parseInt(parts[1]);
+                                        year = parseInt(parts[2]);
+                                      } else {
+                                        return null;
+                                      }
+                                      if (year < 1900 || year > 2100 || month < 1 || month > 12 || day < 1 || day > 31) return null;
+                                      return { year, month, day };
+                                    };
+                                    const startParsed = parseLocalDate(inventoryObject.startDate);
+                                    const endParsed = parseLocalDate(inventoryObject.endDate);
+                                    if (!startParsed || !endParsed) return null;
+                                    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                                    const timelineStr = `${monthNames[startParsed.month - 1]} ${startParsed.day} → ${monthNames[endParsed.month - 1]} ${endParsed.day}`;
+                                    const today = new Date();
+                                    const endDate = new Date(endParsed.year, endParsed.month - 1, endParsed.day);
+                                    const isBehind = today > endDate || overallStatus === 'blocked';
+                                    return (
+                                      <Box sx={{ px: 2.5, py: 0.4, display: 'flex', alignItems: 'center', gap: 1, backgroundColor: 'rgba(255,255,255,0.01)', borderBottom: '1px solid rgba(255,255,255,0.04)', fontSize: '0.75rem' }}>
+                                        <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.7rem', fontWeight: 500 }}>{timelineStr}</Typography>
+                                        <Box sx={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: isBehind ? 'rgba(255, 152, 0, 0.3)' : 'rgba(76, 175, 80, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: isBehind ? '#FFA726' : '#66BB6A', fontSize: '0.6rem', fontWeight: 'bold' }}>
+                                          {isBehind ? '⚠' : '✓'}
+                                        </Box>
+                                        <Typography variant="caption" sx={{ color: isBehind ? '#FFA726' : '#66BB6A', fontSize: '0.65rem' }}>{isBehind ? 'Behind' : 'On Target'}</Typography>
+                                      </Box>
+                                    );
+                                  })()}
                                   {isExpanded && (
                                     <Box sx={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
                                       {/* Object dependencies row */}
@@ -1415,6 +1453,44 @@ const ProjectsPage: React.FC = () => {
                                     <Box sx={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: getTaskStatusColor(overallStatus), flexShrink: 0 }} />
                                     <IconButton size="small" onClick={(e) => { e.stopPropagation(); setMenuAnchorEl(e.currentTarget); setMenuType('taskGroup'); setMenuItemId(group.id); }}><MoreVertIcon sx={{ fontSize: '1rem' }} /></IconButton>
                                   </Box>
+                                  {/* Timeline and Status Info Line for Task Group */}
+                                  {group?.startDate && group?.endDate && (() => {
+                                    const parseLocalDate = (dateString: string) => {
+                                      const parts = dateString.trim().split(/[-\/]/);
+                                      if (parts.length !== 3) return null;
+                                      let year: number, month: number, day: number;
+                                      if (parts[0].length === 4) {
+                                        year = parseInt(parts[0]);
+                                        month = parseInt(parts[1]);
+                                        day = parseInt(parts[2]);
+                                      } else if (parts[2].length === 4) {
+                                        month = parseInt(parts[0]);
+                                        day = parseInt(parts[1]);
+                                        year = parseInt(parts[2]);
+                                      } else {
+                                        return null;
+                                      }
+                                      if (year < 1900 || year > 2100 || month < 1 || month > 12 || day < 1 || day > 31) return null;
+                                      return { year, month, day };
+                                    };
+                                    const startParsed = parseLocalDate(group.startDate);
+                                    const endParsed = parseLocalDate(group.endDate);
+                                    if (!startParsed || !endParsed) return null;
+                                    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                                    const timelineStr = `${monthNames[startParsed.month - 1]} ${startParsed.day} → ${monthNames[endParsed.month - 1]} ${endParsed.day}`;
+                                    const today = new Date();
+                                    const endDate = new Date(endParsed.year, endParsed.month - 1, endParsed.day);
+                                    const isBehind = today > endDate || overallStatus === 'blocked';
+                                    return (
+                                      <Box sx={{ px: 2.5, py: 0.4, display: 'flex', alignItems: 'center', gap: 1, backgroundColor: 'rgba(255,255,255,0.01)', borderBottom: '1px solid rgba(255,255,255,0.04)', fontSize: '0.75rem' }}>
+                                        <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.7rem', fontWeight: 500 }}>{timelineStr}</Typography>
+                                        <Box sx={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: isBehind ? 'rgba(255, 152, 0, 0.3)' : 'rgba(76, 175, 80, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: isBehind ? '#FFA726' : '#66BB6A', fontSize: '0.6rem', fontWeight: 'bold' }}>
+                                          {isBehind ? '⚠' : '✓'}
+                                        </Box>
+                                        <Typography variant="caption" sx={{ color: isBehind ? '#FFA726' : '#66BB6A', fontSize: '0.65rem' }}>{isBehind ? 'Behind' : 'On Target'}</Typography>
+                                      </Box>
+                                    );
+                                  })()}
                                   {isExpanded && (
                                     <Box sx={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
                                       {/* Table header */}
