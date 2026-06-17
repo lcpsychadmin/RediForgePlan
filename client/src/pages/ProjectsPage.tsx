@@ -450,14 +450,42 @@ const ProjectsPage: React.FC = () => {
         const all = await Promise.all(
           cycleProjects.map(async (project: Project, index: number) => {
             try {
-              const response = await apiClient.get(`/api/project-objects/project/${project.id}`);
-              const items = response.data?.data || [];
+              const [objectsResponse, tasksResponse] = await Promise.all([
+                apiClient.get(`/api/project-objects/project/${project.id}`),
+                apiClient.get(`/api/tasks/project/${project.id}`),
+              ]);
+
+              const items = objectsResponse.data?.data || [];
+              const tasks = tasksResponse.data?.data || [];
+
+              // Map each project object to its scheduled Load task date.
+              const loadDateByObjectId: Record<string, string> = {};
+              tasks.forEach((task: any) => {
+                const objectId = task.projectObjectId;
+                if (!objectId) return;
+
+                const isLoadTask =
+                  (task.taskType || '').toLowerCase() === 'load' ||
+                  (task.name || '').trim().toLowerCase() === 'load';
+
+                if (!isLoadTask) return;
+
+                const candidate = task.startDate || task.endDate;
+                if (!candidate) return;
+
+                const existing = loadDateByObjectId[objectId];
+                if (!existing || new Date(candidate).getTime() < new Date(existing).getTime()) {
+                  loadDateByObjectId[objectId] = candidate;
+                }
+              });
+
               const projectColor = getProjectAccentColor(project, index);
               return items.map((item: any) => ({
                 ...item,
                 projectName: project.name,
                 projectColor,
                 projectId: project.id,
+                loadScheduledDate: loadDateByObjectId[item.id] || null,
               }));
             } catch {
               return [];
@@ -2779,8 +2807,8 @@ const ProjectsPage: React.FC = () => {
                         {scheduleWeekDates.map((day) => {
                           const dayItems = cycleScheduleItems.filter((item: any) => {
                             if (schedulePhaseFilter !== 'all' && (item.cutoverPhase || '') !== schedulePhaseFilter) return false;
-                            const end = normalizeDateOnly(item.endDate);
-                            return !!end && isSameDay(end, day);
+                            const loadDate = normalizeDateOnly(item.loadScheduledDate || undefined);
+                            return !!loadDate && isSameDay(loadDate, day);
                           });
 
                           return (
@@ -2817,7 +2845,7 @@ const ProjectsPage: React.FC = () => {
                       {cycleScheduleItems
                         .filter((item: any) => {
                           if (schedulePhaseFilter !== 'all' && (item.cutoverPhase || '') !== schedulePhaseFilter) return false;
-                          return !normalizeDateOnly(item.endDate);
+                          return !normalizeDateOnly(item.loadScheduledDate || undefined);
                         })
                         .map((item: any) => (
                           <Box key={`unscheduled-${item.id}`} sx={{ p: 0.75, borderRadius: 1, backgroundColor: toRgba(item.projectColor, 0.22), border: `1px solid ${toRgba(item.projectColor, 0.5)}` }}>
