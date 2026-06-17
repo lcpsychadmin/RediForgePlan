@@ -1154,6 +1154,7 @@ const ProjectsPage: React.FC = () => {
                       </Typography>
                     </Box>
                   )}
+                </>
               ) : null}
             </>
           )}
