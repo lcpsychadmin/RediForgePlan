@@ -34,6 +34,8 @@ import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
+import CloseIcon from '@mui/icons-material/Close';
+import GroupIcon from '@mui/icons-material/Group';
 import FolderOutlinedIcon from '@mui/icons-material/FolderOutlined';
 import CorporateFareIcon from '@mui/icons-material/CorporateFare';
 import SyncIcon from '@mui/icons-material/Sync';
@@ -201,6 +203,18 @@ const ProjectsPage: React.FC = () => {
   const [taskDeps, setTaskDeps] = useState<Record<string, any[]>>({});
   const [defaultTaskOrder, setDefaultTaskOrder] = useState<string[]>([]);
 
+  // People sidebar state
+  const [peopleSidebarOpen, setPeopleSidebarOpen] = useState(false);
+  const [people, setPeople] = useState<any[]>([]);
+  const [addPersonOpen, setAddPersonOpen] = useState(false);
+  const [newPersonName, setNewPersonName] = useState('');
+  const [newPersonRole, setNewPersonRole] = useState('');
+  const [newPersonEmail, setNewPersonEmail] = useState('');
+  const [editingPersonId, setEditingPersonId] = useState<string | null>(null);
+  const [editPersonName, setEditPersonName] = useState('');
+  const [editPersonRole, setEditPersonRole] = useState('');
+  const [editPersonEmail, setEditPersonEmail] = useState('');
+
   const { data: programs = [], isLoading } = useQuery({
     queryKey: ['programs'],
     queryFn: async () => {
@@ -269,6 +283,13 @@ const ProjectsPage: React.FC = () => {
     apiClient.get('/api/tasks/templates/defaults').then(res => {
       const names = (res.data.data || []).map((t: any) => t.name as string);
       setDefaultTaskOrder(names);
+    }).catch(() => {});
+  }, []);
+
+  // Fetch people directory
+  useEffect(() => {
+    apiClient.get('/api/people').then(res => {
+      setPeople(res.data.data || []);
     }).catch(() => {});
   }, []);
 
@@ -751,13 +772,17 @@ const ProjectsPage: React.FC = () => {
     } catch (e) { /* ignore */ }
   };
 
+  const cycleCount = Object.values(mockCycles).reduce((acc: number, arr: any) => acc + (arr?.length || 0), 0);
+
   return (
     <Layout
       programCount={programs.length}
+      cycleCount={cycleCount}
       objectCount={projectInventoryItems.length}
       completionPercentage={0}
       tabValue={tabValue}
       onTabChange={(v) => setTabValue(v)}
+      onPeopleClick={() => setPeopleSidebarOpen(true)}
     >
       {/* Main Content Area */}
       <Box sx={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
@@ -1194,9 +1219,11 @@ const ProjectsPage: React.FC = () => {
                                               <MenuItem value="blocked">Blocked</MenuItem>
                                             </TextField>
                                             {/* Assigned To */}
-                                            <TextField size="small" placeholder="Assigned to..." value={task.assignedTo || ''} onBlur={e => updateTaskInline(task.id, 'assignedTo', e.target.value)}
-                                              onChange={e => setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, assignedTo: e.target.value } : t))}
-                                              sx={{ '& .MuiInputBase-root': { fontSize: '0.72rem', height: 26 } }} />
+                                            <TextField select size="small" value={task.assignedTo || ''} onChange={e => updateTaskInline(task.id, 'assignedTo', e.target.value)}
+                                              sx={{ '& .MuiInputBase-root': { fontSize: '0.72rem', height: 26 } }}>
+                                              <MenuItem value=""><em>Unassigned</em></MenuItem>
+                                              {people.map(p => <MenuItem key={p.id} value={p.name}>{p.name}</MenuItem>)}
+                                            </TextField>
                                             {/* Start Date */}
                                             <TextField size="small" type="date" value={task.startDate || ''} onChange={e => {
                                               updateTaskInline(task.id, 'startDate', e.target.value);
@@ -2018,6 +2045,93 @@ const ProjectsPage: React.FC = () => {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* People Sidebar Overlay */}
+      {peopleSidebarOpen && (
+        <Box sx={{
+          position: 'fixed', top: 0, right: 0, bottom: 0, width: 380,
+          backgroundColor: '#1A1E2E', borderLeft: '1px solid rgba(255,255,255,0.08)',
+          zIndex: 1300, display: 'flex', flexDirection: 'column',
+          boxShadow: '-8px 0 32px rgba(0,0,0,0.4)',
+        }}>
+          {/* Header */}
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 3, py: 2, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+              <GroupIcon sx={{ color: 'primary.light', fontSize: '1.2rem' }} />
+              <Typography variant="h6" sx={{ fontWeight: 700, fontSize: '1rem' }}>People Directory</Typography>
+            </Box>
+            <IconButton size="small" onClick={() => setPeopleSidebarOpen(false)}><CloseIcon sx={{ fontSize: '1.1rem' }} /></IconButton>
+          </Box>
+
+          {/* Table Header */}
+          <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 110px 1fr 80px', gap: 0, px: 3, py: 1, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+            {['NAME', 'ROLE', 'EMAIL', 'ACTIONS'].map(h => (
+              <Typography key={h} variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', letterSpacing: '0.05em', fontWeight: 600 }}>{h}</Typography>
+            ))}
+          </Box>
+
+          {/* People List */}
+          <Box sx={{ flex: 1, overflowY: 'auto' }}>
+            {people.map(person => (
+              <Box key={person.id}>
+                {editingPersonId === person.id ? (
+                  <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 110px 1fr 80px', gap: 0.5, px: 2, py: 1, alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                    <TextField size="small" value={editPersonName} onChange={e => setEditPersonName(e.target.value)} sx={{ '& .MuiInputBase-root': { fontSize: '0.8rem', height: 28 } }} />
+                    <TextField size="small" value={editPersonRole} onChange={e => setEditPersonRole(e.target.value)} sx={{ '& .MuiInputBase-root': { fontSize: '0.8rem', height: 28 } }} />
+                    <TextField size="small" value={editPersonEmail} onChange={e => setEditPersonEmail(e.target.value)} sx={{ '& .MuiInputBase-root': { fontSize: '0.8rem', height: 28 } }} />
+                    <Box sx={{ display: 'flex', gap: 0.5 }}>
+                      <IconButton size="small" onClick={async () => {
+                        const res = await apiClient.patch(`/api/people/${person.id}`, { name: editPersonName, role: editPersonRole, email: editPersonEmail });
+                        setPeople(prev => prev.map(p => p.id === person.id ? res.data.data : p));
+                        setEditingPersonId(null);
+                      }}><Box sx={{ fontSize: '0.7rem', color: 'success.main', fontWeight: 700 }}>✓</Box></IconButton>
+                      <IconButton size="small" onClick={() => setEditingPersonId(null)}><CloseIcon sx={{ fontSize: '0.9rem' }} /></IconButton>
+                    </Box>
+                  </Box>
+                ) : (
+                  <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 110px 1fr 80px', gap: 0, px: 3, py: 1.25, alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.04)', '&:hover': { backgroundColor: 'rgba(255,255,255,0.03)' } }}>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>{person.name}</Typography>
+                    <Typography variant="caption" color="text.secondary">{person.role || '—'}</Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{person.email || '—'}</Typography>
+                    <Box sx={{ display: 'flex', gap: 0.25 }}>
+                      <IconButton size="small" onClick={() => { setEditingPersonId(person.id); setEditPersonName(person.name); setEditPersonRole(person.role || ''); setEditPersonEmail(person.email || ''); }} sx={{ opacity: 0.6, '&:hover': { opacity: 1 } }}>
+                        <EditIcon sx={{ fontSize: '0.9rem' }} />
+                      </IconButton>
+                      <IconButton size="small" onClick={async () => { await apiClient.delete(`/api/people/${person.id}`); setPeople(prev => prev.filter(p => p.id !== person.id)); }} sx={{ opacity: 0.6, '&:hover': { opacity: 1 } }}>
+                        <DeleteIcon sx={{ fontSize: '0.9rem' }} />
+                      </IconButton>
+                    </Box>
+                  </Box>
+                )}
+              </Box>
+            ))}
+          </Box>
+
+          {/* Add Person */}
+          <Box sx={{ borderTop: '1px solid rgba(255,255,255,0.08)', p: 2 }}>
+            {addPersonOpen ? (
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                  <TextField size="small" placeholder="Name *" value={newPersonName} onChange={e => setNewPersonName(e.target.value)} sx={{ flex: 1 }} autoFocus />
+                  <TextField size="small" placeholder="Role" value={newPersonRole} onChange={e => setNewPersonRole(e.target.value)} sx={{ flex: 1 }} />
+                </Box>
+                <TextField size="small" placeholder="Email" value={newPersonEmail} onChange={e => setNewPersonEmail(e.target.value)} fullWidth />
+                <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
+                  <Button size="small" onClick={() => { setAddPersonOpen(false); setNewPersonName(''); setNewPersonRole(''); setNewPersonEmail(''); }} sx={{ textTransform: 'none' }}>Cancel</Button>
+                  <Button size="small" variant="contained" disabled={!newPersonName.trim()} onClick={async () => {
+                    const res = await apiClient.post('/api/people', { name: newPersonName.trim(), role: newPersonRole.trim() || undefined, email: newPersonEmail.trim() || undefined });
+                    setPeople(prev => [...prev, res.data.data]);
+                    setNewPersonName(''); setNewPersonRole(''); setNewPersonEmail('');
+                    setAddPersonOpen(false);
+                  }} sx={{ textTransform: 'none' }}>Add</Button>
+                </Box>
+              </Box>
+            ) : (
+              <Button size="small" variant="outlined" startIcon={<AddIcon />} fullWidth onClick={() => setAddPersonOpen(true)} sx={{ textTransform: 'none', borderStyle: 'dashed' }}>Add Person</Button>
+            )}
+          </Box>
+        </Box>
+      )}
 
       {/* Task Dependency Dialog */}
       <Dialog open={!!depDialogTaskId} onClose={() => setDepDialogTaskId(null)} maxWidth="sm" fullWidth>

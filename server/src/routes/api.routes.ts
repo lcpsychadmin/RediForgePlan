@@ -11,6 +11,7 @@ import tasksRouter from './tasks.routes.js';
 import scheduleRouter from './schedule.routes.js';
 import prioritiesRouter from './priorities.routes.js';
 import auditRouter from './audit.routes.js';
+import peopleRouter from './people.routes.js';
 
 const apiRouter = Router();
 
@@ -32,5 +33,6 @@ apiRouter.use('/priorities', prioritiesRouter);
 
 // Audit routes
 apiRouter.use('/audit', auditRouter);
+apiRouter.use('/people', peopleRouter);
 
 export default apiRouter;

@@ -7,19 +7,23 @@ import { useAuth } from '../contexts/AuthContext';
 interface LayoutProps {
   children: React.ReactNode;
   programCount?: number;
+  cycleCount?: number;
   objectCount?: number;
   completionPercentage?: number;
   tabValue?: number;
   onTabChange?: (value: number) => void;
+  onPeopleClick?: () => void;
 }
 
 const Layout: React.FC<LayoutProps> = ({ 
   children,
   programCount = 0,
+  cycleCount = 0,
   objectCount = 0,
   completionPercentage = 0,
   tabValue = 0,
-  onTabChange
+  onTabChange,
+  onPeopleClick
 }) => {
   const location = useLocation();
   const { user } = useAuth();
@@ -36,10 +40,12 @@ const Layout: React.FC<LayoutProps> = ({
       <TopNav 
         onMenuClick={() => {}} 
         programCount={programCount}
+        cycleCount={cycleCount}
         objectCount={objectCount}
         completionPercentage={completionPercentage}
         tabValue={tabValue}
         onTabChange={onTabChange}
+        onPeopleClick={onPeopleClick}
       />
       
       <Box

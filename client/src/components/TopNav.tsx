@@ -19,10 +19,12 @@ import { useNavigate, useLocation } from 'react-router-dom';
 interface TopNavProps {
   onMenuClick: () => void;
   programCount?: number;
+  cycleCount?: number;
   objectCount?: number;
   completionPercentage?: number;
   tabValue?: number;
   onTabChange?: (value: number) => void;
+  onPeopleClick?: () => void;
 }
 
 const subNavItems = [
@@ -34,11 +36,13 @@ const subNavItems = [
 
 const TopNav: React.FC<TopNavProps> = ({ 
   onMenuClick, 
-  programCount = 0, 
+  programCount = 0,
+  cycleCount = 0,
   objectCount = 0, 
   completionPercentage = 0,
   tabValue = 0,
-  onTabChange
+  onTabChange,
+  onPeopleClick
 }) => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -96,8 +100,14 @@ const TopNav: React.FC<TopNavProps> = ({
                   </Typography>
                 </Box>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                  <Typography variant="caption" sx={{ whiteSpace: 'nowrap', opacity: 0.75 }}>
-                    Objects:
+                  <Typography variant="caption" sx={{ whiteSpace: 'nowrap', opacity: 0.75 }}>                    Cycles:
+                  </Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                    {cycleCount}
+                  </Typography>
+                </Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                  <Typography variant="caption" sx={{ whiteSpace: 'nowrap', opacity: 0.75 }}>                    Objects:
                   </Typography>
                   <Typography variant="body2" sx={{ fontWeight: 600 }}>
                     {objectCount}
@@ -132,6 +142,7 @@ const TopNav: React.FC<TopNavProps> = ({
                 variant="contained"
                 size="small"
                 startIcon={<GroupIcon />}
+                onClick={onPeopleClick}
                 sx={{
                   textTransform: 'none',
                   fontWeight: 500,
