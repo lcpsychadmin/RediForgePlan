@@ -18,6 +18,13 @@ interface Comment {
   createdAt: string;
 }
 
+interface MentionCandidate {
+  id: string;
+  handle: string;
+  email: string;
+  role?: string;
+}
+
 interface TaskCommentsModalProps {
   open: boolean;
   onClose: () => void;
@@ -38,6 +45,7 @@ export const TaskCommentsModal: React.FC<TaskCommentsModalProps> = ({
   const [mentionAnchor, setMentionAnchor] = useState<string | null>(null);
   const [mentionFilter, setMentionFilter] = useState('');
   const [showMentions, setShowMentions] = useState(false);
+  const [mentionCandidates, setMentionCandidates] = useState<MentionCandidate[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
@@ -49,8 +57,19 @@ export const TaskCommentsModal: React.FC<TaskCommentsModalProps> = ({
         .then(r => setComments(r.data.data || []))
         .catch(() => {})
         .finally(() => setLoading(false));
+
+      apiClient.get('/api/comments/mention-candidates')
+        .then(r => setMentionCandidates(r.data.data || []))
+        .catch(() => {
+          // Fallback: derive mention candidates from people list if users endpoint fails.
+          setMentionCandidates((people || []).map((p) => ({
+            id: p.id,
+            handle: String(p.name || '').trim().replace(/\s+/g, '.').toLowerCase(),
+            email: '',
+          })));
+        });
     }
-  }, [open, taskId]);
+  }, [open, taskId, people]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -68,9 +87,9 @@ export const TaskCommentsModal: React.FC<TaskCommentsModalProps> = ({
     }
   };
 
-  const insertMention = (name: string) => {
+  const insertMention = (handle: string) => {
     const lastAt = content.lastIndexOf('@');
-    setContent(content.slice(0, lastAt) + `@${name} `);
+    setContent(content.slice(0, lastAt) + `@${handle} `);
     setShowMentions(false);
     inputRef.current?.focus();
   };
@@ -111,9 +130,13 @@ export const TaskCommentsModal: React.FC<TaskCommentsModalProps> = ({
     );
   };
 
-  const filteredPeople = people.filter(p =>
-    p.name.toLowerCase().startsWith(mentionFilter.toLowerCase())
-  );
+  const filteredMentionCandidates = mentionCandidates.filter((u) => {
+    const f = mentionFilter.toLowerCase();
+    return (
+      (u.handle || '').toLowerCase().startsWith(f) ||
+      (u.email || '').toLowerCase().startsWith(f)
+    );
+  });
 
   const authorInitials = (name: string) => name.charAt(0).toUpperCase();
   const formatTime = (iso: string) => {
@@ -174,17 +197,18 @@ export const TaskCommentsModal: React.FC<TaskCommentsModalProps> = ({
       {/* Input area */}
       <Box sx={{ p: 2, borderTop: '1px solid rgba(255,255,255,0.08)', position: 'relative' }}>
         {/* Mention autocomplete */}
-        {showMentions && filteredPeople.length > 0 && (
+        {showMentions && filteredMentionCandidates.length > 0 && (
           <Box sx={{
             position: 'absolute', bottom: '100%', left: 16, right: 16, mb: 0.5,
             backgroundColor: '#1A1E2E', border: '1px solid rgba(255,255,255,0.12)',
             borderRadius: 1, zIndex: 10, maxHeight: 160, overflowY: 'auto',
           }}>
-            {filteredPeople.map(p => (
-              <Box key={p.id} onClick={() => insertMention(p.name)}
+            {filteredMentionCandidates.map(u => (
+              <Box key={u.id} onClick={() => insertMention(u.handle)}
                 sx={{ px: 2, py: 0.75, cursor: 'pointer', '&:hover': { backgroundColor: 'rgba(255,255,255,0.06)' }, display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Avatar sx={{ width: 22, height: 22, fontSize: '0.7rem', backgroundColor: accentColor }}>{p.name.charAt(0)}</Avatar>
-                <Typography variant="body2">{p.name}</Typography>
+                <Avatar sx={{ width: 22, height: 22, fontSize: '0.7rem', backgroundColor: accentColor }}>{u.handle.charAt(0).toUpperCase()}</Avatar>
+                <Typography variant="body2">@{u.handle}</Typography>
+                {u.email && <Typography variant="caption" color="text.disabled">{u.email}</Typography>}
               </Box>
             ))}
           </Box>

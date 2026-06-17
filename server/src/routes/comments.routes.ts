@@ -5,6 +5,15 @@ import { formatListResponse, formatSingleResponse } from '../utils/responseForma
 
 const router = Router();
 
+// Mention candidates (user accounts)
+router.get('/mention-candidates', requireAuth, async (req, res, next) => {
+  try {
+    const q = typeof req.query.q === 'string' ? req.query.q : undefined;
+    const candidates = await commentsService.getMentionCandidates(q);
+    res.json(formatListResponse(candidates, candidates.length));
+  } catch (e) { next(e); }
+});
+
 // Get comments for a task
 router.get('/task/:taskId', requireAuth, async (req, res, next) => {
   try {

@@ -1,6 +1,40 @@
 import db from '../db.js';
 
 export class CommentsService {
+  async getMentionCandidates(queryText?: string) {
+    const q = (queryText || '').trim();
+    if (!q) {
+      const result = await db.query(
+        `SELECT id, email, role
+         FROM users
+         ORDER BY email ASC
+         LIMIT 50`
+      );
+      return result.rows.map((r: any) => ({
+        id: r.id,
+        email: r.email,
+        role: r.role,
+        handle: String(r.email || '').split('@')[0],
+      }));
+    }
+
+    const result = await db.query(
+      `SELECT id, email, role
+       FROM users
+       WHERE LOWER(email) LIKE LOWER($1)
+          OR LOWER(split_part(email, '@', 1)) LIKE LOWER($1)
+       ORDER BY email ASC
+       LIMIT 50`,
+      [`${q}%`]
+    );
+    return result.rows.map((r: any) => ({
+      id: r.id,
+      email: r.email,
+      role: r.role,
+      handle: String(r.email || '').split('@')[0],
+    }));
+  }
+
   async getComments(taskId: string) {
     const result = await db.query(
       'SELECT id, task_id, author_name, author_email, content, created_at FROM task_comments WHERE task_id = $1 ORDER BY created_at ASC',
