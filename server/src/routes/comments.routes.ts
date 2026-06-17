@@ -41,8 +41,8 @@ router.post('/task/:taskId', requireAuth, async (req: any, res, next) => {
     );
 
     // Parse @mentions and create notifications.
-    // Supports handles/emails like @wes, @wes.collins, @wes@company.com and names with spaces.
-    const mentionTokens = Array.from(content.matchAll(/@([a-zA-Z0-9._-]+(?:\s+[a-zA-Z0-9._-]+)*)/g))
+    // Supports handles/emails like @admin, @wes.collins, @user@company.com.
+    const mentionTokens = Array.from(content.matchAll(/(?:^|\s)@([a-zA-Z0-9._-]+(?:@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})?)/g))
       .map(m => (m[1] || '').trim())
       .filter(Boolean);
 

@@ -55,18 +55,19 @@ const TopNav: React.FC<TopNavProps> = ({
   const [unreadCount, setUnreadCount] = React.useState(0);
   const isProjectsPage = location.pathname === '/projects';
 
+  const loadNotifications = React.useCallback(() => {
+    return apiClient.get('/api/comments/notifications/me').then(r => {
+      setNotifications(r.data.notifications || []);
+      setUnreadCount(r.data.unreadCount || 0);
+    }).catch(() => {});
+  }, []);
+
   // Poll notifications every 30s
   React.useEffect(() => {
-    const load = () => {
-      apiClient.get('/api/comments/notifications/me').then(r => {
-        setNotifications(r.data.notifications || []);
-        setUnreadCount(r.data.unreadCount || 0);
-      }).catch(() => {});
-    };
-    load();
-    const interval = setInterval(load, 30000);
+    loadNotifications();
+    const interval = setInterval(loadNotifications, 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [loadNotifications]);
 
   const handleMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
@@ -194,7 +195,7 @@ const TopNav: React.FC<TopNavProps> = ({
         {/* Account Menu */}
         <Box>
           {/* Notification Bell */}
-          <IconButton color="inherit" onClick={e => { setNotifAnchorEl(e.currentTarget); apiClient.patch('/api/comments/notifications/read-all').catch(() => {}); setTimeout(() => setUnreadCount(0), 300); }}>
+          <IconButton color="inherit" onClick={async (e) => { setNotifAnchorEl(e.currentTarget); await loadNotifications(); apiClient.patch('/api/comments/notifications/read-all').catch(() => {}); setTimeout(() => setUnreadCount(0), 300); }}>
             <Badge badgeContent={unreadCount} color="error" max={99}>
               <NotificationsIcon />
             </Badge>
