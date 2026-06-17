@@ -52,6 +52,7 @@ import Menu from '@mui/material/Menu';
 import { useNavigate, useLocation } from 'react-router-dom';
 import apiClient from '../api/client';
 import Layout from '../components/Layout';
+import TaskDetailModal from '../components/tasks/TaskDetailModal';
 
 interface Program {
   id: string;
@@ -224,6 +225,7 @@ const ProjectsPage: React.FC = () => {
 
   // Comment modal state
   const [commentModalTask, setCommentModalTask] = useState<{ id: string; name: string } | null>(null);
+  const [priorityModalTask, setPriorityModalTask] = useState<any | null>(null);
   const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
   const [taskCommentCounts, setTaskCommentCounts] = useState<Record<string, number>>({});
   const [planRowOrder, setPlanRowOrder] = useState<string[]>([]);
@@ -1293,15 +1295,25 @@ const ProjectsPage: React.FC = () => {
     return 'Task';
   };
 
+  const getPriorityTaskBreadcrumb = (task: any) => {
+    const selectedProject = selectedItem?.type === 'project'
+      ? (projectsByMockCycle[selectedItem.cycleId] || []).find((p: any) => p.id === selectedItem.id)
+      : null;
+    const cycleName = selectedItem?.type === 'project'
+      ? (mockCycles[selectedProject?.programId || ''] || []).find((c: any) => c.id === selectedItem.cycleId)?.name
+      : null;
+    const programName = selectedItem?.type === 'project'
+      ? programs.find((p: any) => p.id === selectedProject?.programId)?.name
+      : null;
+    const contextLabel = getPriorityTaskContext(task);
+    return [programName, cycleName, selectedProject?.name, contextLabel]
+      .filter(Boolean)
+      .join(' / ');
+  };
+
   const handlePriorityTaskClick = (task: any) => {
-    const projectId = task.projectId || activeProjectId;
-    if (!projectId || !task.id) return;
-    sessionStorage.setItem('pendingNotificationTarget', JSON.stringify({
-      projectId,
-      taskId: task.id,
-      taskName: task.name || 'Task',
-    }));
-    setTabValue(0);
+    if (!task?.id) return;
+    setPriorityModalTask(task);
   };
 
   return (
@@ -2700,6 +2712,9 @@ const ProjectsPage: React.FC = () => {
                                   {getPriorityTaskContext(task)}
                                   {task.endDate ? ` • Due ${new Date(task.endDate).toLocaleDateString()}` : ''}
                                 </Typography>
+                                <Typography variant="caption" sx={{ display: 'block', color: '#8EA3CB', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                  {getPriorityTaskBreadcrumb(task)}
+                                </Typography>
                               </Box>
                               <Link
                                 component="button"
@@ -3522,6 +3537,14 @@ const ProjectsPage: React.FC = () => {
           onCommentsChange={(count) => setTaskCommentCounts(prev => ({ ...prev, [commentModalTask.id]: count }))}
         />
       )}
+
+      <TaskDetailModal
+        open={!!priorityModalTask}
+        onClose={() => setPriorityModalTask(null)}
+        taskId={priorityModalTask?.id}
+        task={priorityModalTask}
+        peopleById={Object.fromEntries((people || []).map((person: any) => [person.id, person]))}
+      />
 
       {/* Task Dependency Dialog */}
       <Dialog open={!!depDialogTaskId} onClose={() => setDepDialogTaskId(null)} maxWidth="sm" fullWidth>

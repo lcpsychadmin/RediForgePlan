@@ -32,10 +32,11 @@ interface TopNavProps {
 }
 
 const subNavItems = [
-  { label: 'Plan', icon: <GridViewIcon sx={{ fontSize: '0.95rem' }} /> },
-  { label: 'Inventory', icon: <TableChartIcon sx={{ fontSize: '0.95rem' }} /> },
-  { label: 'Priorities', icon: <WarningAmberIcon sx={{ fontSize: '0.95rem' }} /> },
-  { label: 'Schedule', icon: <CalendarMonthIcon sx={{ fontSize: '0.95rem' }} /> },
+  { label: 'Plan', icon: <GridViewIcon sx={{ fontSize: '0.95rem' }} />, tabIndex: 0 },
+  { label: 'Inventory', icon: <TableChartIcon sx={{ fontSize: '0.95rem' }} />, tabIndex: 1 },
+  { label: 'Priorities', icon: <WarningAmberIcon sx={{ fontSize: '0.95rem' }} />, tabIndex: 2 },
+  { label: 'Schedule', icon: <CalendarMonthIcon sx={{ fontSize: '0.95rem' }} />, tabIndex: 3 },
+  { label: 'My Tasks', icon: <AssignmentTurnedInIcon sx={{ fontSize: '0.95rem' }} />, path: '/my-tasks' },
 ];
 
 const TopNav: React.FC<TopNavProps> = ({ 
@@ -323,15 +324,6 @@ const TopNav: React.FC<TopNavProps> = ({
               <Typography variant="body2">Settings</Typography>
             </MenuItem>
 
-            <MenuItem
-              onClick={() => handleNavigate('/my-tasks')}
-              selected={isActive('/my-tasks')}
-              sx={{ display: 'flex', gap: 1 }}
-            >
-              <AssignmentTurnedInIcon fontSize="small" />
-              <Typography variant="body2">My Tasks</Typography>
-            </MenuItem>
-
             {/* Admin Section */}
             {user?.role === 'admin' && (
               <>
@@ -376,7 +368,15 @@ const TopNav: React.FC<TopNavProps> = ({
               key={idx}
               size="small"
               startIcon={item.icon}
-              onClick={() => onTabChange?.(idx)}
+              onClick={() => {
+                if (item.path) {
+                  navigate(item.path);
+                  return;
+                }
+                if (typeof item.tabIndex === 'number') {
+                  onTabChange?.(item.tabIndex);
+                }
+              }}
               sx={{
                 textTransform: 'none',
                 fontWeight: 500,
@@ -385,11 +385,13 @@ const TopNav: React.FC<TopNavProps> = ({
                 px: 1.5,
                 py: 0.4,
                 color: 'white',
-                backgroundColor: tabValue === idx ? 'primary.main' : 'rgba(255, 255, 255, 0.08)',
+                backgroundColor: (typeof item.tabIndex === 'number' && tabValue === item.tabIndex)
+                  ? 'primary.main'
+                  : 'rgba(255, 255, 255, 0.08)',
                 opacity: 1,
                 cursor: 'pointer',
                 '&:hover': {
-                  backgroundColor: tabValue === idx
+                  backgroundColor: (typeof item.tabIndex === 'number' && tabValue === item.tabIndex)
                     ? 'primary.dark'
                     : 'rgba(255, 255, 255, 0.15)',
                 },
