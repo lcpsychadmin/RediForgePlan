@@ -21,12 +21,13 @@ router.post('/task/:taskId', requireAuth, async (req: any, res, next) => {
       return res.status(400).json({ error: 'Content required' });
     }
 
-    const user = req.user;
-    const authorName = user.email.split('@')[0];
+    const userId = req.userId;
+    const userEmail = req.userEmail;
+    const authorName = userEmail.split('@')[0];
     const comment = await commentsService.addComment(
       req.params.taskId,
       authorName,
-      user.email,
+      userEmail,
       content
     );
 
@@ -35,7 +36,7 @@ router.post('/task/:taskId', requireAuth, async (req: any, res, next) => {
     for (const mention of mentions) {
       const name = mention.slice(1).trim();
       const recipientId = await commentsService.findUserByPersonName(name);
-      if (recipientId && recipientId !== user.id) {
+      if (recipientId && recipientId !== userId) {
         await commentsService.createNotification(
           recipientId,
           req.params.taskId,
@@ -59,8 +60,8 @@ router.delete('/:commentId', requireAuth, async (req, res, next) => {
 // Notifications
 router.get('/notifications/me', requireAuth, async (req: any, res, next) => {
   try {
-    const notifications = await commentsService.getNotifications(req.user.id);
-    const unreadCount = await commentsService.getUnreadCount(req.user.id);
+    const notifications = await commentsService.getNotifications(req.userId);
+    const unreadCount = await commentsService.getUnreadCount(req.userId);
     res.json({ notifications, unreadCount });
   } catch (e) { next(e); }
 });
@@ -74,7 +75,7 @@ router.patch('/notifications/:id/read', requireAuth, async (req, res, next) => {
 
 router.patch('/notifications/read-all', requireAuth, async (req: any, res, next) => {
   try {
-    await commentsService.markAllRead(req.user.id);
+    await commentsService.markAllRead(req.userId);
     res.json({ success: true });
   } catch (e) { next(e); }
 });

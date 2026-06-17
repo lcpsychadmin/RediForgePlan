@@ -39,6 +39,7 @@ export const TaskCommentsModal: React.FC<TaskCommentsModalProps> = ({
   const [showMentions, setShowMentions] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (open && taskId) {
@@ -76,10 +77,14 @@ export const TaskCommentsModal: React.FC<TaskCommentsModalProps> = ({
   const handleSend = async () => {
     if (!content.trim()) return;
     try {
+      setError(null);
       const res = await apiClient.post(`/api/comments/task/${taskId}`, { content: content.trim() });
       setComments(prev => [...prev, res.data.data]);
       setContent('');
-    } catch (e) { console.error(e); }
+    } catch (e: any) { 
+      console.error('Comment submission error:', e);
+      setError(e.response?.data?.error || 'Failed to send comment');
+    }
   };
 
   const handleDelete = async (commentId: string) => {
@@ -203,6 +208,7 @@ export const TaskCommentsModal: React.FC<TaskCommentsModalProps> = ({
             <SendIcon sx={{ fontSize: '1rem' }} />
           </IconButton>
         </Box>
+        {error && <Typography variant="caption" sx={{ color: '#ff6b6b', display: 'block', mb: 0.5 }}>Error: {error}</Typography>}
         <Typography variant="caption" color="text.disabled" sx={{ mt: 0.5, display: 'block' }}>
           Enter to send · Shift+Enter for new line · @ to mention
         </Typography>
