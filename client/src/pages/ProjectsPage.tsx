@@ -646,7 +646,7 @@ const ProjectsPage: React.FC = () => {
       try {
         // Load tasks
         const tasksResponse = await apiClient.get(`/api/tasks/project/${activeProjectId}`);
-        const tasks = tasksResponse.data.data || [];
+        const tasks = (tasksResponse.data.data || []).map((task: any) => normalizeTaskDateFields(task));
         setProjectTasks(tasks);
 
         // Load task groups
@@ -934,7 +934,7 @@ const ProjectsPage: React.FC = () => {
           apiClient.get(`/api/tasks/project/${activeProjectId}`),
           apiClient.get(`/api/tasks/groups/project/${activeProjectId}`),
         ]);
-        setProjectTasks(tasksRes.data.data || []);
+        setProjectTasks((tasksRes.data.data || []).map((task: any) => normalizeTaskDateFields(task)));
         setProjectTaskGroups(groupsRes.data.data || []);
       }
       
@@ -1245,6 +1245,23 @@ const ProjectsPage: React.FC = () => {
     if (Number.isNaN(date.getTime())) return null;
     return new Date(date.getFullYear(), date.getMonth(), date.getDate());
   };
+
+  const toDateInputValue = (value?: string) => {
+    if (!value) return '';
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  };
+
+  const normalizeTaskDateFields = (task: any) => ({
+    ...task,
+    startDate: toDateInputValue(task?.startDate),
+    endDate: toDateInputValue(task?.endDate),
+  });
 
   const today = new Date();
   const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
@@ -2063,7 +2080,7 @@ const ProjectsPage: React.FC = () => {
                                           onClick={async () => {
                                             try {
                                               const res = await apiClient.post(`/api/tasks/project/${activeProjectId}`, { taskType: 'custom', projectObjectId: objectId, name: 'New Task' });
-                                              setProjectTasks(prev => [...prev, res.data.data]);
+                                              setProjectTasks(prev => [...prev, normalizeTaskDateFields(res.data.data)]);
                                             } catch (e) { console.error(e); }
                                           }}
                                           sx={{ fontSize: '0.72rem', color: '#7C83D0', textTransform: 'none' }}>
@@ -2265,7 +2282,7 @@ const ProjectsPage: React.FC = () => {
                                           onClick={async () => {
                                             try {
                                               const res = await apiClient.post(`/api/tasks/project/${activeProjectId}`, { taskType: 'custom', taskGroupId: group.id, name: 'New Task' });
-                                              setProjectTasks(prev => [...prev, res.data.data]);
+                                              setProjectTasks(prev => [...prev, normalizeTaskDateFields(res.data.data)]);
                                             } catch (e) { console.error(e); }
                                           }}
                                           sx={{ fontSize: '0.72rem', color: '#7C83D0', textTransform: 'none' }}>
