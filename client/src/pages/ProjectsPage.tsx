@@ -1283,8 +1283,9 @@ const ProjectsPage: React.FC = () => {
                                     <Typography variant="caption" sx={{ color: 'text.primary', fontWeight: 600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{description}</Typography>
                                     {/* Timeline for object */}
                                     {(() => {
+                                      if (!inventoryObject?.startDate || !inventoryObject?.endDate) return null;
+                                      
                                       const parseLocalDate = (dateString: string) => {
-                                        if (!dateString || typeof dateString !== 'string') return null;
                                         const parts = dateString.trim().split(/[-\/]/);
                                         if (parts.length !== 3) return null;
                                         let year: number, month: number, day: number;
@@ -1303,22 +1304,12 @@ const ProjectsPage: React.FC = () => {
                                         return { year, month, day };
                                       };
                                       
-                                      const projectObj = projectInventoryItems.find(po => po.id === objectId);
-                                      if (!projectObj?.startDate || !projectObj?.endDate) return null;
-                                      
-                                      const startDateParsed = parseLocalDate(projectObj.startDate);
-                                      const endDateParsed = parseLocalDate(projectObj.endDate);
-                                      
+                                      const startDateParsed = parseLocalDate(inventoryObject.startDate);
+                                      const endDateParsed = parseLocalDate(inventoryObject.endDate);
                                       if (!startDateParsed || !endDateParsed) return null;
                                       
                                       const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
                                       const timelineStr = `${monthNames[startDateParsed.month - 1]} ${startDateParsed.day} → ${monthNames[endDateParsed.month - 1]} ${endDateParsed.day}`;
-                                      
-                                      // Check if behind: today > endDate
-                                      const today = new Date();
-                                      const endDate = new Date(endDateParsed.year, endDateParsed.month - 1, endDateParsed.day);
-                                      const isBehind = today > endDate || overallStatus === 'blocked';
-                                      
                                       return (
                                         <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.7rem', flexShrink: 0 }}>
                                           {timelineStr}
@@ -1327,13 +1318,12 @@ const ProjectsPage: React.FC = () => {
                                     })()}
                                     {/* Status indicator */}
                                     {(() => {
-                                      const projectObj = projectInventoryItems.find(po => po.id === objectId);
-                                      if (!projectObj?.startDate || !projectObj?.endDate) return null;
+                                      if (!inventoryObject?.endDate) return null;
                                       
                                       const today = new Date();
-                                      const parts = projectObj.endDate.split(/[-\/]/);
+                                      const parts = inventoryObject.endDate.split(/[-\/]/);
                                       let year: number, month: number, day: number;
-                                      if (projectObj.endDate.includes('-') && parts[0].length === 4) {
+                                      if (inventoryObject.endDate.includes('-') && parts[0].length === 4) {
                                         [year, month, day] = [parseInt(parts[0]), parseInt(parts[1]), parseInt(parts[2])];
                                       } else {
                                         [month, day, year] = [parseInt(parts[0]), parseInt(parts[1]), parseInt(parts[2])];
