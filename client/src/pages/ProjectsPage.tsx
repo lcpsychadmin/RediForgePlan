@@ -213,9 +213,8 @@ const ProjectsPage: React.FC = () => {
   const [commentModalTask, setCommentModalTask] = useState<{ id: string; name: string } | null>(null);
   const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
   const [taskCommentCounts, setTaskCommentCounts] = useState<Record<string, number>>({});
-  const [objectOrder, setObjectOrder] = useState<string[]>([]);
-  const [taskGroupOrder, setTaskGroupOrder] = useState<string[]>([]);
-  const [dragItem, setDragItem] = useState<{ type: 'object' | 'taskGroup'; id: string } | null>(null);
+  const [planRowOrder, setPlanRowOrder] = useState<string[]>([]);
+  const [dragItem, setDragItem] = useState<{ type: 'planRow'; key: string } | null>(null);
   const [treeDragItem, setTreeDragItem] = useState<
     | { type: 'program'; id: string }
     | { type: 'cycle'; id: string; programId: string }
@@ -354,6 +353,8 @@ const ProjectsPage: React.FC = () => {
 
   const getOrderStorageKey = (projectId: string) => `rf-plan-order:${projectId}`;
   const getTreeOrderStorageKey = () => 'rf-tree-order';
+  const objectRowKey = (id: string) => `obj:${id}`;
+  const taskGroupRowKey = (id: string) => `grp:${id}`;
 
   const getOrderedPrograms = () => {
     const ids = mergeOrder(treeOrder.programs, programs.map((p: Program) => p.id));
@@ -377,23 +378,28 @@ const ProjectsPage: React.FC = () => {
   // Load persisted ordering when project changes.
   useEffect(() => {
     if (!activeProjectId) {
-      setObjectOrder([]);
-      setTaskGroupOrder([]);
+      setPlanRowOrder([]);
       return;
     }
     try {
       const raw = localStorage.getItem(getOrderStorageKey(activeProjectId));
       if (!raw) {
-        setObjectOrder([]);
-        setTaskGroupOrder([]);
+        setPlanRowOrder([]);
         return;
       }
       const parsed = JSON.parse(raw);
-      setObjectOrder(Array.isArray(parsed?.objects) ? parsed.objects : []);
-      setTaskGroupOrder(Array.isArray(parsed?.groups) ? parsed.groups : []);
+      if (Array.isArray(parsed?.rows)) {
+        setPlanRowOrder(parsed.rows);
+      } else {
+        const objects = Array.isArray(parsed?.objects) ? parsed.objects : [];
+        const groups = Array.isArray(parsed?.groups) ? parsed.groups : [];
+        setPlanRowOrder([
+          ...objects.map((id: string) => objectRowKey(id)),
+          ...groups.map((id: string) => taskGroupRowKey(id)),
+        ]);
+      }
     } catch {
-      setObjectOrder([]);
-      setTaskGroupOrder([]);
+      setPlanRowOrder([]);
     }
   }, [activeProjectId]);
 
@@ -402,8 +408,11 @@ const ProjectsPage: React.FC = () => {
     if (!activeProjectId) return;
     const objectIds = Array.from(new Set(projectTasks.filter(t => t.projectObjectId).map(t => t.projectObjectId)));
     const groupIds = projectTaskGroups.map(g => g.id);
-    setObjectOrder(prev => mergeOrder(prev, objectIds));
-    setTaskGroupOrder(prev => mergeOrder(prev, groupIds));
+    const currentKeys = [
+      ...objectIds.map((id: string) => objectRowKey(id)),
+      ...groupIds.map((id: string) => taskGroupRowKey(id)),
+    ];
+    setPlanRowOrder(prev => mergeOrder(prev, currentKeys));
   }, [activeProjectId, projectTasks, projectTaskGroups]);
 
   // Load persisted tree ordering.
@@ -448,11 +457,14 @@ const ProjectsPage: React.FC = () => {
   // Persist ordering.
   useEffect(() => {
     if (!activeProjectId) return;
+    const objectIds = planRowOrder.filter((k: string) => k.startsWith('obj:')).map((k: string) => k.slice(4));
+    const groupIds = planRowOrder.filter((k: string) => k.startsWith('grp:')).map((k: string) => k.slice(4));
     localStorage.setItem(getOrderStorageKey(activeProjectId), JSON.stringify({
-      objects: objectOrder,
-      groups: taskGroupOrder,
+      rows: planRowOrder,
+      objects: objectIds,
+      groups: groupIds,
     }));
-  }, [activeProjectId, objectOrder, taskGroupOrder]);
+  }, [activeProjectId, planRowOrder]);
 
   // Fetch project inventory items when a project is selected
   useEffect(() => {
@@ -1475,14 +1487,17 @@ const ProjectsPage: React.FC = () => {
                     const allPlanTasks = projectTasks.filter(t => t.projectObjectId || t.taskGroupId);
                     const progressPct = allPlanTasks.length > 0 ? Math.round(allPlanTasks.reduce((s, t) => s + (t.progressPercentage ?? 0), 0) / allPlanTasks.length) : 0;
                     const allObjectIds = Array.from(new Set(projectTasks.filter(t => t.projectObjectId).map(t => t.projectObjectId)));
-                    const orderedObjectIds = mergeOrder(objectOrder, allObjectIds);
                     const allGroupIds = projectTaskGroups.map(g => g.id);
-                    const orderedGroupIds = mergeOrder(taskGroupOrder, allGroupIds);
-                    const orderedTaskGroups = orderedGroupIds
+                    const currentPlanRowKeys = [
+                      ...allObjectIds.map((id: string) => objectRowKey(id)),
+                      ...allGroupIds.map((id: string) => taskGroupRowKey(id)),
+                    ];
+                    const orderedPlanRowKeys = mergeOrder(planRowOrder, currentPlanRowKeys);
+                    const rowOrderIndex = new Map(orderedPlanRowKeys.map((k, idx) => [k, idx]));
+                    const orderedTaskGroups = allGroupIds
                       .map(id => projectTaskGroups.find(g => g.id === id))
                       .filter(Boolean) as any[];
-                    const canReorderObjects = orderedObjectIds.length > 1;
-                    const canReorderGroups = orderedTaskGroups.length > 1;
+                    const canReorderPlan = orderedPlanRowKeys.length > 1;
                     const taskFieldSx = {
                       '& .MuiInputBase-root': { fontSize: '0.72rem', height: 26 },
                       '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': { borderColor: accentColor },
@@ -1606,12 +1621,13 @@ const ProjectsPage: React.FC = () => {
                           <Alert severity="info">No tasks added to plan yet</Alert>
                         ) : (
                           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                            {(!canReorderObjects || !canReorderGroups) && (
+                            {!canReorderPlan && (
                               <Typography variant="caption" color="text.secondary" sx={{ px: 0.5, mb: 0.5 }}>
-                                Drag reorders within each section only. Add at least 2 Objects or 2 Task Groups to reorder that section.
+                                Add at least 2 total rows (Objects and/or Task Groups) to reorder.
                               </Typography>
                             )}
-                            {orderedObjectIds.map((objectId) => {
+                            {allObjectIds.map((objectId) => {
+                              const rowKey = objectRowKey(objectId || '');
                               const tasksForObject = projectTasks
                                 .filter(t => t.projectObjectId === objectId)
                                 .sort((a, b) => {
@@ -1639,28 +1655,28 @@ const ProjectsPage: React.FC = () => {
                               return (
                                 <Box
                                   key={`obj-${objectId}`}
-                                  draggable={canReorderObjects}
+                                  draggable={canReorderPlan}
                                   onDragStart={(e) => {
-                                    if (!canReorderObjects) return;
-                                    const payload = JSON.stringify({ type: 'object', id: objectId || '' });
+                                    if (!canReorderPlan) return;
+                                    const payload = JSON.stringify({ type: 'planRow', key: rowKey });
                                     e.dataTransfer.setData('text/plain', payload);
                                     e.dataTransfer.effectAllowed = 'move';
-                                    setDragItem({ type: 'object', id: objectId || '' });
+                                    setDragItem({ type: 'planRow', key: rowKey });
                                   }}
                                   onDragOver={(e) => {
-                                    if (!canReorderObjects) return;
+                                    if (!canReorderPlan) return;
                                     e.preventDefault();
                                     e.dataTransfer.dropEffect = 'move';
                                   }}
                                   onDrop={(e) => {
-                                    if (!canReorderObjects) return;
+                                    if (!canReorderPlan) return;
                                     e.preventDefault();
                                     const raw = e.dataTransfer.getData('text/plain');
                                     let parsed: any = null;
                                     try { parsed = raw ? JSON.parse(raw) : null; } catch { parsed = null; }
-                                    const dragId = parsed?.type === 'object' ? parsed.id : dragItem?.type === 'object' ? dragItem.id : null;
-                                    if (!dragId || !objectId) return;
-                                    setObjectOrder(prev => reorderByDrop(mergeOrder(prev, orderedObjectIds), dragId, objectId));
+                                    const dragKey = parsed?.type === 'planRow' ? parsed.key : dragItem?.type === 'planRow' ? dragItem.key : null;
+                                    if (!dragKey || !objectId) return;
+                                    setPlanRowOrder(prev => reorderByDrop(mergeOrder(prev, orderedPlanRowKeys), dragKey, rowKey));
                                     setDragItem(null);
                                   }}
                                   onDragEnd={() => setDragItem(null)}
@@ -1670,13 +1686,14 @@ const ProjectsPage: React.FC = () => {
                                     border: '1px solid rgba(255,255,255,0.08)',
                                     borderRadius: 2,
                                     overflow: 'hidden',
-                                    opacity: dragItem?.type === 'object' && dragItem.id === objectId ? 0.6 : 1,
+                                    opacity: dragItem?.type === 'planRow' && dragItem.key === rowKey ? 0.6 : 1,
+                                    order: rowOrderIndex.get(rowKey) ?? 0,
                                   }}
                                 >
                                   <Box sx={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, backgroundColor: accentColor }} />
                                   <Box onClick={() => { const next = new Set(expandedObjects); if (isExpanded) next.delete(objectId || ''); else next.add(objectId || ''); setExpandedObjects(next); }}
                                     sx={{ pl: 2.5, pr: 1, py: 1.25, display: 'flex', alignItems: 'center', gap: 1.5, cursor: 'pointer', '&:hover': { backgroundColor: 'rgba(255,255,255,0.03)' } }}>
-                                    <DragIndicatorIcon sx={{ fontSize: 14, color: 'text.disabled', flexShrink: 0, cursor: canReorderObjects ? 'grab' : 'not-allowed', opacity: canReorderObjects ? 1 : 0.45 }} />
+                                    <DragIndicatorIcon sx={{ fontSize: 14, color: 'text.disabled', flexShrink: 0, cursor: canReorderPlan ? 'grab' : 'not-allowed', opacity: canReorderPlan ? 1 : 0.45 }} />
                                     <ChevronRightIcon sx={{ fontSize: 16, color: 'text.secondary', transition: 'transform 0.2s', transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)', flexShrink: 0 }} />
                                     <Typography sx={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '0.82rem', color: accentColor, flexShrink: 0, minWidth: 90 }}>{objectName}</Typography>
                                     <Typography variant="caption" sx={{ color: 'text.primary', fontWeight: 600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{description}</Typography>
@@ -1851,34 +1868,35 @@ const ProjectsPage: React.FC = () => {
                               );
                             })}
                             {orderedTaskGroups.map((group) => {
+                              const rowKey = taskGroupRowKey(group.id);
                               const isExpanded = expandedTaskGroups.has(group.id);
                               const groupTasks = projectTasks.filter(t => t.taskGroupId === group.id);
                               const overallStatus = groupTasks.length > 0 && groupTasks.every(t => t.status === 'complete') ? 'complete' : groupTasks.some(t => t.status === 'in_progress') ? 'in_progress' : groupTasks.some(t => t.status === 'blocked') ? 'blocked' : 'not_started';
                               return (
                                 <Box
                                   key={`group-${group.id}`}
-                                  draggable={canReorderGroups}
+                                  draggable={canReorderPlan}
                                   onDragStart={(e) => {
-                                    if (!canReorderGroups) return;
-                                    const payload = JSON.stringify({ type: 'taskGroup', id: group.id });
+                                    if (!canReorderPlan) return;
+                                    const payload = JSON.stringify({ type: 'planRow', key: rowKey });
                                     e.dataTransfer.setData('text/plain', payload);
                                     e.dataTransfer.effectAllowed = 'move';
-                                    setDragItem({ type: 'taskGroup', id: group.id });
+                                    setDragItem({ type: 'planRow', key: rowKey });
                                   }}
                                   onDragOver={(e) => {
-                                    if (!canReorderGroups) return;
+                                    if (!canReorderPlan) return;
                                     e.preventDefault();
                                     e.dataTransfer.dropEffect = 'move';
                                   }}
                                   onDrop={(e) => {
-                                    if (!canReorderGroups) return;
+                                    if (!canReorderPlan) return;
                                     e.preventDefault();
                                     const raw = e.dataTransfer.getData('text/plain');
                                     let parsed: any = null;
                                     try { parsed = raw ? JSON.parse(raw) : null; } catch { parsed = null; }
-                                    const dragId = parsed?.type === 'taskGroup' ? parsed.id : dragItem?.type === 'taskGroup' ? dragItem.id : null;
-                                    if (!dragId) return;
-                                    setTaskGroupOrder(prev => reorderByDrop(mergeOrder(prev, orderedGroupIds), dragId, group.id));
+                                    const dragKey = parsed?.type === 'planRow' ? parsed.key : dragItem?.type === 'planRow' ? dragItem.key : null;
+                                    if (!dragKey) return;
+                                    setPlanRowOrder(prev => reorderByDrop(mergeOrder(prev, orderedPlanRowKeys), dragKey, rowKey));
                                     setDragItem(null);
                                   }}
                                   onDragEnd={() => setDragItem(null)}
@@ -1888,13 +1906,14 @@ const ProjectsPage: React.FC = () => {
                                     border: '1px solid rgba(255,255,255,0.08)',
                                     borderRadius: 2,
                                     overflow: 'hidden',
-                                    opacity: dragItem?.type === 'taskGroup' && dragItem.id === group.id ? 0.6 : 1,
+                                    opacity: dragItem?.type === 'planRow' && dragItem.key === rowKey ? 0.6 : 1,
+                                    order: rowOrderIndex.get(rowKey) ?? 0,
                                   }}
                                 >
                                   <Box sx={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, backgroundColor: accentColor }} />
                                   <Box onClick={() => { const next = new Set(expandedTaskGroups); if (isExpanded) next.delete(group.id); else next.add(group.id); setExpandedTaskGroups(next); }}
                                     sx={{ pl: 2.5, pr: 1, py: 1.25, display: 'flex', alignItems: 'center', gap: 1.5, cursor: 'pointer', '&:hover': { backgroundColor: 'rgba(255,255,255,0.03)' } }}>
-                                    <DragIndicatorIcon sx={{ fontSize: 14, color: 'text.disabled', flexShrink: 0, cursor: canReorderGroups ? 'grab' : 'not-allowed', opacity: canReorderGroups ? 1 : 0.45 }} />
+                                    <DragIndicatorIcon sx={{ fontSize: 14, color: 'text.disabled', flexShrink: 0, cursor: canReorderPlan ? 'grab' : 'not-allowed', opacity: canReorderPlan ? 1 : 0.45 }} />
                                     <ChevronRightIcon sx={{ fontSize: 16, color: 'text.secondary', transition: 'transform 0.2s', transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)', flexShrink: 0 }} />
                                     <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', flex: 1, color: accentColor }}>{group.name}</Typography>
                                     <Box sx={{ display: 'flex', gap: 0.4, alignItems: 'center', flexShrink: 0 }}>
@@ -2467,13 +2486,23 @@ const ProjectsPage: React.FC = () => {
               onClick={() => {
                 if (!menuItemId || !menuType) return;
                 if (menuType === 'task') {
-                  const currentIds = Array.from(new Set(projectTasks.filter(t => t.projectObjectId).map(t => t.projectObjectId)));
-                  const ordered = mergeOrder(objectOrder, currentIds);
-                  setObjectOrder(moveWithin(ordered, menuItemId, -1));
+                  const objectIds = Array.from(new Set(projectTasks.filter(t => t.projectObjectId).map(t => t.projectObjectId)));
+                  const groupIds = projectTaskGroups.map(g => g.id);
+                  const currentKeys = [
+                    ...objectIds.map((id: string) => objectRowKey(id)),
+                    ...groupIds.map((id: string) => taskGroupRowKey(id)),
+                  ];
+                  const ordered = mergeOrder(planRowOrder, currentKeys);
+                  setPlanRowOrder(moveWithin(ordered, objectRowKey(menuItemId), -1));
                 } else if (menuType === 'taskGroup') {
-                  const currentIds = projectTaskGroups.map(g => g.id);
-                  const ordered = mergeOrder(taskGroupOrder, currentIds);
-                  setTaskGroupOrder(moveWithin(ordered, menuItemId, -1));
+                  const objectIds = Array.from(new Set(projectTasks.filter(t => t.projectObjectId).map(t => t.projectObjectId)));
+                  const groupIds = projectTaskGroups.map(g => g.id);
+                  const currentKeys = [
+                    ...objectIds.map((id: string) => objectRowKey(id)),
+                    ...groupIds.map((id: string) => taskGroupRowKey(id)),
+                  ];
+                  const ordered = mergeOrder(planRowOrder, currentKeys);
+                  setPlanRowOrder(moveWithin(ordered, taskGroupRowKey(menuItemId), -1));
                 } else if (menuType === 'program') {
                   const currentIds = programs.map(p => p.id);
                   const ordered = mergeOrder(treeOrder.programs, currentIds);
@@ -2520,13 +2549,23 @@ const ProjectsPage: React.FC = () => {
               onClick={() => {
                 if (!menuItemId || !menuType) return;
                 if (menuType === 'task') {
-                  const currentIds = Array.from(new Set(projectTasks.filter(t => t.projectObjectId).map(t => t.projectObjectId)));
-                  const ordered = mergeOrder(objectOrder, currentIds);
-                  setObjectOrder(moveWithin(ordered, menuItemId, 1));
+                  const objectIds = Array.from(new Set(projectTasks.filter(t => t.projectObjectId).map(t => t.projectObjectId)));
+                  const groupIds = projectTaskGroups.map(g => g.id);
+                  const currentKeys = [
+                    ...objectIds.map((id: string) => objectRowKey(id)),
+                    ...groupIds.map((id: string) => taskGroupRowKey(id)),
+                  ];
+                  const ordered = mergeOrder(planRowOrder, currentKeys);
+                  setPlanRowOrder(moveWithin(ordered, objectRowKey(menuItemId), 1));
                 } else if (menuType === 'taskGroup') {
-                  const currentIds = projectTaskGroups.map(g => g.id);
-                  const ordered = mergeOrder(taskGroupOrder, currentIds);
-                  setTaskGroupOrder(moveWithin(ordered, menuItemId, 1));
+                  const objectIds = Array.from(new Set(projectTasks.filter(t => t.projectObjectId).map(t => t.projectObjectId)));
+                  const groupIds = projectTaskGroups.map(g => g.id);
+                  const currentKeys = [
+                    ...objectIds.map((id: string) => objectRowKey(id)),
+                    ...groupIds.map((id: string) => taskGroupRowKey(id)),
+                  ];
+                  const ordered = mergeOrder(planRowOrder, currentKeys);
+                  setPlanRowOrder(moveWithin(ordered, taskGroupRowKey(menuItemId), 1));
                 } else if (menuType === 'program') {
                   const currentIds = programs.map(p => p.id);
                   const ordered = mergeOrder(treeOrder.programs, currentIds);
