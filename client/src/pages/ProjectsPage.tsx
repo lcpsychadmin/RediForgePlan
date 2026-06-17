@@ -1408,7 +1408,10 @@ const ProjectsPage: React.FC = () => {
                                               slotProps={{ htmlInput: { min: 0, max: 100 } }}
                                               sx={{ ...taskFieldSx, '& input': { textAlign: 'center', px: 0.5 } }} />
                                             <Box sx={{ display: 'flex', gap: 0.25, alignItems: 'center' }}>
-                                              <IconButton size="small" title="Discussion" onClick={() => setCommentModalTask({ id: task.id, name: task.name || 'Task' })}\n                                                sx={{ opacity: 0.6, '&:hover': { opacity: 1, color: accentColor } }}>\n                                                <ChatBubbleOutlineIcon sx={{ fontSize: '0.9rem' }} />\n                                              </IconButton>
+                                              <IconButton size="small" title="Discussion" onClick={() => setCommentModalTask({ id: task.id, name: task.name || 'Task' })}
+                                                sx={{ opacity: 0.6, '&:hover': { opacity: 1, color: accentColor } }}>
+                                                <ChatBubbleOutlineIcon sx={{ fontSize: '0.9rem' }} />
+                                              </IconButton>
                                               <IconButton size="small" onClick={() => openDeleteDialog('taskSingle' as any, task.id, task.name)} sx={{ opacity: 0.6, '&:hover': { opacity: 1 } }}>
                                                 <DeleteIcon sx={{ fontSize: '0.9rem' }} />
                                               </IconButton>
