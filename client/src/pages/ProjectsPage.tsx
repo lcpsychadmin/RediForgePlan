@@ -1281,6 +1281,74 @@ const ProjectsPage: React.FC = () => {
                                     <ChevronRightIcon sx={{ fontSize: 16, color: 'text.secondary', transition: 'transform 0.2s', transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)', flexShrink: 0 }} />
                                     <Typography sx={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '0.82rem', color: accentColor, flexShrink: 0, minWidth: 90 }}>{objectName}</Typography>
                                     <Typography variant="caption" sx={{ color: 'text.primary', fontWeight: 600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{description}</Typography>
+                                    {/* Timeline for object */}
+                                    {(() => {
+                                      const parseLocalDate = (dateString: string) => {
+                                        if (!dateString || typeof dateString !== 'string') return null;
+                                        const parts = dateString.trim().split(/[-\/]/);
+                                        if (parts.length !== 3) return null;
+                                        let year: number, month: number, day: number;
+                                        if (parts[0].length === 4) {
+                                          year = parseInt(parts[0]);
+                                          month = parseInt(parts[1]);
+                                          day = parseInt(parts[2]);
+                                        } else if (parts[2].length === 4) {
+                                          month = parseInt(parts[0]);
+                                          day = parseInt(parts[1]);
+                                          year = parseInt(parts[2]);
+                                        } else {
+                                          return null;
+                                        }
+                                        if (year < 1900 || year > 2100 || month < 1 || month > 12 || day < 1 || day > 31) return null;
+                                        return { year, month, day };
+                                      };
+                                      
+                                      const projectObj = projectInventoryItems.find(po => po.id === objectId);
+                                      if (!projectObj?.startDate || !projectObj?.endDate) return null;
+                                      
+                                      const startDateParsed = parseLocalDate(projectObj.startDate);
+                                      const endDateParsed = parseLocalDate(projectObj.endDate);
+                                      
+                                      if (!startDateParsed || !endDateParsed) return null;
+                                      
+                                      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                                      const timelineStr = `${monthNames[startDateParsed.month - 1]} ${startDateParsed.day} → ${monthNames[endDateParsed.month - 1]} ${endDateParsed.day}`;
+                                      
+                                      // Check if behind: today > endDate
+                                      const today = new Date();
+                                      const endDate = new Date(endDateParsed.year, endDateParsed.month - 1, endDateParsed.day);
+                                      const isBehind = today > endDate || overallStatus === 'blocked';
+                                      
+                                      return (
+                                        <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.7rem', flexShrink: 0 }}>
+                                          {timelineStr}
+                                        </Typography>
+                                      );
+                                    })()}
+                                    {/* Status indicator */}
+                                    {(() => {
+                                      const projectObj = projectInventoryItems.find(po => po.id === objectId);
+                                      if (!projectObj?.startDate || !projectObj?.endDate) return null;
+                                      
+                                      const today = new Date();
+                                      const parts = projectObj.endDate.split(/[-\/]/);
+                                      let year: number, month: number, day: number;
+                                      if (projectObj.endDate.includes('-') && parts[0].length === 4) {
+                                        [year, month, day] = [parseInt(parts[0]), parseInt(parts[1]), parseInt(parts[2])];
+                                      } else {
+                                        [month, day, year] = [parseInt(parts[0]), parseInt(parts[1]), parseInt(parts[2])];
+                                      }
+                                      const endDate = new Date(year, month - 1, day);
+                                      const isBehind = today > endDate || overallStatus === 'blocked';
+                                      
+                                      return (
+                                        <Box sx={{ width: 16, height: 16, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, 
+                                          backgroundColor: isBehind ? 'rgba(255, 152, 0, 0.2)' : 'rgba(76, 175, 80, 0.2)',
+                                          fontSize: '0.9rem', color: isBehind ? '#FFA726' : '#66BB6A' }}>
+                                          {isBehind ? '⚠' : '✓'}
+                                        </Box>
+                                      );
+                                    })()}
                                     <Box sx={{ display: 'flex', gap: 0.4, alignItems: 'center', flexShrink: 0 }}>
                                       {tasksForObject.slice(0, 10).map((task, i) => (<Box key={i} sx={{ width: 16, height: 4, borderRadius: 2, backgroundColor: getTaskStatusColor(task.status) }} />))}
                                     </Box>
@@ -1407,6 +1475,67 @@ const ProjectsPage: React.FC = () => {
                                     sx={{ pl: 2.5, pr: 1, py: 1.25, display: 'flex', alignItems: 'center', gap: 1.5, cursor: 'pointer', '&:hover': { backgroundColor: 'rgba(255,255,255,0.03)' } }}>
                                     <ChevronRightIcon sx={{ fontSize: 16, color: 'text.secondary', transition: 'transform 0.2s', transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)', flexShrink: 0 }} />
                                     <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', flex: 1, color: accentColor }}>{group.name}</Typography>
+                                    {/* Timeline for task group */}
+                                    {(() => {
+                                      const parseLocalDate = (dateString: string) => {
+                                        if (!dateString || typeof dateString !== 'string') return null;
+                                        const parts = dateString.trim().split(/[-\/]/);
+                                        if (parts.length !== 3) return null;
+                                        let year: number, month: number, day: number;
+                                        if (parts[0].length === 4) {
+                                          year = parseInt(parts[0]);
+                                          month = parseInt(parts[1]);
+                                          day = parseInt(parts[2]);
+                                        } else if (parts[2].length === 4) {
+                                          month = parseInt(parts[0]);
+                                          day = parseInt(parts[1]);
+                                          year = parseInt(parts[2]);
+                                        } else {
+                                          return null;
+                                        }
+                                        if (year < 1900 || year > 2100 || month < 1 || month > 12 || day < 1 || day > 31) return null;
+                                        return { year, month, day };
+                                      };
+                                      
+                                      if (!group.startDate || !group.endDate) return null;
+                                      
+                                      const startDateParsed = parseLocalDate(group.startDate);
+                                      const endDateParsed = parseLocalDate(group.endDate);
+                                      
+                                      if (!startDateParsed || !endDateParsed) return null;
+                                      
+                                      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                                      const timelineStr = `${monthNames[startDateParsed.month - 1]} ${startDateParsed.day} → ${monthNames[endDateParsed.month - 1]} ${endDateParsed.day}`;
+                                      
+                                      return (
+                                        <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.7rem', flexShrink: 0 }}>
+                                          {timelineStr}
+                                        </Typography>
+                                      );
+                                    })()}
+                                    {/* Status indicator */}
+                                    {(() => {
+                                      if (!group.startDate || !group.endDate) return null;
+                                      
+                                      const today = new Date();
+                                      const parts = group.endDate.split(/[-\/]/);
+                                      let year: number, month: number, day: number;
+                                      if (group.endDate.includes('-') && parts[0].length === 4) {
+                                        [year, month, day] = [parseInt(parts[0]), parseInt(parts[1]), parseInt(parts[2])];
+                                      } else {
+                                        [month, day, year] = [parseInt(parts[0]), parseInt(parts[1]), parseInt(parts[2])];
+                                      }
+                                      const endDate = new Date(year, month - 1, day);
+                                      const isBehind = today > endDate || overallStatus === 'blocked';
+                                      
+                                      return (
+                                        <Box sx={{ width: 16, height: 16, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, 
+                                          backgroundColor: isBehind ? 'rgba(255, 152, 0, 0.2)' : 'rgba(76, 175, 80, 0.2)',
+                                          fontSize: '0.9rem', color: isBehind ? '#FFA726' : '#66BB6A' }}>
+                                          {isBehind ? '⚠' : '✓'}
+                                        </Box>
+                                      );
+                                    })()}
                                     <Box sx={{ display: 'flex', gap: 0.4, alignItems: 'center', flexShrink: 0 }}>
                                       {groupTasks.slice(0, 10).map((task, i) => (<Box key={i} sx={{ width: 16, height: 4, borderRadius: 2, backgroundColor: getTaskStatusColor(task.status) }} />))}
                                     </Box>
