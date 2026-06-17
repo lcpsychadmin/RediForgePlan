@@ -750,8 +750,17 @@ const ProjectsPage: React.FC = () => {
                           cursor: 'pointer',
                           position: 'relative',
                           backgroundColor: isProgramSelected ? 'rgba(91, 103, 202, 0.15)' : 'transparent',
-                          borderLeft: isProgramSelected ? '3px solid #5B67CA' : '3px solid transparent',
-                          borderRadius: isProgramSelected ? '0 4px 4px 0' : 0,
+                          borderLeft: '3px solid transparent',
+                          '&::before': isProgramSelected ? {
+                            content: '""',
+                            position: 'absolute',
+                            left: 0,
+                            top: '4px',
+                            bottom: '4px',
+                            width: '3px',
+                            backgroundColor: '#5B67CA',
+                            borderRadius: '2px',
+                          } : {},
                           '&:hover': { backgroundColor: isProgramSelected ? 'rgba(91, 103, 202, 0.15)' : 'rgba(255,255,255,0.05)' },
                         }}
                         onClick={() => {
@@ -811,9 +820,19 @@ const ProjectsPage: React.FC = () => {
                                     pl: 0,
                                     pr: 0.5,
                                     cursor: 'pointer',
+                                    position: 'relative',
                                     backgroundColor: isCycleSelected ? 'rgba(91, 103, 202, 0.15)' : 'transparent',
-                                    borderLeft: isCycleSelected ? '3px solid #5B67CA' : '3px solid transparent',
-                                    borderRadius: isCycleSelected ? '0 4px 4px 0' : 0,
+                                    borderLeft: '3px solid transparent',
+                                    '&::before': isCycleSelected ? {
+                                      content: '""',
+                                      position: 'absolute',
+                                      left: 0,
+                                      top: '4px',
+                                      bottom: '4px',
+                                      width: '3px',
+                                      backgroundColor: '#5B67CA',
+                                      borderRadius: '2px',
+                                    } : {},
                                     '&:hover': { backgroundColor: isCycleSelected ? 'rgba(91, 103, 202, 0.15)' : 'rgba(255,255,255,0.05)' },
                                   }}
                                   onClick={() => {
@@ -874,9 +893,19 @@ const ProjectsPage: React.FC = () => {
                                             pl: 0,
                                             pr: 0.5,
                                             cursor: 'pointer',
+                                            position: 'relative',
                                             backgroundColor: isProjectSelected ? `${accentColor}22` : 'transparent',
-                                            borderLeft: isProjectSelected ? `3px solid ${accentColor}` : '3px solid transparent',
-                                            borderRadius: isProjectSelected ? '0 4px 4px 0' : 0,
+                                            borderLeft: '3px solid transparent',
+                                            '&::before': isProjectSelected ? {
+                                              content: '""',
+                                              position: 'absolute',
+                                              left: 0,
+                                              top: '3px',
+                                              bottom: '3px',
+                                              width: '3px',
+                                              backgroundColor: accentColor,
+                                              borderRadius: '2px',
+                                            } : {},
                                             '&:hover': { backgroundColor: isProjectSelected ? `${accentColor}22` : 'rgba(255,255,255,0.05)' },
                                           }}
                                           onClick={() => setSelectedItem({ type: 'project', id: project.id, cycleId: cycle.id })}
