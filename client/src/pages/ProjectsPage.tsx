@@ -709,8 +709,9 @@ const ProjectsPage: React.FC = () => {
 
   const getTaskStatusColor = (status: string) => {
     switch (status) {
-      case 'completed': return '#4CAF50';
+      case 'complete': return '#4CAF50';
       case 'in_progress': return '#29B6F6';
+      case 'blocked': return '#EF5350';
       default: return 'rgba(255,255,255,0.2)';
     }
   };
@@ -1046,7 +1047,7 @@ const ProjectsPage: React.FC = () => {
                         break;
                       }
                     }
-                    const completedTasks = projectTasks.filter(t => t.status === 'completed').length;
+                    const completedTasks = projectTasks.filter(t => t.status === 'complete').length;
                     const progressPct = projectTasks.length > 0 ? Math.round((completedTasks / projectTasks.length) * 100) : 0;
                     const allObjectIds = Array.from(new Set(projectTasks.filter(t => t.projectObjectId).map(t => t.projectObjectId)));
                     return (
@@ -1094,7 +1095,7 @@ const ProjectsPage: React.FC = () => {
                             <MenuItem value="">All Statuses</MenuItem>
                             <MenuItem value="not_started">Not Started</MenuItem>
                             <MenuItem value="in_progress">In Progress</MenuItem>
-                            <MenuItem value="completed">Completed</MenuItem>
+                            <MenuItem value="complete">Completed</MenuItem>
                           </TextField>
                           {(planSearchTerm || planStatusFilter) && (
                             <Button size="small" variant="text" onClick={() => { setPlanSearchTerm(''); setPlanStatusFilter(''); }} sx={{ textTransform: 'none', color: 'text.secondary' }}>Clear</Button>
@@ -1115,7 +1116,7 @@ const ProjectsPage: React.FC = () => {
                               const isExpanded = expandedObjects.has(objectId || '');
                               if (planSearchTerm && !objectName.toLowerCase().includes(planSearchTerm.toLowerCase()) && !description.toLowerCase().includes(planSearchTerm.toLowerCase())) return null;
                               if (planStatusFilter && !tasksForObject.some(t => t.status === planStatusFilter)) return null;
-                              const overallStatus = tasksForObject.length > 0 && tasksForObject.every(t => t.status === 'completed') ? 'completed' : tasksForObject.some(t => t.status === 'in_progress') ? 'in_progress' : 'not_started';
+                              const overallStatus = tasksForObject.length > 0 && tasksForObject.every(t => t.status === 'complete') ? 'complete' : tasksForObject.some(t => t.status === 'in_progress') ? 'in_progress' : tasksForObject.some(t => t.status === 'blocked') ? 'blocked' : 'not_started';
                               return (
                                 <Box key={`obj-${objectId}`} sx={{ position: 'relative', backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 2, overflow: 'hidden' }}>
                                   <Box sx={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, backgroundColor: accentColor }} />
@@ -1161,7 +1162,7 @@ const ProjectsPage: React.FC = () => {
                                               sx={{ '& .MuiInputBase-root': { fontSize: '0.72rem', height: 26 } }}>
                                               <MenuItem value="not_started">Not Started</MenuItem>
                                               <MenuItem value="in_progress">In Progress</MenuItem>
-                                              <MenuItem value="completed">Completed</MenuItem>
+                                              <MenuItem value="complete">Completed</MenuItem>
                                               <MenuItem value="blocked">Blocked</MenuItem>
                                             </TextField>
                                             {/* Assigned To */}
@@ -1223,10 +1224,10 @@ const ProjectsPage: React.FC = () => {
                             {projectTaskGroups.map((group) => {
                               const isExpanded = expandedTaskGroups.has(group.id);
                               const groupTasks = projectTasks.filter(t => t.taskGroupId === group.id);
-                              const overallStatus = groupTasks.length > 0 && groupTasks.every(t => t.status === 'completed') ? 'completed' : groupTasks.some(t => t.status === 'in_progress') ? 'in_progress' : 'not_started';
+                              const overallStatus = groupTasks.length > 0 && groupTasks.every(t => t.status === 'complete') ? 'complete' : groupTasks.some(t => t.status === 'in_progress') ? 'in_progress' : groupTasks.some(t => t.status === 'blocked') ? 'blocked' : 'not_started';
                               return (
                                 <Box key={`group-${group.id}`} sx={{ position: 'relative', backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 2, overflow: 'hidden' }}>
-                                  <Box sx={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, backgroundColor: '#5B67CA' }} />
+                                  <Box sx={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, backgroundColor: accentColor }} />
                                   <Box onClick={() => { const next = new Set(expandedTaskGroups); if (isExpanded) next.delete(group.id); else next.add(group.id); setExpandedTaskGroups(next); }}
                                     sx={{ pl: 2.5, pr: 1, py: 1.25, display: 'flex', alignItems: 'center', gap: 1.5, cursor: 'pointer', '&:hover': { backgroundColor: 'rgba(255,255,255,0.03)' } }}>
                                     <ChevronRightIcon sx={{ fontSize: 16, color: 'text.secondary', transition: 'transform 0.2s', transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)', flexShrink: 0 }} />
@@ -1994,26 +1995,39 @@ const ProjectsPage: React.FC = () => {
       <Dialog open={!!depDialogTaskId} onClose={() => setDepDialogTaskId(null)} maxWidth="sm" fullWidth>
         <DialogTitle>Task Dependencies</DialogTitle>
         <DialogContent>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
             Select tasks that must complete before this task can start.
           </Typography>
+          <TextField
+            fullWidth size="small" placeholder="Search tasks..."
+            sx={{ mb: 1.5 }}
+            onChange={e => {
+              const v = e.target.value.toLowerCase();
+              setCycleTasksForDep(prev => prev.map(t => ({ ...t, _hidden: v ? !(t.name || '').toLowerCase().includes(v) : false })));
+            }}
+          />
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, maxHeight: 300, overflowY: 'auto' }}>
-            {cycleTasksForDep.filter(t => t.id !== depDialogTaskId).map(t => {
+            {cycleTasksForDep.filter(t => t.id !== depDialogTaskId && !t._hidden).map(t => {
               const isDep = (taskDeps[depDialogTaskId || ''] || []).some((d: any) => d.dependsOnTaskId === t.id);
+              const obj = projectInventoryItems.find(o => o.id === t.projectObjectId);
               return (
-                <Box key={t.id} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 0.5, px: 1, borderRadius: 1, '&:hover': { backgroundColor: 'action.hover' } }}>
-                  <input type="checkbox" checked={isDep} onChange={async (e) => {
-                    if (e.target.checked) {
-                      await apiClient.post(`/api/tasks/${depDialogTaskId}/dependencies`, { dependsOnTaskId: t.id });
-                    } else {
+                <Box key={t.id} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 0.6, px: 1, borderRadius: 1, cursor: 'pointer', backgroundColor: isDep ? 'rgba(91,103,202,0.12)' : 'transparent', '&:hover': { backgroundColor: 'rgba(255,255,255,0.05)' } }}
+                  onClick={async () => {
+                    if (isDep) {
                       await apiClient.delete(`/api/tasks/${depDialogTaskId}/dependencies/${t.id}`);
+                    } else {
+                      await apiClient.post(`/api/tasks/${depDialogTaskId}/dependencies`, { dependsOnTaskId: t.id });
                     }
                     if (depDialogTaskId) await loadTaskDeps(depDialogTaskId);
-                  }} />
-                  <Box>
-                    <Typography variant="body2" sx={{ fontWeight: 500 }}>{t.name || 'Unnamed'}</Typography>
-                    <Typography variant="caption" color="text.secondary">{t.status}</Typography>
+                  }}>
+                  <Box sx={{ width: 16, height: 16, borderRadius: '3px', border: '2px solid', borderColor: isDep ? 'primary.main' : 'rgba(255,255,255,0.3)', backgroundColor: isDep ? 'primary.main' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    {isDep && <Box sx={{ width: 8, height: 8, backgroundColor: 'white', borderRadius: '1px' }} />}
                   </Box>
+                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 500 }}>{t.name || 'Unnamed'}</Typography>
+                    {obj && <Typography variant="caption" color="text.disabled">{obj.objectId}</Typography>}
+                  </Box>
+                  <Box sx={{ px: 1, py: 0.25, borderRadius: 1, fontSize: '0.68rem', fontWeight: 600, backgroundColor: `${getTaskStatusColor(t.status)}22`, color: getTaskStatusColor(t.status) }}>{t.status}</Box>
                 </Box>
               );
             })}
