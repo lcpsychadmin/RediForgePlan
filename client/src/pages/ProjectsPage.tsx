@@ -766,7 +766,24 @@ const ProjectsPage: React.FC = () => {
     try {
       const payload = field === 'progressPercentage' ? { [field]: parseInt(value) || 0 } : { [field]: value };
       await apiClient.patch(`/api/tasks/${taskId}`, payload);
-      setProjectTasks(prev => prev.map(t => t.id === taskId ? { ...t, [field]: field === 'progressPercentage' ? parseInt(value) || 0 : value } : t));
+      const updatedTasks = projectTasks.map(t => t.id === taskId ? { ...t, [field]: field === 'progressPercentage' ? parseInt(value) || 0 : value } : t);
+      setProjectTasks(updatedTasks);
+
+      // Recalculate and persist project % complete
+      if (activeProjectId) {
+        const allPct = updatedTasks.filter(t => t.projectObjectId || t.taskGroupId);
+        const avg = allPct.length > 0
+          ? Math.round(allPct.reduce((sum, t) => {
+              const pct = t.id === taskId && field === 'status' && value === 'complete' ? 100
+                : t.id === taskId && field === 'progressPercentage' ? (parseInt(value) || 0)
+                : (t.progressPercentage ?? 0);
+              return sum + pct;
+            }, 0) / allPct.length)
+          : 0;
+        await apiClient.patch(`/api/projects/${activeProjectId}`, { progressPercentage: avg });
+        // Update local projectsByMockCycle so tree reflects new %
+        queryClient.invalidateQueries({ queryKey: ['projectsByMockCycle'] });
+      }
     } catch (e) { console.error('Failed to update task', e); }
   };
 
@@ -934,6 +951,13 @@ const ProjectsPage: React.FC = () => {
                                   <Typography variant="body2" sx={{ fontWeight: 500, fontSize: '0.8rem', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: isCycleSelected ? '#5B67CA' : 'inherit' }}>
                                     {cycle.name}
                                   </Typography>
+                                  {(() => {
+                                    const cycleProjects = projectsByMockCycle[cycle.id] || [];
+                                    const cyclePct = cycleProjects.length > 0
+                                      ? Math.round(cycleProjects.reduce((s: number, p: Project) => s + (p.progressPercentage || 0), 0) / cycleProjects.length)
+                                      : 0;
+                                    return <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 500, mr: 0.5, flexShrink: 0 }}>{cyclePct}%</Typography>;
+                                  })()}
                                   <IconButton
                                     size="small"
                                     onClick={(e) => {
@@ -1090,8 +1114,8 @@ const ProjectsPage: React.FC = () => {
                         break;
                       }
                     }
-                    const completedTasks = projectTasks.filter(t => t.status === 'complete').length;
-                    const progressPct = projectTasks.length > 0 ? Math.round((completedTasks / projectTasks.length) * 100) : 0;
+                    const allPlanTasks = projectTasks.filter(t => t.projectObjectId || t.taskGroupId);
+                    const progressPct = allPlanTasks.length > 0 ? Math.round(allPlanTasks.reduce((s, t) => s + (t.progressPercentage ?? 0), 0) / allPlanTasks.length) : 0;
                     const allObjectIds = Array.from(new Set(projectTasks.filter(t => t.projectObjectId).map(t => t.projectObjectId)));
                     const taskFieldSx = {
                       '& .MuiInputBase-root': { fontSize: '0.72rem', height: 26 },
@@ -1208,15 +1232,15 @@ const ProjectsPage: React.FC = () => {
                                         </Box>
                                       )}
                                       {/* Table header */}
-                                      <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 120px 150px 100px 100px 60px 1fr 60px', gap: 0, px: 2, py: 0.5, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                                        {['PHASE', 'STATUS', 'ASSIGNED TO', 'START DATE', 'END DATE', '%', 'NOTES', 'ACTIONS'].map(h => (
+                                      <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 120px 60px 150px 100px 100px 1fr 60px', gap: 0, px: 2, py: 0.5, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                                        {['PHASE', 'STATUS', '%', 'ASSIGNED TO', 'START DATE', 'END DATE', 'NOTES', 'ACTIONS'].map(h => (
                                           <Typography key={h} variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', letterSpacing: '0.05em', fontWeight: 600 }}>{h}</Typography>
                                         ))}
                                       </Box>
                                       {tasksForObject.length === 0
                                         ? <Typography variant="caption" color="text.disabled" sx={{ px: 2, py: 1, display: 'block' }}>No tasks</Typography>
                                         : tasksForObject.map((task) => (
-                                          <Box key={task.id} sx={{ display: 'grid', gridTemplateColumns: '1fr 120px 150px 100px 100px 60px 1fr 60px', gap: 0, px: 2, py: 0.5, alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.03)', '&:hover': { backgroundColor: 'rgba(255,255,255,0.02)' } }}>
+                                          <Box key={task.id} sx={{ display: 'grid', gridTemplateColumns: '1fr 120px 60px 150px 100px 100px 1fr 60px', gap: 0, px: 2, py: 0.5, alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.03)', '&:hover': { backgroundColor: 'rgba(255,255,255,0.02)' } }}>
                                             {/* Phase name */}
                                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
                                               <Box sx={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: getTaskStatusColor(task.status), flexShrink: 0 }} />
@@ -1237,6 +1261,15 @@ const ProjectsPage: React.FC = () => {
                                               <MenuItem value="complete">Completed</MenuItem>
                                               <MenuItem value="blocked">Blocked</MenuItem>
                                             </TextField>
+                                            {/* % Complete - right after status */}
+                                            <TextField size="small" type="number" value={task.progressPercentage ?? 0}
+                                              disabled={task.status !== 'in_progress'}
+                                              onChange={e => {
+                                                const val = Math.min(100, Math.max(0, parseInt(e.target.value) || 0));
+                                                updateTaskInline(task.id, 'progressPercentage', String(val));
+                                              }}
+                                              slotProps={{ htmlInput: { min: 0, max: 100 } }}
+                                              sx={{ ...taskFieldSx, '& input': { textAlign: 'center', px: 0.5 } }} />
                                             {/* Assigned To */}
                                             <TextField select size="small" value={task.assignedTo || ''} onChange={e => updateTaskInline(task.id, 'assignedTo', e.target.value)}
                                               sx={taskFieldSx}>
@@ -1251,15 +1284,6 @@ const ProjectsPage: React.FC = () => {
                                             {/* End Date */}
                                             <TextField size="small" type="date" value={task.endDate || ''} onChange={e => updateTaskInline(task.id, 'endDate', e.target.value)}
                                               sx={taskFieldSx} />
-                                            {/* % Complete */}
-                                            <TextField size="small" type="number" value={task.progressPercentage ?? 0}
-                                              disabled={task.status !== 'in_progress'}
-                                              onChange={e => {
-                                                const val = Math.min(100, Math.max(0, parseInt(e.target.value) || 0));
-                                                updateTaskInline(task.id, 'progressPercentage', String(val));
-                                              }}
-                                              slotProps={{ htmlInput: { min: 0, max: 100 } }}
-                                              sx={{ ...taskFieldSx, '& input': { textAlign: 'center', px: 0.5 } }} />
                                             {/* Notes */}
                                             <TextField size="small" placeholder="Notes..." value={task.notes || ''} onBlur={e => updateTaskInline(task.id, 'notes', e.target.value)}
                                               onChange={e => setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, notes: e.target.value } : t))}
@@ -1324,15 +1348,15 @@ const ProjectsPage: React.FC = () => {
                                   {isExpanded && (
                                     <Box sx={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
                                       {/* Table header */}
-                                      <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 120px 150px 100px 100px 60px 1fr 60px', gap: 0, px: 2, py: 0.5, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                                        {['TASK', 'STATUS', 'ASSIGNED TO', 'START DATE', 'END DATE', '%', 'NOTES', 'ACTIONS'].map(h => (
+                                      <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 120px 60px 150px 100px 100px 1fr 60px', gap: 0, px: 2, py: 0.5, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                                        {['TASK', 'STATUS', '%', 'ASSIGNED TO', 'START DATE', 'END DATE', 'NOTES', 'ACTIONS'].map(h => (
                                           <Typography key={h} variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', letterSpacing: '0.05em', fontWeight: 600 }}>{h}</Typography>
                                         ))}
                                       </Box>
                                       {groupTasks.length === 0
                                         ? <Typography variant="caption" color="text.disabled" sx={{ px: 2, py: 1, display: 'block' }}>No tasks</Typography>
                                         : groupTasks.map((task) => (
-                                          <Box key={task.id} sx={{ display: 'grid', gridTemplateColumns: '1fr 120px 150px 100px 100px 60px 1fr 60px', gap: 0, px: 2, py: 0.5, alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.03)', '&:hover': { backgroundColor: 'rgba(255,255,255,0.02)' } }}>
+                                          <Box key={task.id} sx={{ display: 'grid', gridTemplateColumns: '1fr 120px 60px 150px 100px 100px 1fr 60px', gap: 0, px: 2, py: 0.5, alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.03)', '&:hover': { backgroundColor: 'rgba(255,255,255,0.02)' } }}>
                                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
                                               <Box sx={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: getTaskStatusColor(task.status), flexShrink: 0 }} />
                                               <TextField size="small" value={task.name || ''} onBlur={e => updateTaskInline(task.id, 'name', e.target.value)}
@@ -1351,6 +1375,15 @@ const ProjectsPage: React.FC = () => {
                                               <MenuItem value="complete">Completed</MenuItem>
                                               <MenuItem value="blocked">Blocked</MenuItem>
                                             </TextField>
+                                            {/* % Complete - right after status */}
+                                            <TextField size="small" type="number" value={task.progressPercentage ?? 0}
+                                              disabled={task.status !== 'in_progress'}
+                                              onChange={e => {
+                                                const val = Math.min(100, Math.max(0, parseInt(e.target.value) || 0));
+                                                updateTaskInline(task.id, 'progressPercentage', String(val));
+                                              }}
+                                              slotProps={{ htmlInput: { min: 0, max: 100 } }}
+                                              sx={{ ...taskFieldSx, '& input': { textAlign: 'center', px: 0.5 } }} />
                                             <TextField select size="small" value={task.assignedTo || ''} onChange={e => updateTaskInline(task.id, 'assignedTo', e.target.value)}
                                               sx={taskFieldSx}>
                                               <MenuItem value=""><em>Unassigned</em></MenuItem>
