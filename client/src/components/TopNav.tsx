@@ -54,6 +54,10 @@ const TopNav: React.FC<TopNavProps> = ({
   const [notifAnchorEl, setNotifAnchorEl] = React.useState<null | HTMLElement>(null);
   const [notifications, setNotifications] = React.useState<any[]>([]);
   const [unreadCount, setUnreadCount] = React.useState(0);
+  const unopenedCount = React.useMemo(() => {
+    const localUnread = notifications.filter(n => !n.isRead).length;
+    return localUnread > 0 ? localUnread : unreadCount;
+  }, [notifications, unreadCount]);
   const isProjectsPage = location.pathname === '/projects';
 
   const loadNotifications = React.useCallback(() => {
@@ -232,7 +236,7 @@ const TopNav: React.FC<TopNavProps> = ({
         <Box>
           {/* Notification Bell */}
           <IconButton color="inherit" onClick={async (e) => { setNotifAnchorEl(e.currentTarget); await loadNotifications(); }}>
-            <Badge badgeContent={unreadCount} color="error" max={99}>
+            <Badge badgeContent={unopenedCount} color="error" max={99}>
               <NotificationsIcon />
             </Badge>
           </IconButton>

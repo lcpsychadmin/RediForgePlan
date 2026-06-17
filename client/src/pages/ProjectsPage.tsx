@@ -471,7 +471,7 @@ const ProjectsPage: React.FC = () => {
     };
 
     selectNotificationProject();
-  }, [projectsByMockCycle, mockCycles, selectedItem]);
+  }, [projectsByMockCycle, mockCycles, selectedItem, location.search]);
 
   // Once tasks load for the selected project, open the discussion modal for the target task.
   useEffect(() => {
@@ -487,7 +487,7 @@ const ProjectsPage: React.FC = () => {
 
     setCommentModalTask({ id: target.taskId, name: task?.name || target.taskName || 'Task' });
     sessionStorage.removeItem('pendingNotificationTarget');
-  }, [activeProjectId, projectTasks]);
+  }, [activeProjectId, projectTasks, location.search]);
 
   const handleCreateItem = async () => {
     if (!newItemName.trim()) {
