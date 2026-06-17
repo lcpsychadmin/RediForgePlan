@@ -1447,15 +1447,6 @@ const ProjectsPage: React.FC = () => {
                                               sx={taskFieldSx} />
                                             <TextField size="small" type="date" value={task.endDate || ''} onChange={e => updateTaskInline(task.id, 'endDate', e.target.value)}
                                               sx={taskFieldSx} />
-                                            {/* % Complete */}
-                                            <TextField size="small" type="number" value={task.progressPercentage ?? 0}
-                                              disabled={task.status !== 'in_progress'}
-                                              onChange={e => {
-                                                const val = Math.min(100, Math.max(0, parseInt(e.target.value) || 0));
-                                                updateTaskInline(task.id, 'progressPercentage', String(val));
-                                              }}
-                                              slotProps={{ htmlInput: { min: 0, max: 100 } }}
-                                              sx={{ ...taskFieldSx, '& input': { textAlign: 'center', px: 0.5 } }} />
                                             <Box sx={{ display: 'flex', gap: 0.25, alignItems: 'center' }}>
                                               <Badge badgeContent={taskCommentCounts[task.id] || 0} color="primary">
                                                 <IconButton size="small" title="Discussion" onClick={() => setCommentModalTask({ id: task.id, name: task.name || 'Task' })}
