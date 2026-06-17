@@ -199,6 +199,7 @@ const ProjectsPage: React.FC = () => {
   const [depDialogTaskId, setDepDialogTaskId] = useState<string | null>(null);
   const [cycleTasksForDep, setCycleTasksForDep] = useState<any[]>([]);
   const [taskDeps, setTaskDeps] = useState<Record<string, any[]>>({});
+  const [defaultTaskOrder, setDefaultTaskOrder] = useState<string[]>([]);
 
   const { data: programs = [], isLoading } = useQuery({
     queryKey: ['programs'],
@@ -262,6 +263,14 @@ const ProjectsPage: React.FC = () => {
       return objects;
     },
   });
+
+  // Fetch default task template order
+  useEffect(() => {
+    apiClient.get('/api/tasks/templates/defaults').then(res => {
+      const names = (res.data.data || []).map((t: any) => t.name as string);
+      setDefaultTaskOrder(names);
+    }).catch(() => {});
+  }, []);
 
   // Get the active project ID from either inventory tab or plan tab selection
   const activeProjectId = selectedItem?.type === 'project' ? selectedItem.id : selectedProjectForInventory;
@@ -1112,7 +1121,22 @@ const ProjectsPage: React.FC = () => {
                         ) : (
                           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                             {allObjectIds.map((objectId) => {
-                              const tasksForObject = projectTasks.filter(t => t.projectObjectId === objectId);
+                              const tasksForObject = projectTasks
+                                .filter(t => t.projectObjectId === objectId)
+                                .sort((a, b) => {
+                                  // 1. Start date ascending (nulls last)
+                                  const aDate = a.startDate ? new Date(a.startDate).getTime() : Infinity;
+                                  const bDate = b.startDate ? new Date(b.startDate).getTime() : Infinity;
+                                  if (aDate !== bDate) return aDate - bDate;
+                                  // 2. Default template order
+                                  const aIdx = defaultTaskOrder.indexOf(a.name);
+                                  const bIdx = defaultTaskOrder.indexOf(b.name);
+                                  const aOrder = aIdx === -1 ? 999 : aIdx;
+                                  const bOrder = bIdx === -1 ? 999 : bIdx;
+                                  if (aOrder !== bOrder) return aOrder - bOrder;
+                                  // 3. Alphabetical
+                                  return (a.name || '').localeCompare(b.name || '');
+                                });
                               const inventoryObject = projectInventoryItems.find(obj => obj.id === objectId);
                               const objectName = inventoryObject?.objectId || 'Unknown Object';
                               const globalObj = inventoryObjects.find(o => o.id === inventoryObject?.globalObjectId || o.objectId === inventoryObject?.objectId);
