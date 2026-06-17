@@ -15,6 +15,7 @@ import GridViewIcon from '@mui/icons-material/GridView';
 import TableChartIcon from '@mui/icons-material/TableChart';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
+import AssignmentTurnedInIcon from '@mui/icons-material/AssignmentTurnedIn';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import apiClient from '../api/client';
@@ -320,6 +321,15 @@ const TopNav: React.FC<TopNavProps> = ({
             >
               <SettingsIcon fontSize="small" />
               <Typography variant="body2">Settings</Typography>
+            </MenuItem>
+
+            <MenuItem
+              onClick={() => handleNavigate('/my-tasks')}
+              selected={isActive('/my-tasks')}
+              sx={{ display: 'flex', gap: 1 }}
+            >
+              <AssignmentTurnedInIcon fontSize="small" />
+              <Typography variant="body2">My Tasks</Typography>
             </MenuItem>
 
             {/* Admin Section */}

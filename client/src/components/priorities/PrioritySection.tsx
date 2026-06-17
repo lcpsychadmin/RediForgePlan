@@ -10,6 +10,7 @@ interface PrioritySectionProps {
   tasks: PriorityTask[];
   color?: string;
   onTaskClick?: (task: PriorityTask) => void;
+  peopleById?: Record<string, { id: string; name: string; email?: string }>;
 }
 
 const PrioritySection: React.FC<PrioritySectionProps> = ({
@@ -17,6 +18,7 @@ const PrioritySection: React.FC<PrioritySectionProps> = ({
   tasks,
   color = '#1976d2',
   onTaskClick,
+  peopleById = {},
 }) => {
   return (
     <Box sx={{ mb: 4 }}>
@@ -38,7 +40,7 @@ const PrioritySection: React.FC<PrioritySectionProps> = ({
         <Grid container spacing={2} sx={{ mt: 0 }}>
           {tasks.map((task) => (
             <Grid item xs={12} sm={6} md={4} key={task.taskId}>
-              <PriorityTaskCard task={task} onClick={() => onTaskClick?.(task)} />
+              <PriorityTaskCard task={task} onClick={() => onTaskClick?.(task)} peopleById={peopleById} />
             </Grid>
           ))}
         </Grid>

@@ -5,15 +5,24 @@ import apiClient from '../api/client';
 
 export interface PriorityTask {
   taskId: string;
+  id?: string;
   taskType: string;
   taskName?: string;
+  name?: string;
   projectObjectId?: string;
   objectId?: string;
+  taskGroupId?: string;
   status: string;
   startDate?: string;
   endDate?: string;
+  assignedTo?: string;
   draUserId?: string;
   developerUserId?: string;
+  notes?: string;
+  progressPercentage?: number;
+  projectName?: string;
+  mockCycleName?: string;
+  programName?: string;
   priorityCategory: string;
 }
 

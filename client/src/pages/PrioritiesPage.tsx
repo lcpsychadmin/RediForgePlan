@@ -6,16 +6,25 @@ import PageContainer from '../layout/PageContainer';
 import ContentHeader from '../layout/ContentHeader';
 import PrioritySection from '../components/priorities/PrioritySection';
 import { usePriorities, useProjectStatus } from '../hooks/usePriorities';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import apiClient from '../api/client';
+import TaskDetailModal from '../components/tasks/TaskDetailModal';
 
 const PrioritiesPage: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
-  const navigate = useNavigate();
+  const [selectedTask, setSelectedTask] = React.useState<any | null>(null);
 
   const { data: prioritized, isLoading, error } = usePriorities(projectId!);
   const { data: status } = useProjectStatus(projectId!);
+  const { data: people = [] } = useQuery({
+    queryKey: ['people'],
+    queryFn: async () => {
+      const response = await apiClient.get('/api/people');
+      return response.data.data || [];
+    },
+  });
+
   const { data: rawTasks = [] } = useQuery({
     queryKey: ['priorities-fallback-tasks', projectId],
     queryFn: async () => {
@@ -63,17 +72,44 @@ const PrioritiesPage: React.FC = () => {
     blocked: rawTasks.filter((t: any) => t.status === 'blocked'),
   };
 
-  const effectivePrioritized = prioritized || fallbackPrioritized;
+  const peopleById = React.useMemo(
+    () => Object.fromEntries((people || []).map((person: any) => [person.id, person])),
+    [people]
+  );
 
-  const openTaskInProjectsPage = (taskId: string, taskName?: string) => {
-    if (!projectId) return;
-    const params = new URLSearchParams({
-      openProject: projectId,
-      openTask: taskId,
-      taskName: taskName || 'Task',
+  const rawTaskMap = React.useMemo(
+    () => new Map((rawTasks || []).map((task: any) => [task.id, task])),
+    [rawTasks]
+  );
+
+  const mergeTaskDetails = (tasks: any[]) =>
+    tasks.map((task: any) => {
+      const id = task.taskId || task.id;
+      const raw = rawTaskMap.get(id) || {};
+      return {
+        ...raw,
+        ...task,
+        taskId: id,
+        taskName: task.taskName || raw.name,
+        notes: task.notes || raw.notes,
+        progressPercentage:
+          typeof task.progressPercentage === 'number'
+            ? task.progressPercentage
+            : raw.progressPercentage,
+      };
     });
-    navigate(`/projects?${params.toString()}`);
-  };
+
+  const effectivePrioritized = React.useMemo(() => {
+    const source = prioritized || fallbackPrioritized;
+    return {
+      late: mergeTaskDetails(source.late || []),
+      in_progress: mergeTaskDetails(source.in_progress || []),
+      due_this_week: mergeTaskDetails(source.due_this_week || []),
+      blocked: mergeTaskDetails(source.blocked || []),
+    };
+  }, [prioritized, rawTaskMap, rawTasks]);
+
+  const openTaskModal = (task: any) => setSelectedTask(task);
 
   return (
     <PageContainer>
@@ -144,9 +180,10 @@ const PrioritiesPage: React.FC = () => {
             <PrioritySection
               key={config.key}
               title={config.title}
-              tasks={fallbackPrioritized[config.key as keyof typeof fallbackPrioritized] || []}
+              tasks={effectivePrioritized[config.key as keyof typeof effectivePrioritized] || []}
               color={config.color}
-              onTaskClick={(task) => openTaskInProjectsPage(task.taskId || task.id, task.taskName || task.name || task.objectId)}
+              onTaskClick={openTaskModal}
+              peopleById={peopleById}
             />
           ))}
         </>
@@ -157,12 +194,21 @@ const PrioritiesPage: React.FC = () => {
             title={config.title}
             tasks={effectivePrioritized[config.key as keyof typeof effectivePrioritized] || []}
             color={config.color}
-            onTaskClick={(task) => openTaskInProjectsPage(task.taskId || (task as any).id, task.taskName || (task as any).name || task.objectId)}
+            onTaskClick={openTaskModal}
+            peopleById={peopleById}
           />
         ))
       ) : (
         <Alert severity="info">No prioritized data available</Alert>
       )}
+
+      <TaskDetailModal
+        open={!!selectedTask}
+        onClose={() => setSelectedTask(null)}
+        taskId={selectedTask?.taskId || selectedTask?.id}
+        task={selectedTask}
+        peopleById={peopleById}
+      />
     </PageContainer>
   );
 };

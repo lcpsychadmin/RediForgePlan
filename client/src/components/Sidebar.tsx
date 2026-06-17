@@ -16,6 +16,7 @@ import { Link as RouterLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import FolderOpenIcon from '@mui/icons-material/FolderOpen';
+import AssignmentTurnedInIcon from '@mui/icons-material/AssignmentTurnedIn';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import { palette } from '../theme/palette';
 
@@ -42,6 +43,11 @@ const Sidebar: React.FC<{ open: boolean; onClose: () => void }> = ({ open, onClo
       label: 'Projects',
       path: '/projects',
       icon: <FolderOpenIcon sx={{ fontSize: '1.25rem' }} />,
+    },
+    {
+      label: 'My Tasks',
+      path: '/my-tasks',
+      icon: <AssignmentTurnedInIcon sx={{ fontSize: '1.25rem' }} />,
     },
   ];
 
