@@ -1171,10 +1171,20 @@ const ProjectsPage: React.FC = () => {
 
                         {/* Timeline */}
                         {(() => {
+                          const parseLocalDate = (dateString: string) => {
+                            const parts = dateString.split(/[-\/]/);
+                            let year, month, day;
+                            if (dateString.includes('-') && parts[0].length === 4) {
+                              [year, month, day] = parts;
+                            } else {
+                              [month, day, year] = parts;
+                            }
+                            return new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+                          };
                           const tasksWithDates = allPlanTasks.filter(t => t.startDate || t.endDate);
                           if (tasksWithDates.length === 0) return null;
-                          const startDates = tasksWithDates.filter(t => t.startDate).map(t => new Date(t.startDate).getTime());
-                          const endDates = tasksWithDates.filter(t => t.endDate).map(t => new Date(t.endDate).getTime());
+                          const startDates = tasksWithDates.filter(t => t.startDate).map(t => parseLocalDate(t.startDate).getTime());
+                          const endDates = tasksWithDates.filter(t => t.endDate).map(t => parseLocalDate(t.endDate).getTime());
                           const minStart = startDates.length > 0 ? new Date(Math.min(...startDates)) : null;
                           const maxEnd = endDates.length > 0 ? new Date(Math.max(...endDates)) : null;
                           if (!minStart || !maxEnd) return null;
