@@ -1007,6 +1007,18 @@ const ProjectsPage: React.FC = () => {
     }
   };
 
+  const handleProjectInventoryInlineChange = async (itemId: string, field: string, value: string) => {
+    try {
+      await apiClient.patch(`/api/project-objects/${itemId}`, {
+        [field]: value || null,
+      });
+      setProjectInventoryItems(prev => prev.map(item => item.id === itemId ? { ...item, [field]: value } : item));
+    } catch (error) {
+      console.error('Failed to update inventory item field:', error);
+      alert('Failed to update inventory item. Please try again.');
+    }
+  };
+
   if (isLoading) {
     return (
       <Layout>
@@ -2272,35 +2284,12 @@ const ProjectsPage: React.FC = () => {
 
               {/* Project Inventory Sub-Tab */}
               {inventorySubTab === 1 && (
-                <Card sx={{ backgroundColor: 'background.paper' }}>
+                <Card sx={{ backgroundColor: 'rgba(9, 19, 47, 0.9)', border: '1px solid rgba(80,115,181,0.35)', borderRadius: 2 }}>
                   <CardContent sx={{ p: 2 }}>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-                      <Typography variant="h6">
-                        Project Inventory
-                      </Typography>
-                      <Button
-                        variant="contained"
-                        sx={{
-                          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                          textTransform: 'none',
-                          fontWeight: 600,
-                        }}
-                        startIcon={<AddIcon />}
-                        onClick={() => setProjectInventoryDialogOpen(true)}
-                        disabled={!selectedProjectForInventory}
-                      >
-                        Add to Inventory
-                      </Button>
-                    </Box>
-
-                    {/* Project Selector Chips */}
-                    <Box sx={{ mb: 3 }}>
-                      <Typography variant="subtitle2" sx={{ mb: 1.5, color: 'text.secondary' }}>
-                        Select a project:
-                      </Typography>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1.5, mb: 2, flexWrap: 'wrap' }}>
                       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
                         {Object.keys(mockCycles).length === 0 || Object.values(mockCycles).flat().length === 0 ? (
-                          <Typography variant="caption" color="textSecondary">
+                          <Typography variant="caption" sx={{ color: '#8EA3CB' }}>
                             No projects available
                           </Typography>
                         ) : (
@@ -2312,22 +2301,19 @@ const ProjectsPage: React.FC = () => {
                                 component="button"
                                 onClick={() => setSelectedProjectForInventory(project.id)}
                                 sx={{
-                                  px: 2,
-                                  py: 1,
-                                  borderRadius: '24px',
-                                  border: selectedProjectForInventory === project.id ? '2px solid' : '1.5px solid',
-                                  borderColor: selectedProjectForInventory === project.id ? 'primary.main' : 'primary.main',
-                                  backgroundColor: selectedProjectForInventory === project.id ? 'primary.lighter' : 'transparent',
-                                  color: selectedProjectForInventory === project.id ? 'primary.main' : 'primary.main',
+                                  px: 1.6,
+                                  py: 0.5,
+                                  borderRadius: '999px',
+                                  border: selectedProjectForInventory === project.id ? '1px solid rgba(122,164,248,0.9)' : '1px solid rgba(89,112,160,0.35)',
+                                  background: selectedProjectForInventory === project.id ? 'linear-gradient(135deg, #6E7BFF 0%, #6A8BFF 100%)' : 'rgba(30, 46, 79, 0.72)',
+                                  color: selectedProjectForInventory === project.id ? '#EFF4FF' : '#9FB0D8',
                                   cursor: 'pointer',
-                                  textTransform: 'none',
-                                  fontWeight: selectedProjectForInventory === project.id ? 600 : 500,
-                                  fontSize: '0.875rem',
-                                  transition: 'all 0.2s',
+                                  fontWeight: 700,
+                                  fontSize: '0.78rem',
+                                  lineHeight: 1.3,
+                                  transition: 'all 0.16s ease',
                                   '&:hover': {
-                                    borderColor: 'primary.main',
-                                    backgroundColor: 'primary.lighter',
-                                    color: 'primary.contrastText',
+                                    background: selectedProjectForInventory === project.id ? 'linear-gradient(135deg, #6E7BFF 0%, #6A8BFF 100%)' : 'rgba(35,54,90,0.9)',
                                   },
                                 }}
                               >
@@ -2337,107 +2323,115 @@ const ProjectsPage: React.FC = () => {
                           })
                         )}
                       </Box>
-                    </Box>
-                    
-                    {/* Search and Filter Controls */}
-                    <Box sx={{ mb: 2 }}>
-                      <Box sx={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 2, alignItems: 'flex-end' }}>
-                        <TextField
-                          fullWidth
-                          placeholder="Search by ID or fields..."
-                          size="small"
-                          value={inventorySearchTerm}
-                          onChange={(e) => setInventorySearchTerm(e.target.value)}
-                        />
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <Typography variant="caption" sx={{ color: 'text.secondary', whiteSpace: 'nowrap' }}>
-                            Sort by:
-                          </Typography>
-                          <select
-                            value={inventorySortColumn}
-                            onChange={(e) => setInventorySortColumn(e.target.value as any)}
-                            style={{
-                              padding: '6px 8px',
-                              borderRadius: '4px',
-                              border: '1px solid #ccc',
-                              fontSize: '0.875rem',
-                              fontFamily: 'inherit',
-                            }}
-                          >
-                            <option value="dataObjectId">Object ID</option>
-                            <option value="processArea">Process Area</option>
-                            <option value="complexity">Complexity</option>
-                            <option value="deploymentDisposition">Deployment Disposition</option>
-                          </select>
-                          <Button
-                            size="small"
-                            variant="text"
-                            onClick={() => setInventorySortDirection(inventorySortDirection === 'asc' ? 'desc' : 'asc')}
-                          >
-                            {inventorySortDirection === 'asc' ? '↑' : '↓'}
-                          </Button>
-                        </Box>
-                      </Box>
+
+                      <Button
+                        variant="contained"
+                        sx={{
+                          background: 'linear-gradient(135deg, #6A7DFF 0%, #6B8BFF 100%)',
+                          textTransform: 'none',
+                          fontWeight: 700,
+                          borderRadius: '10px',
+                          boxShadow: 'none',
+                        }}
+                        startIcon={<AddIcon />}
+                        onClick={() => setProjectInventoryDialogOpen(true)}
+                        disabled={!selectedProjectForInventory}
+                      >
+                        Add to Inventory
+                      </Button>
                     </Box>
 
-                    {/* Inventory Table */}
                     <Box sx={{ overflowX: 'auto' }}>
-                      <Box sx={{ display: 'grid', gridTemplateColumns: '0.9fr 0.9fr 0.7fr 1.2fr 0.7fr', gap: 0, borderRadius: 1, overflow: 'hidden', border: '1px solid', borderColor: 'primary.main' }}>
-                        {/* Header */}
-                        <Box sx={{ backgroundColor: 'primary.main', p: 1, fontWeight: 700, color: 'primary.contrastText', fontSize: '0.75rem', letterSpacing: '0.5px' }}>
-                          DATA OBJECT ID
-                        </Box>
-                        <Box sx={{ backgroundColor: 'primary.main', p: 1, fontWeight: 700, color: 'primary.contrastText', fontSize: '0.75rem', letterSpacing: '0.5px' }}>
-                          PROCESS AREA
-                        </Box>
-                        <Box sx={{ backgroundColor: 'primary.main', p: 1, fontWeight: 700, color: 'primary.contrastText', fontSize: '0.75rem', letterSpacing: '0.5px' }}>
-                          COMPLEXITY
-                        </Box>
-                        <Box sx={{ backgroundColor: 'primary.main', p: 1, fontWeight: 700, color: 'primary.contrastText', fontSize: '0.75rem', letterSpacing: '0.5px' }}>
-                          DEPLOYMENT DISPOSITION
-                        </Box>
-                        <Box sx={{ backgroundColor: 'primary.main', p: 1, fontWeight: 700, color: 'primary.contrastText', fontSize: '0.75rem', letterSpacing: '0.5px' }}>
-                          ACTIONS
-                        </Box>
+                      <Box sx={{ minWidth: 1120, display: 'grid', gridTemplateColumns: '2.2fr 0.9fr 0.9fr 1.05fr 0.75fr 0.75fr 0.55fr', gap: 0, borderRadius: 1.25, overflow: 'hidden', border: '1px solid rgba(92,127,194,0.45)' }}>
+                        {['DATA OBJECT', 'PROCESS AREA', 'COMPLEXITY', 'DEPLOY. DISPOSITION', 'BUILD TYPE', 'OBJECT TYPE', 'ACTIONS'].map((header) => (
+                          <Box key={header} sx={{ backgroundColor: 'rgba(22,39,78,0.95)', p: 1, fontWeight: 700, color: '#A9BCDF', fontSize: '0.72rem', letterSpacing: '0.4px' }}>
+                            {header}
+                          </Box>
+                        ))}
 
-                        {/* Inventory Data Rows */}
                         {getFilteredSortedInventoryItems().length === 0 ? (
-                          <Box sx={{ gridColumn: '1 / -1', p: 2, textAlign: 'center', color: 'text.secondary' }}>
+                          <Box sx={{ gridColumn: '1 / -1', p: 2, textAlign: 'center', color: '#8EA3CB', fontSize: '0.85rem', backgroundColor: 'rgba(17, 30, 63, 0.82)' }}>
                             No items in project inventory yet
                           </Box>
                         ) : (
-                          getFilteredSortedInventoryItems().map((item) => (
-                            <React.Fragment key={item.id}>
-                              <Box sx={{ p: 1, borderBottom: '1px solid', borderColor: 'divider', fontSize: '0.8rem' }}>
-                                {item.dataObjectId}
-                              </Box>
-                              <Box sx={{ p: 1, borderBottom: '1px solid', borderColor: 'divider', fontSize: '0.8rem' }}>
-                                {item.processArea || '—'}
-                              </Box>
-                              <Box sx={{ p: 1, borderBottom: '1px solid', borderColor: 'divider', fontSize: '0.8rem' }}>
-                                {item.complexity || '—'}
-                              </Box>
-                              <Box sx={{ p: 1, borderBottom: '1px solid', borderColor: 'divider', fontSize: '0.8rem' }}>
-                                {item.deploymentDisposition || '—'}
-                              </Box>
-                              <Box sx={{ p: 1, borderBottom: '1px solid', borderColor: 'divider', display: 'flex', gap: 0.5 }}>
-                                <IconButton
-                                  size="small"
-                                  title="Edit"
-                                  onClick={() => handleEditInventoryItem(item)}
-                                >
-                                  <EditIcon sx={{ fontSize: '1rem' }} />
-                                </IconButton>
-                                <IconButton
-                                  size="small"
-                                  title="Delete"
-                                  onClick={() => handleDeleteInventoryItem(item)}
-                                >
-                                  <DeleteIcon sx={{ fontSize: '1rem' }} />
-                                </IconButton>
-                              </Box>
-                            </React.Fragment>
-                          ))
+                          getFilteredSortedInventoryItems().map((item, idx) => {
+                            const rowBg = idx % 2 === 0 ? 'rgba(20, 35, 70, 0.9)' : 'rgba(16, 30, 60, 0.9)';
+                            const catalogObj = inventoryObjects.find(obj => obj.objectId === item.dataObjectId);
+                            const description = catalogObj?.description || '';
+                            const inPlan = projectTasks.some(task => task.projectObjectId === item.id);
+
+                            const selectSx = {
+                              width: '100%',
+                              p: '4px 8px',
+                              border: '1px solid rgba(94,123,180,0.45)',
+                              borderRadius: '6px',
+                              fontSize: '0.78rem',
+                              color: '#DBE7FF',
+                              backgroundColor: 'rgba(10, 22, 49, 0.9)',
+                            } as const;
+
+                            return (
+                              <React.Fragment key={item.id}>
+                                <Box sx={{ p: 0.85, borderBottom: '1px solid rgba(83,110,165,0.26)', backgroundColor: rowBg, display: 'flex', alignItems: 'center', gap: 0.75, minHeight: 36 }}>
+                                  <Box sx={{ px: 0.7, py: 0.22, borderRadius: 0.8, backgroundColor: 'rgba(92,118,204,0.35)', color: '#BFD2FF', fontFamily: 'monospace', fontWeight: 700, fontSize: '0.8rem', lineHeight: 1.1, whiteSpace: 'nowrap' }}>
+                                    {item.dataObjectId}
+                                  </Box>
+                                  <Typography sx={{ color: '#CBD9F7', fontSize: '0.79rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>
+                                    {description || 'No description'}
+                                  </Typography>
+                                  {inPlan && (
+                                    <Box sx={{ px: 0.55, py: 0.1, borderRadius: 0.7, backgroundColor: 'rgba(54,182,113,0.2)', border: '1px solid rgba(54,182,113,0.4)', color: '#73E0A5', fontSize: '0.65rem', fontWeight: 700, flexShrink: 0 }}>
+                                      In Plan
+                                    </Box>
+                                  )}
+                                </Box>
+
+                                <Box sx={{ p: 0.6, borderBottom: '1px solid rgba(83,110,165,0.26)', backgroundColor: rowBg }}>
+                                  <Box component="select" value={item.processArea || ''} onChange={(e) => handleProjectInventoryInlineChange(item.id, 'processArea', e.target.value)} sx={selectSx}>
+                                    <option value="">—</option>
+                                    {processAreaOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+                                  </Box>
+                                </Box>
+
+                                <Box sx={{ p: 0.6, borderBottom: '1px solid rgba(83,110,165,0.26)', backgroundColor: rowBg }}>
+                                  <Box component="select" value={item.complexity || ''} onChange={(e) => handleProjectInventoryInlineChange(item.id, 'complexity', e.target.value)} sx={selectSx}>
+                                    <option value="">—</option>
+                                    {complexityOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+                                  </Box>
+                                </Box>
+
+                                <Box sx={{ p: 0.6, borderBottom: '1px solid rgba(83,110,165,0.26)', backgroundColor: rowBg }}>
+                                  <Box component="select" value={item.deploymentDisposition || ''} onChange={(e) => handleProjectInventoryInlineChange(item.id, 'deploymentDisposition', e.target.value)} sx={selectSx}>
+                                    <option value="">—</option>
+                                    {deploymentDispositionOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+                                  </Box>
+                                </Box>
+
+                                <Box sx={{ p: 0.6, borderBottom: '1px solid rgba(83,110,165,0.26)', backgroundColor: rowBg }}>
+                                  <Box component="select" value={item.buildType || ''} onChange={(e) => handleProjectInventoryInlineChange(item.id, 'buildType', e.target.value)} sx={selectSx}>
+                                    <option value="">—</option>
+                                    {buildTypeOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+                                  </Box>
+                                </Box>
+
+                                <Box sx={{ p: 0.6, borderBottom: '1px solid rgba(83,110,165,0.26)', backgroundColor: rowBg }}>
+                                  <Box component="select" value={item.objectType || ''} onChange={(e) => handleProjectInventoryInlineChange(item.id, 'objectType', e.target.value)} sx={selectSx}>
+                                    <option value="">—</option>
+                                    {objectTypeOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+                                  </Box>
+                                </Box>
+
+                                <Box sx={{ p: 0.45, borderBottom: '1px solid rgba(83,110,165,0.26)', backgroundColor: rowBg, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 0.2 }}>
+                                  <IconButton size="small" title="Edit" onClick={() => handleEditInventoryItem(item)} sx={{ color: '#86A9E8', '&:hover': { backgroundColor: 'rgba(68,100,160,0.2)' } }}>
+                                    <EditIcon sx={{ fontSize: '0.95rem' }} />
+                                  </IconButton>
+                                  <IconButton size="small" title="Delete" onClick={() => handleDeleteInventoryItem(item)} sx={{ color: '#88A0C7', '&:hover': { backgroundColor: 'rgba(68,100,160,0.2)' } }}>
+                                    <DeleteIcon sx={{ fontSize: '0.95rem' }} />
+                                  </IconButton>
+                                </Box>
+                              </React.Fragment>
+                            );
+                          })
                         )}
                       </Box>
                     </Box>
