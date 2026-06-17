@@ -216,6 +216,11 @@ const ProjectsPage: React.FC = () => {
   const [objectOrder, setObjectOrder] = useState<string[]>([]);
   const [taskGroupOrder, setTaskGroupOrder] = useState<string[]>([]);
   const [dragItem, setDragItem] = useState<{ type: 'object' | 'taskGroup'; id: string } | null>(null);
+  const [treeOrder, setTreeOrder] = useState<{ programs: string[]; cycles: Record<string, string[]>; projects: Record<string, string[]> }>({
+    programs: [],
+    cycles: {},
+    projects: {},
+  });
 
   // People sidebar state
   const [peopleSidebarOpen, setPeopleSidebarOpen] = useState(false);
@@ -342,6 +347,26 @@ const ProjectsPage: React.FC = () => {
   };
 
   const getOrderStorageKey = (projectId: string) => `rf-plan-order:${projectId}`;
+  const getTreeOrderStorageKey = () => 'rf-tree-order';
+
+  const getOrderedPrograms = () => {
+    const ids = mergeOrder(treeOrder.programs, programs.map((p: Program) => p.id));
+    return ids.map(id => programs.find((p: Program) => p.id === id)).filter(Boolean) as Program[];
+  };
+
+  const getOrderedCycles = (programId: string) => {
+    const source = mockCycles[programId] || [];
+    const existing = treeOrder.cycles[programId] || [];
+    const ids = mergeOrder(existing, source.map((c: MockCycle) => c.id));
+    return ids.map(id => source.find((c: MockCycle) => c.id === id)).filter(Boolean) as MockCycle[];
+  };
+
+  const getOrderedProjects = (cycleId: string) => {
+    const source = projectsByMockCycle[cycleId] || [];
+    const existing = treeOrder.projects[cycleId] || [];
+    const ids = mergeOrder(existing, source.map((p: Project) => p.id));
+    return ids.map(id => source.find((p: Project) => p.id === id)).filter(Boolean) as Project[];
+  };
 
   // Load persisted ordering when project changes.
   useEffect(() => {
@@ -374,6 +399,45 @@ const ProjectsPage: React.FC = () => {
     setObjectOrder(prev => mergeOrder(prev, objectIds));
     setTaskGroupOrder(prev => mergeOrder(prev, groupIds));
   }, [activeProjectId, projectTasks, projectTaskGroups]);
+
+  // Load persisted tree ordering.
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(getTreeOrderStorageKey());
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      setTreeOrder({
+        programs: Array.isArray(parsed?.programs) ? parsed.programs : [],
+        cycles: typeof parsed?.cycles === 'object' && parsed?.cycles ? parsed.cycles : {},
+        projects: typeof parsed?.projects === 'object' && parsed?.projects ? parsed.projects : {},
+      });
+    } catch {
+      // ignore local parse failures
+    }
+  }, []);
+
+  // Sync tree ordering when data changes.
+  useEffect(() => {
+    setTreeOrder(prev => {
+      const nextPrograms = mergeOrder(prev.programs, programs.map((p: Program) => p.id));
+      const nextCycles: Record<string, string[]> = { ...prev.cycles };
+      for (const programId in mockCycles) {
+        const cycles = mockCycles[programId] || [];
+        nextCycles[programId] = mergeOrder(prev.cycles[programId] || [], cycles.map((c: MockCycle) => c.id));
+      }
+      const nextProjects: Record<string, string[]> = { ...prev.projects };
+      for (const cycleId in projectsByMockCycle) {
+        const projects = projectsByMockCycle[cycleId] || [];
+        nextProjects[cycleId] = mergeOrder(prev.projects[cycleId] || [], projects.map((p: Project) => p.id));
+      }
+      return { programs: nextPrograms, cycles: nextCycles, projects: nextProjects };
+    });
+  }, [programs, mockCycles, projectsByMockCycle]);
+
+  // Persist tree ordering.
+  useEffect(() => {
+    localStorage.setItem(getTreeOrderStorageKey(), JSON.stringify(treeOrder));
+  }, [treeOrder]);
 
   // Persist ordering.
   useEffect(() => {
@@ -1028,7 +1092,7 @@ const ProjectsPage: React.FC = () => {
               </Typography>
             ) : (
               <List sx={{ p: 0 }}>
-                {programs.map((program: Program) => {
+                {getOrderedPrograms().map((program: Program) => {
                   const isProgramSelected = selectedItem?.type === 'program' && selectedItem?.id === program.id;
                   const isProgramExpanded = expandedPrograms.has(program.id);
                   return (
@@ -1062,6 +1126,7 @@ const ProjectsPage: React.FC = () => {
                           toggleProgramExpanded(program.id);
                         }}
                       >
+                        <DragIndicatorIcon sx={{ fontSize: '0.9rem', opacity: 0.45, mx: 0.25, flexShrink: 0 }} />
                         {/* Expand arrow */}
                         <Box sx={{ width: 20, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                           {isProgramExpanded
@@ -1100,7 +1165,7 @@ const ProjectsPage: React.FC = () => {
                             backgroundColor: 'rgba(255,255,255,0.12)',
                           }} />
 
-                          {mockCycles[program.id]?.map((cycle: MockCycle) => {
+                          {getOrderedCycles(program.id).map((cycle: MockCycle) => {
                             const isCycleSelected = selectedItem?.type === 'cycle' && selectedItem?.id === cycle.id;
                             const isCycleExpanded = expandedCycles.has(cycle.id);
                             return (
@@ -1136,6 +1201,7 @@ const ProjectsPage: React.FC = () => {
                                 >
                                   {/* Tree connector */}
                                   <Box sx={{ width: 8, flexShrink: 0 }} />
+                                  <DragIndicatorIcon sx={{ fontSize: '0.85rem', opacity: 0.45, mx: 0.15, flexShrink: 0 }} />
                                   {/* Expand arrow */}
                                   <Box sx={{ width: 16, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                     {isCycleExpanded
@@ -1181,7 +1247,7 @@ const ProjectsPage: React.FC = () => {
                                       backgroundColor: 'rgba(255,255,255,0.12)',
                                     }} />
 
-                                    {projectsByMockCycle[cycle.id]?.map((project: Project) => {
+                                    {getOrderedProjects(cycle.id).map((project: Project) => {
                                       const isProjectSelected = selectedItem?.type === 'project' && selectedItem?.id === project.id;
                                       const accentColor = project.accentColor || '#90caf9';
                                       return (
@@ -1213,6 +1279,7 @@ const ProjectsPage: React.FC = () => {
                                         >
                                           {/* Tree connector */}
                                           <Box sx={{ width: 8, flexShrink: 0 }} />
+                                          <DragIndicatorIcon sx={{ fontSize: '0.8rem', opacity: 0.45, mx: 0.15, flexShrink: 0 }} />
                                           <FolderOutlinedIcon sx={{ fontSize: '0.95rem', color: accentColor, flexShrink: 0, mx: 0.5 }} />
                                           <Typography variant="caption" sx={{ fontWeight: 500, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: isProjectSelected ? accentColor : 'inherit' }}>
                                             {project.name}
@@ -1471,14 +1538,22 @@ const ProjectsPage: React.FC = () => {
                                 <Box
                                   key={`obj-${objectId}`}
                                   draggable
-                                  onDragStart={() => setDragItem({ type: 'object', id: objectId || '' })}
+                                  onDragStart={(e) => {
+                                    const payload = JSON.stringify({ type: 'object', id: objectId || '' });
+                                    e.dataTransfer.setData('text/plain', payload);
+                                    setDragItem({ type: 'object', id: objectId || '' });
+                                  }}
                                   onDragOver={(e) => {
                                     if (dragItem?.type === 'object') e.preventDefault();
                                   }}
                                   onDrop={(e) => {
                                     e.preventDefault();
-                                    if (dragItem?.type !== 'object' || !dragItem.id || !objectId) return;
-                                    setObjectOrder(prev => reorderByDrop(mergeOrder(prev, orderedObjectIds), dragItem.id, objectId));
+                                    const raw = e.dataTransfer.getData('text/plain');
+                                    let parsed: any = null;
+                                    try { parsed = raw ? JSON.parse(raw) : null; } catch { parsed = null; }
+                                    const dragId = parsed?.type === 'object' ? parsed.id : dragItem?.type === 'object' ? dragItem.id : null;
+                                    if (!dragId || !objectId) return;
+                                    setObjectOrder(prev => reorderByDrop(mergeOrder(prev, orderedObjectIds), dragId, objectId));
                                     setDragItem(null);
                                   }}
                                   onDragEnd={() => setDragItem(null)}
@@ -1676,14 +1751,22 @@ const ProjectsPage: React.FC = () => {
                                 <Box
                                   key={`group-${group.id}`}
                                   draggable
-                                  onDragStart={() => setDragItem({ type: 'taskGroup', id: group.id })}
+                                  onDragStart={(e) => {
+                                    const payload = JSON.stringify({ type: 'taskGroup', id: group.id });
+                                    e.dataTransfer.setData('text/plain', payload);
+                                    setDragItem({ type: 'taskGroup', id: group.id });
+                                  }}
                                   onDragOver={(e) => {
                                     if (dragItem?.type === 'taskGroup') e.preventDefault();
                                   }}
                                   onDrop={(e) => {
                                     e.preventDefault();
-                                    if (dragItem?.type !== 'taskGroup' || !dragItem.id) return;
-                                    setTaskGroupOrder(prev => reorderByDrop(mergeOrder(prev, orderedGroupIds), dragItem.id, group.id));
+                                    const raw = e.dataTransfer.getData('text/plain');
+                                    let parsed: any = null;
+                                    try { parsed = raw ? JSON.parse(raw) : null; } catch { parsed = null; }
+                                    const dragId = parsed?.type === 'taskGroup' ? parsed.id : dragItem?.type === 'taskGroup' ? dragItem.id : null;
+                                    if (!dragId) return;
+                                    setTaskGroupOrder(prev => reorderByDrop(mergeOrder(prev, orderedGroupIds), dragId, group.id));
                                     setDragItem(null);
                                   }}
                                   onDragEnd={() => setDragItem(null)}
@@ -2266,7 +2349,7 @@ const ProjectsPage: React.FC = () => {
         open={Boolean(menuAnchorEl)}
         onClose={() => setMenuAnchorEl(null)}
       >
-        {(menuType === 'task' || menuType === 'taskGroup') && (
+        {(menuType === 'task' || menuType === 'taskGroup' || menuType === 'program' || menuType === 'cycle' || menuType === 'project') && (
           <>
             <MenuItem
               onClick={() => {
@@ -2275,10 +2358,46 @@ const ProjectsPage: React.FC = () => {
                   const currentIds = Array.from(new Set(projectTasks.filter(t => t.projectObjectId).map(t => t.projectObjectId)));
                   const ordered = mergeOrder(objectOrder, currentIds);
                   setObjectOrder(moveWithin(ordered, menuItemId, -1));
-                } else {
+                } else if (menuType === 'taskGroup') {
                   const currentIds = projectTaskGroups.map(g => g.id);
                   const ordered = mergeOrder(taskGroupOrder, currentIds);
                   setTaskGroupOrder(moveWithin(ordered, menuItemId, -1));
+                } else if (menuType === 'program') {
+                  const currentIds = programs.map(p => p.id);
+                  const ordered = mergeOrder(treeOrder.programs, currentIds);
+                  setTreeOrder(prev => ({ ...prev, programs: moveWithin(ordered, menuItemId, -1) }));
+                } else if (menuType === 'cycle') {
+                  let parentProgramId: string | null = null;
+                  for (const progId in mockCycles) {
+                    if ((mockCycles[progId] || []).some(c => c.id === menuItemId)) {
+                      parentProgramId = progId;
+                      break;
+                    }
+                  }
+                  if (parentProgramId) {
+                    const currentIds = (mockCycles[parentProgramId] || []).map(c => c.id);
+                    const ordered = mergeOrder(treeOrder.cycles[parentProgramId] || [], currentIds);
+                    setTreeOrder(prev => ({
+                      ...prev,
+                      cycles: { ...prev.cycles, [parentProgramId as string]: moveWithin(ordered, menuItemId, -1) },
+                    }));
+                  }
+                } else if (menuType === 'project') {
+                  let parentCycleId: string | null = null;
+                  for (const cycleId in projectsByMockCycle) {
+                    if ((projectsByMockCycle[cycleId] || []).some(p => p.id === menuItemId)) {
+                      parentCycleId = cycleId;
+                      break;
+                    }
+                  }
+                  if (parentCycleId) {
+                    const currentIds = (projectsByMockCycle[parentCycleId] || []).map(p => p.id);
+                    const ordered = mergeOrder(treeOrder.projects[parentCycleId] || [], currentIds);
+                    setTreeOrder(prev => ({
+                      ...prev,
+                      projects: { ...prev.projects, [parentCycleId as string]: moveWithin(ordered, menuItemId, -1) },
+                    }));
+                  }
                 }
                 setMenuAnchorEl(null);
               }}
@@ -2292,10 +2411,46 @@ const ProjectsPage: React.FC = () => {
                   const currentIds = Array.from(new Set(projectTasks.filter(t => t.projectObjectId).map(t => t.projectObjectId)));
                   const ordered = mergeOrder(objectOrder, currentIds);
                   setObjectOrder(moveWithin(ordered, menuItemId, 1));
-                } else {
+                } else if (menuType === 'taskGroup') {
                   const currentIds = projectTaskGroups.map(g => g.id);
                   const ordered = mergeOrder(taskGroupOrder, currentIds);
                   setTaskGroupOrder(moveWithin(ordered, menuItemId, 1));
+                } else if (menuType === 'program') {
+                  const currentIds = programs.map(p => p.id);
+                  const ordered = mergeOrder(treeOrder.programs, currentIds);
+                  setTreeOrder(prev => ({ ...prev, programs: moveWithin(ordered, menuItemId, 1) }));
+                } else if (menuType === 'cycle') {
+                  let parentProgramId: string | null = null;
+                  for (const progId in mockCycles) {
+                    if ((mockCycles[progId] || []).some(c => c.id === menuItemId)) {
+                      parentProgramId = progId;
+                      break;
+                    }
+                  }
+                  if (parentProgramId) {
+                    const currentIds = (mockCycles[parentProgramId] || []).map(c => c.id);
+                    const ordered = mergeOrder(treeOrder.cycles[parentProgramId] || [], currentIds);
+                    setTreeOrder(prev => ({
+                      ...prev,
+                      cycles: { ...prev.cycles, [parentProgramId as string]: moveWithin(ordered, menuItemId, 1) },
+                    }));
+                  }
+                } else if (menuType === 'project') {
+                  let parentCycleId: string | null = null;
+                  for (const cycleId in projectsByMockCycle) {
+                    if ((projectsByMockCycle[cycleId] || []).some(p => p.id === menuItemId)) {
+                      parentCycleId = cycleId;
+                      break;
+                    }
+                  }
+                  if (parentCycleId) {
+                    const currentIds = (projectsByMockCycle[parentCycleId] || []).map(p => p.id);
+                    const ordered = mergeOrder(treeOrder.projects[parentCycleId] || [], currentIds);
+                    setTreeOrder(prev => ({
+                      ...prev,
+                      projects: { ...prev.projects, [parentCycleId as string]: moveWithin(ordered, menuItemId, 1) },
+                    }));
+                  }
                 }
                 setMenuAnchorEl(null);
               }}
