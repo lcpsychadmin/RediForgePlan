@@ -60,7 +60,7 @@ export const TaskCommentsModal: React.FC<TaskCommentsModalProps> = ({
     const val = e.target.value;
     setContent(val);
     const lastAt = val.lastIndexOf('@');
-    if (lastAt !== -1 && lastAt === val.length - 1 || (lastAt !== -1 && val.slice(lastAt).match(/^@\w*$/))) {
+    if (lastAt !== -1 && lastAt === val.length - 1 || (lastAt !== -1 && val.slice(lastAt).match(/^@[a-zA-Z0-9._-]*$/))) {
       setMentionFilter(val.slice(lastAt + 1));
       setShowMentions(true);
     } else {
@@ -103,7 +103,7 @@ export const TaskCommentsModal: React.FC<TaskCommentsModalProps> = ({
   };
 
   const renderContent = (text: string) => {
-    const parts = text.split(/(@[\w\s]+?)(?=\s|$|[^a-zA-Z\s])/g);
+    const parts = text.split(/(@[a-zA-Z0-9._-]+(?:\s+[a-zA-Z0-9._-]+)*)/g);
     return parts.map((part, i) =>
       part.startsWith('@') ? (
         <Box key={i} component="span" sx={{ color: accentColor, fontWeight: 600 }}>{part}</Box>
@@ -220,7 +220,7 @@ export const TaskCommentsModal: React.FC<TaskCommentsModalProps> = ({
         </Box>
         {error && <Typography variant="caption" sx={{ color: '#ff6b6b', display: 'block', mb: 0.5 }}>Error: {error}</Typography>}
         <Typography variant="caption" color="text.disabled" sx={{ mt: 0.5, display: 'block' }}>
-          Enter to send · Shift+Enter for new line · @ to mention
+          Enter to send · Shift+Enter for new line · @name or @email-handle to mention
         </Typography>
       </Box>
     </Dialog>

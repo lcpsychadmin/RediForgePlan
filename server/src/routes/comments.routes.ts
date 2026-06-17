@@ -31,12 +31,17 @@ router.post('/task/:taskId', requireAuth, async (req: any, res, next) => {
       content
     );
 
-    // Parse @mentions and create notifications
-    const mentions = content.match(/@([\w\s]+?)(?=[^a-zA-Z\s]|$)/g) || [];
-    for (const mention of mentions) {
-      const name = mention.slice(1).trim();
-      const recipientId = await commentsService.findUserByPersonName(name);
-      if (recipientId && recipientId !== userId) {
+    // Parse @mentions and create notifications.
+    // Supports handles/emails like @wes, @wes.collins, @wes@company.com and names with spaces.
+    const mentionTokens = Array.from(content.matchAll(/@([a-zA-Z0-9._-]+(?:\s+[a-zA-Z0-9._-]+)*)/g))
+      .map(m => (m[1] || '').trim())
+      .filter(Boolean);
+
+    const notified = new Set<string>();
+    for (const token of mentionTokens) {
+      const recipientId = await commentsService.findUserIdByMention(token);
+      if (recipientId && recipientId !== userId && !notified.has(recipientId)) {
+        notified.add(recipientId);
         await commentsService.createNotification(
           recipientId,
           req.params.taskId,

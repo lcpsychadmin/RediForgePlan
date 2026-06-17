@@ -85,14 +85,37 @@ export class CommentsService {
     await db.query('UPDATE notifications SET is_read = TRUE WHERE recipient_user_id = $1', [userId]);
   }
 
-  // Find user by person name via email match
-  async findUserByPersonName(name: string): Promise<string | null> {
+  // Resolve mention to user id. Prefer real user account, then fallback via people email mapping.
+  async findUserIdByMention(mentionRaw: string): Promise<string | null> {
+    const mention = (mentionRaw || '').trim();
+    if (!mention) return null;
+
+    // 1) Direct user email match (if mention includes @domain)
+    const byEmail = await db.query(
+      'SELECT id FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1',
+      [mention]
+    );
+    if (byEmail.rows.length > 0) return byEmail.rows[0].id;
+
+    // 2) Username/handle match against local part of email (e.g. @wes for wes@company.com)
+    const byHandle = await db.query(
+      `SELECT id
+       FROM users
+       WHERE LOWER(split_part(email, '@', 1)) = LOWER($1)
+       LIMIT 1`,
+      [mention]
+    );
+    if (byHandle.rows.length > 0) return byHandle.rows[0].id;
+
+    // 3) Fallback to people.name -> people.email -> users.email mapping
     const personResult = await db.query(
-      'SELECT email FROM people WHERE LOWER(name) = LOWER($1)', [name]
+      'SELECT email FROM people WHERE LOWER(name) = LOWER($1) LIMIT 1',
+      [mention]
     );
     if (personResult.rows.length === 0 || !personResult.rows[0].email) return null;
     const userResult = await db.query(
-      'SELECT id FROM users WHERE LOWER(email) = LOWER($1)', [personResult.rows[0].email]
+      'SELECT id FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1',
+      [personResult.rows[0].email]
     );
     return userResult.rows.length > 0 ? userResult.rows[0].id : null;
   }
