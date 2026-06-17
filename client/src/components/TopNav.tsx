@@ -3,6 +3,7 @@ import { AppBar, Toolbar, IconButton, Typography, Box, Menu, MenuItem, Divider, 
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import LogoutIcon from '@mui/icons-material/Logout';
+import CloseIcon from '@mui/icons-material/Close';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import FolderOpenIcon from '@mui/icons-material/FolderOpen';
 import SettingsIcon from '@mui/icons-material/Settings';
@@ -86,6 +87,38 @@ const TopNav: React.FC<TopNavProps> = ({
     await logout();
     handleMenuClose();
     navigate('/login');
+  };
+
+  const handleNotificationClick = async (n: any) => {
+    if (!n.isRead) {
+      await apiClient.patch(`/api/comments/notifications/${n.id}/read`).catch(() => {});
+      setNotifications(prev => prev.map(item => item.id === n.id ? { ...item, isRead: true } : item));
+      setUnreadCount(prev => Math.max(0, prev - 1));
+    }
+
+    if (n.projectId && n.taskId) {
+      sessionStorage.setItem('pendingNotificationTarget', JSON.stringify({
+        projectId: n.projectId,
+        taskId: n.taskId,
+        taskName: n.taskName || 'Task',
+      }));
+    }
+
+    setNotifAnchorEl(null);
+    navigate('/projects');
+  };
+
+  const handleDismissNotification = async (notificationId: string, isRead: boolean) => {
+    await apiClient.delete(`/api/comments/notifications/${notificationId}`).catch(() => {});
+    setNotifications(prev => prev.filter(n => n.id !== notificationId));
+    if (!isRead) setUnreadCount(prev => Math.max(0, prev - 1));
+  };
+
+  const handleClearNotifications = async () => {
+    await apiClient.delete('/api/comments/notifications').catch(() => {});
+    setNotifications([]);
+    setUnreadCount(0);
+    setNotifAnchorEl(null);
   };
 
   const isActive = (path: string) => location.pathname === path || location.pathname.startsWith(path);
@@ -195,26 +228,42 @@ const TopNav: React.FC<TopNavProps> = ({
         {/* Account Menu */}
         <Box>
           {/* Notification Bell */}
-          <IconButton color="inherit" onClick={async (e) => { setNotifAnchorEl(e.currentTarget); await loadNotifications(); apiClient.patch('/api/comments/notifications/read-all').catch(() => {}); setTimeout(() => setUnreadCount(0), 300); }}>
+          <IconButton color="inherit" onClick={async (e) => { setNotifAnchorEl(e.currentTarget); await loadNotifications(); }}>
             <Badge badgeContent={unreadCount} color="error" max={99}>
               <NotificationsIcon />
             </Badge>
           </IconButton>
           <Menu anchorEl={notifAnchorEl} open={Boolean(notifAnchorEl)} onClose={() => setNotifAnchorEl(null)}
             PaperProps={{ sx: { width: 320, maxHeight: 400 } }}>
-            <MenuItem disabled sx={{ fontWeight: 600, opacity: 1 }}>
+            <Box sx={{ px: 1.5, py: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <Typography variant="body2" sx={{ fontWeight: 700 }}>Notifications</Typography>
-            </MenuItem>
+              {notifications.length > 0 && (
+                <Button size="small" onClick={handleClearNotifications} sx={{ textTransform: 'none', minWidth: 0, px: 1 }}>
+                  Clear all
+                </Button>
+              )}
+            </Box>
             <Divider />
             {notifications.length === 0 ? (
               <MenuItem disabled><Typography variant="body2" color="text.secondary">No notifications</Typography></MenuItem>
             ) : (
               notifications.slice(0, 15).map(n => (
-                <MenuItem key={n.id} onClick={() => setNotifAnchorEl(null)} sx={{ whiteSpace: 'normal', py: 1 }}>
-                  <Box>
+                <MenuItem key={n.id} onClick={() => handleNotificationClick(n)} sx={{ whiteSpace: 'normal', py: 1, alignItems: 'flex-start' }}>
+                  <Box sx={{ flex: 1, pr: 0.5 }}>
                     <Typography variant="caption" sx={{ fontWeight: n.isRead ? 400 : 700, display: 'block', lineHeight: 1.4 }}>{n.message}</Typography>
                     <Typography variant="caption" color="text.disabled">{new Date(n.createdAt).toLocaleString()}</Typography>
                   </Box>
+                  <IconButton
+                    size="small"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDismissNotification(n.id, n.isRead);
+                    }}
+                    sx={{ opacity: 0.6, mt: -0.25 }}
+                    title="Dismiss"
+                  >
+                    <CloseIcon sx={{ fontSize: '0.85rem' }} />
+                  </IconButton>
                 </MenuItem>
               ))
             )}

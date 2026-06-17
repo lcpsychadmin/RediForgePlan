@@ -391,6 +391,59 @@ const ProjectsPage: React.FC = () => {
     loadTasksAndGroups();
   }, [activeProjectId]);
 
+  // Handle navigation from notification click: select target project.
+  useEffect(() => {
+    const raw = sessionStorage.getItem('pendingNotificationTarget');
+    if (!raw) return;
+
+    let target: { projectId?: string } = {};
+    try { target = JSON.parse(raw); } catch { return; }
+    if (!target.projectId) return;
+
+    if (selectedItem?.type === 'project' && selectedItem.id === target.projectId) return;
+
+    let matchedCycleId: string | null = null;
+    for (const [cycleId, projects] of Object.entries(projectsByMockCycle as Record<string, any[]>)) {
+      if ((projects || []).some((p: any) => p.id === target.projectId)) {
+        matchedCycleId = cycleId;
+        break;
+      }
+    }
+    if (!matchedCycleId) return;
+
+    let matchedProgramId: string | null = null;
+    for (const [programId, cycles] of Object.entries(mockCycles as Record<string, any[]>)) {
+      if ((cycles || []).some((c: any) => c.id === matchedCycleId)) {
+        matchedProgramId = programId;
+        break;
+      }
+    }
+
+    if (matchedProgramId) {
+      setExpandedPrograms(prev => new Set(prev).add(matchedProgramId as string));
+    }
+    setExpandedCycles(prev => new Set(prev).add(matchedCycleId as string));
+    setSelectedItem({ type: 'project', id: target.projectId, cycleId: matchedCycleId });
+    setTabValue(0);
+  }, [projectsByMockCycle, mockCycles, selectedItem]);
+
+  // Once tasks load for the selected project, open the discussion modal for the target task.
+  useEffect(() => {
+    const raw = sessionStorage.getItem('pendingNotificationTarget');
+    if (!raw || !activeProjectId) return;
+
+    let target: { projectId?: string; taskId?: string; taskName?: string } = {};
+    try { target = JSON.parse(raw); } catch { return; }
+
+    if (!target.projectId || !target.taskId || target.projectId !== activeProjectId) return;
+
+    const task = projectTasks.find((t: any) => t.id === target.taskId);
+    if (!task) return;
+
+    setCommentModalTask({ id: task.id, name: task.name || target.taskName || 'Task' });
+    sessionStorage.removeItem('pendingNotificationTarget');
+  }, [activeProjectId, projectTasks]);
+
   const handleCreateItem = async () => {
     if (!newItemName.trim()) {
       alert('Name is required');

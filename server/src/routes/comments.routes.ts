@@ -94,4 +94,18 @@ router.patch('/notifications/read-all', requireAuth, async (req: any, res, next)
   } catch (e) { next(e); }
 });
 
+router.delete('/notifications/:id', requireAuth, async (req: any, res, next) => {
+  try {
+    await commentsService.deleteNotification(req.params.id, req.userId);
+    res.json({ success: true });
+  } catch (e) { next(e); }
+});
+
+router.delete('/notifications', requireAuth, async (req: any, res, next) => {
+  try {
+    await commentsService.clearNotifications(req.userId);
+    res.json({ success: true });
+  } catch (e) { next(e); }
+});
+
 export default router;

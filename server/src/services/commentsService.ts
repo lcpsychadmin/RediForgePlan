@@ -97,6 +97,7 @@ export class CommentsService {
       id: r.id,
       taskId: r.task_id,
       taskName: r.task_name,
+      projectId: r.project_id,
       message: r.message,
       isRead: r.is_read,
       createdAt: r.created_at,
@@ -117,6 +118,17 @@ export class CommentsService {
 
   async markAllRead(userId: string) {
     await db.query('UPDATE notifications SET is_read = TRUE WHERE recipient_user_id = $1', [userId]);
+  }
+
+  async deleteNotification(notificationId: string, userId: string) {
+    await db.query(
+      'DELETE FROM notifications WHERE id = $1 AND recipient_user_id = $2',
+      [notificationId, userId]
+    );
+  }
+
+  async clearNotifications(userId: string) {
+    await db.query('DELETE FROM notifications WHERE recipient_user_id = $1', [userId]);
   }
 
   // Resolve mention to user id. Prefer real user account, then fallback via people email mapping.
