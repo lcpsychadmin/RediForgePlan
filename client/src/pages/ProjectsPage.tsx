@@ -337,6 +337,9 @@ const ProjectsPage: React.FC = () => {
           migrationType: item.migrationType,
           factorType: item.factorType,
           loadMethod: item.loadMethod,
+          startDate: item.startDate,
+          endDate: item.endDate,
+          description: item.description,
         })));
       } catch (error) {
         console.error('Failed to load project inventory:', error);
@@ -3108,6 +3111,9 @@ const ProjectsPage: React.FC = () => {
                     migrationType: apiData.migrationType,
                     factorType: apiData.factorType,
                     loadMethod: apiData.loadMethod,
+                    startDate: apiData.startDate,
+                    endDate: apiData.endDate,
+                    description: apiData.description,
                   };
                   setProjectInventoryItems([...projectInventoryItems, newItem]);
                 }
