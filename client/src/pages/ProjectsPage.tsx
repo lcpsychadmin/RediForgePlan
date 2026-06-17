@@ -1168,6 +1168,33 @@ const ProjectsPage: React.FC = () => {
                           <Typography variant="body2" sx={{ color: accentColor, fontWeight: 600 }}>{progressPct}%</Typography>
                         </Box>
 
+                        {/* Timeline */}
+                        {(() => {
+                          const tasksWithDates = allPlanTasks.filter(t => t.startDate || t.endDate);
+                          if (tasksWithDates.length === 0) return null;
+                          const startDates = tasksWithDates.filter(t => t.startDate).map(t => new Date(t.startDate).getTime());
+                          const endDates = tasksWithDates.filter(t => t.endDate).map(t => new Date(t.endDate).getTime());
+                          const minStart = startDates.length > 0 ? new Date(Math.min(...startDates)) : null;
+                          const maxEnd = endDates.length > 0 ? new Date(Math.max(...endDates)) : null;
+                          if (!minStart || !maxEnd) return null;
+                          return (
+                            <Box sx={{ mb: 3 }}>
+                              <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.7rem', letterSpacing: '0.05em', fontWeight: 600, display: 'block', mb: 0.75 }}>TIMELINE</Typography>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                                <Typography variant="caption" color="text.secondary" sx={{ minWidth: 80 }}>
+                                  {minStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                </Typography>
+                                <Box sx={{ flex: 1, height: 4, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 2, position: 'relative', minWidth: 120 }}>
+                                  <Box sx={{ height: '100%', backgroundColor: accentColor, borderRadius: 2, width: '100%' }} />
+                                </Box>
+                                <Typography variant="caption" color="text.secondary" sx={{ minWidth: 80, textAlign: 'right' }}>
+                                  {maxEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                </Typography>
+                              </Box>
+                            </Box>
+                          );
+                        })()}
+
                         {/* Action Buttons */}
                         <Box sx={{ display: 'flex', gap: 1.5, mb: 3, justifyContent: 'flex-end' }}>
                           <Button variant="contained" startIcon={<AddIcon />} onClick={() => setDataObjectDialogOpen(true)}
