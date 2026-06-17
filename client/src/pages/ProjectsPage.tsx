@@ -43,6 +43,7 @@ import FolderOutlinedIcon from '@mui/icons-material/FolderOutlined';
 import CorporateFareIcon from '@mui/icons-material/CorporateFare';
 import SyncIcon from '@mui/icons-material/Sync';
 import SearchIcon from '@mui/icons-material/Search';
+import EventIcon from '@mui/icons-material/Event';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Menu from '@mui/material/Menu';
 import { useNavigate } from 'react-router-dom';
@@ -1177,20 +1178,14 @@ const ProjectsPage: React.FC = () => {
                           const minStart = startDates.length > 0 ? new Date(Math.min(...startDates)) : null;
                           const maxEnd = endDates.length > 0 ? new Date(Math.max(...endDates)) : null;
                           if (!minStart || !maxEnd) return null;
+                          const startStr = minStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                          const endStr = maxEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
                           return (
-                            <Box sx={{ mb: 3 }}>
-                              <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.7rem', letterSpacing: '0.05em', fontWeight: 600, display: 'block', mb: 0.75 }}>TIMELINE</Typography>
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                                <Typography variant="caption" color="text.secondary" sx={{ minWidth: 80 }}>
-                                  {minStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                                </Typography>
-                                <Box sx={{ flex: 1, height: 4, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 2, position: 'relative', minWidth: 120 }}>
-                                  <Box sx={{ height: '100%', backgroundColor: accentColor, borderRadius: 2, width: '100%' }} />
-                                </Box>
-                                <Typography variant="caption" color="text.secondary" sx={{ minWidth: 80, textAlign: 'right' }}>
-                                  {maxEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                                </Typography>
-                              </Box>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                              <EventIcon sx={{ fontSize: '0.9rem', color: 'text.disabled' }} />
+                              <Typography variant="caption" color="text.disabled">
+                                Timeline: {startStr} → {endStr}
+                              </Typography>
                             </Box>
                           );
                         })()}
