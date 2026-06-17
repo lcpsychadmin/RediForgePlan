@@ -38,6 +38,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import CloseIcon from '@mui/icons-material/Close';
 import GroupIcon from '@mui/icons-material/Group';
 import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutline';
+import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 import { TaskCommentsModal } from '../components/TaskCommentsModal';
 import FolderOutlinedIcon from '@mui/icons-material/FolderOutlined';
 import CorporateFareIcon from '@mui/icons-material/CorporateFare';
@@ -212,6 +213,9 @@ const ProjectsPage: React.FC = () => {
   const [commentModalTask, setCommentModalTask] = useState<{ id: string; name: string } | null>(null);
   const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
   const [taskCommentCounts, setTaskCommentCounts] = useState<Record<string, number>>({});
+  const [objectOrder, setObjectOrder] = useState<string[]>([]);
+  const [taskGroupOrder, setTaskGroupOrder] = useState<string[]>([]);
+  const [dragItem, setDragItem] = useState<{ type: 'object' | 'taskGroup'; id: string } | null>(null);
 
   // People sidebar state
   const [peopleSidebarOpen, setPeopleSidebarOpen] = useState(false);
@@ -309,6 +313,76 @@ const ProjectsPage: React.FC = () => {
 
   // Get the active project ID from either inventory tab or plan tab selection
   const activeProjectId = selectedItem?.type === 'project' ? selectedItem.id : selectedProjectForInventory;
+
+  const mergeOrder = (existing: string[], current: string[]) => {
+    const existingFiltered = existing.filter(id => current.includes(id));
+    const newItems = current.filter(id => !existingFiltered.includes(id));
+    return [...existingFiltered, ...newItems];
+  };
+
+  const moveWithin = (list: string[], id: string, delta: number) => {
+    const idx = list.indexOf(id);
+    if (idx === -1) return list;
+    const nextIdx = idx + delta;
+    if (nextIdx < 0 || nextIdx >= list.length) return list;
+    const copy = [...list];
+    const [item] = copy.splice(idx, 1);
+    copy.splice(nextIdx, 0, item);
+    return copy;
+  };
+
+  const reorderByDrop = (list: string[], dragId: string, targetId: string) => {
+    const from = list.indexOf(dragId);
+    const to = list.indexOf(targetId);
+    if (from === -1 || to === -1 || from === to) return list;
+    const copy = [...list];
+    const [item] = copy.splice(from, 1);
+    copy.splice(to, 0, item);
+    return copy;
+  };
+
+  const getOrderStorageKey = (projectId: string) => `rf-plan-order:${projectId}`;
+
+  // Load persisted ordering when project changes.
+  useEffect(() => {
+    if (!activeProjectId) {
+      setObjectOrder([]);
+      setTaskGroupOrder([]);
+      return;
+    }
+    try {
+      const raw = localStorage.getItem(getOrderStorageKey(activeProjectId));
+      if (!raw) {
+        setObjectOrder([]);
+        setTaskGroupOrder([]);
+        return;
+      }
+      const parsed = JSON.parse(raw);
+      setObjectOrder(Array.isArray(parsed?.objects) ? parsed.objects : []);
+      setTaskGroupOrder(Array.isArray(parsed?.groups) ? parsed.groups : []);
+    } catch {
+      setObjectOrder([]);
+      setTaskGroupOrder([]);
+    }
+  }, [activeProjectId]);
+
+  // Keep ordering synced with available ids.
+  useEffect(() => {
+    if (!activeProjectId) return;
+    const objectIds = Array.from(new Set(projectTasks.filter(t => t.projectObjectId).map(t => t.projectObjectId)));
+    const groupIds = projectTaskGroups.map(g => g.id);
+    setObjectOrder(prev => mergeOrder(prev, objectIds));
+    setTaskGroupOrder(prev => mergeOrder(prev, groupIds));
+  }, [activeProjectId, projectTasks, projectTaskGroups]);
+
+  // Persist ordering.
+  useEffect(() => {
+    if (!activeProjectId) return;
+    localStorage.setItem(getOrderStorageKey(activeProjectId), JSON.stringify({
+      objects: objectOrder,
+      groups: taskGroupOrder,
+    }));
+  }, [activeProjectId, objectOrder, taskGroupOrder]);
 
   // Fetch project inventory items when a project is selected
   useEffect(() => {
@@ -1239,6 +1313,12 @@ const ProjectsPage: React.FC = () => {
                     const allPlanTasks = projectTasks.filter(t => t.projectObjectId || t.taskGroupId);
                     const progressPct = allPlanTasks.length > 0 ? Math.round(allPlanTasks.reduce((s, t) => s + (t.progressPercentage ?? 0), 0) / allPlanTasks.length) : 0;
                     const allObjectIds = Array.from(new Set(projectTasks.filter(t => t.projectObjectId).map(t => t.projectObjectId)));
+                    const orderedObjectIds = mergeOrder(objectOrder, allObjectIds);
+                    const allGroupIds = projectTaskGroups.map(g => g.id);
+                    const orderedGroupIds = mergeOrder(taskGroupOrder, allGroupIds);
+                    const orderedTaskGroups = orderedGroupIds
+                      .map(id => projectTaskGroups.find(g => g.id === id))
+                      .filter(Boolean) as any[];
                     const taskFieldSx = {
                       '& .MuiInputBase-root': { fontSize: '0.72rem', height: 26 },
                       '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': { borderColor: accentColor },
@@ -1362,7 +1442,7 @@ const ProjectsPage: React.FC = () => {
                           <Alert severity="info">No tasks added to plan yet</Alert>
                         ) : (
                           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                            {allObjectIds.map((objectId) => {
+                            {orderedObjectIds.map((objectId) => {
                               const tasksForObject = projectTasks
                                 .filter(t => t.projectObjectId === objectId)
                                 .sort((a, b) => {
@@ -1388,10 +1468,33 @@ const ProjectsPage: React.FC = () => {
                               if (planStatusFilter && !tasksForObject.some(t => t.status === planStatusFilter)) return null;
                               const overallStatus = tasksForObject.length > 0 && tasksForObject.every(t => t.status === 'complete') ? 'complete' : tasksForObject.some(t => t.status === 'in_progress') ? 'in_progress' : tasksForObject.some(t => t.status === 'blocked') ? 'blocked' : 'not_started';
                               return (
-                                <Box key={`obj-${objectId}`} sx={{ position: 'relative', backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 2, overflow: 'hidden' }}>
+                                <Box
+                                  key={`obj-${objectId}`}
+                                  draggable
+                                  onDragStart={() => setDragItem({ type: 'object', id: objectId || '' })}
+                                  onDragOver={(e) => {
+                                    if (dragItem?.type === 'object') e.preventDefault();
+                                  }}
+                                  onDrop={(e) => {
+                                    e.preventDefault();
+                                    if (dragItem?.type !== 'object' || !dragItem.id || !objectId) return;
+                                    setObjectOrder(prev => reorderByDrop(mergeOrder(prev, orderedObjectIds), dragItem.id, objectId));
+                                    setDragItem(null);
+                                  }}
+                                  onDragEnd={() => setDragItem(null)}
+                                  sx={{
+                                    position: 'relative',
+                                    backgroundColor: 'rgba(255,255,255,0.04)',
+                                    border: '1px solid rgba(255,255,255,0.08)',
+                                    borderRadius: 2,
+                                    overflow: 'hidden',
+                                    opacity: dragItem?.type === 'object' && dragItem.id === objectId ? 0.6 : 1,
+                                  }}
+                                >
                                   <Box sx={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, backgroundColor: accentColor }} />
                                   <Box onClick={() => { const next = new Set(expandedObjects); if (isExpanded) next.delete(objectId || ''); else next.add(objectId || ''); setExpandedObjects(next); }}
                                     sx={{ pl: 2.5, pr: 1, py: 1.25, display: 'flex', alignItems: 'center', gap: 1.5, cursor: 'pointer', '&:hover': { backgroundColor: 'rgba(255,255,255,0.03)' } }}>
+                                    <DragIndicatorIcon sx={{ fontSize: 14, color: 'text.disabled', flexShrink: 0, cursor: 'grab' }} />
                                     <ChevronRightIcon sx={{ fontSize: 16, color: 'text.secondary', transition: 'transform 0.2s', transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)', flexShrink: 0 }} />
                                     <Typography sx={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '0.82rem', color: accentColor, flexShrink: 0, minWidth: 90 }}>{objectName}</Typography>
                                     <Typography variant="caption" sx={{ color: 'text.primary', fontWeight: 600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{description}</Typography>
@@ -1565,15 +1668,38 @@ const ProjectsPage: React.FC = () => {
                                 </Box>
                               );
                             })}
-                            {projectTaskGroups.map((group) => {
+                            {orderedTaskGroups.map((group) => {
                               const isExpanded = expandedTaskGroups.has(group.id);
                               const groupTasks = projectTasks.filter(t => t.taskGroupId === group.id);
                               const overallStatus = groupTasks.length > 0 && groupTasks.every(t => t.status === 'complete') ? 'complete' : groupTasks.some(t => t.status === 'in_progress') ? 'in_progress' : groupTasks.some(t => t.status === 'blocked') ? 'blocked' : 'not_started';
                               return (
-                                <Box key={`group-${group.id}`} sx={{ position: 'relative', backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 2, overflow: 'hidden' }}>
+                                <Box
+                                  key={`group-${group.id}`}
+                                  draggable
+                                  onDragStart={() => setDragItem({ type: 'taskGroup', id: group.id })}
+                                  onDragOver={(e) => {
+                                    if (dragItem?.type === 'taskGroup') e.preventDefault();
+                                  }}
+                                  onDrop={(e) => {
+                                    e.preventDefault();
+                                    if (dragItem?.type !== 'taskGroup' || !dragItem.id) return;
+                                    setTaskGroupOrder(prev => reorderByDrop(mergeOrder(prev, orderedGroupIds), dragItem.id, group.id));
+                                    setDragItem(null);
+                                  }}
+                                  onDragEnd={() => setDragItem(null)}
+                                  sx={{
+                                    position: 'relative',
+                                    backgroundColor: 'rgba(255,255,255,0.04)',
+                                    border: '1px solid rgba(255,255,255,0.08)',
+                                    borderRadius: 2,
+                                    overflow: 'hidden',
+                                    opacity: dragItem?.type === 'taskGroup' && dragItem.id === group.id ? 0.6 : 1,
+                                  }}
+                                >
                                   <Box sx={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, backgroundColor: accentColor }} />
                                   <Box onClick={() => { const next = new Set(expandedTaskGroups); if (isExpanded) next.delete(group.id); else next.add(group.id); setExpandedTaskGroups(next); }}
                                     sx={{ pl: 2.5, pr: 1, py: 1.25, display: 'flex', alignItems: 'center', gap: 1.5, cursor: 'pointer', '&:hover': { backgroundColor: 'rgba(255,255,255,0.03)' } }}>
+                                    <DragIndicatorIcon sx={{ fontSize: 14, color: 'text.disabled', flexShrink: 0, cursor: 'grab' }} />
                                     <ChevronRightIcon sx={{ fontSize: 16, color: 'text.secondary', transition: 'transform 0.2s', transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)', flexShrink: 0 }} />
                                     <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', flex: 1, color: accentColor }}>{group.name}</Typography>
                                     <Box sx={{ display: 'flex', gap: 0.4, alignItems: 'center', flexShrink: 0 }}>
@@ -2140,6 +2266,45 @@ const ProjectsPage: React.FC = () => {
         open={Boolean(menuAnchorEl)}
         onClose={() => setMenuAnchorEl(null)}
       >
+        {(menuType === 'task' || menuType === 'taskGroup') && (
+          <>
+            <MenuItem
+              onClick={() => {
+                if (!menuItemId || !menuType) return;
+                if (menuType === 'task') {
+                  const currentIds = Array.from(new Set(projectTasks.filter(t => t.projectObjectId).map(t => t.projectObjectId)));
+                  const ordered = mergeOrder(objectOrder, currentIds);
+                  setObjectOrder(moveWithin(ordered, menuItemId, -1));
+                } else {
+                  const currentIds = projectTaskGroups.map(g => g.id);
+                  const ordered = mergeOrder(taskGroupOrder, currentIds);
+                  setTaskGroupOrder(moveWithin(ordered, menuItemId, -1));
+                }
+                setMenuAnchorEl(null);
+              }}
+            >
+              Move Up
+            </MenuItem>
+            <MenuItem
+              onClick={() => {
+                if (!menuItemId || !menuType) return;
+                if (menuType === 'task') {
+                  const currentIds = Array.from(new Set(projectTasks.filter(t => t.projectObjectId).map(t => t.projectObjectId)));
+                  const ordered = mergeOrder(objectOrder, currentIds);
+                  setObjectOrder(moveWithin(ordered, menuItemId, 1));
+                } else {
+                  const currentIds = projectTaskGroups.map(g => g.id);
+                  const ordered = mergeOrder(taskGroupOrder, currentIds);
+                  setTaskGroupOrder(moveWithin(ordered, menuItemId, 1));
+                }
+                setMenuAnchorEl(null);
+              }}
+            >
+              Move Down
+            </MenuItem>
+            <Divider />
+          </>
+        )}
         <MenuItem
           onClick={() => {
             if (!menuItemId || !menuType) return;
