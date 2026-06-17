@@ -576,6 +576,20 @@ const ProjectsPage: React.FC = () => {
     }).catch(() => {});
   }, [location.search]);
 
+  // Ensure Priorities tab has a project context so the panel doesn't appear blank.
+  useEffect(() => {
+    if (tabValue !== 2 || activeProjectId) return;
+
+    for (const cycleId in projectsByMockCycle) {
+      const projects = projectsByMockCycle[cycleId] || [];
+      if (projects.length > 0) {
+        const firstProject = projects[0];
+        setSelectedItem({ type: 'project', id: firstProject.id, cycleId });
+        return;
+      }
+    }
+  }, [tabValue, activeProjectId, projectsByMockCycle]);
+
   // Handle navigation from notification click: select target project.
   useEffect(() => {
     const raw = sessionStorage.getItem('pendingNotificationTarget');
@@ -1098,6 +1112,54 @@ const ProjectsPage: React.FC = () => {
   };
 
   const cycleCount = Object.values(mockCycles).reduce((acc: number, arr: any) => acc + (arr?.length || 0), 0);
+
+  const parseDateOnly = (value?: string) => {
+    if (!value) return null;
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return null;
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  };
+
+  const today = new Date();
+  const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const weekEnd = new Date(todayStart);
+  weekEnd.setDate(todayStart.getDate() + 6);
+
+  const allPriorityTasks = projectTasks.filter(t => t.projectObjectId || t.taskGroupId);
+  const lateTasks = allPriorityTasks.filter(t => {
+    if (t.status === 'complete') return false;
+    const end = parseDateOnly(t.endDate);
+    return !!end && end < todayStart;
+  });
+  const inProgressTasks = allPriorityTasks.filter(t => t.status === 'in_progress');
+  const dueThisWeekTasks = allPriorityTasks.filter(t => {
+    if (t.status === 'complete') return false;
+    const end = parseDateOnly(t.endDate);
+    return !!end && end >= todayStart && end <= weekEnd;
+  });
+  const blockedTasks = allPriorityTasks.filter(t => t.status === 'blocked');
+
+  const getPriorityTaskContext = (task: any) => {
+    if (task.projectObjectId) {
+      const inventoryObject = projectInventoryItems.find(obj => obj.id === task.projectObjectId);
+      return inventoryObject?.objectId || 'Object';
+    }
+    if (task.taskGroupId) {
+      return projectTaskGroups.find(g => g.id === task.taskGroupId)?.name || 'Task Group';
+    }
+    return 'Task';
+  };
+
+  const handlePriorityTaskClick = (task: any) => {
+    const projectId = task.projectId || activeProjectId;
+    if (!projectId || !task.id) return;
+    sessionStorage.setItem('pendingNotificationTarget', JSON.stringify({
+      projectId,
+      taskId: task.id,
+      taskName: task.name || 'Task',
+    }));
+    setTabValue(0);
+  };
 
   return (
     <Layout
@@ -2438,6 +2500,87 @@ const ProjectsPage: React.FC = () => {
                   </CardContent>
                 </Card>
               )}
+            </Box>
+          )}
+
+          {/* Priorities Tab Content */}
+          {tabValue === 2 && (
+            <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {!activeProjectId ? (
+                <Box sx={{
+                  border: '1px solid rgba(93,121,176,0.35)',
+                  borderRadius: 2,
+                  backgroundColor: 'rgba(18,33,65,0.72)',
+                  p: 2,
+                }}>
+                  <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.75, color: '#BFD0F3' }}>
+                    No Project Selected
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: '#8EA3CB' }}>
+                    Select a project from the tree to view Late, In Progress, Due This Week, and Blocked tasks.
+                  </Typography>
+                </Box>
+              ) : (
+                <>
+                  <Typography variant="h5" sx={{ fontWeight: 700 }}>Priority Tasks</Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5 }}>
+                    Late, in progress, due this week, and blocked tasks with direct links.
+                  </Typography>
+
+                  {[
+                    { title: 'Late', tasks: lateTasks, border: 'rgba(214,77,119,0.45)', chipBg: 'rgba(168,58,87,0.32)', chipColor: '#FF809A' },
+                    { title: 'In Progress', tasks: inProgressTasks, border: 'rgba(61,152,213,0.45)', chipBg: 'rgba(44,122,175,0.32)', chipColor: '#6EC7FF' },
+                    { title: 'Due This Week', tasks: dueThisWeekTasks, border: 'rgba(205,145,53,0.45)', chipBg: 'rgba(156,108,43,0.32)', chipColor: '#FFC567' },
+                    { title: 'Blocked', tasks: blockedTasks, border: 'rgba(216,83,83,0.45)', chipBg: 'rgba(150,58,58,0.32)', chipColor: '#FF8E8E' },
+                  ].map((section) => (
+                    <Box key={section.title} sx={{ border: `1px solid ${section.border}`, borderRadius: 2, overflow: 'hidden', backgroundColor: 'rgba(20,34,66,0.65)' }}>
+                      <Box sx={{ px: 1.5, py: 1, display: 'flex', alignItems: 'center', gap: 1, backgroundColor: 'rgba(255,255,255,0.03)' }}>
+                        <Typography sx={{ fontWeight: 700, color: section.chipColor }}>{section.title}</Typography>
+                        <Box sx={{ px: 0.7, py: 0.05, borderRadius: 1, backgroundColor: section.chipBg, color: section.chipColor, fontWeight: 700, fontSize: '0.75rem' }}>
+                          {section.tasks.length}
+                        </Box>
+                      </Box>
+
+                      {section.tasks.length === 0 ? (
+                        <Box sx={{ p: 2 }}>
+                          <Typography variant="body2" color="text.secondary">No tasks in this section.</Typography>
+                        </Box>
+                      ) : (
+                        <Box sx={{ p: 1.25, display: 'flex', flexDirection: 'column', gap: 0.75 }}>
+                          {section.tasks.map((task: any) => (
+                            <Box key={`${section.title}-${task.id}`} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, px: 1, py: 0.75, borderRadius: 1, backgroundColor: 'rgba(255,255,255,0.03)' }}>
+                              <Box sx={{ minWidth: 0 }}>
+                                <Typography variant="body2" sx={{ fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                  {task.name || 'Untitled Task'}
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                  {getPriorityTaskContext(task)}
+                                  {task.endDate ? ` • Due ${new Date(task.endDate).toLocaleDateString()}` : ''}
+                                </Typography>
+                              </Box>
+                              <Link
+                                component="button"
+                                underline="hover"
+                                onClick={() => handlePriorityTaskClick(task)}
+                                sx={{ fontSize: '0.8rem', fontWeight: 600, color: 'primary.light', whiteSpace: 'nowrap' }}
+                              >
+                                Open Task
+                              </Link>
+                            </Box>
+                          ))}
+                        </Box>
+                      )}
+                    </Box>
+                  ))}
+                </>
+              )}
+            </Box>
+          )}
+
+          {/* Schedule Tab Content */}
+          {tabValue === 3 && (
+            <Box sx={{ p: 2 }}>
+              <Alert severity="info">Schedule view is coming next.</Alert>
             </Box>
           )}
         </Box>
