@@ -117,7 +117,7 @@ router.patch(
 router.delete(
   '/:projectObjectId',
   requireAuth,
-  requireRole('admin'),
+  requireRole('analyst', 'admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       await projectObjectService.deleteProjectObject(req.params.projectObjectId);
