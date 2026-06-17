@@ -709,7 +709,7 @@ const ProjectsPage: React.FC = () => {
       onTabChange={(v) => setTabValue(v)}
     >
       {/* Main Content Area */}
-      <Box sx={{ display: 'flex', height: 'calc(100vh - 320px)', gap: 2, mx: -3, px: 3 }}>
+      <Box sx={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         {/* Left Sidebar - Hierarchy Tree */}
         <Paper
           sx={{
@@ -956,7 +956,7 @@ const ProjectsPage: React.FC = () => {
         </Paper>
 
         {/* Right Content Area - Details */}
-        <Box sx={{ flex: 1, overflowY: 'auto' }}>
+        <Box sx={{ flex: 1, overflowY: 'auto', p: 3 }}>
           {/* Plan Tab Content */}
           {tabValue === 0 && (
             <>

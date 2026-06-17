@@ -1,7 +1,8 @@
 import React from 'react';
-import { Box } from '@mui/material';
+import { Box, Typography } from '@mui/material';
 import TopNav from './TopNav';
 import { useLocation } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -21,10 +22,17 @@ const Layout: React.FC<LayoutProps> = ({
   onTabChange
 }) => {
   const location = useLocation();
+  const { user } = useAuth();
   const isProjectsPage = location.pathname === '/projects';
 
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const timeStr = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZoneName: 'short' });
+  const displayName = user?.email?.split('@')[0] || 'User';
+  const capitalized = displayName.charAt(0).toUpperCase() + displayName.slice(1);
+
   return (
-    <Box sx={{ display: 'flex', minHeight: '100vh', flexDirection: 'column' }}>
+    <Box sx={{ display: 'flex', height: '100vh', flexDirection: 'column', overflow: 'hidden' }}>
       <TopNav 
         onMenuClick={() => {}} 
         programCount={programCount}
@@ -39,11 +47,33 @@ const Layout: React.FC<LayoutProps> = ({
         sx={{
           mt: isProjectsPage ? '120px' : '64px',
           flex: 1,
-          p: 3,
-          overflow: 'auto',
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
+          p: isProjectsPage ? 0 : 3,
         }}
       >
         {children}
+      </Box>
+
+      {/* Footer */}
+      <Box
+        sx={{
+          flexShrink: 0,
+          height: '36px',
+          borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+          display: 'flex',
+          alignItems: 'center',
+          px: 2,
+          justifyContent: 'space-between',
+        }}
+      >
+        <Typography variant="caption" color="text.disabled">
+          Welcome, {capitalized}
+        </Typography>
+        <Typography variant="caption" color="text.disabled">
+          {dateStr} · {timeStr}
+        </Typography>
       </Box>
     </Box>
   );
