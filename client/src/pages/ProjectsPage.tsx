@@ -29,6 +29,7 @@ import {
   Badge,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
+import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
@@ -163,6 +164,17 @@ const ProjectsPage: React.FC = () => {
   const [catalogSortDirection, setCatalogSortDirection] = useState<'asc' | 'desc'>('asc');
   const [inventorySortColumn, setInventorySortColumn] = useState<'dataObjectId' | 'processArea' | 'complexity' | 'deploymentDisposition'>('dataObjectId');
   const [inventorySortDirection, setInventorySortDirection] = useState<'asc' | 'desc'>('asc');
+  const [scheduleWeekStart, setScheduleWeekStart] = useState(() => {
+    const now = new Date();
+    const day = now.getDay(); // 0=Sun ... 6=Sat
+    const diffToMonday = (day + 6) % 7;
+    const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - diffToMonday);
+    monday.setHours(0, 0, 0, 0);
+    return monday;
+  });
+  const [schedulePhaseFilter, setSchedulePhaseFilter] = useState<string>('all');
+  const [cycleScheduleItems, setCycleScheduleItems] = useState<any[]>([]);
+  const [isLoadingCycleSchedule, setIsLoadingCycleSchedule] = useState(false);
   const [editingInventoryItemId, setEditingInventoryItemId] = useState<string | null>(null);
   const [deletingInventoryItemId, setDeletingInventoryItemId] = useState<string | null>(null);
   const [deletingInventoryItemName, setDeletingInventoryItemName] = useState('');
@@ -324,6 +336,49 @@ const ProjectsPage: React.FC = () => {
 
   // Get the active project ID from either inventory tab or plan tab selection
   const activeProjectId = selectedItem?.type === 'project' ? selectedItem.id : selectedProjectForInventory;
+  const activeCycleId = selectedItem?.type === 'project'
+    ? selectedItem.cycleId
+    : selectedItem?.type === 'cycle'
+      ? selectedItem.id
+      : null;
+
+  const scheduleWeekDates = Array.from({ length: 7 }, (_, idx) => {
+    const d = new Date(scheduleWeekStart);
+    d.setDate(scheduleWeekStart.getDate() + idx);
+    return d;
+  });
+
+  const getProjectAccentColor = (project: Project, index: number) => {
+    if (project.accentColor) return project.accentColor;
+    const fallback = ['#5B67CA', '#00BFA5', '#FF5B8A', '#26C6DA', '#F59E0B', '#8B5CF6'];
+    return fallback[index % fallback.length];
+  };
+
+  const toRgba = (hex: string, alpha: number) => {
+    const value = (hex || '').trim();
+    const fullHex = /^#?[0-9a-fA-F]{6}$/.test(value)
+      ? value.replace('#', '')
+      : /^#?[0-9a-fA-F]{3}$/.test(value)
+        ? value.replace('#', '').split('').map(ch => ch + ch).join('')
+        : '5B67CA';
+    const r = parseInt(fullHex.slice(0, 2), 16);
+    const g = parseInt(fullHex.slice(2, 4), 16);
+    const b = parseInt(fullHex.slice(4, 6), 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  };
+
+  const normalizeDateOnly = (value?: string) => {
+    if (!value) return null;
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return null;
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  };
+
+  const isSameDay = (a: Date, b: Date) => (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
 
   const mergeOrder = (existing: string[], current: string[]) => {
     const existingFiltered = existing.filter(id => current.includes(id));
@@ -375,6 +430,49 @@ const ProjectsPage: React.FC = () => {
     const ids = mergeOrder(existing, source.map((p: Project) => p.id));
     return ids.map(id => source.find((p: Project) => p.id === id)).filter(Boolean) as Project[];
   };
+
+  // Load schedule rows for all projects in the selected cycle.
+  useEffect(() => {
+    const loadCycleSchedule = async () => {
+      if (tabValue !== 3 || !activeCycleId) {
+        setCycleScheduleItems([]);
+        return;
+      }
+
+      const cycleProjects = projectsByMockCycle[activeCycleId] || [];
+      if (cycleProjects.length === 0) {
+        setCycleScheduleItems([]);
+        return;
+      }
+
+      setIsLoadingCycleSchedule(true);
+      try {
+        const all = await Promise.all(
+          cycleProjects.map(async (project: Project, index: number) => {
+            try {
+              const response = await apiClient.get(`/api/project-objects/project/${project.id}`);
+              const items = response.data?.data || [];
+              const projectColor = getProjectAccentColor(project, index);
+              return items.map((item: any) => ({
+                ...item,
+                projectName: project.name,
+                projectColor,
+                projectId: project.id,
+              }));
+            } catch {
+              return [];
+            }
+          })
+        );
+
+        setCycleScheduleItems(all.flat());
+      } finally {
+        setIsLoadingCycleSchedule(false);
+      }
+    };
+
+    loadCycleSchedule();
+  }, [tabValue, activeCycleId, projectsByMockCycle]);
 
   // Load persisted ordering when project changes.
   useEffect(() => {
@@ -2579,8 +2677,165 @@ const ProjectsPage: React.FC = () => {
 
           {/* Schedule Tab Content */}
           {tabValue === 3 && (
-            <Box sx={{ p: 2 }}>
-              <Alert severity="info">Schedule view is coming next.</Alert>
+            <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {!activeCycleId ? (
+                <Alert severity="info">Select a cycle or project in the tree to view the load calendar.</Alert>
+              ) : (
+                <>
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap' }}>
+                    <Box>
+                      <Typography variant="h5" sx={{ fontWeight: 700 }}>Schedule</Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Weekly calendar view for object load dates. Colors represent assigned projects.
+                      </Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Typography variant="caption" color="text.secondary">Phase:</Typography>
+                      <Box
+                        component="select"
+                        value={schedulePhaseFilter}
+                        onChange={(e) => setSchedulePhaseFilter(e.target.value)}
+                        sx={{
+                          p: '6px 10px',
+                          border: '1px solid rgba(94,123,180,0.45)',
+                          borderRadius: '8px',
+                          fontSize: '0.8rem',
+                          color: '#DBE7FF',
+                          backgroundColor: 'rgba(10, 22, 49, 0.9)',
+                        }}
+                      >
+                        <option value="all">All</option>
+                        {cutoverPhaseOptions.map((phase) => (
+                          <option key={phase} value={phase}>{phase}</option>
+                        ))}
+                      </Box>
+                    </Box>
+                  </Box>
+
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                    <Button size="small" variant="outlined" startIcon={<ChevronLeftIcon />} onClick={() => {
+                      const prev = new Date(scheduleWeekStart);
+                      prev.setDate(prev.getDate() - 7);
+                      setScheduleWeekStart(prev);
+                    }}>
+                      Prev
+                    </Button>
+                    <Button size="small" variant="contained" onClick={() => {
+                      const now = new Date();
+                      const day = now.getDay();
+                      const diffToMonday = (day + 6) % 7;
+                      const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - diffToMonday);
+                      monday.setHours(0, 0, 0, 0);
+                      setScheduleWeekStart(monday);
+                    }}>
+                      Today
+                    </Button>
+                    <Button size="small" variant="outlined" endIcon={<ChevronRightIcon />} onClick={() => {
+                      const next = new Date(scheduleWeekStart);
+                      next.setDate(next.getDate() + 7);
+                      setScheduleWeekStart(next);
+                    }}>
+                      Next
+                    </Button>
+                    <Typography sx={{ ml: 1, fontWeight: 700 }}>
+                      Week of {scheduleWeekDates[0].toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} - {scheduleWeekDates[6].toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </Typography>
+                  </Box>
+
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.25 }}>
+                    {((projectsByMockCycle[activeCycleId] || []) as Project[]).map((project, idx) => {
+                      const color = getProjectAccentColor(project, idx);
+                      return (
+                        <Box key={project.id} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          <Box sx={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: color }} />
+                          <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>{project.name}</Typography>
+                        </Box>
+                      );
+                    })}
+                  </Box>
+
+                  <Box sx={{ border: '1px solid rgba(88,117,175,0.35)', borderRadius: 2, overflow: 'hidden', backgroundColor: 'rgba(14,27,55,0.7)' }}>
+                    <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', borderBottom: '1px solid rgba(88,117,175,0.25)' }}>
+                      {scheduleWeekDates.map((day) => {
+                        const today = new Date();
+                        const isToday = isSameDay(day, today);
+                        return (
+                          <Box key={day.toISOString()} sx={{ p: 1, textAlign: 'center', borderRight: '1px solid rgba(88,117,175,0.18)', '&:last-of-type': { borderRight: 'none' }, backgroundColor: isToday ? 'rgba(85,120,191,0.25)' : 'rgba(255,255,255,0.02)' }}>
+                            <Typography variant="caption" sx={{ fontWeight: 700, color: '#9FB0D8', textTransform: 'uppercase' }}>
+                              {day.toLocaleDateString(undefined, { weekday: 'short' })}
+                            </Typography>
+                            <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                              {day.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                            </Typography>
+                          </Box>
+                        );
+                      })}
+                    </Box>
+
+                    {isLoadingCycleSchedule ? (
+                      <Box sx={{ p: 2 }}><Typography variant="body2" color="text.secondary">Loading schedule...</Typography></Box>
+                    ) : (
+                      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', minHeight: 190 }}>
+                        {scheduleWeekDates.map((day) => {
+                          const dayItems = cycleScheduleItems.filter((item: any) => {
+                            if (schedulePhaseFilter !== 'all' && (item.cutoverPhase || '') !== schedulePhaseFilter) return false;
+                            const end = normalizeDateOnly(item.endDate);
+                            return !!end && isSameDay(end, day);
+                          });
+
+                          return (
+                            <Box key={`${day.toISOString()}-cell`} sx={{ p: 1, borderRight: '1px solid rgba(88,117,175,0.18)', '&:last-of-type': { borderRight: 'none' }, display: 'flex', flexDirection: 'column', gap: 0.75 }}>
+                              {dayItems.length === 0 ? (
+                                <Typography variant="caption" color="text.disabled">No loads</Typography>
+                              ) : (
+                                dayItems.map((item: any) => (
+                                  <Box key={item.id} sx={{ p: 0.75, borderRadius: 1, backgroundColor: toRgba(item.projectColor, 0.28), border: `1px solid ${toRgba(item.projectColor, 0.6)}` }}>
+                                    <Typography variant="caption" sx={{ display: 'block', fontFamily: 'monospace', fontWeight: 700, color: item.projectColor }}>
+                                      {item.objectId || 'Object'}
+                                    </Typography>
+                                    <Typography variant="caption" sx={{ display: 'block', fontWeight: 600, color: '#D2DDF8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                      {item.description || 'Load Object'}
+                                    </Typography>
+                                    <Typography variant="caption" sx={{ display: 'block', color: '#9FB0D8' }}>
+                                      {item.projectName}
+                                    </Typography>
+                                  </Box>
+                                ))
+                              )}
+                            </Box>
+                          );
+                        })}
+                      </Box>
+                    )}
+                  </Box>
+
+                  <Box sx={{ border: '1px solid rgba(88,117,175,0.35)', borderRadius: 2, overflow: 'hidden', backgroundColor: 'rgba(14,27,55,0.7)' }}>
+                    <Box sx={{ px: 1.5, py: 1, borderBottom: '1px solid rgba(88,117,175,0.25)', backgroundColor: 'rgba(255,255,255,0.03)' }}>
+                      <Typography sx={{ fontWeight: 700 }}>Unscheduled</Typography>
+                    </Box>
+                    <Box sx={{ p: 1.25, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 1 }}>
+                      {cycleScheduleItems
+                        .filter((item: any) => {
+                          if (schedulePhaseFilter !== 'all' && (item.cutoverPhase || '') !== schedulePhaseFilter) return false;
+                          return !normalizeDateOnly(item.endDate);
+                        })
+                        .map((item: any) => (
+                          <Box key={`unscheduled-${item.id}`} sx={{ p: 0.75, borderRadius: 1, backgroundColor: toRgba(item.projectColor, 0.22), border: `1px solid ${toRgba(item.projectColor, 0.5)}` }}>
+                            <Typography variant="caption" sx={{ display: 'block', fontFamily: 'monospace', fontWeight: 700, color: item.projectColor }}>
+                              {item.objectId || 'Object'}
+                            </Typography>
+                            <Typography variant="caption" sx={{ display: 'block', color: '#D2DDF8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {item.description || 'Load Object'}
+                            </Typography>
+                            <Typography variant="caption" sx={{ display: 'block', color: '#9FB0D8' }}>
+                              {item.projectName}
+                            </Typography>
+                          </Box>
+                        ))}
+                    </Box>
+                  </Box>
+                </>
+              )}
             </Box>
           )}
         </Box>
