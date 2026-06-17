@@ -1257,17 +1257,17 @@ const ProjectsPage: React.FC = () => {
                                             </Box>
                                           </Box>
                                         ))}
-                                      {/* Add Project/Phase row */}
+                                      {/* Add Task row */}
                                       <Box sx={{ px: 2, py: 0.5 }}>
                                         <Button size="small" variant="text" startIcon={<AddIcon sx={{ fontSize: '0.8rem !important' }} />}
                                           onClick={async () => {
                                             try {
-                                              const res = await apiClient.post(`/api/tasks/project/${activeProjectId}`, { taskType: 'custom', projectObjectId: objectId, name: 'New Phase' });
+                                              const res = await apiClient.post(`/api/tasks/project/${activeProjectId}`, { taskType: 'custom', projectObjectId: objectId, name: 'New Task' });
                                               setProjectTasks(prev => [...prev, res.data.data]);
                                             } catch (e) { console.error(e); }
                                           }}
                                           sx={{ fontSize: '0.72rem', color: '#7C83D0', textTransform: 'none' }}>
-                                          Add Project/Phase
+                                          Add Task
                                         </Button>
                                       </Box>
                                       {/* Object Notes */}
@@ -1290,7 +1290,7 @@ const ProjectsPage: React.FC = () => {
                                   <Box onClick={() => { const next = new Set(expandedTaskGroups); if (isExpanded) next.delete(group.id); else next.add(group.id); setExpandedTaskGroups(next); }}
                                     sx={{ pl: 2.5, pr: 1, py: 1.25, display: 'flex', alignItems: 'center', gap: 1.5, cursor: 'pointer', '&:hover': { backgroundColor: 'rgba(255,255,255,0.03)' } }}>
                                     <ChevronRightIcon sx={{ fontSize: 16, color: 'text.secondary', transition: 'transform 0.2s', transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)', flexShrink: 0 }} />
-                                    <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', flex: 1, color: '#9FA8DA' }}>{group.name}</Typography>
+                                    <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', flex: 1, color: accentColor }}>{group.name}</Typography>
                                     <Box sx={{ display: 'flex', gap: 0.4, alignItems: 'center', flexShrink: 0 }}>
                                       {groupTasks.slice(0, 10).map((task, i) => (<Box key={i} sx={{ width: 16, height: 4, borderRadius: 2, backgroundColor: getTaskStatusColor(task.status) }} />))}
                                     </Box>
@@ -1298,11 +1298,60 @@ const ProjectsPage: React.FC = () => {
                                     <IconButton size="small" onClick={(e) => { e.stopPropagation(); setMenuAnchorEl(e.currentTarget); setMenuType('taskGroup'); setMenuItemId(group.id); }}><MoreVertIcon sx={{ fontSize: '1rem' }} /></IconButton>
                                   </Box>
                                   {isExpanded && (
-                                    <Box sx={{ pl: 4, pr: 2, pb: 1.5, pt: 0.5, display: 'flex', flexWrap: 'wrap', gap: 0.75, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-                                      {groupTasks.length === 0 ? <Typography variant="caption" color="text.disabled">No tasks</Typography>
-                                        : groupTasks.map((task) => (
-                                          <Box key={task.id} sx={{ px: 1.5, py: 0.4, borderRadius: 10, fontSize: '0.72rem', fontWeight: 600, backgroundColor: `${getTaskStatusColor(task.status)}22`, color: getTaskStatusColor(task.status), border: `1px solid ${getTaskStatusColor(task.status)}44`, whiteSpace: 'nowrap' }}>{task.name || 'Task'}</Box>
+                                    <Box sx={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                                      {/* Table header */}
+                                      <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 130px 160px 110px 110px 1fr 80px', gap: 0, px: 2, py: 0.5, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                                        {['TASK', 'STATUS', 'ASSIGNED TO', 'START DATE', 'END DATE', 'NOTES', 'ACTIONS'].map(h => (
+                                          <Typography key={h} variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', letterSpacing: '0.05em', fontWeight: 600 }}>{h}</Typography>
                                         ))}
+                                      </Box>
+                                      {groupTasks.length === 0
+                                        ? <Typography variant="caption" color="text.disabled" sx={{ px: 2, py: 1, display: 'block' }}>No tasks</Typography>
+                                        : groupTasks.map((task) => (
+                                          <Box key={task.id} sx={{ display: 'grid', gridTemplateColumns: '1fr 130px 160px 110px 110px 1fr 80px', gap: 0, px: 2, py: 0.5, alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.03)', '&:hover': { backgroundColor: 'rgba(255,255,255,0.02)' } }}>
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                                              <Box sx={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: getTaskStatusColor(task.status), flexShrink: 0 }} />
+                                              <Typography variant="caption" sx={{ fontWeight: 500 }}>{task.name || '—'}</Typography>
+                                            </Box>
+                                            <TextField select size="small" value={task.status} onChange={e => updateTaskInline(task.id, 'status', e.target.value)}
+                                              sx={{ '& .MuiInputBase-root': { fontSize: '0.72rem', height: 26 } }}>
+                                              <MenuItem value="not_started">Not Started</MenuItem>
+                                              <MenuItem value="in_progress">In Progress</MenuItem>
+                                              <MenuItem value="complete">Completed</MenuItem>
+                                              <MenuItem value="blocked">Blocked</MenuItem>
+                                            </TextField>
+                                            <TextField select size="small" value={task.assignedTo || ''} onChange={e => updateTaskInline(task.id, 'assignedTo', e.target.value)}
+                                              sx={{ '& .MuiInputBase-root': { fontSize: '0.72rem', height: 26 } }}>
+                                              <MenuItem value=""><em>Unassigned</em></MenuItem>
+                                              {people.map(p => <MenuItem key={p.id} value={p.name}>{p.name}</MenuItem>)}
+                                            </TextField>
+                                            <TextField size="small" type="date" value={task.startDate || ''} onChange={e => updateTaskInline(task.id, 'startDate', e.target.value)}
+                                              sx={{ '& .MuiInputBase-root': { fontSize: '0.72rem', height: 26 } }} />
+                                            <TextField size="small" type="date" value={task.endDate || ''} onChange={e => updateTaskInline(task.id, 'endDate', e.target.value)}
+                                              sx={{ '& .MuiInputBase-root': { fontSize: '0.72rem', height: 26 } }} />
+                                            <TextField size="small" placeholder="Notes..." value={task.notes || ''} onBlur={e => updateTaskInline(task.id, 'notes', e.target.value)}
+                                              onChange={e => setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, notes: e.target.value } : t))}
+                                              sx={{ '& .MuiInputBase-root': { fontSize: '0.72rem', height: 26 } }} />
+                                            <Box sx={{ display: 'flex', gap: 0.5 }}>
+                                              <IconButton size="small" onClick={() => openDeleteDialog('taskSingle' as any, task.id, task.name)} sx={{ opacity: 0.6, '&:hover': { opacity: 1 } }}>
+                                                <DeleteIcon sx={{ fontSize: '0.9rem' }} />
+                                              </IconButton>
+                                            </Box>
+                                          </Box>
+                                        ))}
+                                      {/* Add Task to group */}
+                                      <Box sx={{ px: 2, py: 0.5 }}>
+                                        <Button size="small" variant="text" startIcon={<AddIcon sx={{ fontSize: '0.8rem !important' }} />}
+                                          onClick={async () => {
+                                            try {
+                                              const res = await apiClient.post(`/api/tasks/project/${activeProjectId}`, { taskType: 'custom', taskGroupId: group.id, name: 'New Task' });
+                                              setProjectTasks(prev => [...prev, res.data.data]);
+                                            } catch (e) { console.error(e); }
+                                          }}
+                                          sx={{ fontSize: '0.72rem', color: '#7C83D0', textTransform: 'none' }}>
+                                          Add Task
+                                        </Button>
+                                      </Box>
                                     </Box>
                                   )}
                                 </Box>
