@@ -1212,7 +1212,9 @@ const ProjectsPage: React.FC = () => {
                                             {/* Phase name */}
                                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
                                               <Box sx={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: getTaskStatusColor(task.status), flexShrink: 0 }} />
-                                              <Typography variant="caption" sx={{ fontWeight: 500 }}>{task.name || '—'}</Typography>
+                                              <TextField size="small" value={task.name || ''} onBlur={e => updateTaskInline(task.id, 'name', e.target.value)}
+                                                onChange={e => setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, name: e.target.value } : t))}
+                                                sx={{ '& .MuiInputBase-root': { fontSize: '0.72rem', height: 26 }, flex: 1 }} />
                                             </Box>
                                             {/* Status dropdown */}
                                             <TextField select size="small" value={task.status} onChange={e => updateTaskInline(task.id, 'status', e.target.value)}
@@ -1311,7 +1313,9 @@ const ProjectsPage: React.FC = () => {
                                           <Box key={task.id} sx={{ display: 'grid', gridTemplateColumns: '1fr 130px 160px 110px 110px 1fr 80px', gap: 0, px: 2, py: 0.5, alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.03)', '&:hover': { backgroundColor: 'rgba(255,255,255,0.02)' } }}>
                                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
                                               <Box sx={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: getTaskStatusColor(task.status), flexShrink: 0 }} />
-                                              <Typography variant="caption" sx={{ fontWeight: 500 }}>{task.name || '—'}</Typography>
+                                              <TextField size="small" value={task.name || ''} onBlur={e => updateTaskInline(task.id, 'name', e.target.value)}
+                                                onChange={e => setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, name: e.target.value } : t))}
+                                                sx={{ '& .MuiInputBase-root': { fontSize: '0.72rem', height: 26 }, flex: 1 }} />
                                             </Box>
                                             <TextField select size="small" value={task.status} onChange={e => updateTaskInline(task.id, 'status', e.target.value)}
                                               sx={{ '& .MuiInputBase-root': { fontSize: '0.72rem', height: 26 } }}>
