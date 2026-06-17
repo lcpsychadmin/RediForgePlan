@@ -366,7 +366,7 @@ const TopNav: React.FC<TopNavProps> = ({
               key={idx}
               size="small"
               startIcon={item.icon}
-              onClick={() => idx < 2 && onTabChange?.(idx)}
+              onClick={() => onTabChange?.(idx)}
               sx={{
                 textTransform: 'none',
                 fontWeight: 500,
@@ -376,13 +376,11 @@ const TopNav: React.FC<TopNavProps> = ({
                 py: 0.4,
                 color: 'white',
                 backgroundColor: tabValue === idx ? 'primary.main' : 'rgba(255, 255, 255, 0.08)',
-                opacity: idx > 1 ? 0.5 : 1,
-                cursor: idx > 1 ? 'default' : 'pointer',
+                opacity: 1,
+                cursor: 'pointer',
                 '&:hover': {
                   backgroundColor: tabValue === idx
                     ? 'primary.dark'
-                    : idx > 1
-                    ? 'rgba(255, 255, 255, 0.08)'
                     : 'rgba(255, 255, 255, 0.15)',
                 },
               }}
