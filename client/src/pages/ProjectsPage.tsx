@@ -1136,9 +1136,11 @@ const ProjectsPage: React.FC = () => {
 
                         {/* Filter Row */}
                         <Box sx={{ display: 'flex', gap: 1.5, mb: 3, alignItems: 'center', flexWrap: 'wrap' }}>
-                          <TextField placeholder="Search..." size="small" value={planSearchTerm} onChange={(e) => setPlanSearchTerm(e.target.value)} sx={{ width: 180 }}
+                          <TextField placeholder="Search..." size="small" value={planSearchTerm} onChange={(e) => setPlanSearchTerm(e.target.value)}
+                            sx={{ width: 180, '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': { borderColor: accentColor }, '& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: accentColor } }}
                             slotProps={{ input: { startAdornment: <SearchIcon sx={{ mr: 0.5, fontSize: '1rem', color: 'text.secondary' }} /> } }} />
-                          <TextField select size="small" value={planStatusFilter} onChange={(e) => setPlanStatusFilter(e.target.value)} sx={{ width: 150 }}>
+                          <TextField select size="small" value={planStatusFilter} onChange={(e) => setPlanStatusFilter(e.target.value)}
+                            sx={{ width: 150, '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': { borderColor: accentColor }, '& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: accentColor } }}>
                             <MenuItem value="">All Statuses</MenuItem>
                             <MenuItem value="not_started">Not Started</MenuItem>
                             <MenuItem value="in_progress">In Progress</MenuItem>
