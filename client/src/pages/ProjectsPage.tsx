@@ -1318,16 +1318,14 @@ const ProjectsPage: React.FC = () => {
                                       const startParsed = task.startDate ? parseLocalDate(task.startDate) : null;
                                       const endParsed = task.endDate ? parseLocalDate(task.endDate) : null;
                                       if (startParsed) {
-                                        if (!minStart || startParsed.year < minStart.year || (startParsed.year === minStart.year && startParsed.month < minStart.month) || (startParsed.year === minStart.year && startParsed.month === minStart.month && startParsed.day < minStart.day)) {
-                                          minStart = startParsed;
-                                        }
+                                        if (!minStart || dateToNum(startParsed) < dateToNum(minStart)) minStart = startParsed;
                                       }
                                       if (endParsed) {
-                                        if (!maxEnd || endParsed.year > maxEnd.year || (endParsed.year === maxEnd.year && endParsed.month > maxEnd.month) || (endParsed.year === maxEnd.year && endParsed.month === maxEnd.month && endParsed.day > maxEnd.day)) {
-                                          maxEnd = endParsed;
-                                        }
+                                        if (!maxEnd || dateToNum(endParsed) > dateToNum(maxEnd)) maxEnd = endParsed;
                                       }
                                     }
+                                    
+                                    const dateToNum = (d: { year: number; month: number; day: number }) => d.year * 10000 + d.month * 100 + d.day;
                                     
                                     if (!minStart || !maxEnd) return null;
                                     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -1500,16 +1498,14 @@ const ProjectsPage: React.FC = () => {
                                       const startParsed = task.startDate ? parseLocalDate(task.startDate) : null;
                                       const endParsed = task.endDate ? parseLocalDate(task.endDate) : null;
                                       if (startParsed) {
-                                        if (!minStart || startParsed.year < minStart.year || (startParsed.year === minStart.year && startParsed.month < minStart.month) || (startParsed.year === minStart.year && startParsed.month === minStart.month && startParsed.day < minStart.day)) {
-                                          minStart = startParsed;
-                                        }
+                                          if (!minStart || dateToNum(startParsed) < dateToNum(minStart)) minStart = startParsed;
                                       }
                                       if (endParsed) {
-                                        if (!maxEnd || endParsed.year > maxEnd.year || (endParsed.year === maxEnd.year && endParsed.month > maxEnd.month) || (endParsed.year === maxEnd.year && endParsed.month === maxEnd.month && endParsed.day > maxEnd.day)) {
-                                          maxEnd = endParsed;
-                                        }
+                                          if (!maxEnd || dateToNum(endParsed) > dateToNum(maxEnd)) maxEnd = endParsed;
                                       }
                                     }
+                                    
+                                      const dateToNum = (d: { year: number; month: number; day: number }) => d.year * 10000 + d.month * 100 + d.day;
                                     
                                     if (!minStart || !maxEnd) return null;
                                     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
