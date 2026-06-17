@@ -1310,13 +1310,16 @@ const ProjectsPage: React.FC = () => {
                                       if (year < 1900 || year > 2100 || month < 1 || month > 12 || day < 1 || day > 31) return null;
                                       return { year, month, day };
                                     };
+                                    const dateToNum = (d: { year: number; month: number; day: number }) => d.year * 10000 + d.month * 100 + d.day;
+                                    const now = new Date();
+                                    const todayParts = { year: now.getFullYear(), month: now.getMonth() + 1, day: now.getDate() };
                                     
                                     // Find min start date and max end date from all tasks
                                     let minStart = null;
                                     let maxEnd = null;
                                     for (const task of tasksForObject) {
-                                      const startParsed = task.startDate ? parseLocalDate(task.startDate) : null;
-                                      const endParsed = task.endDate ? parseLocalDate(task.endDate) : null;
+                                      const startParsed = parseLocalDate(task.startDate) || todayParts;
+                                      const endParsed = parseLocalDate(task.endDate) || todayParts;
                                       if (startParsed) {
                                         if (!minStart || dateToNum(startParsed) < dateToNum(minStart)) minStart = startParsed;
                                       }
@@ -1324,8 +1327,6 @@ const ProjectsPage: React.FC = () => {
                                         if (!maxEnd || dateToNum(endParsed) > dateToNum(maxEnd)) maxEnd = endParsed;
                                       }
                                     }
-                                    
-                                    const dateToNum = (d: { year: number; month: number; day: number }) => d.year * 10000 + d.month * 100 + d.day;
                                     
                                     if (!minStart || !maxEnd) return null;
                                     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -1490,13 +1491,16 @@ const ProjectsPage: React.FC = () => {
                                       if (year < 1900 || year > 2100 || month < 1 || month > 12 || day < 1 || day > 31) return null;
                                       return { year, month, day };
                                     };
+                                    const dateToNum = (d: { year: number; month: number; day: number }) => d.year * 10000 + d.month * 100 + d.day;
+                                    const now = new Date();
+                                    const todayParts = { year: now.getFullYear(), month: now.getMonth() + 1, day: now.getDate() };
                                     
                                     // Find min start date and max end date from all tasks in group
                                     let minStart = null;
                                     let maxEnd = null;
                                     for (const task of groupTasks) {
-                                      const startParsed = task.startDate ? parseLocalDate(task.startDate) : null;
-                                      const endParsed = task.endDate ? parseLocalDate(task.endDate) : null;
+                                      const startParsed = parseLocalDate(task.startDate) || todayParts;
+                                      const endParsed = parseLocalDate(task.endDate) || todayParts;
                                       if (startParsed) {
                                           if (!minStart || dateToNum(startParsed) < dateToNum(minStart)) minStart = startParsed;
                                       }
@@ -1504,8 +1508,6 @@ const ProjectsPage: React.FC = () => {
                                           if (!maxEnd || dateToNum(endParsed) > dateToNum(maxEnd)) maxEnd = endParsed;
                                       }
                                     }
-                                    
-                                      const dateToNum = (d: { year: number; month: number; day: number }) => d.year * 10000 + d.month * 100 + d.day;
                                     
                                     if (!minStart || !maxEnd) return null;
                                     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
