@@ -462,6 +462,10 @@ const ProjectsPage: React.FC = () => {
         const tasksForObject = projectTasks.filter(t => t.projectObjectId === deleteItemId);
         await Promise.all(tasksForObject.map(t => apiClient.delete(`/api/tasks/${t.id}`)));
         setProjectTasks(prev => prev.filter(t => t.projectObjectId !== deleteItemId));
+      } else if ((deleteItemType as any) === 'taskSingle') {
+        // Delete a single task row
+        await apiClient.delete(`/api/tasks/${deleteItemId}`);
+        setProjectTasks(prev => prev.filter(t => t.id !== deleteItemId));
       } else if (deleteItemType === 'taskGroup') {
         await apiClient.delete(`/api/tasks/groups/${deleteItemId}`);
       }
@@ -1192,7 +1196,7 @@ const ProjectsPage: React.FC = () => {
                                               }} sx={{ opacity: 0.6, '&:hover': { opacity: 1 } }}>
                                                 <ChevronRightIcon sx={{ fontSize: '0.9rem' }} />
                                               </IconButton>
-                                              <IconButton size="small" onClick={() => openDeleteDialog('task', task.projectObjectId, task.name)} sx={{ opacity: 0.6, '&:hover': { opacity: 1 } }}>
+                                              <IconButton size="small" onClick={() => openDeleteDialog('taskSingle' as any, task.id, task.name)} sx={{ opacity: 0.6, '&:hover': { opacity: 1 } }}>
                                                 <DeleteIcon sx={{ fontSize: '0.9rem' }} />
                                               </IconButton>
                                             </Box>
