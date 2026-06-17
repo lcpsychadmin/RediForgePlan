@@ -1,6 +1,6 @@
 // client/src/pages/SettingsPage.tsx
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Card,
@@ -19,10 +19,14 @@ import {
   IconButton,
   Chip,
   Divider,
+  Switch,
+  MenuItem,
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
+import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 import Layout from '../components/Layout';
+import apiClient from '../api/client';
 
 interface Picklist {
   name: string;
@@ -88,6 +92,19 @@ const SettingsPage: React.FC = () => {
   const [selectedPicklist, setSelectedPicklist] = useState<string>('processArea');
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [newValueInput, setNewValueInput] = useState('');
+
+  // Default task templates
+  const [templates, setTemplates] = useState<any[]>([]);
+  const [addTemplateOpen, setAddTemplateOpen] = useState(false);
+  const [newTemplateName, setNewTemplateName] = useState('');
+  const [newTemplateDuration, setNewTemplateDuration] = useState('8');
+  const [newTemplateUnit, setNewTemplateUnit] = useState('hours');
+
+  useEffect(() => {
+    apiClient.get('/api/tasks/templates/defaults').then(res => {
+      setTemplates(res.data.data || []);
+    }).catch(() => {});
+  }, []);
 
   const handleAddValue = () => {
     if (newValueInput.trim()) {
@@ -208,6 +225,36 @@ const SettingsPage: React.FC = () => {
                 </Typography>
               )}
 
+              {/* Default Task Templates Section */}
+              <Box sx={{ mt: 4, pt: 3, borderTop: '1px solid', borderColor: 'divider' }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                  <Box>
+                    <Typography variant="h6" sx={{ fontWeight: 600 }}>Default Task Templates</Typography>
+                    <Typography variant="body2" color="text.secondary">These tasks are automatically created when a data object is added to a plan.</Typography>
+                  </Box>
+                  <Button size="small" variant="contained" startIcon={<AddIcon />} onClick={() => setAddTemplateOpen(true)} sx={{ textTransform: 'none' }}>Add Task</Button>
+                </Box>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
+                  {templates.map(tpl => (
+                    <Box key={tpl.id} sx={{ display: 'flex', alignItems: 'center', gap: 2, py: 0.75, px: 1.5, borderRadius: 1, backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
+                      <DragIndicatorIcon sx={{ color: 'text.disabled', fontSize: '1rem' }} />
+                      <Typography variant="body2" sx={{ flex: 1, fontWeight: 500 }}>{tpl.name}</Typography>
+                      <Typography variant="caption" color="text.secondary">{tpl.duration} {tpl.durationUnit}</Typography>
+                      <Switch size="small" checked={tpl.isActive} onChange={async (e) => {
+                        await apiClient.patch(`/api/tasks/templates/defaults/${tpl.id}`, { isActive: e.target.checked });
+                        setTemplates(prev => prev.map(t => t.id === tpl.id ? { ...t, isActive: e.target.checked } : t));
+                      }} />
+                      <IconButton size="small" onClick={async () => {
+                        await apiClient.delete(`/api/tasks/templates/defaults/${tpl.id}`);
+                        setTemplates(prev => prev.filter(t => t.id !== tpl.id));
+                      }}>
+                        <DeleteIcon sx={{ fontSize: '1rem' }} />
+                      </IconButton>
+                    </Box>
+                  ))}
+                </Box>
+              </Box>
+
               {/* Save Button */}
               <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end', mt: 4, pt: 2, borderTop: '1px solid', borderColor: 'divider' }}>
                 <Button variant="text">Reset</Button>
@@ -227,6 +274,31 @@ const SettingsPage: React.FC = () => {
           </Card>
         </Box>
       </Box>
+
+      {/* Add Template Dialog */}
+      <Dialog open={addTemplateOpen} onClose={() => setAddTemplateOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>Add Default Task</DialogTitle>
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
+          <TextField label="Task Name" fullWidth size="small" value={newTemplateName} onChange={e => setNewTemplateName(e.target.value)} autoFocus />
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            <TextField label="Duration" size="small" type="number" value={newTemplateDuration} onChange={e => setNewTemplateDuration(e.target.value)} sx={{ flex: 1 }} />
+            <TextField select label="Unit" size="small" value={newTemplateUnit} onChange={e => setNewTemplateUnit(e.target.value)} sx={{ flex: 1 }}>
+              <MenuItem value="hours">Hours</MenuItem>
+              <MenuItem value="days">Days</MenuItem>
+            </TextField>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setAddTemplateOpen(false)} sx={{ textTransform: 'none' }}>Cancel</Button>
+          <Button variant="contained" sx={{ textTransform: 'none' }} onClick={async () => {
+            const res = await apiClient.post('/api/tasks/templates/defaults', { name: newTemplateName, duration: parseFloat(newTemplateDuration), durationUnit: newTemplateUnit, sortOrder: templates.length + 1 });
+            const refreshed = await apiClient.get('/api/tasks/templates/defaults');
+            setTemplates(refreshed.data.data || []);
+            setNewTemplateName(''); setNewTemplateDuration('8'); setNewTemplateUnit('hours');
+            setAddTemplateOpen(false);
+          }} disabled={!newTemplateName.trim()}>Add</Button>
+        </DialogActions>
+      </Dialog>
     </Layout>
   );
 };

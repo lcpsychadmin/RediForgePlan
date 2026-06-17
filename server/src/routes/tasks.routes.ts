@@ -231,4 +231,69 @@ router.delete(
   }
 );
 
+// ===== TASK DEPENDENCIES =====
+
+router.get('/:taskId/dependencies', requireAuth, async (req, res, next) => {
+  try {
+    const deps = await taskService.getTaskDependencies(req.params.taskId);
+    res.json(formatListResponse(deps, deps.length));
+  } catch (error) { next(error); }
+});
+
+router.post('/:taskId/dependencies', requireAuth, requireRole('analyst', 'admin'), async (req, res, next) => {
+  try {
+    const { dependsOnTaskId } = req.body;
+    if (!dependsOnTaskId) throw new ApiError(400, 'dependsOnTaskId required', 'MISSING_FIELD');
+    await taskService.addTaskDependency(req.params.taskId, dependsOnTaskId);
+    res.json({ success: true });
+  } catch (error) { next(error); }
+});
+
+router.delete('/:taskId/dependencies/:dependsOnTaskId', requireAuth, requireRole('analyst', 'admin'), async (req, res, next) => {
+  try {
+    await taskService.removeTaskDependency(req.params.taskId, req.params.dependsOnTaskId);
+    res.json({ success: true });
+  } catch (error) { next(error); }
+});
+
+// ===== DEFAULT TASK TEMPLATES =====
+
+router.get('/templates/defaults', requireAuth, async (req, res, next) => {
+  try {
+    const templates = await taskService.getDefaultTaskTemplates();
+    res.json(formatListResponse(templates, templates.length));
+  } catch (error) { next(error); }
+});
+
+router.post('/templates/defaults', requireAuth, requireRole('analyst', 'admin'), async (req, res, next) => {
+  try {
+    const result = await taskService.createDefaultTaskTemplate(req.body);
+    res.status(201).json(formatSingleResponse(result));
+  } catch (error) { next(error); }
+});
+
+router.patch('/templates/defaults/:id', requireAuth, requireRole('analyst', 'admin'), async (req, res, next) => {
+  try {
+    const result = await taskService.updateDefaultTaskTemplate(req.params.id, req.body);
+    res.json(formatListResponse(result || [], (result || []).length));
+  } catch (error) { next(error); }
+});
+
+router.delete('/templates/defaults/:id', requireAuth, requireRole('analyst', 'admin'), async (req, res, next) => {
+  try {
+    await taskService.deleteDefaultTaskTemplate(req.params.id);
+    res.json({ success: true });
+  } catch (error) { next(error); }
+});
+
+// Auto-create default tasks for a project object
+router.post('/defaults/project-object/:projectObjectId', requireAuth, requireRole('analyst', 'admin'), async (req, res, next) => {
+  try {
+    const { projectId } = req.body;
+    if (!projectId) throw new ApiError(400, 'projectId required', 'MISSING_FIELD');
+    const tasks = await taskService.createDefaultTasksForProjectObject(projectId, req.params.projectObjectId);
+    res.status(201).json(formatListResponse(tasks, tasks.length));
+  } catch (error) { next(error); }
+});
+
 export default router;

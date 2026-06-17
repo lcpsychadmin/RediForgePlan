@@ -11,6 +11,9 @@ interface TaskInput {
   status?: string;
   startDate?: string;
   endDate?: string;
+  assignedTo?: string;
+  duration?: number;
+  durationUnit?: string;
   draUserId?: string;
   developerUserId?: string;
   notes?: string;
@@ -118,7 +121,8 @@ export class TaskService {
   async getTasksByProject(projectId: string, filters?: { status?: string; taskType?: string; draUserId?: string; developerUserId?: string; projectObjectId?: string; taskGroupId?: string }) {
     let query = `
       SELECT t.id, t.project_id, t.project_object_id, t.task_group_id, t.task_type, t.name, t.status,
-             t.start_date, t.end_date, t.dra_user_id, t.developer_user_id, t.notes, t.created_at, t.updated_at
+             t.start_date, t.end_date, t.assigned_to, t.duration, t.duration_unit,
+             t.dra_user_id, t.developer_user_id, t.notes, t.created_at, t.updated_at
       FROM tasks t
       WHERE t.project_id = $1
     `;
@@ -165,7 +169,8 @@ export class TaskService {
   async getTaskById(taskId: string) {
     const result = await db.query(
       `SELECT t.id, t.project_id, t.project_object_id, t.task_group_id, t.task_type, t.name, t.status,
-              t.start_date, t.end_date, t.dra_user_id, t.developer_user_id, t.notes, t.created_at, t.updated_at
+              t.start_date, t.end_date, t.assigned_to, t.duration, t.duration_unit,
+              t.dra_user_id, t.developer_user_id, t.notes, t.created_at, t.updated_at
        FROM tasks t
        WHERE t.id = $1`,
       [taskId]
@@ -182,10 +187,11 @@ export class TaskService {
     const result = await db.query(
       `INSERT INTO tasks (
         project_id, project_object_id, task_group_id, task_type, name, status,
-        start_date, end_date, dra_user_id, developer_user_id, notes
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        start_date, end_date, assigned_to, duration, duration_unit, dra_user_id, developer_user_id, notes
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
        RETURNING id, project_id, project_object_id, task_group_id, task_type, name, status,
-                 start_date, end_date, dra_user_id, developer_user_id, notes, created_at, updated_at`,
+                 start_date, end_date, assigned_to, duration, duration_unit,
+                 dra_user_id, developer_user_id, notes, created_at, updated_at`,
       [
         projectId,
         data.projectObjectId || null,
@@ -195,6 +201,9 @@ export class TaskService {
         data.status || 'not_started',
         data.startDate || null,
         data.endDate || null,
+        data.assignedTo || null,
+        data.duration || null,
+        data.durationUnit || 'hours',
         data.draUserId || null,
         data.developerUserId || null,
         data.notes || null,
@@ -211,17 +220,21 @@ export class TaskService {
 
     const fieldMap: { [key: string]: string } = {
       status: 'status',
+      name: 'name',
       startDate: 'start_date',
       endDate: 'end_date',
+      assignedTo: 'assigned_to',
+      duration: 'duration',
+      durationUnit: 'duration_unit',
       draUserId: 'dra_user_id',
       developerUserId: 'developer_user_id',
       notes: 'notes',
     };
 
     for (const [key, dbColumn] of Object.entries(fieldMap)) {
-      if (key in data && data[key as keyof TaskInput] !== undefined) {
+      if (key in data && (data as any)[key] !== undefined) {
         fields.push(`${dbColumn} = $${paramCount}`);
-        values.push(data[key as keyof TaskInput]);
+        values.push((data as any)[key]);
         paramCount++;
       }
     }
@@ -244,8 +257,111 @@ export class TaskService {
       'DELETE FROM tasks WHERE id = $1 RETURNING id',
       [taskId]
     );
-
     return result.rows.length > 0;
+  }
+
+  // Task dependencies
+  async getTaskDependencies(taskId: string) {
+    const result = await db.query(
+      `SELECT td.id, td.task_id, td.depends_on_task_id,
+              t.name AS depends_on_name, t.project_object_id, t.task_group_id,
+              po.object_id AS object_id
+       FROM task_dependencies td
+       JOIN tasks t ON td.depends_on_task_id = t.id
+       LEFT JOIN project_objects po ON t.project_object_id = po.id
+       LEFT JOIN global_objects go ON po.global_object_id = go.id
+       WHERE td.task_id = $1`,
+      [taskId]
+    );
+    return result.rows.map((r: any) => ({
+      id: r.id,
+      taskId: r.task_id,
+      dependsOnTaskId: r.depends_on_task_id,
+      dependsOnName: r.depends_on_name,
+      objectId: r.object_id,
+    }));
+  }
+
+  async addTaskDependency(taskId: string, dependsOnTaskId: string) {
+    const result = await db.query(
+      `INSERT INTO task_dependencies (task_id, depends_on_task_id)
+       VALUES ($1, $2)
+       ON CONFLICT DO NOTHING
+       RETURNING id`,
+      [taskId, dependsOnTaskId]
+    );
+    return result.rows.length > 0;
+  }
+
+  async removeTaskDependency(taskId: string, dependsOnTaskId: string) {
+    const result = await db.query(
+      'DELETE FROM task_dependencies WHERE task_id = $1 AND depends_on_task_id = $2 RETURNING id',
+      [taskId, dependsOnTaskId]
+    );
+    return result.rows.length > 0;
+  }
+
+  // Default task templates
+  async getDefaultTaskTemplates() {
+    const result = await db.query(
+      'SELECT id, name, task_type, sort_order, duration, duration_unit, is_active FROM default_task_templates ORDER BY sort_order ASC'
+    );
+    return result.rows.map((r: any) => ({
+      id: r.id,
+      name: r.name,
+      taskType: r.task_type,
+      sortOrder: r.sort_order,
+      duration: r.duration,
+      durationUnit: r.duration_unit,
+      isActive: r.is_active,
+    }));
+  }
+
+  async updateDefaultTaskTemplate(id: string, data: { name?: string; sortOrder?: number; duration?: number; durationUnit?: string; isActive?: boolean }) {
+    const fields: string[] = [];
+    const values: any[] = [id];
+    let p = 2;
+    if (data.name !== undefined) { fields.push(`name = $${p++}`); values.push(data.name); }
+    if (data.sortOrder !== undefined) { fields.push(`sort_order = $${p++}`); values.push(data.sortOrder); }
+    if (data.duration !== undefined) { fields.push(`duration = $${p++}`); values.push(data.duration); }
+    if (data.durationUnit !== undefined) { fields.push(`duration_unit = $${p++}`); values.push(data.durationUnit); }
+    if (data.isActive !== undefined) { fields.push(`is_active = $${p++}`); values.push(data.isActive); }
+    if (fields.length === 0) return null;
+    fields.push('updated_at = CURRENT_TIMESTAMP');
+    await db.query(`UPDATE default_task_templates SET ${fields.join(', ')} WHERE id = $1`, values);
+    return this.getDefaultTaskTemplates();
+  }
+
+  async createDefaultTaskTemplate(data: { name: string; taskType?: string; sortOrder?: number; duration?: number; durationUnit?: string }) {
+    const result = await db.query(
+      `INSERT INTO default_task_templates (name, task_type, sort_order, duration, duration_unit)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id`,
+      [data.name, data.taskType || 'custom', data.sortOrder || 99, data.duration || 8, data.durationUnit || 'hours']
+    );
+    return result.rows[0];
+  }
+
+  async deleteDefaultTaskTemplate(id: string) {
+    await db.query('DELETE FROM default_task_templates WHERE id = $1', [id]);
+  }
+
+  async createDefaultTasksForProjectObject(projectId: string, projectObjectId: string) {
+    const templates = await this.getDefaultTaskTemplates();
+    const active = templates.filter((t: any) => t.isActive);
+    const created = [];
+    for (const tpl of active) {
+      const task = await this.createTask(projectId, {
+        projectObjectId,
+        taskType: tpl.taskType,
+        name: tpl.name,
+        status: 'not_started',
+        duration: tpl.duration,
+        durationUnit: tpl.durationUnit,
+      });
+      created.push(task);
+    }
+    return created;
   }
 
   private formatTaskGroup(row: any) {
@@ -272,6 +388,9 @@ export class TaskService {
       status: row.status,
       startDate: row.start_date,
       endDate: row.end_date,
+      assignedTo: row.assigned_to,
+      duration: row.duration,
+      durationUnit: row.duration_unit,
       draUserId: row.dra_user_id,
       developerUserId: row.developer_user_id,
       notes: row.notes,

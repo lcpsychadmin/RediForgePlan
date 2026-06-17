@@ -195,6 +195,10 @@ const ProjectsPage: React.FC = () => {
   const [projectTaskGroups, setProjectTaskGroups] = useState<any[]>([]);
   const [expandedObjects, setExpandedObjects] = useState<Set<string>>(new Set());
   const [expandedTaskGroups, setExpandedTaskGroups] = useState<Set<string>>(new Set());
+  const [editingTask, setEditingTask] = useState<any | null>(null);
+  const [depDialogTaskId, setDepDialogTaskId] = useState<string | null>(null);
+  const [cycleTasksForDep, setCycleTasksForDep] = useState<any[]>([]);
+  const [taskDeps, setTaskDeps] = useState<Record<string, any[]>>({});
 
   const { data: programs = [], isLoading } = useQuery({
     queryKey: ['programs'],
@@ -711,6 +715,28 @@ const ProjectsPage: React.FC = () => {
     }
   };
 
+  const calcEndDate = (startDate: string, duration: number, durationUnit: string) => {
+    if (!startDate || !duration) return '';
+    const d = new Date(startDate);
+    const hours = durationUnit === 'days' ? duration * 8 : duration;
+    d.setHours(d.getHours() + hours);
+    return d.toISOString().split('T')[0];
+  };
+
+  const updateTaskInline = async (taskId: string, field: string, value: string) => {
+    try {
+      await apiClient.patch(`/api/tasks/${taskId}`, { [field]: value });
+      setProjectTasks(prev => prev.map(t => t.id === taskId ? { ...t, [field]: value } : t));
+    } catch (e) { console.error('Failed to update task', e); }
+  };
+
+  const loadTaskDeps = async (taskId: string) => {
+    try {
+      const res = await apiClient.get(`/api/tasks/${taskId}/dependencies`);
+      setTaskDeps(prev => ({ ...prev, [taskId]: res.data.data || [] }));
+    } catch (e) { /* ignore */ }
+  };
+
   return (
     <Layout
       programCount={programs.length}
@@ -1105,11 +1131,90 @@ const ProjectsPage: React.FC = () => {
                                     <IconButton size="small" onClick={(e) => { e.stopPropagation(); setMenuAnchorEl(e.currentTarget); setMenuType('task'); setMenuItemId(objectId || ''); }}><MoreVertIcon sx={{ fontSize: '1rem' }} /></IconButton>
                                   </Box>
                                   {isExpanded && (
-                                    <Box sx={{ pl: 4, pr: 2, pb: 1.5, pt: 0.5, display: 'flex', flexWrap: 'wrap', gap: 0.75, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-                                      {tasksForObject.length === 0 ? <Typography variant="caption" color="text.disabled">No tasks</Typography>
-                                        : tasksForObject.map((task) => (
-                                          <Box key={task.id} sx={{ px: 1.5, py: 0.4, borderRadius: 10, fontSize: '0.72rem', fontWeight: 600, backgroundColor: `${getTaskStatusColor(task.status)}22`, color: getTaskStatusColor(task.status), border: `1px solid ${getTaskStatusColor(task.status)}44`, whiteSpace: 'nowrap' }}>{task.name || 'Task'}</Box>
+                                    <Box sx={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                                      {/* Object dependencies row */}
+                                      {(taskDeps[objectId || ''] || []).length > 0 && (
+                                        <Box sx={{ px: 2, py: 0.75, display: 'flex', alignItems: 'center', gap: 1, borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                                          <Typography variant="caption" color="text.disabled">Depends on:</Typography>
+                                          {(taskDeps[objectId || ''] || []).map((dep: any) => (
+                                            <Box key={dep.id} sx={{ px: 1, py: 0.25, borderRadius: 1, backgroundColor: 'rgba(91,103,202,0.2)', fontSize: '0.7rem', color: '#9FA8DA' }}>{dep.objectId || dep.dependsOnName}</Box>
+                                          ))}
+                                        </Box>
+                                      )}
+                                      {/* Table header */}
+                                      <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 130px 160px 110px 110px 1fr 80px', gap: 0, px: 2, py: 0.5, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                                        {['PHASE', 'STATUS', 'ASSIGNED TO', 'START DATE', 'END DATE', 'NOTES', 'ACTIONS'].map(h => (
+                                          <Typography key={h} variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', letterSpacing: '0.05em', fontWeight: 600 }}>{h}</Typography>
                                         ))}
+                                      </Box>
+                                      {tasksForObject.length === 0
+                                        ? <Typography variant="caption" color="text.disabled" sx={{ px: 2, py: 1, display: 'block' }}>No tasks</Typography>
+                                        : tasksForObject.map((task) => (
+                                          <Box key={task.id} sx={{ display: 'grid', gridTemplateColumns: '1fr 130px 160px 110px 110px 1fr 80px', gap: 0, px: 2, py: 0.5, alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.03)', '&:hover': { backgroundColor: 'rgba(255,255,255,0.02)' } }}>
+                                            {/* Phase name */}
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                                              <Box sx={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: getTaskStatusColor(task.status), flexShrink: 0 }} />
+                                              <Typography variant="caption" sx={{ fontWeight: 500 }}>{task.name || '—'}</Typography>
+                                            </Box>
+                                            {/* Status dropdown */}
+                                            <TextField select size="small" value={task.status} onChange={e => updateTaskInline(task.id, 'status', e.target.value)}
+                                              sx={{ '& .MuiInputBase-root': { fontSize: '0.72rem', height: 26 } }}>
+                                              <MenuItem value="not_started">Not Started</MenuItem>
+                                              <MenuItem value="in_progress">In Progress</MenuItem>
+                                              <MenuItem value="completed">Completed</MenuItem>
+                                              <MenuItem value="blocked">Blocked</MenuItem>
+                                            </TextField>
+                                            {/* Assigned To */}
+                                            <TextField size="small" placeholder="Assigned to..." value={task.assignedTo || ''} onBlur={e => updateTaskInline(task.id, 'assignedTo', e.target.value)}
+                                              onChange={e => setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, assignedTo: e.target.value } : t))}
+                                              sx={{ '& .MuiInputBase-root': { fontSize: '0.72rem', height: 26 } }} />
+                                            {/* Start Date */}
+                                            <TextField size="small" type="date" value={task.startDate || ''} onChange={e => {
+                                              updateTaskInline(task.id, 'startDate', e.target.value);
+                                              if (task.duration) updateTaskInline(task.id, 'endDate', calcEndDate(e.target.value, task.duration, task.durationUnit || 'hours'));
+                                            }} sx={{ '& .MuiInputBase-root': { fontSize: '0.72rem', height: 26 } }} />
+                                            {/* End Date */}
+                                            <TextField size="small" type="date" value={task.endDate || ''} onChange={e => updateTaskInline(task.id, 'endDate', e.target.value)}
+                                              sx={{ '& .MuiInputBase-root': { fontSize: '0.72rem', height: 26 } }} />
+                                            {/* Notes */}
+                                            <TextField size="small" placeholder="Notes..." value={task.notes || ''} onBlur={e => updateTaskInline(task.id, 'notes', e.target.value)}
+                                              onChange={e => setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, notes: e.target.value } : t))}
+                                              sx={{ '& .MuiInputBase-root': { fontSize: '0.72rem', height: 26 } }} />
+                                            {/* Actions */}
+                                            <Box sx={{ display: 'flex', gap: 0.5 }}>
+                                              <IconButton size="small" title="Dependencies" onClick={async () => {
+                                                await loadTaskDeps(task.id);
+                                                setDepDialogTaskId(task.id);
+                                                // load all tasks in this mock cycle for picker
+                                                const all = await apiClient.get(`/api/tasks/project/${activeProjectId}`);
+                                                setCycleTasksForDep(all.data.data || []);
+                                              }} sx={{ opacity: 0.6, '&:hover': { opacity: 1 } }}>
+                                                <ChevronRightIcon sx={{ fontSize: '0.9rem' }} />
+                                              </IconButton>
+                                              <IconButton size="small" onClick={() => openDeleteDialog('task', task.projectObjectId, task.name)} sx={{ opacity: 0.6, '&:hover': { opacity: 1 } }}>
+                                                <DeleteIcon sx={{ fontSize: '0.9rem' }} />
+                                              </IconButton>
+                                            </Box>
+                                          </Box>
+                                        ))}
+                                      {/* Add Project/Phase row */}
+                                      <Box sx={{ px: 2, py: 0.5 }}>
+                                        <Button size="small" variant="text" startIcon={<AddIcon sx={{ fontSize: '0.8rem !important' }} />}
+                                          onClick={async () => {
+                                            try {
+                                              const res = await apiClient.post(`/api/tasks/project/${activeProjectId}`, { taskType: 'custom', projectObjectId: objectId, name: 'New Phase' });
+                                              setProjectTasks(prev => [...prev, res.data.data]);
+                                            } catch (e) { console.error(e); }
+                                          }}
+                                          sx={{ fontSize: '0.72rem', color: '#7C83D0', textTransform: 'none' }}>
+                                          Add Project/Phase
+                                        </Button>
+                                      </Box>
+                                      {/* Object Notes */}
+                                      <Box sx={{ px: 2, pb: 1.5 }}>
+                                        <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', letterSpacing: '0.05em', fontWeight: 600, display: 'block', mb: 0.5 }}>OBJECT NOTES</Typography>
+                                        <TextField fullWidth size="small" multiline rows={1} placeholder="Add object-level notes..." sx={{ '& .MuiInputBase-root': { fontSize: '0.75rem' } }} />
+                                      </Box>
                                     </Box>
                                   )}
                                 </Box>
@@ -1860,16 +1965,12 @@ const ProjectsPage: React.FC = () => {
                   return;
                 }
 
-                // Create a task for this object
-                const response = await apiClient.post(`/api/tasks/project/${activeProjectId}`, {
-                  taskType: 'custom',
-                  projectObjectId: inventoryItem.id,
-                  name: newDataObjectId,
+                // Create a task for this object — use default templates
+                const tasksResponse = await apiClient.post(`/api/tasks/defaults/project-object/${inventoryItem.id}`, {
+                  projectId: activeProjectId,
                 });
-
-                console.log('Task created successfully:', response.data);
-                const newTask = response.data.data;
-                setProjectTasks([...projectTasks, newTask]);
+                const newTasks = tasksResponse.data.data || [];
+                setProjectTasks([...projectTasks, ...newTasks]);
                 setDataObjectDialogOpen(false);
                 setNewDataObjectId('');
                 setNewDataObjectName('');
@@ -1886,6 +1987,40 @@ const ProjectsPage: React.FC = () => {
           >
             {isCreatingDataObject ? 'Adding...' : 'Add to Plan'}
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Task Dependency Dialog */}
+      <Dialog open={!!depDialogTaskId} onClose={() => setDepDialogTaskId(null)} maxWidth="sm" fullWidth>
+        <DialogTitle>Task Dependencies</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Select tasks that must complete before this task can start.
+          </Typography>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, maxHeight: 300, overflowY: 'auto' }}>
+            {cycleTasksForDep.filter(t => t.id !== depDialogTaskId).map(t => {
+              const isDep = (taskDeps[depDialogTaskId || ''] || []).some((d: any) => d.dependsOnTaskId === t.id);
+              return (
+                <Box key={t.id} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 0.5, px: 1, borderRadius: 1, '&:hover': { backgroundColor: 'action.hover' } }}>
+                  <input type="checkbox" checked={isDep} onChange={async (e) => {
+                    if (e.target.checked) {
+                      await apiClient.post(`/api/tasks/${depDialogTaskId}/dependencies`, { dependsOnTaskId: t.id });
+                    } else {
+                      await apiClient.delete(`/api/tasks/${depDialogTaskId}/dependencies/${t.id}`);
+                    }
+                    if (depDialogTaskId) await loadTaskDeps(depDialogTaskId);
+                  }} />
+                  <Box>
+                    <Typography variant="body2" sx={{ fontWeight: 500 }}>{t.name || 'Unnamed'}</Typography>
+                    <Typography variant="caption" color="text.secondary">{t.status}</Typography>
+                  </Box>
+                </Box>
+              );
+            })}
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDepDialogTaskId(null)} sx={{ textTransform: 'none' }}>Done</Button>
         </DialogActions>
       </Dialog>
 
