@@ -2052,12 +2052,19 @@ const ProjectsPage: React.FC = () => {
 
       {/* People Sidebar Overlay */}
       {peopleSidebarOpen && (
-        <Box sx={{
-          position: 'fixed', top: 0, right: 0, bottom: 0, width: 380,
-          backgroundColor: '#1A1E2E', borderLeft: '1px solid rgba(255,255,255,0.08)',
-          zIndex: 1300, display: 'flex', flexDirection: 'column',
-          boxShadow: '-8px 0 32px rgba(0,0,0,0.4)',
-        }}>
+        <>
+          {/* Backdrop */}
+          <Box
+            onClick={() => setPeopleSidebarOpen(false)}
+            sx={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1299 }}
+          />
+          {/* Sidebar Panel */}
+          <Box sx={{
+            position: 'fixed', top: 0, right: 0, bottom: 0, width: 380,
+            backgroundColor: '#1A1E2E', borderLeft: '1px solid rgba(255,255,255,0.08)',
+            zIndex: 1300, display: 'flex', flexDirection: 'column',
+            boxShadow: '-8px 0 32px rgba(0,0,0,0.4)',
+          }}>
           {/* Header */}
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 3, py: 2, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
@@ -2141,6 +2148,7 @@ const ProjectsPage: React.FC = () => {
             )}
           </Box>
         </Box>
+        </>
       )}
 
       {/* Task Dependency Dialog */}
