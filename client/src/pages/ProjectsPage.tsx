@@ -1481,6 +1481,8 @@ const ProjectsPage: React.FC = () => {
                     const orderedTaskGroups = orderedGroupIds
                       .map(id => projectTaskGroups.find(g => g.id === id))
                       .filter(Boolean) as any[];
+                    const canReorderObjects = orderedObjectIds.length > 1;
+                    const canReorderGroups = orderedTaskGroups.length > 1;
                     const taskFieldSx = {
                       '& .MuiInputBase-root': { fontSize: '0.72rem', height: 26 },
                       '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': { borderColor: accentColor },
@@ -1604,6 +1606,11 @@ const ProjectsPage: React.FC = () => {
                           <Alert severity="info">No tasks added to plan yet</Alert>
                         ) : (
                           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                            {(!canReorderObjects || !canReorderGroups) && (
+                              <Typography variant="caption" color="text.secondary" sx={{ px: 0.5, mb: 0.5 }}>
+                                Drag reorders within each section only. Add at least 2 Objects or 2 Task Groups to reorder that section.
+                              </Typography>
+                            )}
                             {orderedObjectIds.map((objectId) => {
                               const tasksForObject = projectTasks
                                 .filter(t => t.projectObjectId === objectId)
@@ -1632,18 +1639,21 @@ const ProjectsPage: React.FC = () => {
                               return (
                                 <Box
                                   key={`obj-${objectId}`}
-                                  draggable
+                                  draggable={canReorderObjects}
                                   onDragStart={(e) => {
+                                    if (!canReorderObjects) return;
                                     const payload = JSON.stringify({ type: 'object', id: objectId || '' });
                                     e.dataTransfer.setData('text/plain', payload);
                                     e.dataTransfer.effectAllowed = 'move';
                                     setDragItem({ type: 'object', id: objectId || '' });
                                   }}
                                   onDragOver={(e) => {
+                                    if (!canReorderObjects) return;
                                     e.preventDefault();
                                     e.dataTransfer.dropEffect = 'move';
                                   }}
                                   onDrop={(e) => {
+                                    if (!canReorderObjects) return;
                                     e.preventDefault();
                                     const raw = e.dataTransfer.getData('text/plain');
                                     let parsed: any = null;
@@ -1666,7 +1676,7 @@ const ProjectsPage: React.FC = () => {
                                   <Box sx={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, backgroundColor: accentColor }} />
                                   <Box onClick={() => { const next = new Set(expandedObjects); if (isExpanded) next.delete(objectId || ''); else next.add(objectId || ''); setExpandedObjects(next); }}
                                     sx={{ pl: 2.5, pr: 1, py: 1.25, display: 'flex', alignItems: 'center', gap: 1.5, cursor: 'pointer', '&:hover': { backgroundColor: 'rgba(255,255,255,0.03)' } }}>
-                                    <DragIndicatorIcon sx={{ fontSize: 14, color: 'text.disabled', flexShrink: 0, cursor: 'grab' }} />
+                                    <DragIndicatorIcon sx={{ fontSize: 14, color: 'text.disabled', flexShrink: 0, cursor: canReorderObjects ? 'grab' : 'not-allowed', opacity: canReorderObjects ? 1 : 0.45 }} />
                                     <ChevronRightIcon sx={{ fontSize: 16, color: 'text.secondary', transition: 'transform 0.2s', transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)', flexShrink: 0 }} />
                                     <Typography sx={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '0.82rem', color: accentColor, flexShrink: 0, minWidth: 90 }}>{objectName}</Typography>
                                     <Typography variant="caption" sx={{ color: 'text.primary', fontWeight: 600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{description}</Typography>
@@ -1847,18 +1857,21 @@ const ProjectsPage: React.FC = () => {
                               return (
                                 <Box
                                   key={`group-${group.id}`}
-                                  draggable
+                                  draggable={canReorderGroups}
                                   onDragStart={(e) => {
+                                    if (!canReorderGroups) return;
                                     const payload = JSON.stringify({ type: 'taskGroup', id: group.id });
                                     e.dataTransfer.setData('text/plain', payload);
                                     e.dataTransfer.effectAllowed = 'move';
                                     setDragItem({ type: 'taskGroup', id: group.id });
                                   }}
                                   onDragOver={(e) => {
+                                    if (!canReorderGroups) return;
                                     e.preventDefault();
                                     e.dataTransfer.dropEffect = 'move';
                                   }}
                                   onDrop={(e) => {
+                                    if (!canReorderGroups) return;
                                     e.preventDefault();
                                     const raw = e.dataTransfer.getData('text/plain');
                                     let parsed: any = null;
@@ -1881,7 +1894,7 @@ const ProjectsPage: React.FC = () => {
                                   <Box sx={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, backgroundColor: accentColor }} />
                                   <Box onClick={() => { const next = new Set(expandedTaskGroups); if (isExpanded) next.delete(group.id); else next.add(group.id); setExpandedTaskGroups(next); }}
                                     sx={{ pl: 2.5, pr: 1, py: 1.25, display: 'flex', alignItems: 'center', gap: 1.5, cursor: 'pointer', '&:hover': { backgroundColor: 'rgba(255,255,255,0.03)' } }}>
-                                    <DragIndicatorIcon sx={{ fontSize: 14, color: 'text.disabled', flexShrink: 0, cursor: 'grab' }} />
+                                    <DragIndicatorIcon sx={{ fontSize: 14, color: 'text.disabled', flexShrink: 0, cursor: canReorderGroups ? 'grab' : 'not-allowed', opacity: canReorderGroups ? 1 : 0.45 }} />
                                     <ChevronRightIcon sx={{ fontSize: 16, color: 'text.secondary', transition: 'transform 0.2s', transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)', flexShrink: 0 }} />
                                     <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', flex: 1, color: accentColor }}>{group.name}</Typography>
                                     <Box sx={{ display: 'flex', gap: 0.4, alignItems: 'center', flexShrink: 0 }}>
