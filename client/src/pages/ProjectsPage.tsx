@@ -1173,8 +1173,6 @@ const ProjectsPage: React.FC = () => {
 
                         {/* Timeline */}
                         {(() => {
-                          if (!project.startDate || !project.endDate) return null;
-                          
                           const parseLocalDate = (dateString: string) => {
                             if (!dateString || typeof dateString !== 'string') return null;
                             const parts = dateString.trim().split(/[-\/]/);
@@ -1196,15 +1194,31 @@ const ProjectsPage: React.FC = () => {
                             if (year < 1900 || year > 2100 || month < 1 || month > 12 || day < 1 || day > 31) return null;
                             return { year, month, day };
                           };
+                          const dateToNum = (d: { year: number; month: number; day: number }) => d.year * 10000 + d.month * 100 + d.day;
+                          const now = new Date();
+                          const todayParts = { year: now.getFullYear(), month: now.getMonth() + 1, day: now.getDate() };
                           
-                          const startDateParsed = parseLocalDate(project.startDate);
-                          const endDateParsed = parseLocalDate(project.endDate);
-                          
-                          if (!startDateParsed || !endDateParsed) return null;
+                          // Project timeline is driven by all tasks in the project.
+                          let minStart = null;
+                          let maxEnd = null;
+                          for (const task of allPlanTasks) {
+                            const startParsed = parseLocalDate(task.startDate) || todayParts;
+                            const endParsed = parseLocalDate(task.endDate) || todayParts;
+                            if (!minStart || dateToNum(startParsed) < dateToNum(minStart)) minStart = startParsed;
+                            if (!maxEnd || dateToNum(endParsed) > dateToNum(maxEnd)) maxEnd = endParsed;
+                          }
+
+                          // Fallback to project dates only when there are no plan tasks.
+                          if (!minStart || !maxEnd) {
+                            const startDateParsed = parseLocalDate(project.startDate) || todayParts;
+                            const endDateParsed = parseLocalDate(project.endDate) || todayParts;
+                            minStart = startDateParsed;
+                            maxEnd = endDateParsed;
+                          }
                           
                           const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-                          const startStr = `${monthNames[startDateParsed.month - 1]} ${startDateParsed.day}`;
-                          const endStr = `${monthNames[endDateParsed.month - 1]} ${endDateParsed.day}`;
+                          const startStr = `${monthNames[minStart.month - 1]} ${minStart.day}`;
+                          const endStr = `${monthNames[maxEnd.month - 1]} ${maxEnd.day}`;
                           
                           return (
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
