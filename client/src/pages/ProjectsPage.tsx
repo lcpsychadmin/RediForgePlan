@@ -9,6 +9,7 @@ import {
   Typography,
   CircularProgress,
   Alert,
+  LinearProgress,
   IconButton,
   List,
   ListItem,
@@ -146,6 +147,8 @@ const ProjectsPage: React.FC = () => {
   const [inventoryObjects, setInventoryObjects] = useState<{ id: string; objectId: string; description: string; processArea: string }[]>([]);
   const [projectInventoryItems, setProjectInventoryItems] = useState<any[]>([]);
   const [inventorySearchTerm, setInventorySearchTerm] = useState('');
+  const [planSearchTerm, setPlanSearchTerm] = useState('');
+  const [planStatusFilter, setPlanStatusFilter] = useState('');
   const [catalogSearchTerm, setCatalogSearchTerm] = useState('');
   const [catalogSortColumn, setCatalogSortColumn] = useState<'objectId' | 'description'>('objectId');
   const [catalogSortDirection, setCatalogSortDirection] = useState<'asc' | 'desc'>('asc');
@@ -700,6 +703,14 @@ const ProjectsPage: React.FC = () => {
 
   const selectedDetails = getSelectedItemDetails();
 
+  const getTaskStatusColor = (status: string) => {
+    switch (status) {
+      case 'completed': return '#4CAF50';
+      case 'in_progress': return '#29B6F6';
+      default: return 'rgba(255,255,255,0.2)';
+    }
+  };
+
   return (
     <Layout
       programCount={programs.length}
@@ -993,408 +1004,156 @@ const ProjectsPage: React.FC = () => {
               {!selectedItem ? (
                 <Alert severity="info">Select an item from the list to view details</Alert>
               ) : selectedDetails ? (
-                <Card>
-                  <CardHeader
-                    avatar={
-                      selectedItem.type === 'project' && selectedDetails ? (
-                        <FolderOutlinedIcon sx={{ color: (selectedDetails as Project).accentColor || '#90caf9', fontSize: '2rem' }} />
-                      ) : undefined
+                <>
+                  {selectedItem.type === 'project' ? (() => {
+                    const project = selectedDetails as Project;
+                    const accentColor = project.accentColor || '#00BFA5';
+                    const parentCycleId = (selectedItem as any).cycleId;
+                    let parentCycleName = '';
+                    let parentProgramName = '';
+                    for (const progId in mockCycles) {
+                      const cycle = (mockCycles[progId] || []).find((c: MockCycle) => c.id === parentCycleId);
+                      if (cycle) {
+                        parentCycleName = cycle.name;
+                        const prog = programs.find((p: Program) => p.id === progId);
+                        parentProgramName = prog?.name || '';
+                        break;
+                      }
                     }
-                    title={selectedDetails?.name}
-                    subheader={selectedDetails?.description || (selectedItem.type === 'cycle' ? `${(selectedDetails as MockCycle).startDate} → ${(selectedDetails as MockCycle).endDate}` : '')}
-                  />
-                  <Divider />
-                  <CardContent>
-                    {selectedItem.type === 'project' && (
-                      <>
+                    const completedTasks = projectTasks.filter(t => t.status === 'completed').length;
+                    const progressPct = projectTasks.length > 0 ? Math.round((completedTasks / projectTasks.length) * 100) : 0;
+                    const allObjectIds = Array.from(new Set(projectTasks.filter(t => t.projectObjectId).map(t => t.projectObjectId)));
+                    return (
+                      <Box>
                         {/* Breadcrumbs */}
-                        <Breadcrumbs sx={{ mb: 2 }}>
-                          <Link color="inherit" href="#" sx={{ cursor: 'pointer' }}>Projects</Link>
-                          <Typography color="textSecondary">{selectedDetails?.name}</Typography>
-                        </Breadcrumbs>
-                      </>
-                    )}
-                    <Typography variant="h6" sx={{ mb: 2 }}>
-                      {selectedItem.type === 'program' && 'Program Details'}
-                      {selectedItem.type === 'cycle' && 'Mock Cycle Details'}
-                      {selectedItem.type === 'project' && 'Project Details'}
-                    </Typography>
-                    
-                    {selectedItem.type === 'project' && (
-                      <>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1.5 }}>
+                          {parentProgramName && <><Typography variant="caption" color="text.disabled">{parentProgramName}</Typography><Typography variant="caption" color="text.disabled">›</Typography></>}
+                          {parentCycleName && <><Typography variant="caption" color="text.disabled">{parentCycleName}</Typography><Typography variant="caption" color="text.disabled">›</Typography></>}
+                          <Typography variant="caption" sx={{ color: accentColor, fontWeight: 600 }}>{project.name}</Typography>
+                        </Box>
+
+                        {/* Title */}
+                        <Typography variant="h4" sx={{ fontWeight: 700, color: accentColor, mb: 0.75 }}>{project.name}</Typography>
+
+                        {/* Stats */}
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
+                          <Typography variant="body2" color="text.secondary">{projectInventoryItems.length} objects</Typography>
+                          <Box sx={{ width: 3, height: 3, borderRadius: '50%', backgroundColor: 'text.disabled' }} />
+                          <Typography variant="body2" color="text.secondary">{projectTaskGroups.length} task groups</Typography>
+                        </Box>
+
+                        {/* Progress */}
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
+                          <LinearProgress variant="determinate" value={progressPct} sx={{ width: 160, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.1)', '& .MuiLinearProgress-bar': { backgroundColor: accentColor, borderRadius: 3 } }} />
+                          <Typography variant="body2" sx={{ color: accentColor, fontWeight: 600 }}>{progressPct}%</Typography>
+                        </Box>
+
                         {/* Action Buttons */}
                         <Box sx={{ display: 'flex', gap: 1.5, mb: 3 }}>
-                          <Button
-                            variant="contained"
-                            startIcon={<AddIcon />}
-                            onClick={() => setDataObjectDialogOpen(true)}
-                            sx={{
-                              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                              textTransform: 'none',
-                              fontWeight: 600,
-                            }}
-                          >
+                          <Button variant="contained" startIcon={<AddIcon />} onClick={() => setDataObjectDialogOpen(true)}
+                            sx={{ background: `linear-gradient(135deg, ${accentColor} 0%, ${accentColor}99 100%)`, textTransform: 'none', fontWeight: 600, boxShadow: 'none' }}>
                             Add Data Object
                           </Button>
-                          <Button
-                            variant="outlined"
-                            startIcon={<AddIcon />}
-                            onClick={() => setTaskGroupDialogOpen(true)}
-                            sx={{
-                              textTransform: 'none',
-                              fontWeight: 600,
-                            }}
-                          >
+                          <Button variant="contained" startIcon={<AddIcon />} onClick={() => setTaskGroupDialogOpen(true)}
+                            sx={{ background: 'linear-gradient(135deg, #5B67CA 0%, #3B4DB3 100%)', textTransform: 'none', fontWeight: 600, boxShadow: 'none' }}>
                             Add Task Group
                           </Button>
                         </Box>
 
-                        {/* Search and Filter */}
-                        <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
-                          <TextField
-                            placeholder="Search objects, tasks..."
-                            size="small"
-                            variant="outlined"
-                            sx={{ flex: 1, maxWidth: '300px' }}
-                            slotProps={{
-                              input: {
-                                startAdornment: <SearchIcon sx={{ mr: 1, color: 'textSecondary' }} />,
-                              }
-                            }}
-                          />
-                        </Box>
-
-                        {/* Combined Task Display */}
-                        <Box sx={{ mt: 3 }}>
-                          {projectTasks.length === 0 && projectTaskGroups.length === 0 ? (
-                            <Alert severity="info">No tasks added to plan yet</Alert>
-                          ) : (
-                            <Box sx={{
-                              display: 'grid',
-                              gridTemplateColumns: '1fr',
-                              gap: 1.5,
-                            }}>
-                              {/* Data Objects */}
-                              {Array.from(new Set(projectTasks.map(t => t.projectObjectId))).map((objectId) => {
-                                const tasksForObject = projectTasks.filter(t => t.projectObjectId === objectId);
-                                const inventoryObject = projectInventoryItems.find(obj => obj.id === objectId);
-                                const objectName = inventoryObject?.objectId || 'Unknown Object';
-                                const isExpanded = expandedObjects.has(objectId || '');
-                                
-                                // Calculate status counts
-                                const statusCounts = {
-                                  completed: tasksForObject.filter(t => t.status === 'completed').length,
-                                  in_progress: tasksForObject.filter(t => t.status === 'in_progress').length,
-                                  not_started: tasksForObject.filter(t => t.status === 'not_started').length,
-                                };
-                                
-                                return (
-                                  <Box key={`obj-${objectId}`} sx={{
-                                    backgroundColor: 'rgba(91, 103, 202, 0.1)',
-                                    border: '1px solid',
-                                    borderColor: 'rgba(91, 103, 202, 0.3)',
-                                    borderRadius: 1,
-                                    overflow: 'hidden',
-                                    backgroundColor: 'background.paper',
-                                  }}>
-                                    <Box
-                                      onClick={() => {
-                                        const newExpanded = new Set(expandedObjects);
-                                        if (isExpanded) {
-                                          newExpanded.delete(objectId || '');
-                                        } else {
-                                          newExpanded.add(objectId || '');
-                                        }
-                                        setExpandedObjects(newExpanded);
-                                      }}
-                                      sx={{
-                                        p: 2,
-                                        cursor: 'pointer',
-                                        display: 'flex',
-                                        justifyContent: 'space-between',
-                                        alignItems: 'center',
-                                        gap: 2,
-                                        '&:hover': { backgroundColor: 'action.hover' },
-                                      }}
-                                    >
-                                      {/* Left side: Arrow, Object ID, Description */}
-                                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flex: 1, minWidth: 0 }}>
-                                        <ChevronRightIcon
-                                          sx={{
-                                            fontSize: 20,
-                                            transition: 'transform 0.2s',
-                                            transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
-                                            flexShrink: 0,
-                                          }}
-                                        />
-                                        <Box sx={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }}>
-                                          <Typography
-                                            variant="body2"
-                                            sx={{
-                                              fontWeight: 700,
-                                              color: 'primary.main',
-                                              fontSize: '0.95rem',
-                                            }}
-                                          >
-                                            {objectName}
-                                          </Typography>
-                                          {inventoryObject?.description && (
-                                            <Typography
-                                              variant="caption"
-                                              color="textSecondary"
-                                              sx={{
-                                                fontSize: '0.8rem',
-                                                overflow: 'hidden',
-                                                textOverflow: 'ellipsis',
-                                                whiteSpace: 'nowrap',
-                                              }}
-                                            >
-                                              {inventoryObject.description}
-                                            </Typography>
-                                          )}
-                                        </Box>
-                                      </Box>
-
-                                      {/* Status indicators */}
-                                      <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center', flexShrink: 0 }}>
-                                        {statusCounts.completed > 0 && (
-                                          <Box
-                                            sx={{
-                                              px: 1,
-                                              py: 0.5,
-                                              backgroundColor: 'success.lighter',
-                                              borderRadius: 0.5,
-                                              fontSize: '0.75rem',
-                                              fontWeight: 600,
-                                              color: 'success.main',
-                                            }}
-                                          >
-                                            {statusCounts.completed}
-                                          </Box>
-                                        )}
-                                        {statusCounts.in_progress > 0 && (
-                                          <Box
-                                            sx={{
-                                              px: 1,
-                                              py: 0.5,
-                                              backgroundColor: 'info.lighter',
-                                              borderRadius: 0.5,
-                                              fontSize: '0.75rem',
-                                              fontWeight: 600,
-                                              color: 'info.main',
-                                            }}
-                                          >
-                                            {statusCounts.in_progress}
-                                          </Box>
-                                        )}
-                                        {statusCounts.not_started > 0 && (
-                                          <Box
-                                            sx={{
-                                              px: 1,
-                                              py: 0.5,
-                                              backgroundColor: 'action.disabledBackground',
-                                              borderRadius: 0.5,
-                                              fontSize: '0.75rem',
-                                              fontWeight: 600,
-                                              color: 'text.secondary',
-                                            }}
-                                          >
-                                            {statusCounts.not_started}
-                                          </Box>
-                                        )}
-                                      </Box>
-
-                                      {/* Three dots menu */}
-                                      <IconButton
-                                        size="small"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setMenuAnchorEl(e.currentTarget);
-                                          setMenuType('task');
-                                          setMenuItemId(objectId || '');
-                                        }}
-                                        sx={{ flexShrink: 0 }}
-                                      >
-                                        <MoreVertIcon fontSize="small" />
-                                      </IconButton>
-                                    </Box>
-                                    {isExpanded && (
-                                      <Box sx={{ p: 2, pt: 0, borderTop: '1px solid', borderColor: 'divider' }}>
-                                        {tasksForObject.map((task) => (
-                                          <Box key={task.id} sx={{
-                                            p: 1.5,
-                                            mb: 1,
-                                            backgroundColor: 'action.hover',
-                                            borderRadius: 1,
-                                            '&:last-child': { mb: 0 },
-                                          }}>
-                                            <Typography variant="body2" sx={{ fontWeight: 600 }}>{task.name || 'Unnamed Task'}</Typography>
-                                            <Typography variant="caption" color="textSecondary">Status: {task.status}</Typography>
-                                          </Box>
-                                        ))}
-                                      </Box>
-                                    )}
-                                  </Box>
-                                );
-                              })}
-                              
-                              {/* Task Groups */}
-                              {projectTaskGroups.map((group) => {
-                                const isExpanded = expandedTaskGroups.has(group.id);
-                                const groupTasks = projectTasks.filter(t => t.taskGroupId === group.id);
-                                
-                                // Calculate status counts
-                                const statusCounts = {
-                                  completed: groupTasks.filter(t => t.status === 'completed').length,
-                                  in_progress: groupTasks.filter(t => t.status === 'in_progress').length,
-                                  not_started: groupTasks.filter(t => t.status === 'not_started').length,
-                                };
-                                
-                                return (
-                                  <Box key={`group-${group.id}`} sx={{
-                                    border: '1px solid',
-                                    borderColor: 'divider',
-                                    borderRadius: 1,
-                                    overflow: 'hidden',
-                                    backgroundColor: 'background.paper',
-                                  }}>
-                                    <Box
-                                      onClick={() => {
-                                        const newExpanded = new Set(expandedTaskGroups);
-                                        if (isExpanded) {
-                                          newExpanded.delete(group.id);
-                                        } else {
-                                          newExpanded.add(group.id);
-                                        }
-                                        setExpandedTaskGroups(newExpanded);
-                                      }}
-                                      sx={{
-                                        p: 2,
-                                        cursor: 'pointer',
-                                        display: 'flex',
-                                        justifyContent: 'space-between',
-                                        alignItems: 'center',
-                                        gap: 2,
-                                        '&:hover': { backgroundColor: 'action.hover' },
-                                      }}
-                                    >
-                                      {/* Left side: Arrow and Task Group Name */}
-                                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flex: 1, minWidth: 0 }}>
-                                        <ChevronRightIcon
-                                          sx={{
-                                            fontSize: 20,
-                                            transition: 'transform 0.2s',
-                                            transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
-                                            flexShrink: 0,
-                                          }}
-                                        />
-                                        <Typography
-                                          variant="body2"
-                                          sx={{
-                                            fontWeight: 700,
-                                            fontSize: '0.95rem',
-                                            overflow: 'hidden',
-                                            textOverflow: 'ellipsis',
-                                            whiteSpace: 'nowrap',
-                                          }}
-                                        >
-                                          {group.name}
-                                        </Typography>
-                                      </Box>
-
-                                      {/* Status indicators */}
-                                      <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center', flexShrink: 0 }}>
-                                        {statusCounts.completed > 0 && (
-                                          <Box
-                                            sx={{
-                                              px: 1,
-                                              py: 0.5,
-                                              backgroundColor: 'success.lighter',
-                                              borderRadius: 0.5,
-                                              fontSize: '0.75rem',
-                                              fontWeight: 600,
-                                              color: 'success.main',
-                                            }}
-                                          >
-                                            {statusCounts.completed}
-                                          </Box>
-                                        )}
-                                        {statusCounts.in_progress > 0 && (
-                                          <Box
-                                            sx={{
-                                              px: 1,
-                                              py: 0.5,
-                                              backgroundColor: 'info.lighter',
-                                              borderRadius: 0.5,
-                                              fontSize: '0.75rem',
-                                              fontWeight: 600,
-                                              color: 'info.main',
-                                            }}
-                                          >
-                                            {statusCounts.in_progress}
-                                          </Box>
-                                        )}
-                                        {statusCounts.not_started > 0 && (
-                                          <Box
-                                            sx={{
-                                              px: 1,
-                                              py: 0.5,
-                                              backgroundColor: 'action.disabledBackground',
-                                              borderRadius: 0.5,
-                                              fontSize: '0.75rem',
-                                              fontWeight: 600,
-                                              color: 'text.secondary',
-                                            }}
-                                          >
-                                            {statusCounts.not_started}
-                                          </Box>
-                                        )}
-                                      </Box>
-
-                                      {/* Three dots menu */}
-                                      <IconButton
-                                        size="small"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setMenuAnchorEl(e.currentTarget);
-                                          setMenuType('taskGroup');
-                                          setMenuItemId(group.id);
-                                        }}
-                                        sx={{ flexShrink: 0 }}
-                                      >
-                                        <MoreVertIcon fontSize="small" />
-                                      </IconButton>
-                                    </Box>
-                                    {isExpanded && (
-                                      <Box sx={{ p: 2, pt: 0, borderTop: '1px solid', borderColor: 'divider' }}>
-                                        {groupTasks.length > 0 ? (
-                                          groupTasks.map((task) => (
-                                            <Box key={task.id} sx={{
-                                              p: 1.5,
-                                              mb: 1,
-                                              backgroundColor: 'action.hover',
-                                              borderRadius: 1,
-                                              '&:last-child': { mb: 0 },
-                                            }}>
-                                              <Typography variant="body2" sx={{ fontWeight: 600 }}>{task.name || 'Unnamed Task'}</Typography>
-                                              <Typography variant="caption" color="textSecondary">Status: {task.status}</Typography>
-                                            </Box>
-                                          ))
-                                        ) : (
-                                          <Typography variant="caption" color="textSecondary">No tasks in this group</Typography>
-                                        )}
-                                      </Box>
-                                    )}
-                                  </Box>
-                                );
-                              })}
-                            </Box>
+                        {/* Filter Row */}
+                        <Box sx={{ display: 'flex', gap: 1.5, mb: 3, alignItems: 'center', flexWrap: 'wrap' }}>
+                          <TextField placeholder="Search..." size="small" value={planSearchTerm} onChange={(e) => setPlanSearchTerm(e.target.value)} sx={{ width: 180 }}
+                            slotProps={{ input: { startAdornment: <SearchIcon sx={{ mr: 0.5, fontSize: '1rem', color: 'text.secondary' }} /> } }} />
+                          <TextField select size="small" value={planStatusFilter} onChange={(e) => setPlanStatusFilter(e.target.value)} sx={{ width: 150 }}>
+                            <MenuItem value="">All Statuses</MenuItem>
+                            <MenuItem value="not_started">Not Started</MenuItem>
+                            <MenuItem value="in_progress">In Progress</MenuItem>
+                            <MenuItem value="completed">Completed</MenuItem>
+                          </TextField>
+                          {(planSearchTerm || planStatusFilter) && (
+                            <Button size="small" variant="text" onClick={() => { setPlanSearchTerm(''); setPlanStatusFilter(''); }} sx={{ textTransform: 'none', color: 'text.secondary' }}>Clear</Button>
                           )}
                         </Box>
-                      </>
-                    )}
-                  </CardContent>
-                </Card>
+
+                        {/* Objects + Groups */}
+                        {allObjectIds.length === 0 && projectTaskGroups.length === 0 ? (
+                          <Alert severity="info">No tasks added to plan yet</Alert>
+                        ) : (
+                          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                            {allObjectIds.map((objectId) => {
+                              const tasksForObject = projectTasks.filter(t => t.projectObjectId === objectId);
+                              const inventoryObject = projectInventoryItems.find(obj => obj.id === objectId);
+                              const objectName = inventoryObject?.objectId || 'Unknown Object';
+                              const description = inventoryObject?.description || '';
+                              const isExpanded = expandedObjects.has(objectId || '');
+                              if (planSearchTerm && !objectName.toLowerCase().includes(planSearchTerm.toLowerCase()) && !description.toLowerCase().includes(planSearchTerm.toLowerCase())) return null;
+                              if (planStatusFilter && !tasksForObject.some(t => t.status === planStatusFilter)) return null;
+                              const overallStatus = tasksForObject.length > 0 && tasksForObject.every(t => t.status === 'completed') ? 'completed' : tasksForObject.some(t => t.status === 'in_progress') ? 'in_progress' : 'not_started';
+                              return (
+                                <Box key={`obj-${objectId}`} sx={{ position: 'relative', backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 2, overflow: 'hidden' }}>
+                                  <Box sx={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, backgroundColor: accentColor }} />
+                                  <Box onClick={() => { const next = new Set(expandedObjects); if (isExpanded) next.delete(objectId || ''); else next.add(objectId || ''); setExpandedObjects(next); }}
+                                    sx={{ pl: 2.5, pr: 1, py: 1.25, display: 'flex', alignItems: 'center', gap: 1.5, cursor: 'pointer', '&:hover': { backgroundColor: 'rgba(255,255,255,0.03)' } }}>
+                                    <ChevronRightIcon sx={{ fontSize: 16, color: 'text.secondary', transition: 'transform 0.2s', transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)', flexShrink: 0 }} />
+                                    <Typography sx={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '0.82rem', color: accentColor, flexShrink: 0, minWidth: 90 }}>{objectName}</Typography>
+                                    <Typography variant="caption" sx={{ color: 'text.secondary', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{description}</Typography>
+                                    <Box sx={{ display: 'flex', gap: 0.4, alignItems: 'center', flexShrink: 0 }}>
+                                      {tasksForObject.slice(0, 10).map((task, i) => (<Box key={i} sx={{ width: 16, height: 4, borderRadius: 2, backgroundColor: getTaskStatusColor(task.status) }} />))}
+                                    </Box>
+                                    <Box sx={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: getTaskStatusColor(overallStatus), flexShrink: 0 }} />
+                                    <IconButton size="small" onClick={(e) => { e.stopPropagation(); setMenuAnchorEl(e.currentTarget); setMenuType('task'); setMenuItemId(objectId || ''); }}><MoreVertIcon sx={{ fontSize: '1rem' }} /></IconButton>
+                                  </Box>
+                                  {isExpanded && (
+                                    <Box sx={{ pl: 4, pr: 2, pb: 1.5, pt: 0.5, display: 'flex', flexWrap: 'wrap', gap: 0.75, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                                      {tasksForObject.length === 0 ? <Typography variant="caption" color="text.disabled">No tasks</Typography>
+                                        : tasksForObject.map((task) => (
+                                          <Box key={task.id} sx={{ px: 1.5, py: 0.4, borderRadius: 10, fontSize: '0.72rem', fontWeight: 600, backgroundColor: `${getTaskStatusColor(task.status)}22`, color: getTaskStatusColor(task.status), border: `1px solid ${getTaskStatusColor(task.status)}44`, whiteSpace: 'nowrap' }}>{task.name || 'Task'}</Box>
+                                        ))}
+                                    </Box>
+                                  )}
+                                </Box>
+                              );
+                            })}
+                            {projectTaskGroups.map((group) => {
+                              const isExpanded = expandedTaskGroups.has(group.id);
+                              const groupTasks = projectTasks.filter(t => t.taskGroupId === group.id);
+                              const overallStatus = groupTasks.length > 0 && groupTasks.every(t => t.status === 'completed') ? 'completed' : groupTasks.some(t => t.status === 'in_progress') ? 'in_progress' : 'not_started';
+                              return (
+                                <Box key={`group-${group.id}`} sx={{ position: 'relative', backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 2, overflow: 'hidden' }}>
+                                  <Box sx={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, backgroundColor: '#5B67CA' }} />
+                                  <Box onClick={() => { const next = new Set(expandedTaskGroups); if (isExpanded) next.delete(group.id); else next.add(group.id); setExpandedTaskGroups(next); }}
+                                    sx={{ pl: 2.5, pr: 1, py: 1.25, display: 'flex', alignItems: 'center', gap: 1.5, cursor: 'pointer', '&:hover': { backgroundColor: 'rgba(255,255,255,0.03)' } }}>
+                                    <ChevronRightIcon sx={{ fontSize: 16, color: 'text.secondary', transition: 'transform 0.2s', transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)', flexShrink: 0 }} />
+                                    <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', flex: 1, color: '#9FA8DA' }}>{group.name}</Typography>
+                                    <Box sx={{ display: 'flex', gap: 0.4, alignItems: 'center', flexShrink: 0 }}>
+                                      {groupTasks.slice(0, 10).map((task, i) => (<Box key={i} sx={{ width: 16, height: 4, borderRadius: 2, backgroundColor: getTaskStatusColor(task.status) }} />))}
+                                    </Box>
+                                    <Box sx={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: getTaskStatusColor(overallStatus), flexShrink: 0 }} />
+                                    <IconButton size="small" onClick={(e) => { e.stopPropagation(); setMenuAnchorEl(e.currentTarget); setMenuType('taskGroup'); setMenuItemId(group.id); }}><MoreVertIcon sx={{ fontSize: '1rem' }} /></IconButton>
+                                  </Box>
+                                  {isExpanded && (
+                                    <Box sx={{ pl: 4, pr: 2, pb: 1.5, pt: 0.5, display: 'flex', flexWrap: 'wrap', gap: 0.75, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                                      {groupTasks.length === 0 ? <Typography variant="caption" color="text.disabled">No tasks</Typography>
+                                        : groupTasks.map((task) => (
+                                          <Box key={task.id} sx={{ px: 1.5, py: 0.4, borderRadius: 10, fontSize: '0.72rem', fontWeight: 600, backgroundColor: `${getTaskStatusColor(task.status)}22`, color: getTaskStatusColor(task.status), border: `1px solid ${getTaskStatusColor(task.status)}44`, whiteSpace: 'nowrap' }}>{task.name || 'Task'}</Box>
+                                        ))}
+                                    </Box>
+                                  )}
+                                </Box>
+                              );
+                            })}
+                          </Box>
+                        )}
+                      </Box>
+                    );
+                  })() : (
+                    <Box sx={{ p: 1 }}>
+                      <Typography variant="h6" sx={{ mb: 1 }}>{selectedDetails?.name}</Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {selectedDetails?.description || (selectedItem.type === 'cycle' ? `${(selectedDetails as MockCycle).startDate} → ${(selectedDetails as MockCycle).endDate}` : '')}
+                      </Typography>
+                    </Box>
+                  )}
               ) : null}
             </>
           )}
