@@ -1,7 +1,7 @@
 // client/src/components/priorities/PriorityTaskCard.tsx
 
 import React from 'react';
-import { Card, CardContent, Box, Stack, Typography, Chip } from '@mui/material';
+import { Card, CardContent, Box, Stack, Typography, Chip, Link } from '@mui/material';
 import StatusChip from '../shared/StatusChip';
 import DateRangeDisplay from '../shared/DateRangeDisplay';
 import UserAvatar from '../shared/UserAvatar';
@@ -56,6 +56,21 @@ const PriorityTaskCard: React.FC<PriorityTaskCardProps> = ({ task, onClick }) =>
                 <UserAvatar userId={task.developerUserId} email={task.developerUserId} />
               )}
             </Stack>
+          )}
+
+          {onClick && (
+            <Link
+              component="button"
+              type="button"
+              underline="hover"
+              onClick={(e) => {
+                e.stopPropagation();
+                onClick();
+              }}
+              sx={{ fontSize: '0.75rem', textAlign: 'left' }}
+            >
+              Open task
+            </Link>
           )}
         </Stack>
       </CardContent>

@@ -39,12 +39,38 @@ export class PriorityViewService {
       late: [],
       in_progress: [],
       due_this_week: [],
+      blocked: [],
       on_track: [],
     };
 
     result.rows.forEach(row => {
       grouped[row.priority_category].push(this.formatPrioritizedTask(row));
     });
+
+    // Ensure blocked tasks are always available as a dedicated section.
+    const blockedResult = await db.query(
+      `SELECT
+        t.id AS task_id,
+        t.project_id,
+        t.project_object_id,
+        t.task_group_id,
+        t.status,
+        t.start_date,
+        t.end_date,
+        'blocked'::text AS priority_category,
+        t.task_type,
+        t.name,
+        go.object_id
+      FROM tasks t
+      LEFT JOIN project_objects po ON t.project_object_id = po.id
+      LEFT JOIN global_objects go ON po.global_object_id = go.id
+      WHERE t.project_id = $1
+        AND t.status = 'blocked'
+      ORDER BY t.end_date ASC NULLS LAST, t.name ASC`,
+      [projectId]
+    );
+
+    grouped.blocked = blockedResult.rows.map(row => this.formatPrioritizedTask(row));
 
     return grouped;
   }

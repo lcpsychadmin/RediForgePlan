@@ -21,6 +21,7 @@ export interface PrioritizedTasks {
   late: PriorityTask[];
   in_progress: PriorityTask[];
   due_this_week: PriorityTask[];
+  blocked: PriorityTask[];
   on_track: PriorityTask[];
 }
 

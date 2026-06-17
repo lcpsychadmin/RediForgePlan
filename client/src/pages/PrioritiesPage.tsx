@@ -6,10 +6,11 @@ import PageContainer from '../layout/PageContainer';
 import ContentHeader from '../layout/ContentHeader';
 import PrioritySection from '../components/priorities/PrioritySection';
 import { usePriorities, useProjectStatus } from '../hooks/usePriorities';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 
 const PrioritiesPage: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
+  const navigate = useNavigate();
 
   const { data: prioritized, isLoading, error } = usePriorities(projectId!);
   const { data: status } = useProjectStatus(projectId!);
@@ -19,11 +20,21 @@ const PrioritiesPage: React.FC = () => {
   }
 
   const sectionConfig = [
-    { key: 'late', title: '⚠️ Late Tasks', color: '#ef5350' },
-    { key: 'in_progress', title: '⏳ In Progress', color: '#ffb74d' },
-    { key: 'due_this_week', title: '📅 Due This Week', color: '#42a5f5' },
-    { key: 'on_track', title: '✓ On Track', color: '#81c784' },
+    { key: 'late', title: 'Late Tasks', color: '#ef5350' },
+    { key: 'in_progress', title: 'In Progress', color: '#29b6f6' },
+    { key: 'due_this_week', title: 'Due This Week', color: '#ffa726' },
+    { key: 'blocked', title: 'Blocked Tasks', color: '#ab47bc' },
   ];
+
+  const openTaskInProjectsPage = (taskId: string, taskName?: string) => {
+    if (!projectId) return;
+    const params = new URLSearchParams({
+      openProject: projectId,
+      openTask: taskId,
+      taskName: taskName || 'Task',
+    });
+    navigate(`/projects?${params.toString()}`);
+  };
 
   return (
     <PageContainer>
@@ -94,6 +105,7 @@ const PrioritiesPage: React.FC = () => {
             title={config.title}
             tasks={prioritized[config.key as keyof typeof prioritized] || []}
             color={config.color}
+            onTaskClick={(task) => openTaskInProjectsPage(task.taskId, task.taskName || task.objectId)}
           />
         ))
       ) : (

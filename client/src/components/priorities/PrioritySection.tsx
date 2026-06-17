@@ -18,10 +18,6 @@ const PrioritySection: React.FC<PrioritySectionProps> = ({
   color = '#1976d2',
   onTaskClick,
 }) => {
-  if (tasks.length === 0) {
-    return null;
-  }
-
   return (
     <Box sx={{ mb: 4 }}>
       <Typography
@@ -37,7 +33,7 @@ const PrioritySection: React.FC<PrioritySectionProps> = ({
       </Typography>
 
       {tasks.length === 0 ? (
-        <Alert severity="info">No tasks in this category</Alert>
+        <Alert severity="info" sx={{ mt: 1 }}>No tasks in this category</Alert>
       ) : (
         <Grid container spacing={2} sx={{ mt: 0 }}>
           {tasks.map((task) => (
