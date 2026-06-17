@@ -458,9 +458,10 @@ const ProjectsPage: React.FC = () => {
       } else if (deleteItemType === 'project') {
         await apiClient.delete(`/api/projects/${deleteItemId}`);
       } else if (deleteItemType === 'task') {
-        // Delete the project object record — DB cascades all tasks
-        await apiClient.delete(`/api/project-objects/${deleteItemId}`);
-        setProjectInventoryItems(prev => prev.filter(item => item.id !== deleteItemId));
+        // Delete only the tasks for this project object — keeps the object in inventory
+        const tasksForObject = projectTasks.filter(t => t.projectObjectId === deleteItemId);
+        await Promise.all(tasksForObject.map(t => apiClient.delete(`/api/tasks/${t.id}`)));
+        setProjectTasks(prev => prev.filter(t => t.projectObjectId !== deleteItemId));
       } else if (deleteItemType === 'taskGroup') {
         await apiClient.delete(`/api/tasks/groups/${deleteItemId}`);
       }
