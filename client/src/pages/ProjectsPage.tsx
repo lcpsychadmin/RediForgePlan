@@ -458,11 +458,9 @@ const ProjectsPage: React.FC = () => {
       } else if (deleteItemType === 'project') {
         await apiClient.delete(`/api/projects/${deleteItemId}`);
       } else if (deleteItemType === 'task') {
-        // For tasks, need to find the task and delete by task ID
-        const task = projectTasks.find(t => t.projectObjectId === deleteItemId);
-        if (task) {
-          await apiClient.delete(`/api/tasks/${task.id}`);
-        }
+        // Delete the project object record — DB cascades all tasks
+        await apiClient.delete(`/api/project-objects/${deleteItemId}`);
+        setProjectInventoryItems(prev => prev.filter(item => item.id !== deleteItemId));
       } else if (deleteItemType === 'taskGroup') {
         await apiClient.delete(`/api/tasks/groups/${deleteItemId}`);
       }

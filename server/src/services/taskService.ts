@@ -86,14 +86,8 @@ export class TaskService {
   }
 
   async deleteTaskGroup(taskGroupId: string) {
-    const taskCount = await db.query(
-      'SELECT COUNT(*) FROM tasks WHERE task_group_id = $1',
-      [taskGroupId]
-    );
-
-    if (parseInt(taskCount.rows[0].count) > 0) {
-      throw new Error('Cannot delete task group with existing tasks');
-    }
+    // Delete all tasks in the group first, then the group
+    await db.query('DELETE FROM tasks WHERE task_group_id = $1', [taskGroupId]);
 
     const result = await db.query(
       'DELETE FROM task_groups WHERE id = $1 RETURNING id',
