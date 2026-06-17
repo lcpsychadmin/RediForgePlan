@@ -12,6 +12,7 @@ import scheduleRouter from './schedule.routes.js';
 import prioritiesRouter from './priorities.routes.js';
 import auditRouter from './audit.routes.js';
 import peopleRouter from './people.routes.js';
+import commentsRouter from './comments.routes.js';
 
 const apiRouter = Router();
 
@@ -34,5 +35,6 @@ apiRouter.use('/priorities', prioritiesRouter);
 // Audit routes
 apiRouter.use('/audit', auditRouter);
 apiRouter.use('/people', peopleRouter);
+apiRouter.use('/comments', commentsRouter);
 
 export default apiRouter;

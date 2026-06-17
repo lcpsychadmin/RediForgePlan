@@ -1,6 +1,7 @@
 import React from 'react';
-import { AppBar, Toolbar, IconButton, Typography, Box, Menu, MenuItem, Divider, Button, LinearProgress } from '@mui/material';
+import { AppBar, Toolbar, IconButton, Typography, Box, Menu, MenuItem, Divider, Button, LinearProgress, Badge } from '@mui/material';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
+import NotificationsIcon from '@mui/icons-material/Notifications';
 import LogoutIcon from '@mui/icons-material/Logout';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import FolderOpenIcon from '@mui/icons-material/FolderOpen';
@@ -15,6 +16,7 @@ import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
+import apiClient from '../api/client';
 
 interface TopNavProps {
   onMenuClick: () => void;
@@ -48,7 +50,23 @@ const TopNav: React.FC<TopNavProps> = ({
   const navigate = useNavigate();
   const location = useLocation();
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
+  const [notifAnchorEl, setNotifAnchorEl] = React.useState<null | HTMLElement>(null);
+  const [notifications, setNotifications] = React.useState<any[]>([]);
+  const [unreadCount, setUnreadCount] = React.useState(0);
   const isProjectsPage = location.pathname === '/projects';
+
+  // Poll notifications every 30s
+  React.useEffect(() => {
+    const load = () => {
+      apiClient.get('/api/comments/notifications/me').then(r => {
+        setNotifications(r.data.notifications || []);
+        setUnreadCount(r.data.unreadCount || 0);
+      }).catch(() => {});
+    };
+    load();
+    const interval = setInterval(load, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   const handleMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
@@ -175,6 +193,32 @@ const TopNav: React.FC<TopNavProps> = ({
 
         {/* Account Menu */}
         <Box>
+          {/* Notification Bell */}
+          <IconButton color="inherit" onClick={e => { setNotifAnchorEl(e.currentTarget); apiClient.patch('/api/comments/notifications/read-all').catch(() => {}); setTimeout(() => setUnreadCount(0), 300); }}>
+            <Badge badgeContent={unreadCount} color="error" max={99}>
+              <NotificationsIcon />
+            </Badge>
+          </IconButton>
+          <Menu anchorEl={notifAnchorEl} open={Boolean(notifAnchorEl)} onClose={() => setNotifAnchorEl(null)}
+            PaperProps={{ sx: { width: 320, maxHeight: 400 } }}>
+            <MenuItem disabled sx={{ fontWeight: 600, opacity: 1 }}>
+              <Typography variant="body2" sx={{ fontWeight: 700 }}>Notifications</Typography>
+            </MenuItem>
+            <Divider />
+            {notifications.length === 0 ? (
+              <MenuItem disabled><Typography variant="body2" color="text.secondary">No notifications</Typography></MenuItem>
+            ) : (
+              notifications.slice(0, 15).map(n => (
+                <MenuItem key={n.id} onClick={() => setNotifAnchorEl(null)} sx={{ whiteSpace: 'normal', py: 1 }}>
+                  <Box>
+                    <Typography variant="caption" sx={{ fontWeight: n.isRead ? 400 : 700, display: 'block', lineHeight: 1.4 }}>{n.message}</Typography>
+                    <Typography variant="caption" color="text.disabled">{new Date(n.createdAt).toLocaleString()}</Typography>
+                  </Box>
+                </MenuItem>
+              ))
+            )}
+          </Menu>
+
           <IconButton color="inherit" onClick={handleMenuOpen}>
             <AccountCircleIcon />
           </IconButton>

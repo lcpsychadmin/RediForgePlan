@@ -36,6 +36,8 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import CloseIcon from '@mui/icons-material/Close';
 import GroupIcon from '@mui/icons-material/Group';
+import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutline';
+import { TaskCommentsModal } from '../components/TaskCommentsModal';
 import FolderOutlinedIcon from '@mui/icons-material/FolderOutlined';
 import CorporateFareIcon from '@mui/icons-material/CorporateFare';
 import SyncIcon from '@mui/icons-material/Sync';
@@ -202,6 +204,10 @@ const ProjectsPage: React.FC = () => {
   const [cycleTasksForDep, setCycleTasksForDep] = useState<any[]>([]);
   const [taskDeps, setTaskDeps] = useState<Record<string, any[]>>({});
   const [defaultTaskOrder, setDefaultTaskOrder] = useState<string[]>([]);
+
+  // Comment modal state
+  const [commentModalTask, setCommentModalTask] = useState<{ id: string; name: string } | null>(null);
+  const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
 
   // People sidebar state
   const [peopleSidebarOpen, setPeopleSidebarOpen] = useState(false);
@@ -1233,14 +1239,14 @@ const ProjectsPage: React.FC = () => {
                                       )}
                                       {/* Table header */}
                                       <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 120px 60px 150px 100px 100px 1fr 60px', gap: 0, px: 2, py: 0.5, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                                        {['PHASE', 'STATUS', '%', 'ASSIGNED TO', 'START DATE', 'END DATE', 'NOTES', 'ACTIONS'].map(h => (
+                                        {['PHASE', 'STATUS', '%', 'ASSIGNED TO', 'START DATE', 'END DATE', 'ACTIONS'].map(h => (
                                           <Typography key={h} variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', letterSpacing: '0.05em', fontWeight: 600 }}>{h}</Typography>
                                         ))}
                                       </Box>
                                       {tasksForObject.length === 0
                                         ? <Typography variant="caption" color="text.disabled" sx={{ px: 2, py: 1, display: 'block' }}>No tasks</Typography>
                                         : tasksForObject.map((task) => (
-                                          <Box key={task.id} sx={{ display: 'grid', gridTemplateColumns: '1fr 120px 60px 150px 100px 100px 1fr 60px', gap: 0, px: 2, py: 0.5, alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.03)', '&:hover': { backgroundColor: 'rgba(255,255,255,0.02)' } }}>
+                                          <Box key={task.id} sx={{ display: 'grid', gridTemplateColumns: '1fr 120px 60px 150px 100px 100px 80px', gap: 0, px: 2, py: 0.5, alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.03)', '&:hover': { backgroundColor: 'rgba(255,255,255,0.02)' } }}>
                                             {/* Phase name */}
                                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
                                               <Box sx={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: getTaskStatusColor(task.status), flexShrink: 0 }} />
@@ -1284,16 +1290,15 @@ const ProjectsPage: React.FC = () => {
                                             {/* End Date */}
                                             <TextField size="small" type="date" value={task.endDate || ''} onChange={e => updateTaskInline(task.id, 'endDate', e.target.value)}
                                               sx={taskFieldSx} />
-                                            {/* Notes */}
-                                            <TextField size="small" placeholder="Notes..." value={task.notes || ''} onBlur={e => updateTaskInline(task.id, 'notes', e.target.value)}
-                                              onChange={e => setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, notes: e.target.value } : t))}
-                                              sx={taskFieldSx} />
                                             {/* Actions */}
-                                            <Box sx={{ display: 'flex', gap: 0.5 }}>
+                                            <Box sx={{ display: 'flex', gap: 0.25, alignItems: 'center' }}>
+                                              <IconButton size="small" title="Discussion" onClick={() => setCommentModalTask({ id: task.id, name: task.name || 'Task' })}
+                                                sx={{ opacity: 0.6, '&:hover': { opacity: 1, color: accentColor } }}>
+                                                <ChatBubbleOutlineIcon sx={{ fontSize: '0.9rem' }} />
+                                              </IconButton>
                                               <IconButton size="small" title="Dependencies" onClick={async () => {
                                                 await loadTaskDeps(task.id);
                                                 setDepDialogTaskId(task.id);
-                                                // load all tasks in this mock cycle for picker
                                                 const all = await apiClient.get(`/api/tasks/project/${activeProjectId}`);
                                                 setCycleTasksForDep(all.data.data || []);
                                               }} sx={{ opacity: 0.6, '&:hover': { opacity: 1 } }}>
@@ -1349,14 +1354,14 @@ const ProjectsPage: React.FC = () => {
                                     <Box sx={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
                                       {/* Table header */}
                                       <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 120px 60px 150px 100px 100px 1fr 60px', gap: 0, px: 2, py: 0.5, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                                        {['TASK', 'STATUS', '%', 'ASSIGNED TO', 'START DATE', 'END DATE', 'NOTES', 'ACTIONS'].map(h => (
+                                        {['TASK', 'STATUS', '%', 'ASSIGNED TO', 'START DATE', 'END DATE', 'ACTIONS'].map(h => (
                                           <Typography key={h} variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', letterSpacing: '0.05em', fontWeight: 600 }}>{h}</Typography>
                                         ))}
                                       </Box>
                                       {groupTasks.length === 0
                                         ? <Typography variant="caption" color="text.disabled" sx={{ px: 2, py: 1, display: 'block' }}>No tasks</Typography>
                                         : groupTasks.map((task) => (
-                                          <Box key={task.id} sx={{ display: 'grid', gridTemplateColumns: '1fr 120px 60px 150px 100px 100px 1fr 60px', gap: 0, px: 2, py: 0.5, alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.03)', '&:hover': { backgroundColor: 'rgba(255,255,255,0.02)' } }}>
+                                          <Box key={task.id} sx={{ display: 'grid', gridTemplateColumns: '1fr 120px 60px 150px 100px 100px 80px', gap: 0, px: 2, py: 0.5, alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.03)', '&:hover': { backgroundColor: 'rgba(255,255,255,0.02)' } }}>
                                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
                                               <Box sx={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: getTaskStatusColor(task.status), flexShrink: 0 }} />
                                               <TextField size="small" value={task.name || ''} onBlur={e => updateTaskInline(task.id, 'name', e.target.value)}
@@ -1402,10 +1407,8 @@ const ProjectsPage: React.FC = () => {
                                               }}
                                               slotProps={{ htmlInput: { min: 0, max: 100 } }}
                                               sx={{ ...taskFieldSx, '& input': { textAlign: 'center', px: 0.5 } }} />
-                                            <TextField size="small" placeholder="Notes..." value={task.notes || ''} onBlur={e => updateTaskInline(task.id, 'notes', e.target.value)}
-                                              onChange={e => setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, notes: e.target.value } : t))}
-                                              sx={taskFieldSx} />
-                                            <Box sx={{ display: 'flex', gap: 0.5 }}>
+                                            <Box sx={{ display: 'flex', gap: 0.25, alignItems: 'center' }}>
+                                              <IconButton size="small" title="Discussion" onClick={() => setCommentModalTask({ id: task.id, name: task.name || 'Task' })}\n                                                sx={{ opacity: 0.6, '&:hover': { opacity: 1, color: accentColor } }}>\n                                                <ChatBubbleOutlineIcon sx={{ fontSize: '0.9rem' }} />\n                                              </IconButton>
                                               <IconButton size="small" onClick={() => openDeleteDialog('taskSingle' as any, task.id, task.name)} sx={{ opacity: 0.6, '&:hover': { opacity: 1 } }}>
                                                 <DeleteIcon sx={{ fontSize: '0.9rem' }} />
                                               </IconButton>
@@ -2271,6 +2274,26 @@ const ProjectsPage: React.FC = () => {
           </Box>
         </Box>
         </>
+      )}
+
+      {/* Task Comments Modal */}
+      {commentModalTask && (
+        <TaskCommentsModal
+          open={!!commentModalTask}
+          onClose={() => setCommentModalTask(null)}
+          taskId={commentModalTask.id}
+          taskName={commentModalTask.name}
+          accentColor={(() => {
+            if (selectedItem?.type === 'project') {
+              for (const cycleId in projectsByMockCycle) {
+                const p = (projectsByMockCycle[cycleId] || []).find((p: any) => p.id === selectedItem.id);
+                if (p) return p.accentColor || '#00BFA5';
+              }
+            }
+            return '#00BFA5';
+          })()}
+          people={people}
+        />
       )}
 
       {/* Task Dependency Dialog */}
