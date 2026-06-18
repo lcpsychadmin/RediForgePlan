@@ -2292,7 +2292,7 @@ const ProjectsPage: React.FC = () => {
                                               <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.72rem', px: 0.5 }}>days</Typography>
                                             </Box>
                                             {/* Start Date */}
-                                            {(taskDeps[task.id] || []).length > 0 && !!task.duration ? (
+                                            {(taskDeps[task.id] || []).length > 0 ? (
                                               <Box title="Set by dependency — adjust via › button" sx={{ display: 'flex', alignItems: 'center', px: 1, height: 26, minWidth: 100, border: '1px dashed rgba(255,255,255,0.2)', borderRadius: 1, backgroundColor: 'rgba(255,255,255,0.08)', cursor: 'not-allowed', fontSize: '0.72rem', color: 'rgba(255,255,255,0.75)' }}>
                                                 {task.startDate ? (() => { const [y,m,d] = task.startDate.split('-'); return `${m}/${d}/${y}`; })() : '—'}
                                               </Box>
@@ -2580,7 +2580,7 @@ const ProjectsPage: React.FC = () => {
                                               <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.72rem', px: 0.5 }}>days</Typography>
                                             </Box>
                                             {/* Start Date */}
-                                            {(taskDeps[task.id] || []).length > 0 && !!task.duration ? (
+                                            {(taskDeps[task.id] || []).length > 0 ? (
                                               <Box title="Set by dependency — adjust via › button" sx={{ display: 'flex', alignItems: 'center', px: 1, height: 26, minWidth: 100, border: '1px dashed rgba(255,255,255,0.2)', borderRadius: 1, backgroundColor: 'rgba(255,255,255,0.08)', cursor: 'not-allowed', fontSize: '0.72rem', color: 'rgba(255,255,255,0.75)' }}>
                                                 {task.startDate ? (() => { const [y,m,d] = task.startDate.split('-'); return `${m}/${d}/${y}`; })() : '—'}
                                               </Box>
