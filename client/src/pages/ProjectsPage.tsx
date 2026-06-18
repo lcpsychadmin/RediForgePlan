@@ -2349,7 +2349,7 @@ const ProjectsPage: React.FC = () => {
                                               <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.72rem', px: 0.5 }}>days</Typography>
                                             </Box>
                                             {/* Include weekends override */}
-                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                            <Box sx={{ display: 'flex', alignItems: 'center' }}>
                                               <Checkbox
                                                 size="small"
                                                 checked={getTaskCalendarMode(task) === 'all_days'}
@@ -2376,9 +2376,6 @@ const ProjectsPage: React.FC = () => {
                                                 }}
                                                 sx={{ p: 0.25 }}
                                               />
-                                              <Typography variant="caption" sx={{ color: task.scheduleModeOverride ? 'text.secondary' : 'text.disabled', fontSize: '0.68rem' }}>
-                                                {task.scheduleModeOverride ? 'Override' : 'Inherit'}
-                                              </Typography>
                                             </Box>
                                             {/* Start Date */}
                                             {(taskDeps[task.id] || []).length > 0 ? (
@@ -2667,7 +2664,7 @@ const ProjectsPage: React.FC = () => {
                                               <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.72rem', px: 0.5 }}>days</Typography>
                                             </Box>
                                             {/* Include weekends override */}
-                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                            <Box sx={{ display: 'flex', alignItems: 'center' }}>
                                               <Checkbox
                                                 size="small"
                                                 checked={getTaskCalendarMode(task) === 'all_days'}
@@ -2694,9 +2691,6 @@ const ProjectsPage: React.FC = () => {
                                                 }}
                                                 sx={{ p: 0.25 }}
                                               />
-                                              <Typography variant="caption" sx={{ color: task.scheduleModeOverride ? 'text.secondary' : 'text.disabled', fontSize: '0.68rem' }}>
-                                                {task.scheduleModeOverride ? 'Override' : 'Inherit'}
-                                              </Typography>
                                             </Box>
                                             {/* Start Date */}
                                             {(taskDeps[task.id] || []).length > 0 ? (
