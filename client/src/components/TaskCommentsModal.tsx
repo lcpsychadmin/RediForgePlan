@@ -151,7 +151,7 @@ export const TaskCommentsModal: React.FC<TaskCommentsModalProps> = ({
       <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', pb: 1, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
         <Box>
           <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>Discussion</Typography>
-          <Typography variant="caption" sx={{ color: accentColor, fontWeight: 500 }}>{taskName}</Typography>
+          <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500 }}>{taskName}</Typography>
         </Box>
         <IconButton size="small" onClick={onClose}><CloseIcon sx={{ fontSize: '1rem' }} /></IconButton>
       </DialogTitle>

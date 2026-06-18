@@ -27,7 +27,6 @@ const PrioritySection: React.FC<PrioritySectionProps> = ({
         sx={{
           mb: 2,
           pb: 1,
-          borderBottom: `3px solid ${color}`,
           display: 'inline-block',
         }}
       >
