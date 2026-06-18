@@ -1302,7 +1302,6 @@ const ProjectsPage: React.FC = () => {
     allProjects.forEach((proj: any) => { expanded[`proj-${proj.id}`] = true; });
     setDepTreeExpanded(expanded);
   };
-  };
 
   const cycleCount = Object.values(mockCycles).reduce((acc: number, arr: any) => acc + (arr?.length || 0), 0);
 
