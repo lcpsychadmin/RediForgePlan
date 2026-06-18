@@ -1219,7 +1219,7 @@ const ProjectsPage: React.FC = () => {
 
   const calcEndDate = (startDate: string, duration: number, durationUnit: string): string => {
     if (!startDate || !duration) return '';
-    const d = new Date(startDate + 'T00:00:00');
+    const d = new Date(startDate.substring(0, 10) + 'T00:00:00');
     if (durationUnit === 'days') {
       d.setDate(d.getDate() + Math.max(0, duration - 1)); // 1 day = same day
     } else {
@@ -3873,9 +3873,9 @@ const ProjectsPage: React.FC = () => {
                                           const durationUnit = affectedTask.durationUnit || 'days';
                                           let newStart: string;
                                           if (durationUnit === 'hours') {
-                                            newStart = maxEndDate; // same day for hours
+                                            newStart = maxEndDate.substring(0, 10); // same day for hours
                                           } else {
-                                            const d = new Date(maxEndDate + 'T00:00:00');
+                                            const d = new Date(maxEndDate.substring(0, 10) + 'T00:00:00');
                                             d.setDate(d.getDate() + 1);
                                             newStart = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
                                           }
