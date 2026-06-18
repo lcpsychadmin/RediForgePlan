@@ -10,10 +10,27 @@ import apiClient from '../api/client';
 import { useAuth } from '../contexts/AuthContext';
 
 const normalizeValue = (value?: string | null) => (value || '').trim().toLowerCase();
+const HIERARCHY_SELECTION_STORAGE_KEY = 'rf_selected_hierarchy_context';
 
 const MyTasksPage: React.FC = () => {
   const { user } = useAuth();
   const [selectedTask, setSelectedTask] = React.useState<any | null>(null);
+  const [selectedCycleId, setSelectedCycleId] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    try {
+      const raw = localStorage.getItem(HIERARCHY_SELECTION_STORAGE_KEY);
+      if (!raw) {
+        setSelectedCycleId(null);
+        return;
+      }
+      const parsed = JSON.parse(raw);
+      const cycleId = parsed?.cycleId || null;
+      setSelectedCycleId(typeof cycleId === 'string' ? cycleId : null);
+    } catch {
+      setSelectedCycleId(null);
+    }
+  }, []);
 
   const { data: people = [] } = useQuery({
     queryKey: ['people'],
@@ -29,7 +46,7 @@ const MyTasksPage: React.FC = () => {
   );
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['my-tasks', user?.id, user?.email],
+    queryKey: ['my-tasks', user?.id, user?.email, selectedCycleId],
     queryFn: async () => {
       const tokenSet = new Set(
         [user?.id, user?.email]
@@ -49,9 +66,12 @@ const MyTasksPage: React.FC = () => {
       );
 
       const cycleScopes = cycleScopesNested.flat();
+      const filteredCycleScopes = selectedCycleId
+        ? cycleScopes.filter(({ cycle }: any) => cycle?.id === selectedCycleId)
+        : cycleScopes;
 
       const projectScopesNested = await Promise.all(
-        cycleScopes.map(async ({ program, cycle }: any) => {
+        filteredCycleScopes.map(async ({ program, cycle }: any) => {
           const projectsResponse = await apiClient.get(`/api/projects/by-cycle/${cycle.id}`);
           const projects = projectsResponse.data.data || [];
           return projects.map((project: any) => ({ program, cycle, project }));
@@ -131,7 +151,7 @@ const MyTasksPage: React.FC = () => {
       <PageContainer maxWidth="xl">
         <ContentHeader
           title="My Tasks"
-          subtitle="Tasks currently assigned to you across all programs and projects."
+          subtitle={selectedCycleId ? 'Tasks assigned to you in the selected mock cycle.' : 'Tasks currently assigned to you across all programs and projects.'}
           stats={[{ label: 'Assigned Tasks', value: data?.totalAssigned ?? 0 }]}
         />
 

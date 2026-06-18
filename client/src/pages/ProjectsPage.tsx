@@ -88,6 +88,7 @@ interface Project {
 }
 
 type SelectableItem = { type: 'program'; id: string } | { type: 'cycle'; id: string; programId: string } | { type: 'project'; id: string; cycleId: string };
+const HIERARCHY_SELECTION_STORAGE_KEY = 'rf_selected_hierarchy_context';
 
 type PlanOverview = {
   projectCount: number;
@@ -418,6 +419,18 @@ const ProjectsPage: React.FC = () => {
     : selectedItem?.type === 'cycle'
       ? selectedItem.id
       : null;
+
+  useEffect(() => {
+    if (!selectedItem) return;
+
+    const payload = selectedItem.type === 'project'
+      ? { type: 'project', projectId: selectedItem.id, cycleId: selectedItem.cycleId }
+      : selectedItem.type === 'cycle'
+        ? { type: 'cycle', cycleId: selectedItem.id, programId: selectedItem.programId }
+        : { type: 'program', programId: selectedItem.id };
+
+    localStorage.setItem(HIERARCHY_SELECTION_STORAGE_KEY, JSON.stringify(payload));
+  }, [selectedItem]);
   const activeCycleScheduleMode: CalendarMode = (() => {
     if (!activeCycleId) return 'all_days';
     for (const programId in mockCycles) {
@@ -1008,6 +1021,14 @@ const ProjectsPage: React.FC = () => {
   useEffect(() => {
     if (tabValue !== 2 || activeProjectId) return;
 
+    if (selectedItem?.type === 'cycle') {
+      const selectedCycleProjects = projectsByMockCycle[selectedItem.id] || [];
+      if (selectedCycleProjects.length > 0) {
+        setSelectedItem({ type: 'project', id: selectedCycleProjects[0].id, cycleId: selectedItem.id });
+        return;
+      }
+    }
+
     for (const cycleId in projectsByMockCycle) {
       const projects = projectsByMockCycle[cycleId] || [];
       if (projects.length > 0) {
@@ -1016,7 +1037,7 @@ const ProjectsPage: React.FC = () => {
         return;
       }
     }
-  }, [tabValue, activeProjectId, projectsByMockCycle]);
+  }, [tabValue, activeProjectId, projectsByMockCycle, selectedItem]);
 
   // Handle navigation from notification click: select target project.
   useEffect(() => {
