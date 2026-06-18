@@ -89,6 +89,17 @@ interface Project {
 
 type SelectableItem = { type: 'program'; id: string } | { type: 'cycle'; id: string; programId: string } | { type: 'project'; id: string; cycleId: string };
 
+type PlanOverview = {
+  projectCount: number;
+  objectCount: number;
+  taskGroupCount: number;
+  taskCount: number;
+  statusCounts: { complete: number; in_progress: number; blocked: number; not_started: number };
+  progressPct: number;
+  timelineStart: string | null;
+  timelineEnd: string | null;
+};
+
 const ProjectsPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -145,17 +156,10 @@ const ProjectsPage: React.FC = () => {
   const [cloneCycleSourceProgramId, setCloneCycleSourceProgramId] = useState<string | null>(null);
   const [cloneCycleName, setCloneCycleName] = useState('');
   const [isCloningCycle, setIsCloningCycle] = useState(false);
-  const [cycleOverview, setCycleOverview] = useState<{
-    projectCount: number;
-    objectCount: number;
-    taskGroupCount: number;
-    taskCount: number;
-    statusCounts: { complete: number; in_progress: number; blocked: number; not_started: number };
-    progressPct: number;
-    timelineStart: string | null;
-    timelineEnd: string | null;
-  } | null>(null);
+  const [cycleOverview, setCycleOverview] = useState<PlanOverview | null>(null);
   const [isLoadingCycleOverview, setIsLoadingCycleOverview] = useState(false);
+  const [programOverview, setProgramOverview] = useState<PlanOverview | null>(null);
+  const [isLoadingProgramOverview, setIsLoadingProgramOverview] = useState(false);
 
   // Data object dialog states
   const [dataObjectDialogOpen, setDataObjectDialogOpen] = useState(false);
@@ -848,6 +852,96 @@ const ProjectsPage: React.FC = () => {
 
     loadCycleOverview();
   }, [tabValue, selectedItem, projectsByMockCycle]);
+
+  useEffect(() => {
+    const loadProgramOverview = async () => {
+      if (tabValue !== 0 || selectedItem?.type !== 'program') {
+        setProgramOverview(null);
+        return;
+      }
+
+      const cycles = mockCycles[selectedItem.id] || [];
+      const projects = cycles.flatMap((cycle: MockCycle) => projectsByMockCycle[cycle.id] || []);
+
+      if (projects.length === 0) {
+        setProgramOverview({
+          projectCount: 0,
+          objectCount: 0,
+          taskGroupCount: 0,
+          taskCount: 0,
+          statusCounts: { complete: 0, in_progress: 0, blocked: 0, not_started: 0 },
+          progressPct: 0,
+          timelineStart: null,
+          timelineEnd: null,
+        });
+        return;
+      }
+
+      try {
+        setIsLoadingProgramOverview(true);
+        const perProject = await Promise.all(projects.map(async (project: Project) => {
+          const [tasksRes, objectsRes, groupsRes] = await Promise.all([
+            apiClient.get(`/api/tasks/project/${project.id}`),
+            apiClient.get(`/api/project-objects/project/${project.id}`),
+            apiClient.get(`/api/tasks/groups/project/${project.id}`),
+          ]);
+
+          return {
+            tasks: tasksRes.data?.data || [],
+            objects: objectsRes.data?.data || [],
+            groups: groupsRes.data?.data || [],
+          };
+        }));
+
+        const allTasks = perProject.flatMap((item: any) => item.tasks);
+        const objectCount = perProject.reduce((sum: number, item: any) => sum + (item.objects?.length || 0), 0);
+        const taskGroupCount = perProject.reduce((sum: number, item: any) => sum + (item.groups?.length || 0), 0);
+
+        let minDate: Date | null = null;
+        let maxDate: Date | null = null;
+        for (const task of allTasks) {
+          const start = normalizeDateOnly(task.startDate || undefined);
+          const end = normalizeDateOnly(task.endDate || undefined);
+          if (start && (!minDate || start < minDate)) minDate = start;
+          if (end && (!maxDate || end > maxDate)) maxDate = end;
+        }
+
+        const statusCounts = {
+          complete: allTasks.filter((task: any) => task.status === 'complete').length,
+          in_progress: allTasks.filter((task: any) => task.status === 'in_progress').length,
+          blocked: allTasks.filter((task: any) => task.status === 'blocked').length,
+          not_started: allTasks.filter((task: any) => task.status === 'not_started').length,
+        };
+
+        const progressPct = allTasks.length > 0
+          ? Math.round(allTasks.reduce((sum: number, task: any) => sum + (task.progressPercentage ?? 0), 0) / allTasks.length)
+          : Math.round(projects.reduce((sum, project) => sum + (project.progressPercentage || 0), 0) / Math.max(1, projects.length));
+
+        const formatDate = (value: Date | null) => {
+          if (!value) return null;
+          return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`;
+        };
+
+        setProgramOverview({
+          projectCount: projects.length,
+          objectCount,
+          taskGroupCount,
+          taskCount: allTasks.length,
+          statusCounts,
+          progressPct,
+          timelineStart: formatDate(minDate),
+          timelineEnd: formatDate(maxDate),
+        });
+      } catch (error) {
+        console.error('Failed to load program overview:', error);
+        setProgramOverview(null);
+      } finally {
+        setIsLoadingProgramOverview(false);
+      }
+    };
+
+    loadProgramOverview();
+  }, [tabValue, selectedItem, mockCycles, projectsByMockCycle]);
 
   // Hydrate notification navigation target from URL query params.
   useEffect(() => {
@@ -2976,7 +3070,63 @@ const ProjectsPage: React.FC = () => {
                     );
                   })() : (
                     <Box sx={{ p: 1 }}>
-                      {selectedItem.type === 'cycle' ? (
+                      {selectedItem.type === 'program' ? (
+                        <>
+                          <Typography variant="h6" sx={{ mb: 0.75 }}>{selectedDetails?.name}</Typography>
+                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
+                            High-level program summary derived from cycles, projects, objects, and tasks.
+                          </Typography>
+
+                          {isLoadingProgramOverview ? (
+                            <Box sx={{ py: 2, display: 'flex', justifyContent: 'center' }}>
+                              <CircularProgress size={22} />
+                            </Box>
+                          ) : programOverview ? (
+                            <>
+                              <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(110px, 1fr))', gap: 1, mb: 1.5 }}>
+                                {[
+                                  { label: 'Projects', value: programOverview.projectCount },
+                                  { label: 'Objects', value: programOverview.objectCount },
+                                  { label: 'Task Groups', value: programOverview.taskGroupCount },
+                                  { label: 'Tasks', value: programOverview.taskCount },
+                                ].map((metric) => (
+                                  <Box key={metric.label} sx={{ p: 1, borderRadius: 1, backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                                    <Typography variant="caption" color="text.secondary">{metric.label}</Typography>
+                                    <Typography variant="h6" sx={{ lineHeight: 1.2 }}>{metric.value}</Typography>
+                                  </Box>
+                                ))}
+                              </Box>
+
+                              <Box sx={{ mb: 1.2 }}>
+                                <Typography variant="body2" sx={{ mb: 0.4, fontWeight: 600 }}>
+                                  Overall Progress: {programOverview.progressPct}%
+                                </Typography>
+                                <LinearProgress
+                                  variant="determinate"
+                                  value={Math.max(0, Math.min(100, programOverview.progressPct))}
+                                  sx={{ height: 8, borderRadius: 99 }}
+                                />
+                              </Box>
+
+                              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.8, mb: 1.2 }}>
+                                <Chip size="small" label={`Complete: ${programOverview.statusCounts.complete}`} color="success" variant="outlined" />
+                                <Chip size="small" label={`In Progress: ${programOverview.statusCounts.in_progress}`} color="info" variant="outlined" />
+                                <Chip size="small" label={`Blocked: ${programOverview.statusCounts.blocked}`} color="error" variant="outlined" />
+                                <Chip size="small" label={`Not Started: ${programOverview.statusCounts.not_started}`} variant="outlined" />
+                              </Box>
+
+                              <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
+                                Timeline: {programOverview.timelineStart || 'TBD'} → {programOverview.timelineEnd || 'TBD'}
+                              </Typography>
+                              <Typography variant="body2" color="text.secondary">
+                                Cycles: {(mockCycles[selectedItem.id] || []).length}
+                              </Typography>
+                            </>
+                          ) : (
+                            <Typography variant="body2" color="text.secondary">Unable to load program overview.</Typography>
+                          )}
+                        </>
+                      ) : selectedItem.type === 'cycle' ? (
                         <>
                           <Typography variant="h6" sx={{ mb: 0.75 }}>{selectedDetails?.name}</Typography>
                           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
