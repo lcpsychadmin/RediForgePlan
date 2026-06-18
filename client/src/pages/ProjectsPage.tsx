@@ -2134,7 +2134,7 @@ const ProjectsPage: React.FC = () => {
                                                 }
                                                 e.target.blur();
                                               }}
-                                              sx={{ ...taskFieldSx, '& input': { colorScheme: 'dark' }, '& .MuiInputBase-root.Mui-disabled': { opacity: 1 }, '& .MuiInputBase-root.Mui-disabled input': { WebkitTextFillColor: 'rgba(255,255,255,0.55)', cursor: 'not-allowed' }, '& .MuiOutlinedInput-root.Mui-disabled .MuiOutlinedInput-notchedOutline': { borderStyle: 'dashed' } }} />
+                                              sx={{ ...taskFieldSx, '& input': { colorScheme: 'dark' }, '& .MuiInputBase-root.Mui-disabled': { opacity: 1, backgroundColor: 'rgba(255,255,255,0.08)' }, '& .MuiInputBase-root.Mui-disabled input': { WebkitTextFillColor: 'rgba(255,255,255,0.75)', cursor: 'not-allowed' }, '& .MuiOutlinedInput-root.Mui-disabled .MuiOutlinedInput-notchedOutline': { borderStyle: 'dashed' } }} />
                                             {/* End Date */}
                                             <TextField size="small" type="date"
                                               value={task.endDate || ''}
@@ -2144,7 +2144,7 @@ const ProjectsPage: React.FC = () => {
                                                 updateTaskInline(task.id, 'endDate', e.target.value);
                                                 e.target.blur();
                                               }}
-                                              sx={{ ...taskFieldSx, '& input': { colorScheme: 'dark' }, '& .MuiInputBase-root.Mui-disabled': { opacity: 1 }, '& .MuiInputBase-root.Mui-disabled input': { WebkitTextFillColor: 'rgba(255,255,255,0.55)', cursor: 'not-allowed' }, '& .MuiOutlinedInput-root.Mui-disabled .MuiOutlinedInput-notchedOutline': { borderStyle: 'dashed' } }} />
+                                              sx={{ ...taskFieldSx, '& input': { colorScheme: 'dark' }, '& .MuiInputBase-root.Mui-disabled': { opacity: 1, backgroundColor: 'rgba(255,255,255,0.08)' }, '& .MuiInputBase-root.Mui-disabled input': { WebkitTextFillColor: 'rgba(255,255,255,0.75)', cursor: 'not-allowed' }, '& .MuiOutlinedInput-root.Mui-disabled .MuiOutlinedInput-notchedOutline': { borderStyle: 'dashed' } }} />
                                           </Box>
                                         ))}
                                       {/* Add Task row */}
@@ -2152,7 +2152,7 @@ const ProjectsPage: React.FC = () => {
                                         <Button size="small" variant="text" startIcon={<AddIcon sx={{ fontSize: '0.8rem !important' }} />}
                                           onClick={async () => {
                                             try {
-                                              const res = await apiClient.post(`/api/tasks/project/${activeProjectId}`, { taskType: 'custom', projectObjectId: objectId, name: 'New Task' });
+                                              const res = await apiClient.post(`/api/tasks/project/${activeProjectId}`, { taskType: 'custom', projectObjectId: objectId, name: 'New Task', durationUnit: 'days' });
                                               setProjectTasks(prev => [...prev, normalizeTaskDateFields(res.data.data)]);
                                             } catch (e) { console.error(e); }
                                           }}
@@ -2369,7 +2369,7 @@ const ProjectsPage: React.FC = () => {
                                                 }
                                                 e.target.blur();
                                               }}
-                                              sx={{ ...taskFieldSx, '& input': { colorScheme: 'dark' }, '& .MuiInputBase-root.Mui-disabled': { opacity: 1 }, '& .MuiInputBase-root.Mui-disabled input': { WebkitTextFillColor: 'rgba(255,255,255,0.55)', cursor: 'not-allowed' }, '& .MuiOutlinedInput-root.Mui-disabled .MuiOutlinedInput-notchedOutline': { borderStyle: 'dashed' } }} />
+                                              sx={{ ...taskFieldSx, '& input': { colorScheme: 'dark' }, '& .MuiInputBase-root.Mui-disabled': { opacity: 1, backgroundColor: 'rgba(255,255,255,0.08)' }, '& .MuiInputBase-root.Mui-disabled input': { WebkitTextFillColor: 'rgba(255,255,255,0.75)', cursor: 'not-allowed' }, '& .MuiOutlinedInput-root.Mui-disabled .MuiOutlinedInput-notchedOutline': { borderStyle: 'dashed' } }} />
                                             {/* End Date */}
                                             <TextField size="small" type="date"
                                               value={task.endDate || ''}
@@ -2379,7 +2379,7 @@ const ProjectsPage: React.FC = () => {
                                                 updateTaskInline(task.id, 'endDate', e.target.value);
                                                 e.target.blur();
                                               }}
-                                              sx={{ ...taskFieldSx, '& input': { colorScheme: 'dark' }, '& .MuiInputBase-root.Mui-disabled': { opacity: 1 }, '& .MuiInputBase-root.Mui-disabled input': { WebkitTextFillColor: 'rgba(255,255,255,0.55)', cursor: 'not-allowed' }, '& .MuiOutlinedInput-root.Mui-disabled .MuiOutlinedInput-notchedOutline': { borderStyle: 'dashed' } }} />
+                                              sx={{ ...taskFieldSx, '& input': { colorScheme: 'dark' }, '& .MuiInputBase-root.Mui-disabled': { opacity: 1, backgroundColor: 'rgba(255,255,255,0.08)' }, '& .MuiInputBase-root.Mui-disabled input': { WebkitTextFillColor: 'rgba(255,255,255,0.75)', cursor: 'not-allowed' }, '& .MuiOutlinedInput-root.Mui-disabled .MuiOutlinedInput-notchedOutline': { borderStyle: 'dashed' } }} />
                                             <Box sx={{ display: 'flex', gap: 0.25, alignItems: 'center' }}>
                                               <Badge badgeContent={taskCommentCounts[task.id] || 0} color="primary">
                                                 <IconButton size="small" title="Discussion" onClick={() => setCommentModalTask({ id: task.id, name: task.name || 'Task' })}
@@ -2406,7 +2406,7 @@ const ProjectsPage: React.FC = () => {
                                         <Button size="small" variant="text" startIcon={<AddIcon sx={{ fontSize: '0.8rem !important' }} />}
                                           onClick={async () => {
                                             try {
-                                              const res = await apiClient.post(`/api/tasks/project/${activeProjectId}`, { taskType: 'custom', taskGroupId: group.id, name: 'New Task' });
+                                              const res = await apiClient.post(`/api/tasks/project/${activeProjectId}`, { taskType: 'custom', taskGroupId: group.id, name: 'New Task', durationUnit: 'days' });
                                               setProjectTasks(prev => [...prev, normalizeTaskDateFields(res.data.data)]);
                                             } catch (e) { console.error(e); }
                                           }}
