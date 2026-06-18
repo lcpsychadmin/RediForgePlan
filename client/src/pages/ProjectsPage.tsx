@@ -2094,8 +2094,11 @@ const ProjectsPage: React.FC = () => {
                                             </TextField>
                                             {/* Duration */}
                                             <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
-                                              <TextField size="small" type="number" value={task.duration != null ? Number(task.duration) : ''} placeholder="—"
-                                                onChange={e => {
+                                              <TextField size="small" type="number"
+                                                value={task.duration != null ? Number(task.duration) : ''}
+                                                placeholder="—"
+                                                onChange={e => setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, duration: parseFloat(e.target.value) || null } : t))}
+                                                onBlur={e => {
                                                   const dur = parseFloat(e.target.value) || 0;
                                                   updateTaskInline(task.id, 'duration', String(dur || ''));
                                                   if (dur && task.startDate) {
@@ -2326,8 +2329,11 @@ const ProjectsPage: React.FC = () => {
                                             </TextField>
                                             {/* Duration */}
                                             <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
-                                              <TextField size="small" type="number" value={task.duration != null ? Number(task.duration) : ''} placeholder="—"
-                                                onChange={e => {
+                                              <TextField size="small" type="number"
+                                                value={task.duration != null ? Number(task.duration) : ''}
+                                                placeholder="—"
+                                                onChange={e => setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, duration: parseFloat(e.target.value) || null } : t))}
+                                                onBlur={e => {
                                                   const dur = parseFloat(e.target.value) || 0;
                                                   updateTaskInline(task.id, 'duration', String(dur || ''));
                                                   if (dur && task.startDate) {
