@@ -66,6 +66,8 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   open,
   onClose,
   taskId,
+  task,
+  peopleById = {},
   people = [],
   accentColor = '#29b6f6',
 }) => {
@@ -132,9 +134,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
 
   const handleCancel = () => {
     setEditMode(false);
-    setError(null)
-    const person = peopleById[id];
-    return person?.name || person?.email || id;
+    setError(null);
   };
 
   return (
