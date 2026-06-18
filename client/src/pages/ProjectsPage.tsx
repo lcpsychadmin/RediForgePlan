@@ -1858,6 +1858,9 @@ const ProjectsPage: React.FC = () => {
                       '& input::-webkit-outer-spin-button': { WebkitAppearance: 'none', margin: 0 },
                       '& input::-webkit-inner-spin-button': { WebkitAppearance: 'none', margin: 0 },
                       '& input[type=number]': { MozAppearance: 'textfield' },
+                      '& .MuiInputBase-root.Mui-disabled': { opacity: 1, backgroundColor: 'rgba(255,255,255,0.08)' },
+                      '& .MuiInputBase-root.Mui-disabled input': { WebkitTextFillColor: 'rgba(255,255,255,0.75)', cursor: 'not-allowed' },
+                      '& .MuiOutlinedInput-root.Mui-disabled .MuiOutlinedInput-notchedOutline': { borderStyle: 'dashed' },
                     };
                     return (
                       <Box>
@@ -2187,7 +2190,18 @@ const ProjectsPage: React.FC = () => {
                                               <TextField size="small" type="number"
                                                 value={task.duration != null ? Number(task.duration) : ''}
                                                 placeholder="—"
-                                                onChange={e => setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, duration: parseFloat(e.target.value) || null } : t))}
+                                                onChange={e => {
+                                                  const dur = parseFloat(e.target.value) || null;
+                                                  setProjectTasks(prev => prev.map(t => {
+                                                    if (t.id !== task.id) return t;
+                                                    const updates: any = { duration: dur };
+                                                    if (dur && t.startDate) {
+                                                      const newEnd = calcEndDate(t.startDate, dur, t.durationUnit || 'days');
+                                                      if (newEnd) updates.endDate = newEnd;
+                                                    }
+                                                    return { ...t, ...updates };
+                                                  }));
+                                                }}
                                                 onBlur={e => {
                                                   const dur = parseFloat(e.target.value) || 0;
                                                   updateTaskInline(task.id, 'duration', String(dur || ''));
@@ -2442,7 +2456,18 @@ const ProjectsPage: React.FC = () => {
                                               <TextField size="small" type="number"
                                                 value={task.duration != null ? Number(task.duration) : ''}
                                                 placeholder="—"
-                                                onChange={e => setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, duration: parseFloat(e.target.value) || null } : t))}
+                                                onChange={e => {
+                                                  const dur = parseFloat(e.target.value) || null;
+                                                  setProjectTasks(prev => prev.map(t => {
+                                                    if (t.id !== task.id) return t;
+                                                    const updates: any = { duration: dur };
+                                                    if (dur && t.startDate) {
+                                                      const newEnd = calcEndDate(t.startDate, dur, t.durationUnit || 'days');
+                                                      if (newEnd) updates.endDate = newEnd;
+                                                    }
+                                                    return { ...t, ...updates };
+                                                  }));
+                                                }}
                                                 onBlur={e => {
                                                   const dur = parseFloat(e.target.value) || 0;
                                                   updateTaskInline(task.id, 'duration', String(dur || ''));
