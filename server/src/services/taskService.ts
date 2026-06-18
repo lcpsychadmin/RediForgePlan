@@ -368,6 +368,10 @@ export class TaskService {
       });
       created.push(task);
     }
+    // Auto-create sequential dependencies: each task depends on the previous one
+    for (let i = 1; i < created.length; i++) {
+      await this.addTaskDependency(created[i].id, created[i - 1].id);
+    }
     return created;
   }
 

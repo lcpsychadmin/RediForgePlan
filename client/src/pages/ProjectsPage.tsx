@@ -3697,8 +3697,21 @@ const ProjectsPage: React.FC = () => {
                 const tasksResponse = await apiClient.post(`/api/tasks/defaults/project-object/${inventoryItem.id}`, {
                   projectId: activeProjectId,
                 });
-                const newTasks = tasksResponse.data.data || [];
-                setProjectTasks([...projectTasks, ...newTasks]);
+                const newTasks = (tasksResponse.data.data || []).map((t: any) => normalizeTaskDateFields(t));
+                const updatedTasks = [...projectTasks, ...newTasks];
+                setProjectTasks(updatedTasks);
+
+                // Load deps for new tasks (server auto-creates sequential deps)
+                const newDepsTs = Date.now();
+                const newDepsMap: Record<string, any[]> = {};
+                await Promise.all(newTasks.map(async (t: any) => {
+                  try {
+                    const dRes = await apiClient.get(`/api/tasks/${t.id}/dependencies?t=${newDepsTs}`);
+                    newDepsMap[t.id] = dRes.data.data || [];
+                  } catch { newDepsMap[t.id] = []; }
+                }));
+                const updatedDeps = { ...taskDeps, ...newDepsMap };
+                setTaskDeps(updatedDeps);
                 setDataObjectDialogOpen(false);
                 setNewDataObjectId('');
                 setNewDataObjectName('');
