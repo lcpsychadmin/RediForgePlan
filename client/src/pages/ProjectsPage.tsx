@@ -3809,9 +3809,8 @@ const ProjectsPage: React.FC = () => {
                               {objExpanded && objData.tasks.map((t: any) => {
                                 const isDep = (taskDeps[depDialogTaskId || ''] || []).some((d: any) => d.dependsOnTaskId === t.id);
                                 return (
-                                  <Box key={t.id} sx={{ ml: 2.5, display: 'flex', alignItems: 'center', gap: 1, py: 0.4, px: 0.75, borderRadius: 1, cursor: 'pointer', backgroundColor: isDep ? 'rgba(91,103,202,0.14)' : 'transparent', '&:hover': { backgroundColor: isDep ? 'rgba(91,103,202,0.2)' : 'rgba(255,255,255,0.05)' } }}
-                                    onClick={async (e) => {
-                                      e.stopPropagation();
+                                  <Box key={t.id} sx={{ ml: 2.5, display: 'flex', alignItems: 'center', gap: 1.25, py: 0.5, px: 0.75, borderRadius: 1, cursor: 'pointer', backgroundColor: isDep ? 'rgba(91,103,202,0.14)' : 'transparent', '&:hover': { backgroundColor: isDep ? 'rgba(91,103,202,0.2)' : 'rgba(255,255,255,0.05)' } }}
+                                    onClick={async () => {
                                       try {
                                         if (isDep) {
                                           await apiClient.delete(`/api/tasks/${depDialogTaskId}/dependencies/${t.id}`);
@@ -3834,8 +3833,9 @@ const ProjectsPage: React.FC = () => {
                                       } catch (depErr) { console.error('Dep toggle failed', depErr); }
                                       if (depDialogTaskId) await loadTaskDeps(depDialogTaskId);
                                     }}>
-                                    <Checkbox checked={isDep} size="small" disableRipple tabIndex={-1}
-                                      sx={{ p: 0.25, pointerEvents: 'none', color: 'rgba(255,255,255,0.3)', '&.Mui-checked': { color: 'primary.main' } }} />
+                                    <Box sx={{ width: 14, height: 14, borderRadius: '3px', border: '1.5px solid', borderColor: isDep ? 'primary.main' : 'rgba(255,255,255,0.3)', backgroundColor: isDep ? 'primary.main' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                      {isDep && <Box sx={{ width: 6, height: 6, backgroundColor: 'white', borderRadius: '1px' }} />}
+                                    </Box>
                                     <Typography variant="body2" sx={{ fontSize: '0.78rem', flex: 1 }}>{t.name || 'Unnamed'}</Typography>
                                     <Box sx={{ px: 0.75, py: 0.15, borderRadius: 0.5, fontSize: '0.65rem', fontWeight: 600, backgroundColor: `${getTaskStatusColor(t.status)}22`, color: getTaskStatusColor(t.status), flexShrink: 0, whiteSpace: 'nowrap' }}>{(t.status || '').replace(/_/g, ' ')}</Box>
                                   </Box>
