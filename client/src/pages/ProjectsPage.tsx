@@ -228,6 +228,12 @@ const ProjectsPage: React.FC = () => {
   const [depTreeExpanded, setDepTreeExpanded] = useState<Record<string, boolean>>({});
   const [defaultTaskOrder, setDefaultTaskOrder] = useState<string[]>([]);
 
+  // Refs for always-current values — avoids stale closures in cascade
+  const projectTasksRef = React.useRef<any[]>([]);
+  projectTasksRef.current = projectTasks;
+  const taskDepsRef = React.useRef<Record<string, any[]>>({});
+  taskDepsRef.current = taskDeps;
+
   // Comment modal state
   const [commentModalTask, setCommentModalTask] = useState<{ id: string; name: string } | null>(null);
   const [priorityModalTask, setPriorityModalTask] = useState<any | null>(null);
@@ -1266,8 +1272,8 @@ const ProjectsPage: React.FC = () => {
       });
       // When endDate changes, cascade to all downstream dependent tasks
       if (field === 'endDate' && parsedValue) {
-        const snapshot = projectTasks.map(t => t.id === taskId ? { ...t, endDate: String(parsedValue) } : t);
-        cascadeAllDates(snapshot, taskDeps);
+        const snapshot = projectTasksRef.current.map(t => t.id === taskId ? { ...t, endDate: String(parsedValue) } : t);
+        cascadeAllDates(snapshot, taskDepsRef.current);
       }
     } catch (e) { console.error('Failed to update task', e); }
   };
