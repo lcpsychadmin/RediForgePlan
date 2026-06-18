@@ -262,7 +262,7 @@ export class TaskService {
     const result = await db.query(
       `SELECT td.id, td.task_id, td.depends_on_task_id,
               t.name AS depends_on_name, t.project_object_id, t.task_group_id,
-              po.object_id AS object_id
+              go.object_id AS object_id
        FROM task_dependencies td
        JOIN tasks t ON td.depends_on_task_id = t.id
        LEFT JOIN project_objects po ON t.project_object_id = po.id
