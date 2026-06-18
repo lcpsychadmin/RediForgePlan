@@ -3832,8 +3832,11 @@ const ProjectsPage: React.FC = () => {
                                       if (affectedTask?.duration && freshDeps.length > 0) {
                                         let maxEndDate: string | null = null;
                                         for (const dep of freshDeps) {
-                                          const depTask = cycleTasksForDep.find((ct: any) => ct.id === dep.dependsOnTaskId);
-                                          if (depTask?.endDate && (!maxEndDate || depTask.endDate > maxEndDate)) maxEndDate = depTask.endDate;
+                                          // dep.endDate comes directly from server (most reliable)
+                                          const depEnd = dep.endDate
+                                                      || projectTasks.find((ct: any) => ct.id === dep.dependsOnTaskId)?.endDate
+                                                      || cycleTasksForDep.find((ct: any) => ct.id === dep.dependsOnTaskId)?.endDate;
+                                          if (depEnd && (!maxEndDate || depEnd > maxEndDate)) maxEndDate = depEnd;
                                         }
                                         if (maxEndDate) {
                                           const durationUnit = affectedTask.durationUnit || 'days';

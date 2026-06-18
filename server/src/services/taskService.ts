@@ -262,6 +262,7 @@ export class TaskService {
     const result = await db.query(
       `SELECT td.id, td.task_id, td.depends_on_task_id,
               t.name AS depends_on_name, t.project_object_id, t.task_group_id,
+              t.end_date, t.start_date,
               go.object_id AS object_id
        FROM task_dependencies td
        JOIN tasks t ON td.depends_on_task_id = t.id
@@ -276,6 +277,8 @@ export class TaskService {
       dependsOnTaskId: r.depends_on_task_id,
       dependsOnName: r.depends_on_name,
       objectId: r.object_id,
+      endDate: r.end_date ? r.end_date.toISOString().split('T')[0] : null,
+      startDate: r.start_date ? r.start_date.toISOString().split('T')[0] : null,
     }));
   }
 
