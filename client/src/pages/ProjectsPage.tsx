@@ -3811,22 +3811,26 @@ const ProjectsPage: React.FC = () => {
                                   <Box key={t.id} sx={{ ml: 2.5, display: 'flex', alignItems: 'center', gap: 1.25, py: 0.5, px: 0.75, borderRadius: 1, cursor: 'pointer', backgroundColor: isDep ? 'rgba(91,103,202,0.14)' : 'transparent', '&:hover': { backgroundColor: isDep ? 'rgba(91,103,202,0.2)' : 'rgba(255,255,255,0.05)' } }}
                                     onClick={async (e) => {
                                       e.stopPropagation();
-                                      if (isDep) {
-                                        await apiClient.delete(`/api/tasks/${depDialogTaskId}/dependencies/${t.id}`);
-                                      } else {
-                                        await apiClient.post(`/api/tasks/${depDialogTaskId}/dependencies`, { dependsOnTaskId: t.id });
-                                        if (t.endDate && depDialogTaskId) {
-                                          const d = new Date(t.endDate + 'T00:00:00');
-                                          d.setDate(d.getDate() + 1);
-                                          const newStart = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-                                          await updateTaskInline(depDialogTaskId, 'startDate', newStart);
-                                          const depTask = projectTasks.find(pt => pt.id === depDialogTaskId);
-                                          if (depTask?.duration) {
-                                            const newEnd = calcEndDate(newStart, depTask.duration, depTask.durationUnit || 'days');
-                                            if (newEnd) await updateTaskInline(depDialogTaskId, 'endDate', newEnd);
+                                      try {
+                                        if (isDep) {
+                                          await apiClient.delete(`/api/tasks/${depDialogTaskId}/dependencies/${t.id}`);
+                                        } else {
+                                          await apiClient.post(`/api/tasks/${depDialogTaskId}/dependencies`, { dependsOnTaskId: t.id });
+                                          if (t.endDate && depDialogTaskId) {
+                                            try {
+                                              const d = new Date(t.endDate + 'T00:00:00');
+                                              d.setDate(d.getDate() + 1);
+                                              const newStart = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+                                              await updateTaskInline(depDialogTaskId, 'startDate', newStart);
+                                              const depTask = projectTasks.find(pt => pt.id === depDialogTaskId);
+                                              if (depTask?.duration) {
+                                                const newEnd = calcEndDate(newStart, depTask.duration, depTask.durationUnit || 'days');
+                                                if (newEnd) await updateTaskInline(depDialogTaskId, 'endDate', newEnd);
+                                              }
+                                            } catch (autoDateErr) { /* auto-date update failed, ignore */ }
                                           }
                                         }
-                                      }
+                                      } catch (depErr) { console.error('Dep toggle failed', depErr); }
                                       if (depDialogTaskId) await loadTaskDeps(depDialogTaskId);
                                     }}>
                                     <Box sx={{ width: 14, height: 14, borderRadius: '3px', border: '1.5px solid', borderColor: isDep ? 'primary.main' : 'rgba(255,255,255,0.25)', backgroundColor: isDep ? 'primary.main' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
