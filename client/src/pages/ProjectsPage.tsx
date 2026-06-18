@@ -499,8 +499,8 @@ const ProjectsPage: React.FC = () => {
               const items = objectsResponse.data?.data || [];
               const tasks = tasksResponse.data?.data || [];
 
-              // Map each project object to its scheduled Load task date.
-              const loadDateByObjectId: Record<string, string> = {};
+              // Map each project object to a load date window (start/end).
+              const loadWindowByObjectId: Record<string, { startDate: string | null; endDate: string | null }> = {};
               tasks.forEach((task: any) => {
                 const objectId = task.projectObjectId;
                 if (!objectId) return;
@@ -511,13 +511,27 @@ const ProjectsPage: React.FC = () => {
 
                 if (!isLoadTask) return;
 
-                const candidate = task.startDate || task.endDate;
-                if (!candidate) return;
+                const startDate = task.startDate || null;
+                const endDate = task.endDate || task.startDate || null;
+                if (!startDate && !endDate) return;
 
-                const existing = loadDateByObjectId[objectId];
-                if (!existing || new Date(candidate).getTime() < new Date(existing).getTime()) {
-                  loadDateByObjectId[objectId] = candidate;
+                const existing = loadWindowByObjectId[objectId];
+                if (!existing) {
+                  loadWindowByObjectId[objectId] = { startDate, endDate };
+                  return;
                 }
+
+                const nextStart = startDate && (!existing.startDate || startDate < existing.startDate)
+                  ? startDate
+                  : existing.startDate;
+                const nextEnd = endDate && (!existing.endDate || endDate > existing.endDate)
+                  ? endDate
+                  : existing.endDate;
+
+                loadWindowByObjectId[objectId] = {
+                  startDate: nextStart,
+                  endDate: nextEnd,
+                };
               });
 
               const projectColor = getProjectAccentColor(project, index);
@@ -526,7 +540,8 @@ const ProjectsPage: React.FC = () => {
                 projectName: project.name,
                 projectColor,
                 projectId: project.id,
-                loadScheduledDate: loadDateByObjectId[item.id] || null,
+                loadStartDate: loadWindowByObjectId[item.id]?.startDate || null,
+                loadEndDate: loadWindowByObjectId[item.id]?.endDate || null,
               }));
             } catch {
               return [];
@@ -3388,8 +3403,15 @@ const ProjectsPage: React.FC = () => {
                         {scheduleWeekDates.map((day) => {
                           const dayItems = cycleScheduleItems.filter((item: any) => {
                             if (schedulePhaseFilter !== 'all' && (item.cutoverPhase || '') !== schedulePhaseFilter) return false;
-                            const loadDate = normalizeDateOnly(item.loadScheduledDate || undefined);
-                            return !!loadDate && isSameDay(loadDate, day);
+                            const loadStart = normalizeDateOnly(item.loadStartDate || undefined);
+                            const loadEnd = normalizeDateOnly(item.loadEndDate || item.loadStartDate || undefined);
+                            if (!loadStart && !loadEnd) return false;
+
+                            const rangeStart = loadStart || loadEnd;
+                            const rangeEnd = loadEnd || loadStart;
+                            if (!rangeStart || !rangeEnd) return false;
+
+                            return day >= rangeStart && day <= rangeEnd;
                           });
 
                           return (
@@ -3407,6 +3429,19 @@ const ProjectsPage: React.FC = () => {
                                     </Typography>
                                     <Typography variant="caption" sx={{ display: 'block', color: '#9FB0D8' }}>
                                       {item.projectName}
+                                    </Typography>
+                                    <Typography variant="caption" sx={{ display: 'block', color: '#9FB0D8' }}>
+                                      {(() => {
+                                        const s = item.loadStartDate;
+                                        const e = item.loadEndDate || item.loadStartDate;
+                                        if (!s && !e) return 'Unscheduled';
+                                        const fmt = (v: string) => {
+                                          const [yy, mm, dd] = v.split('-');
+                                          return `${mm}/${dd}`;
+                                        };
+                                        if (s && e) return s === e ? fmt(s) : `${fmt(s)} - ${fmt(e)}`;
+                                        return fmt((s || e) as string);
+                                      })()}
                                     </Typography>
                                   </Box>
                                 ))
@@ -3426,7 +3461,9 @@ const ProjectsPage: React.FC = () => {
                       {cycleScheduleItems
                         .filter((item: any) => {
                           if (schedulePhaseFilter !== 'all' && (item.cutoverPhase || '') !== schedulePhaseFilter) return false;
-                          return !normalizeDateOnly(item.loadScheduledDate || undefined);
+                          const loadStart = normalizeDateOnly(item.loadStartDate || undefined);
+                          const loadEnd = normalizeDateOnly(item.loadEndDate || item.loadStartDate || undefined);
+                          return !loadStart && !loadEnd;
                         })
                         .map((item: any) => (
                           <Box key={`unscheduled-${item.id}`} sx={{ p: 0.75, borderRadius: 1, backgroundColor: toRgba(item.projectColor, 0.22), border: `1px solid ${toRgba(item.projectColor, 0.5)}` }}>
