@@ -3811,33 +3811,30 @@ const ProjectsPage: React.FC = () => {
                                 return (
                                   <Box key={t.id} sx={{ ml: 2.5, display: 'flex', alignItems: 'center', gap: 1.25, py: 0.5, px: 0.75, borderRadius: 1, cursor: 'pointer', backgroundColor: isDep ? 'rgba(91,103,202,0.14)' : 'transparent', '&:hover': { backgroundColor: isDep ? 'rgba(91,103,202,0.2)' : 'rgba(255,255,255,0.05)' } }}
                                     onClick={async () => {
+                                      const taskId = depDialogTaskId;
+                                      if (!taskId) return;
                                       try {
                                         if (isDep) {
-                                          await apiClient.delete(`/api/tasks/${depDialogTaskId}/dependencies/${t.id}`);
-                                          setTaskDeps(prev => ({
-                                            ...prev,
-                                            [depDialogTaskId || '']: (prev[depDialogTaskId || ''] || []).filter((d: any) => d.dependsOnTaskId !== t.id)
-                                          }));
+                                          await apiClient.delete(`/api/tasks/${taskId}/dependencies/${t.id}`);
                                         } else {
-                                          await apiClient.post(`/api/tasks/${depDialogTaskId}/dependencies`, { dependsOnTaskId: t.id });
-                                          setTaskDeps(prev => ({
-                                            ...prev,
-                                            [depDialogTaskId || '']: [...(prev[depDialogTaskId || ''] || []), { dependsOnTaskId: t.id }]
-                                          }));
+                                          await apiClient.post(`/api/tasks/${taskId}/dependencies`, { dependsOnTaskId: t.id });
                                           // Update start date of dependent task to dep end date + 1
-                                          if (t.endDate && depDialogTaskId) {
+                                          if (t.endDate) {
                                             try {
                                               const d = new Date(t.endDate + 'T00:00:00');
                                               d.setDate(d.getDate() + 1);
                                               const newStart = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-                                              await apiClient.patch(`/api/tasks/${depDialogTaskId}`, { startDate: newStart });
-                                              setProjectTasks(prev => prev.map(pt => pt.id === depDialogTaskId ? { ...pt, startDate: newStart } : pt));
+                                              await apiClient.patch(`/api/tasks/${taskId}`, { startDate: newStart });
                                             } catch (dateErr) { /* ignore */ }
                                           }
                                         }
-                                      } catch (depErr) { console.error('Dep toggle failed', depErr); }
-                                      // Reload deps from server to sync icon state
-                                      if (depDialogTaskId) loadTaskDeps(depDialogTaskId);
+                                      } catch (depErr) { console.error('Dep toggle failed', depErr); return; }
+                                      // Await full reload from server — source of truth
+                                      await loadTaskDeps(taskId);
+                                      if (activeProjectId) {
+                                        const res = await apiClient.get(`/api/tasks/project/${activeProjectId}`);
+                                        setProjectTasks((res.data.data || []).map((t2: any) => normalizeTaskDateFields(t2)));
+                                      }
                                     }}>
                                     <Box sx={{ width: 14, height: 14, borderRadius: '3px', border: '1.5px solid', borderColor: isDep ? 'primary.main' : 'rgba(255,255,255,0.3)', backgroundColor: isDep ? 'primary.main' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                                       {isDep && <Box sx={{ width: 6, height: 6, backgroundColor: 'white', borderRadius: '1px' }} />}
