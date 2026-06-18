@@ -3808,7 +3808,7 @@ const ProjectsPage: React.FC = () => {
                               {objExpanded && objData.tasks.map((t: any) => {
                                 const isDep = (taskDeps[depDialogTaskId || ''] || []).some((d: any) => d.dependsOnTaskId === t.id);
                                 return (
-                                  <Box key={t.id} sx={{ ml: 2.5, display: 'flex', alignItems: 'center', gap: 1.25, py: 0.5, px: 0.75, borderRadius: 1, cursor: 'pointer', backgroundColor: isDep ? 'rgba(91,103,202,0.14)' : 'transparent', '&:hover': { backgroundColor: isDep ? 'rgba(91,103,202,0.2)' : 'rgba(255,255,255,0.05)' } }}
+                                  <Box key={t.id} component="button" type="button" sx={{ ml: 2.5, width: '100%', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 1.25, py: 0.5, px: 0.75, borderRadius: 1, cursor: 'pointer', border: 'none', backgroundColor: isDep ? 'rgba(91,103,202,0.14)' : 'transparent', '&:hover': { backgroundColor: isDep ? 'rgba(91,103,202,0.2)' : 'rgba(255,255,255,0.05)' } }}
                                     onClick={async (e) => {
                                       e.stopPropagation();
                                       try {
