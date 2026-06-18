@@ -2340,12 +2340,10 @@ const ProjectsPage: React.FC = () => {
                                             )}
                                             {/* Actions */}
                                             <Box sx={{ display: 'flex', gap: 0.25, alignItems: 'center' }}>
-                                              <Badge badgeContent={taskCommentCounts[task.id] || 0} color="primary">
-                                                <IconButton size="small" title="Discussion" onClick={() => setCommentModalTask({ id: task.id, name: task.name || 'Task' })}
-                                                  sx={{ opacity: 0.6, '&:hover': { opacity: 1, color: accentColor } }}>
-                                                  <ChatBubbleOutlineIcon sx={{ fontSize: '0.9rem' }} />
-                                                </IconButton>
-                                              </Badge>
+                                              <IconButton size="small" title="Discussion" onClick={() => setCommentModalTask({ id: task.id, name: task.name || 'Task' })}
+                                                sx={{ opacity: (taskCommentCounts[task.id] || 0) > 0 ? 1 : 0.6, color: (taskCommentCounts[task.id] || 0) > 0 ? accentColor : 'inherit', '&:hover': { opacity: 1, color: accentColor } }}>
+                                                <ChatBubbleOutlineIcon sx={{ fontSize: '0.9rem' }} />
+                                              </IconButton>
                                               <IconButton size="small" title="Dependencies" onClick={async () => {
                                                 await loadTaskDeps(task.id);
                                                 setDepDialogTaskId(task.id);
@@ -2627,12 +2625,10 @@ const ProjectsPage: React.FC = () => {
                                               </Box>
                                             )}
                                             <Box sx={{ display: 'flex', gap: 0.25, alignItems: 'center' }}>
-                                              <Badge badgeContent={taskCommentCounts[task.id] || 0} color="primary">
-                                                <IconButton size="small" title="Discussion" onClick={() => setCommentModalTask({ id: task.id, name: task.name || 'Task' })}
-                                                  sx={{ opacity: 0.6, '&:hover': { opacity: 1, color: accentColor } }}>
-                                                  <ChatBubbleOutlineIcon sx={{ fontSize: '0.9rem' }} />
-                                                </IconButton>
-                                              </Badge>
+                                              <IconButton size="small" title="Discussion" onClick={() => setCommentModalTask({ id: task.id, name: task.name || 'Task' })}
+                                                sx={{ opacity: (taskCommentCounts[task.id] || 0) > 0 ? 1 : 0.6, color: (taskCommentCounts[task.id] || 0) > 0 ? accentColor : 'inherit', '&:hover': { opacity: 1, color: accentColor } }}>
+                                                <ChatBubbleOutlineIcon sx={{ fontSize: '0.9rem' }} />
+                                              </IconButton>
                                               <IconButton size="small" onClick={async () => {
                                                 await loadTaskDeps(task.id);
                                                 setDepDialogTaskId(task.id);
