@@ -1264,6 +1264,11 @@ const ProjectsPage: React.FC = () => {
         }
         return updatedTasks;
       });
+      // When endDate changes, cascade to all downstream dependent tasks
+      if (field === 'endDate' && parsedValue) {
+        const snapshot = projectTasks.map(t => t.id === taskId ? { ...t, endDate: String(parsedValue) } : t);
+        cascadeAllDates(snapshot, taskDeps);
+      }
     } catch (e) { console.error('Failed to update task', e); }
   };
 
@@ -3712,6 +3717,8 @@ const ProjectsPage: React.FC = () => {
                 }));
                 const updatedDeps = { ...taskDeps, ...newDepsMap };
                 setTaskDeps(updatedDeps);
+                // Cascade dates for the new tasks (no-op if no dates set yet, but primes for when user sets them)
+                await cascadeAllDates(updatedTasks, updatedDeps);
                 setDataObjectDialogOpen(false);
                 setNewDataObjectId('');
                 setNewDataObjectName('');
