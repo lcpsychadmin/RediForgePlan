@@ -1264,7 +1264,7 @@ const ProjectsPage: React.FC = () => {
 
   const loadTaskDeps = async (taskId: string) => {
     try {
-      const res = await apiClient.get(`/api/tasks/${taskId}/dependencies`);
+      const res = await apiClient.get(`/api/tasks/${taskId}/dependencies?t=${Date.now()}`);
       setTaskDeps(prev => ({ ...prev, [taskId]: res.data.data || [] }));
     } catch (e) { /* ignore */ }
   };
@@ -3824,15 +3824,21 @@ const ProjectsPage: React.FC = () => {
                                               const d = new Date(t.endDate + 'T00:00:00');
                                               d.setDate(d.getDate() + 1);
                                               const newStart = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-                                              await apiClient.patch(`/api/tasks/${taskId}`, { startDate: newStart });
+                                              const patchPayload: any = { startDate: newStart };
+                                              const affectedTask = projectTasks.find(pt => pt.id === taskId);
+                                              if (affectedTask?.duration) {
+                                                const newEnd = calcEndDate(newStart, affectedTask.duration, affectedTask.durationUnit || 'days');
+                                                if (newEnd) patchPayload.endDate = newEnd;
+                                              }
+                                              await apiClient.patch(`/api/tasks/${taskId}`, patchPayload);
                                             } catch (dateErr) { /* ignore */ }
                                           }
                                         }
                                       } catch (depErr) { console.error('Dep toggle failed', depErr); return; }
-                                      // Await full reload from server — source of truth
+                                      // Await full reload from server — source of truth (cache-busted)
                                       await loadTaskDeps(taskId);
                                       if (activeProjectId) {
-                                        const res = await apiClient.get(`/api/tasks/project/${activeProjectId}`);
+                                        const res = await apiClient.get(`/api/tasks/project/${activeProjectId}?t=${Date.now()}`);
                                         setProjectTasks((res.data.data || []).map((t2: any) => normalizeTaskDateFields(t2)));
                                       }
                                     }}>
