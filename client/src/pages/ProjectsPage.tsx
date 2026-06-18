@@ -3836,6 +3836,8 @@ const ProjectsPage: React.FC = () => {
                                           }
                                         }
                                       } catch (depErr) { console.error('Dep toggle failed', depErr); }
+                                      // Reload deps from server to sync icon state
+                                      if (depDialogTaskId) loadTaskDeps(depDialogTaskId);
                                     }}>
                                     <Box sx={{ width: 14, height: 14, borderRadius: '3px', border: '1.5px solid', borderColor: isDep ? 'primary.main' : 'rgba(255,255,255,0.3)', backgroundColor: isDep ? 'primary.main' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                                       {isDep && <Box sx={{ width: 6, height: 6, backgroundColor: 'white', borderRadius: '1px' }} />}
