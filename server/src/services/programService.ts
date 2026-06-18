@@ -185,6 +185,252 @@ export class ProgramService {
     return result.rows.length > 0;
   }
 
+  async cloneMockCycle(sourceMockCycleId: string, data?: { name?: string }) {
+    const client = await db.connect();
+    try {
+      await client.query('BEGIN');
+
+      const sourceCycleResult = await client.query(
+        'SELECT id, program_id, name, start_date, end_date, schedule_mode, created_at, updated_at FROM mock_cycles WHERE id = $1',
+        [sourceMockCycleId]
+      );
+      if (sourceCycleResult.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return null;
+      }
+
+      const sourceCycle = sourceCycleResult.rows[0];
+      const newCycleName = (data?.name || `${sourceCycle.name} Copy`).trim();
+
+      const newCycleResult = await client.query(
+        `INSERT INTO mock_cycles (program_id, name, start_date, end_date, schedule_mode)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING id, program_id, name, start_date, end_date, schedule_mode, created_at, updated_at`,
+        [sourceCycle.program_id, newCycleName, sourceCycle.start_date, sourceCycle.end_date, sourceCycle.schedule_mode || 'all_days']
+      );
+      const newCycle = newCycleResult.rows[0];
+
+      const projectsResult = await client.query(
+        `SELECT id, name, description, start_date, end_date, accent_color, progress_percentage
+         FROM projects
+         WHERE mock_cycle_id = $1`,
+        [sourceMockCycleId]
+      );
+
+      const projectIdMap = new Map<string, string>();
+      for (const p of projectsResult.rows) {
+        const insertedProject = await client.query(
+          `INSERT INTO projects (mock_cycle_id, name, description, start_date, end_date, accent_color, progress_percentage)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)
+           RETURNING id`,
+          [newCycle.id, p.name, p.description, p.start_date, p.end_date, p.accent_color, p.progress_percentage || 0]
+        );
+        projectIdMap.set(p.id, insertedProject.rows[0].id);
+      }
+
+      const sourceProjectIds = Array.from(projectIdMap.keys());
+      const newProjectIds = Array.from(projectIdMap.values());
+
+      const projectObjectIdMap = new Map<string, string>();
+      const taskGroupIdMap = new Map<string, string>();
+      const taskIdMap = new Map<string, string>();
+
+      if (sourceProjectIds.length > 0) {
+        const projectObjectsResult = await client.query(
+          `SELECT id, project_id, global_object_id, complexity, deployment_disposition, build_type,
+                  object_type, cutover_phase, ddm_approach, risk_security_type, migration_type,
+                  factor_type, load_method, start_date, end_date, status, dra_user_id,
+                  developer_user_id, notes
+           FROM project_objects
+           WHERE project_id = ANY($1)`,
+          [sourceProjectIds]
+        );
+
+        for (const po of projectObjectsResult.rows) {
+          const newProjectId = projectIdMap.get(po.project_id);
+          if (!newProjectId) continue;
+          const inserted = await client.query(
+            `INSERT INTO project_objects (
+              project_id, global_object_id, complexity, deployment_disposition, build_type,
+              object_type, cutover_phase, ddm_approach, risk_security_type, migration_type,
+              factor_type, load_method, start_date, end_date, status, dra_user_id,
+              developer_user_id, notes
+            ) VALUES (
+              $1, $2, $3, $4, $5,
+              $6, $7, $8, $9, $10,
+              $11, $12, $13, $14, $15, $16,
+              $17, $18
+            ) RETURNING id`,
+            [
+              newProjectId,
+              po.global_object_id,
+              po.complexity,
+              po.deployment_disposition,
+              po.build_type,
+              po.object_type,
+              po.cutover_phase,
+              po.ddm_approach,
+              po.risk_security_type,
+              po.migration_type,
+              po.factor_type,
+              po.load_method,
+              po.start_date,
+              po.end_date,
+              po.status,
+              po.dra_user_id,
+              po.developer_user_id,
+              po.notes,
+            ]
+          );
+          projectObjectIdMap.set(po.id, inserted.rows[0].id);
+        }
+
+        const sourceProjectObjectIds = Array.from(projectObjectIdMap.keys());
+        if (sourceProjectObjectIds.length > 0) {
+          const objectDepsResult = await client.query(
+            `SELECT project_object_id, depends_on_project_object_id
+             FROM object_dependencies
+             WHERE project_object_id = ANY($1)
+               AND depends_on_project_object_id = ANY($1)`,
+            [sourceProjectObjectIds]
+          );
+
+          for (const dep of objectDepsResult.rows) {
+            const newObjectId = projectObjectIdMap.get(dep.project_object_id);
+            const newDependsOnId = projectObjectIdMap.get(dep.depends_on_project_object_id);
+            if (!newObjectId || !newDependsOnId) continue;
+
+            await client.query(
+              `INSERT INTO object_dependencies (project_object_id, depends_on_project_object_id)
+               VALUES ($1, $2)
+               ON CONFLICT DO NOTHING`,
+              [newObjectId, newDependsOnId]
+            );
+          }
+        }
+
+        const taskGroupsResult = await client.query(
+          `SELECT id, project_id, name, description, start_date, end_date
+           FROM task_groups
+           WHERE project_id = ANY($1)`,
+          [sourceProjectIds]
+        );
+
+        for (const tg of taskGroupsResult.rows) {
+          const newProjectId = projectIdMap.get(tg.project_id);
+          if (!newProjectId) continue;
+          const inserted = await client.query(
+            `INSERT INTO task_groups (project_id, name, description, start_date, end_date)
+             VALUES ($1, $2, $3, $4, $5)
+             RETURNING id`,
+            [newProjectId, tg.name, tg.description, tg.start_date, tg.end_date]
+          );
+          taskGroupIdMap.set(tg.id, inserted.rows[0].id);
+        }
+
+        const tasksResult = await client.query(
+          `SELECT id, project_id, project_object_id, task_group_id, task_type, name, status,
+                  start_date, end_date, assigned_to, duration, duration_unit,
+                  schedule_mode_override, progress_percentage, dra_user_id, developer_user_id, notes
+           FROM tasks
+           WHERE project_id = ANY($1)`,
+          [sourceProjectIds]
+        );
+
+        for (const t of tasksResult.rows) {
+          const newProjectId = projectIdMap.get(t.project_id);
+          if (!newProjectId) continue;
+
+          const newProjectObjectId = t.project_object_id ? projectObjectIdMap.get(t.project_object_id) || null : null;
+          const newTaskGroupId = t.task_group_id ? taskGroupIdMap.get(t.task_group_id) || null : null;
+
+          const inserted = await client.query(
+            `INSERT INTO tasks (
+              project_id, project_object_id, task_group_id, task_type, name, status,
+              start_date, end_date, assigned_to, duration, duration_unit,
+              schedule_mode_override, progress_percentage, dra_user_id, developer_user_id, notes
+            ) VALUES (
+              $1, $2, $3, $4, $5, $6,
+              $7, $8, $9, $10, $11,
+              $12, $13, $14, $15, $16
+            ) RETURNING id`,
+            [
+              newProjectId,
+              newProjectObjectId,
+              newTaskGroupId,
+              t.task_type,
+              t.name,
+              t.status,
+              t.start_date,
+              t.end_date,
+              t.assigned_to,
+              t.duration,
+              t.duration_unit,
+              t.schedule_mode_override,
+              t.progress_percentage,
+              t.dra_user_id,
+              t.developer_user_id,
+              t.notes,
+            ]
+          );
+          taskIdMap.set(t.id, inserted.rows[0].id);
+        }
+
+        const sourceTaskIds = Array.from(taskIdMap.keys());
+        if (sourceTaskIds.length > 0) {
+          const taskDepsResult = await client.query(
+            `SELECT task_id, depends_on_task_id
+             FROM task_dependencies
+             WHERE task_id = ANY($1)
+               AND depends_on_task_id = ANY($1)`,
+            [sourceTaskIds]
+          );
+
+          for (const dep of taskDepsResult.rows) {
+            const newTaskId = taskIdMap.get(dep.task_id);
+            const newDependsOnTaskId = taskIdMap.get(dep.depends_on_task_id);
+            if (!newTaskId || !newDependsOnTaskId) continue;
+            await client.query(
+              `INSERT INTO task_dependencies (task_id, depends_on_task_id)
+               VALUES ($1, $2)
+               ON CONFLICT DO NOTHING`,
+              [newTaskId, newDependsOnTaskId]
+            );
+          }
+
+          const scheduleItemsResult = await client.query(
+            `SELECT project_id, task_id, scheduled_date
+             FROM schedule_items
+             WHERE project_id = ANY($1)
+               AND task_id = ANY($2)`,
+            [sourceProjectIds, sourceTaskIds]
+          );
+
+          for (const item of scheduleItemsResult.rows) {
+            const newProjectId = projectIdMap.get(item.project_id);
+            const newTaskId = taskIdMap.get(item.task_id);
+            if (!newProjectId || !newTaskId) continue;
+
+            await client.query(
+              `INSERT INTO schedule_items (project_id, task_id, scheduled_date)
+               VALUES ($1, $2, $3)
+               ON CONFLICT DO NOTHING`,
+              [newProjectId, newTaskId, item.scheduled_date]
+            );
+          }
+        }
+      }
+
+      await client.query('COMMIT');
+      return this.formatMockCycle(newCycle);
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
   async getMockCycleStats(mockCycleId: string) {
     const result = await db.query(
       `SELECT

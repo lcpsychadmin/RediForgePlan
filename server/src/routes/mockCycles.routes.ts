@@ -9,6 +9,26 @@ import { formatSingleResponse } from '../utils/responseFormatter.js';
 
 const router = Router();
 
+// Clone mock cycle with all nested project data (admin only)
+router.post(
+  '/:mockCycleId/clone',
+  requireAuth,
+  requireRole('admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const clonedCycle = await programService.cloneMockCycle(req.params.mockCycleId, req.body || {});
+
+      if (!clonedCycle) {
+        throw new ApiError(404, 'Mock cycle not found', 'NOT_FOUND');
+      }
+
+      res.status(201).json(formatSingleResponse(clonedCycle));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 // Get mock cycle by ID
 router.get('/:mockCycleId', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {

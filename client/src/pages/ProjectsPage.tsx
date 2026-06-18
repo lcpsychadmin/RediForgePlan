@@ -1097,6 +1097,52 @@ const ProjectsPage: React.FC = () => {
     }
   };
 
+  const handleCloneCycle = async (cycleId: string) => {
+    let sourceCycle: MockCycle | null = null;
+    let sourceProgramId: string | null = null;
+
+    for (const progId in mockCycles) {
+      const cycle = mockCycles[progId]?.find(c => c.id === cycleId);
+      if (cycle) {
+        sourceCycle = cycle;
+        sourceProgramId = progId;
+        break;
+      }
+    }
+
+    if (!sourceCycle || !sourceProgramId) {
+      alert('Unable to locate source mock cycle.');
+      return;
+    }
+
+    const suggestedName = `${sourceCycle.name} Copy`;
+    const enteredName = window.prompt('Name for copied mock cycle', suggestedName);
+    if (enteredName === null) return;
+
+    const name = enteredName.trim();
+    if (!name) {
+      alert('A name is required to copy a mock cycle.');
+      return;
+    }
+
+    try {
+      const res = await apiClient.post(`/api/mock-cycles/${cycleId}/clone`, { name });
+      const cloned = res?.data?.data;
+
+      queryClient.invalidateQueries({ queryKey: ['mockCycles'] });
+      queryClient.invalidateQueries({ queryKey: ['projectsByMockCycle'] });
+
+      setExpandedPrograms(prev => new Set(prev).add(sourceProgramId as string));
+      if (cloned?.id) {
+        setSelectedItem({ type: 'cycle', id: cloned.id, programId: sourceProgramId });
+      }
+      setTabValue(0);
+    } catch (error) {
+      console.error('Failed to copy mock cycle:', error);
+      alert('Failed to copy mock cycle. Please try again.');
+    }
+  };
+
   // Handle edit catalog object
   const handleEditCatalogObject = (obj: any) => {
     setEditingCatalogObjectId(obj.id);
@@ -3573,6 +3619,16 @@ const ProjectsPage: React.FC = () => {
             <Divider />
           </>
         )}
+        <MenuItem
+          onClick={async () => {
+            if (menuType !== 'cycle' || !menuItemId) return;
+            setMenuAnchorEl(null);
+            await handleCloneCycle(menuItemId);
+          }}
+          sx={{ display: menuType === 'cycle' ? 'flex' : 'none' }}
+        >
+          <AddIcon fontSize="small" sx={{ mr: 1 }} /> Copy Mock Cycle
+        </MenuItem>
         <MenuItem
           onClick={() => {
             if (!menuItemId || !menuType) return;
