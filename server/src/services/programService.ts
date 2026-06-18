@@ -7,29 +7,29 @@ export class ProgramService {
   // Programs
   async getAllPrograms() {
     const result = await db.query(
-      'SELECT id, name, description, created_at, updated_at FROM programs ORDER BY created_at DESC'
+      'SELECT id, name, description, accent_color, created_at, updated_at FROM programs ORDER BY created_at DESC'
     );
     return result.rows.map(row => this.formatProgram(row));
   }
 
   async getProgramById(programId: string) {
     const result = await db.query(
-      'SELECT id, name, description, created_at, updated_at FROM programs WHERE id = $1',
+      'SELECT id, name, description, accent_color, created_at, updated_at FROM programs WHERE id = $1',
       [programId]
     );
     if (result.rows.length === 0) return null;
     return this.formatProgram(result.rows[0]);
   }
 
-  async createProgram(name: string, description?: string) {
+  async createProgram(name: string, description?: string, accentColor?: string) {
     const result = await db.query(
-      'INSERT INTO programs (name, description) VALUES ($1, $2) RETURNING id, name, description, created_at, updated_at',
-      [name, description || null]
+      'INSERT INTO programs (name, description, accent_color) VALUES ($1, $2, $3) RETURNING id, name, description, accent_color, created_at, updated_at',
+      [name, description || null, accentColor || null]
     );
     return this.formatProgram(result.rows[0]);
   }
 
-  async updateProgram(programId: string, data: { name?: string; description?: string }) {
+  async updateProgram(programId: string, data: { name?: string; description?: string; accentColor?: string }) {
     const fields: string[] = [];
     const values: any[] = [programId];
     let paramCount = 2;
@@ -44,13 +44,18 @@ export class ProgramService {
       values.push(data.description);
       paramCount++;
     }
+    if (data.accentColor !== undefined) {
+      fields.push(`accent_color = $${paramCount}`);
+      values.push(data.accentColor || null);
+      paramCount++;
+    }
 
     if (fields.length === 0) return this.getProgramById(programId);
 
     fields.push(`updated_at = CURRENT_TIMESTAMP`);
 
     const result = await db.query(
-      `UPDATE programs SET ${fields.join(', ')} WHERE id = $1 RETURNING id, name, description, created_at, updated_at`,
+      `UPDATE programs SET ${fields.join(', ')} WHERE id = $1 RETURNING id, name, description, accent_color, created_at, updated_at`,
       values
     );
 
@@ -107,7 +112,7 @@ export class ProgramService {
   // Mock Cycles
   async getMockCyclesByProgram(programId: string) {
     const result = await db.query(
-      'SELECT id, program_id, name, start_date, end_date, schedule_mode, created_at, updated_at FROM mock_cycles WHERE program_id = $1 ORDER BY start_date DESC',
+      'SELECT id, program_id, name, start_date, end_date, accent_color, schedule_mode, created_at, updated_at FROM mock_cycles WHERE program_id = $1 ORDER BY start_date DESC',
       [programId]
     );
     return result.rows.map(row => this.formatMockCycle(row));
@@ -115,22 +120,22 @@ export class ProgramService {
 
   async getMockCycleById(mockCycleId: string) {
     const result = await db.query(
-      'SELECT id, program_id, name, start_date, end_date, schedule_mode, created_at, updated_at FROM mock_cycles WHERE id = $1',
+      'SELECT id, program_id, name, start_date, end_date, accent_color, schedule_mode, created_at, updated_at FROM mock_cycles WHERE id = $1',
       [mockCycleId]
     );
     if (result.rows.length === 0) return null;
     return this.formatMockCycle(result.rows[0]);
   }
 
-  async createMockCycle(programId: string, name: string, startDate: string, endDate: string, scheduleMode: string = 'all_days') {
+  async createMockCycle(programId: string, name: string, startDate: string, endDate: string, scheduleMode: string = 'all_days', accentColor?: string) {
     const result = await db.query(
-      'INSERT INTO mock_cycles (program_id, name, start_date, end_date, schedule_mode) VALUES ($1, $2, $3, $4, $5) RETURNING id, program_id, name, start_date, end_date, schedule_mode, created_at, updated_at',
-      [programId, name, startDate, endDate, scheduleMode]
+      'INSERT INTO mock_cycles (program_id, name, start_date, end_date, schedule_mode, accent_color) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, program_id, name, start_date, end_date, accent_color, schedule_mode, created_at, updated_at',
+      [programId, name, startDate, endDate, scheduleMode, accentColor || null]
     );
     return this.formatMockCycle(result.rows[0]);
   }
 
-  async updateMockCycle(mockCycleId: string, data: { name?: string; startDate?: string; endDate?: string; scheduleMode?: string }) {
+  async updateMockCycle(mockCycleId: string, data: { name?: string; startDate?: string; endDate?: string; scheduleMode?: string; accentColor?: string }) {
     const fields: string[] = [];
     const values: any[] = [mockCycleId];
     let paramCount = 2;
@@ -155,13 +160,18 @@ export class ProgramService {
       values.push(data.scheduleMode);
       paramCount++;
     }
+    if (data.accentColor !== undefined) {
+      fields.push(`accent_color = $${paramCount}`);
+      values.push(data.accentColor || null);
+      paramCount++;
+    }
 
     if (fields.length === 0) return this.getMockCycleById(mockCycleId);
 
     fields.push(`updated_at = CURRENT_TIMESTAMP`);
 
     const result = await db.query(
-      `UPDATE mock_cycles SET ${fields.join(', ')} WHERE id = $1 RETURNING id, program_id, name, start_date, end_date, schedule_mode, created_at, updated_at`,
+      `UPDATE mock_cycles SET ${fields.join(', ')} WHERE id = $1 RETURNING id, program_id, name, start_date, end_date, accent_color, schedule_mode, created_at, updated_at`,
       values
     );
 
@@ -191,7 +201,7 @@ export class ProgramService {
       await client.query('BEGIN');
 
       const sourceCycleResult = await client.query(
-        'SELECT id, program_id, name, start_date, end_date, schedule_mode, created_at, updated_at FROM mock_cycles WHERE id = $1',
+        'SELECT id, program_id, name, start_date, end_date, accent_color, schedule_mode, created_at, updated_at FROM mock_cycles WHERE id = $1',
         [sourceMockCycleId]
       );
       if (sourceCycleResult.rows.length === 0) {
@@ -203,10 +213,10 @@ export class ProgramService {
       const newCycleName = (data?.name || `${sourceCycle.name} Copy`).trim();
 
       const newCycleResult = await client.query(
-        `INSERT INTO mock_cycles (program_id, name, start_date, end_date, schedule_mode)
-         VALUES ($1, $2, $3, $4, $5)
-         RETURNING id, program_id, name, start_date, end_date, schedule_mode, created_at, updated_at`,
-        [sourceCycle.program_id, newCycleName, sourceCycle.start_date, sourceCycle.end_date, sourceCycle.schedule_mode || 'all_days']
+        `INSERT INTO mock_cycles (program_id, name, start_date, end_date, schedule_mode, accent_color)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING id, program_id, name, start_date, end_date, accent_color, schedule_mode, created_at, updated_at`,
+        [sourceCycle.program_id, newCycleName, sourceCycle.start_date, sourceCycle.end_date, sourceCycle.schedule_mode || 'all_days', sourceCycle.accent_color || null]
       );
       const newCycle = newCycleResult.rows[0];
 
@@ -450,6 +460,7 @@ export class ProgramService {
       id: row.id,
       name: row.name,
       description: row.description,
+      accentColor: row.accent_color,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };
@@ -462,6 +473,7 @@ export class ProgramService {
       name: row.name,
       startDate: row.start_date,
       endDate: row.end_date,
+      accentColor: row.accent_color,
       scheduleMode: row.schedule_mode || 'all_days',
       createdAt: row.created_at,
       updatedAt: row.updated_at,

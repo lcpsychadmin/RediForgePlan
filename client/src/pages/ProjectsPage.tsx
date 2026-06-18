@@ -60,6 +60,7 @@ interface Program {
   id: string;
   name: string;
   description?: string;
+  accentColor?: string;
 }
 
 interface MockCycle {
@@ -68,6 +69,7 @@ interface MockCycle {
   name: string;
   startDate: string;
   endDate: string;
+  accentColor?: string;
   scheduleMode?: 'all_days' | 'working_days';
 }
 
@@ -104,6 +106,7 @@ const ProjectsPage: React.FC = () => {
   const [dialogMode, setDialogMode] = useState<'program' | 'cycle' | 'project'>('program');
   const [newItemName, setNewItemName] = useState('');
   const [newItemDesc, setNewItemDesc] = useState('');
+  const [newItemAccentColor, setNewItemAccentColor] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [newCycleScheduleMode, setNewCycleScheduleMode] = useState<CalendarMode>('all_days');
   const [contextProgramId, setContextProgramId] = useState<string | null>(null);
@@ -847,6 +850,7 @@ const ProjectsPage: React.FC = () => {
         await apiClient.post('/api/programs', {
           name: newItemName,
           description: newItemDesc,
+          accentColor: newItemAccentColor || null,
         });
         queryClient.invalidateQueries({ queryKey: ['programs'] });
       } else if (dialogMode === 'cycle' && contextProgramId) {
@@ -855,6 +859,7 @@ const ProjectsPage: React.FC = () => {
           startDate: new Date().toISOString().split('T')[0],
           endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
           scheduleMode: newCycleScheduleMode,
+          accentColor: newItemAccentColor || null,
         });
         queryClient.invalidateQueries({ queryKey: ['mockCycles'] });
         setExpandedPrograms(new Set(expandedPrograms).add(contextProgramId));
@@ -869,6 +874,7 @@ const ProjectsPage: React.FC = () => {
       }
       setNewItemName('');
       setNewItemDesc('');
+      setNewItemAccentColor('');
       setCreateDialogOpen(false);
       setContextProgramId(null);
       setContextCycleId(null);
@@ -906,6 +912,7 @@ const ProjectsPage: React.FC = () => {
     setContextCycleId(cycleId || null);
     setNewItemName('');
     setNewItemDesc('');
+    setNewItemAccentColor('');
     setNewCycleScheduleMode('all_days');
     setCreateDialogOpen(true);
   };
@@ -1028,7 +1035,7 @@ const ProjectsPage: React.FC = () => {
         setEditItemDesc(program.description || '');
         setEditStartDate('');
         setEditEndDate('');
-        setEditAccentColor('');
+        setEditAccentColor(program.accentColor || '');
       }
     } else if (type === 'cycle') {
       for (const progId in mockCycles) {
@@ -1039,7 +1046,7 @@ const ProjectsPage: React.FC = () => {
           setEditStartDate(cycle.startDate);
           setEditEndDate(cycle.endDate);
           setEditCycleScheduleMode((cycle.scheduleMode || 'all_days') as CalendarMode);
-          setEditAccentColor('');
+          setEditAccentColor(cycle.accentColor || '');
           break;
         }
       }
@@ -1070,6 +1077,7 @@ const ProjectsPage: React.FC = () => {
         await apiClient.patch(`/api/programs/${editItemId}`, {
           name: editItemName,
           description: editItemDesc,
+          accentColor: editAccentColor || null,
         });
       } else if (editItemType === 'cycle') {
         await apiClient.patch(`/api/mock-cycles/${editItemId}`, {
@@ -1077,6 +1085,7 @@ const ProjectsPage: React.FC = () => {
           startDate: editStartDate,
           endDate: editEndDate,
           scheduleMode: editCycleScheduleMode,
+          accentColor: editAccentColor || null,
         });
       } else if (editItemType === 'project') {
         await apiClient.patch(`/api/projects/${editItemId}`, {
@@ -1653,6 +1662,7 @@ const ProjectsPage: React.FC = () => {
                 {getOrderedPrograms().map((program: Program) => {
                   const isProgramSelected = selectedItem?.type === 'program' && selectedItem?.id === program.id;
                   const isProgramExpanded = expandedPrograms.has(program.id);
+                  const programColor = program.accentColor || '#5B67CA';
                   return (
                     <Box key={program.id}>
                       {/* Program Row */}
@@ -1697,7 +1707,7 @@ const ProjectsPage: React.FC = () => {
                             top: '4px',
                             bottom: '4px',
                             width: '3px',
-                            backgroundColor: '#5B67CA',
+                            backgroundColor: programColor,
                             borderRadius: '2px',
                           } : {},
                           '&:hover': { backgroundColor: isProgramSelected ? 'rgba(91, 103, 202, 0.15)' : 'rgba(255,255,255,0.05)' },
@@ -1715,8 +1725,8 @@ const ProjectsPage: React.FC = () => {
                             : <ChevronRightIcon sx={{ fontSize: '1rem', opacity: 0.6 }} />
                           }
                         </Box>
-                        <CorporateFareIcon sx={{ fontSize: '1.1rem', color: isProgramSelected ? '#5B67CA' : 'primary.light', flexShrink: 0, mx: 0.75 }} />
-                        <Typography variant="body2" sx={{ fontWeight: 600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: isProgramSelected ? '#5B67CA' : 'inherit' }}>
+                        <CorporateFareIcon sx={{ fontSize: '1.1rem', color: programColor, flexShrink: 0, mx: 0.75 }} />
+                        <Typography variant="body2" sx={{ fontWeight: 600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: isProgramSelected ? programColor : 'inherit' }}>
                           {program.name}
                         </Typography>
                         <IconButton
@@ -1749,6 +1759,7 @@ const ProjectsPage: React.FC = () => {
                           {getOrderedCycles(program.id).map((cycle: MockCycle) => {
                             const isCycleSelected = selectedItem?.type === 'cycle' && selectedItem?.id === cycle.id;
                             const isCycleExpanded = expandedCycles.has(cycle.id);
+                            const cycleColor = cycle.accentColor || '#64B5F6';
                             return (
                               <Box key={cycle.id}>
                                 {/* Cycle Row */}
@@ -1803,7 +1814,7 @@ const ProjectsPage: React.FC = () => {
                                       top: '4px',
                                       bottom: '4px',
                                       width: '3px',
-                                      backgroundColor: '#5B67CA',
+                                      backgroundColor: cycleColor,
                                       borderRadius: '2px',
                                     } : {},
                                     '&:hover': { backgroundColor: isCycleSelected ? 'rgba(91, 103, 202, 0.15)' : 'rgba(255,255,255,0.05)' },
@@ -1823,8 +1834,8 @@ const ProjectsPage: React.FC = () => {
                                       : <ChevronRightIcon sx={{ fontSize: '0.85rem', opacity: 0.6 }} />
                                     }
                                   </Box>
-                                  <SyncIcon sx={{ fontSize: '0.95rem', color: isCycleSelected ? '#5B67CA' : 'info.light', flexShrink: 0, mx: 0.5 }} />
-                                  <Typography variant="body2" sx={{ fontWeight: 500, fontSize: '0.8rem', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: isCycleSelected ? '#5B67CA' : 'inherit' }}>
+                                  <SyncIcon sx={{ fontSize: '0.95rem', color: cycleColor, flexShrink: 0, mx: 0.5 }} />
+                                  <Typography variant="body2" sx={{ fontWeight: 500, fontSize: '0.8rem', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: isCycleSelected ? cycleColor : 'inherit' }}>
                                     {cycle.name}
                                   </Typography>
                                   {(() => {
@@ -3460,17 +3471,31 @@ const ProjectsPage: React.FC = () => {
             sx={{ mb: 2, mt: 3 }}
           />
           {dialogMode === 'program' && (
-            <TextField
-              fullWidth
-              label="Description"
-              value={newItemDesc}
-              onChange={(e) => setNewItemDesc(e.target.value)}
-              multiline
-              rows={3}
-              placeholder="Optional description"
-              variant="outlined"
-              size="small"
-            />
+            <>
+              <TextField
+                fullWidth
+                label="Description"
+                value={newItemDesc}
+                onChange={(e) => setNewItemDesc(e.target.value)}
+                multiline
+                rows={3}
+                placeholder="Optional description"
+                variant="outlined"
+                size="small"
+              />
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 2 }}>
+                <TextField
+                  label="Accent Color"
+                  type="color"
+                  value={newItemAccentColor || '#5B67CA'}
+                  onChange={(e) => setNewItemAccentColor(e.target.value)}
+                  sx={{ width: '100px' }}
+                  variant="outlined"
+                  size="small"
+                />
+                <Typography variant="body2" color="text.secondary">Used for program icon color in the tree</Typography>
+              </Box>
+            </>
           )}
           {dialogMode === 'cycle' && (
             <Box sx={{ mt: 1 }}>
@@ -3482,6 +3507,18 @@ const ProjectsPage: React.FC = () => {
                   sx={{ p: 0.25 }}
                 />
                 <Typography variant="body2">{newCycleScheduleMode === 'all_days' ? 'Checked: all days' : 'Unchecked: working days only'}</Typography>
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 2 }}>
+                <TextField
+                  label="Accent Color"
+                  type="color"
+                  value={newItemAccentColor || '#64B5F6'}
+                  onChange={(e) => setNewItemAccentColor(e.target.value)}
+                  sx={{ width: '100px' }}
+                  variant="outlined"
+                  size="small"
+                />
+                <Typography variant="body2" color="text.secondary">Used for mock cycle icon color in the tree</Typography>
               </Box>
             </Box>
           )}
@@ -3815,20 +3852,46 @@ const ProjectsPage: React.FC = () => {
           />
           
           {editItemType === 'program' && (
-            <TextField
-              label="Description"
-              value={editItemDesc}
-              onChange={(e) => setEditItemDesc(e.target.value)}
-              fullWidth
-              multiline
-              rows={3}
-              variant="outlined"
-              size="small"
-            />
+            <>
+              <TextField
+                label="Description"
+                value={editItemDesc}
+                onChange={(e) => setEditItemDesc(e.target.value)}
+                fullWidth
+                multiline
+                rows={3}
+                variant="outlined"
+                size="small"
+              />
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <TextField
+                  label="Accent Color"
+                  type="color"
+                  value={editAccentColor || '#5B67CA'}
+                  onChange={(e) => setEditAccentColor(e.target.value)}
+                  sx={{ width: '100px' }}
+                  variant="outlined"
+                  size="small"
+                />
+                <Typography variant="body2" color="text.secondary">Used for program icon color in the tree</Typography>
+              </Box>
+            </>
           )}
 
           {editItemType === 'cycle' && (
             <>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <TextField
+                  label="Accent Color"
+                  type="color"
+                  value={editAccentColor || '#64B5F6'}
+                  onChange={(e) => setEditAccentColor(e.target.value)}
+                  sx={{ width: '100px' }}
+                  variant="outlined"
+                  size="small"
+                />
+                <Typography variant="body2" color="text.secondary">Used for mock cycle icon color in the tree</Typography>
+              </Box>
               <Box>
                 <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Include Weekends</Typography>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>

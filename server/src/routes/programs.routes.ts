@@ -27,13 +27,13 @@ router.post(
   requireRole('admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { name, description } = req.body;
+      const { name, description, accentColor } = req.body;
 
       if (!name) {
         throw new ApiError(400, 'Program name is required', 'MISSING_FIELD');
       }
 
-      const program = await programService.createProgram(name, description);
+      const program = await programService.createProgram(name, description, accentColor);
       res.status(201).json(formatSingleResponse(program));
     } catch (error) {
       next(error);
@@ -125,7 +125,7 @@ router.post(
         throw new ApiError(404, 'Program not found', 'NOT_FOUND');
       }
 
-      const { name, startDate, endDate, scheduleMode } = req.body;
+      const { name, startDate, endDate, scheduleMode, accentColor } = req.body;
 
       if (!name || !startDate || !endDate) {
         throw new ApiError(400, 'Mock cycle name, startDate, and endDate are required', 'MISSING_FIELD');
@@ -136,7 +136,8 @@ router.post(
         name,
         startDate,
         endDate,
-        scheduleMode || 'all_days'
+        scheduleMode || 'all_days',
+        accentColor
       );
 
       res.status(201).json(formatSingleResponse(cycle));

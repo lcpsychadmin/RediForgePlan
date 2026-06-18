@@ -60,6 +60,7 @@ CREATE TABLE programs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name VARCHAR(255) NOT NULL,
   description TEXT,
+  accent_color VARCHAR(7),
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -70,6 +71,7 @@ CREATE TABLE mock_cycles (
   name VARCHAR(255) NOT NULL,
   start_date DATE NOT NULL,
   end_date DATE NOT NULL,
+  accent_color VARCHAR(7),
   schedule_mode VARCHAR(20) NOT NULL DEFAULT 'all_days' CHECK (schedule_mode IN ('all_days', 'working_days')),
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
