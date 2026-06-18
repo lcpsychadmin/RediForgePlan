@@ -2214,7 +2214,7 @@ const ProjectsPage: React.FC = () => {
                                                 setDepDialogTaskId(task.id);
                                                 setDepSearchTerm('');
                                                 await loadCycleTasksForDep(task.id);
-                                              }} sx={{ opacity: 0.6, '&:hover': { opacity: 1 } }}>
+                                              }} sx={{ opacity: (taskDeps[task.id] || []).length > 0 ? 1 : 0.6, color: (taskDeps[task.id] || []).length > 0 ? accentColor : 'inherit', '&:hover': { opacity: 1, color: accentColor } }}>
                                                 <ChevronRightIcon sx={{ fontSize: '0.9rem' }} />
                                               </IconButton>
                                               <IconButton size="small" onClick={() => openDeleteDialog('taskSingle' as any, task.id, task.name)} sx={{ opacity: 0.6, '&:hover': { opacity: 1 } }}>
@@ -2223,7 +2223,7 @@ const ProjectsPage: React.FC = () => {
                                             </Box>
                                           </Box>
                                         ))}
-                                      {/* Add Task row */}
+                                      {/* Add Task row */}}
                                       <Box sx={{ px: 2, py: 0.5 }}>
                                         <Button size="small" variant="text" startIcon={<AddIcon sx={{ fontSize: '0.8rem !important' }} />}
                                           onClick={async () => {
@@ -2468,7 +2468,7 @@ const ProjectsPage: React.FC = () => {
                                                 setDepDialogTaskId(task.id);
                                                 setDepSearchTerm('');
                                                 await loadCycleTasksForDep(task.id);
-                                              }} sx={{ opacity: 0.6, '&:hover': { opacity: 1 } }}>
+                                              }} sx={{ opacity: (taskDeps[task.id] || []).length > 0 ? 1 : 0.6, color: (taskDeps[task.id] || []).length > 0 ? accentColor : 'inherit', '&:hover': { opacity: 1, color: accentColor } }}>
                                                 <ChevronRightIcon sx={{ fontSize: '0.9rem' }} />
                                               </IconButton>
                                               <IconButton size="small" onClick={() => openDeleteDialog('taskSingle' as any, task.id, task.name)} sx={{ opacity: 0.6, '&:hover': { opacity: 1 } }}>
@@ -2477,7 +2477,7 @@ const ProjectsPage: React.FC = () => {
                                             </Box>
                                           </Box>
                                         ))}
-                                      {/* Add Task to group */}
+                                      {/* Add Task to group */}}
                                       <Box sx={{ px: 2, py: 0.5 }}>
                                         <Button size="small" variant="text" startIcon={<AddIcon sx={{ fontSize: '0.8rem !important' }} />}
                                           onClick={async () => {
@@ -3824,6 +3824,16 @@ const ProjectsPage: React.FC = () => {
                                             ...prev,
                                             [depDialogTaskId || '']: [...(prev[depDialogTaskId || ''] || []), { dependsOnTaskId: t.id }]
                                           }));
+                                          // Update start date of dependent task to dep end date + 1
+                                          if (t.endDate && depDialogTaskId) {
+                                            try {
+                                              const d = new Date(t.endDate + 'T00:00:00');
+                                              d.setDate(d.getDate() + 1);
+                                              const newStart = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+                                              await apiClient.patch(`/api/tasks/${depDialogTaskId}`, { startDate: newStart });
+                                              setProjectTasks(prev => prev.map(pt => pt.id === depDialogTaskId ? { ...pt, startDate: newStart } : pt));
+                                            } catch (dateErr) { /* ignore */ }
+                                          }
                                         }
                                       } catch (depErr) { console.error('Dep toggle failed', depErr); }
                                     }}>
