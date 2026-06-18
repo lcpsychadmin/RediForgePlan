@@ -3,8 +3,6 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { QueryClientProvider } from '@tanstack/react-query';
-import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
-import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ProtectedRoute, RoleRoute } from './components/ProtectedRoute';
 import { setLogoutCallback } from './api/client';
@@ -195,7 +193,6 @@ const AppRoutes: React.FC = () => {
 const App: React.FC = () => {
   return (
     <ThemeProvider theme={theme}>
-      <LocalizationProvider dateAdapter={AdapterDateFns}>
       <CssBaseline />
       <QueryClientProvider client={queryClient}>
         <Router>
@@ -205,7 +202,6 @@ const App: React.FC = () => {
           </AuthProvider>
         </Router>
       </QueryClientProvider>
-      </LocalizationProvider>
     </ThemeProvider>
   );
 };

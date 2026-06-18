@@ -48,7 +48,6 @@ import SearchIcon from '@mui/icons-material/Search';
 import EventIcon from '@mui/icons-material/Event';
 import ViewListIcon from '@mui/icons-material/ViewList';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import Menu from '@mui/material/Menu';
 import { useNavigate, useLocation } from 'react-router-dom';
 import apiClient from '../api/client';
@@ -2070,26 +2069,13 @@ const ProjectsPage: React.FC = () => {
                                               {people.map(p => <MenuItem key={p.id} value={p.name}>{p.name}</MenuItem>)}
                                             </TextField>
                                             {/* Start Date */}
-                                            <DatePicker
-                                              value={task.startDate ? new Date(task.startDate + 'T00:00:00') : null}
-                                              onChange={(date) => {
-                                                const formatted = date ? date.toLocaleDateString('en-CA') : '';
-                                                updateTaskInline(task.id, 'startDate', formatted);
-                                                if (task.duration) updateTaskInline(task.id, 'endDate', calcEndDate(formatted, task.duration, task.durationUnit || 'hours'));
-                                              }}
-                                              format="MM/dd/yyyy"
-                                              slotProps={{ textField: { size: 'small', sx: taskFieldSx }, openPickerButton: { size: 'small', sx: { p: 0.25 } }, openPickerIcon: { sx: { fontSize: '0.85rem', color: 'text.secondary' } } }}
-                                            />
+                                            <TextField size="small" type="date" value={task.startDate || ''} onChange={e => {
+                                              updateTaskInline(task.id, 'startDate', e.target.value);
+                                              if (task.duration) updateTaskInline(task.id, 'endDate', calcEndDate(e.target.value, task.duration, task.durationUnit || 'hours'));
+                                            }} sx={{ ...taskFieldSx, '& input': { colorScheme: 'dark' } }} />
                                             {/* End Date */}
-                                            <DatePicker
-                                              value={task.endDate ? new Date(task.endDate + 'T00:00:00') : null}
-                                              onChange={(date) => {
-                                                const formatted = date ? date.toLocaleDateString('en-CA') : '';
-                                                updateTaskInline(task.id, 'endDate', formatted);
-                                              }}
-                                              format="MM/dd/yyyy"
-                                              slotProps={{ textField: { size: 'small', sx: taskFieldSx }, openPickerButton: { size: 'small', sx: { p: 0.25 } }, openPickerIcon: { sx: { fontSize: '0.85rem', color: 'text.secondary' } } }}
-                                            />
+                                            <TextField size="small" type="date" value={task.endDate || ''} onChange={e => updateTaskInline(task.id, 'endDate', e.target.value)}
+                                              sx={{ ...taskFieldSx, '& input': { colorScheme: 'dark' } }} />
                                             {/* Actions */}
                                             <Box sx={{ display: 'flex', gap: 0.25, alignItems: 'center' }}>
                                               <Badge badgeContent={taskCommentCounts[task.id] || 0} color="primary">
@@ -2292,24 +2278,10 @@ const ProjectsPage: React.FC = () => {
                                               <MenuItem value=""><em>Unassigned</em></MenuItem>
                                               {people.map(p => <MenuItem key={p.id} value={p.name}>{p.name}</MenuItem>)}
                                             </TextField>
-                                            <DatePicker
-                                              value={task.startDate ? new Date(task.startDate + 'T00:00:00') : null}
-                                              onChange={(date) => {
-                                                const formatted = date ? date.toLocaleDateString('en-CA') : '';
-                                                updateTaskInline(task.id, 'startDate', formatted);
-                                              }}
-                                              format="MM/dd/yyyy"
-                                              slotProps={{ textField: { size: 'small', sx: taskFieldSx }, openPickerButton: { size: 'small', sx: { p: 0.25 } }, openPickerIcon: { sx: { fontSize: '0.85rem', color: 'text.secondary' } } }}
-                                            />
-                                            <DatePicker
-                                              value={task.endDate ? new Date(task.endDate + 'T00:00:00') : null}
-                                              onChange={(date) => {
-                                                const formatted = date ? date.toLocaleDateString('en-CA') : '';
-                                                updateTaskInline(task.id, 'endDate', formatted);
-                                              }}
-                                              format="MM/dd/yyyy"
-                                              slotProps={{ textField: { size: 'small', sx: taskFieldSx }, openPickerButton: { size: 'small', sx: { p: 0.25 } }, openPickerIcon: { sx: { fontSize: '0.85rem', color: 'text.secondary' } } }}
-                                            />
+                                            <TextField size="small" type="date" value={task.startDate || ''} onChange={e => updateTaskInline(task.id, 'startDate', e.target.value)}
+                                              sx={{ ...taskFieldSx, '& input': { colorScheme: 'dark' } }} />
+                                            <TextField size="small" type="date" value={task.endDate || ''} onChange={e => updateTaskInline(task.id, 'endDate', e.target.value)}
+                                              sx={{ ...taskFieldSx, '& input': { colorScheme: 'dark' } }} />
                                             <Box sx={{ display: 'flex', gap: 0.25, alignItems: 'center' }}>
                                               <Badge badgeContent={taskCommentCounts[task.id] || 0} color="primary">
                                                 <IconButton size="small" title="Discussion" onClick={() => setCommentModalTask({ id: task.id, name: task.name || 'Task' })}
