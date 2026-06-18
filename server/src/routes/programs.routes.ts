@@ -125,7 +125,7 @@ router.post(
         throw new ApiError(404, 'Program not found', 'NOT_FOUND');
       }
 
-      const { name, startDate, endDate } = req.body;
+      const { name, startDate, endDate, scheduleMode } = req.body;
 
       if (!name || !startDate || !endDate) {
         throw new ApiError(400, 'Mock cycle name, startDate, and endDate are required', 'MISSING_FIELD');
@@ -135,7 +135,8 @@ router.post(
         req.params.programId,
         name,
         startDate,
-        endDate
+        endDate,
+        scheduleMode || 'all_days'
       );
 
       res.status(201).json(formatSingleResponse(cycle));

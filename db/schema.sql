@@ -70,6 +70,7 @@ CREATE TABLE mock_cycles (
   name VARCHAR(255) NOT NULL,
   start_date DATE NOT NULL,
   end_date DATE NOT NULL,
+  schedule_mode VARCHAR(20) NOT NULL DEFAULT 'all_days' CHECK (schedule_mode IN ('all_days', 'working_days')),
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT valid_date_range CHECK (start_date <= end_date)
@@ -192,6 +193,7 @@ CREATE TABLE tasks (
   status task_status_enum NOT NULL DEFAULT 'not_started',
   start_date DATE,
   end_date DATE,
+  schedule_mode_override VARCHAR(20) CHECK (schedule_mode_override IN ('all_days', 'working_days')),
   dra_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
   developer_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
   notes TEXT,

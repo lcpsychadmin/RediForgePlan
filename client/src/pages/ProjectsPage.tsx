@@ -68,7 +68,11 @@ interface MockCycle {
   name: string;
   startDate: string;
   endDate: string;
+  scheduleMode?: 'all_days' | 'working_days';
 }
+
+type CalendarMode = 'all_days' | 'working_days';
+type TaskCalendarOverride = 'inherit' | CalendarMode;
 
 interface Project {
   id: string;
@@ -101,6 +105,7 @@ const ProjectsPage: React.FC = () => {
   const [newItemName, setNewItemName] = useState('');
   const [newItemDesc, setNewItemDesc] = useState('');
   const [isCreating, setIsCreating] = useState(false);
+  const [newCycleScheduleMode, setNewCycleScheduleMode] = useState<CalendarMode>('all_days');
   const [contextProgramId, setContextProgramId] = useState<string | null>(null);
   const [contextCycleId, setContextCycleId] = useState<string | null>(null);
   
@@ -127,6 +132,7 @@ const ProjectsPage: React.FC = () => {
   const [editItemDesc, setEditItemDesc] = useState('');
   const [editStartDate, setEditStartDate] = useState('');
   const [editEndDate, setEditEndDate] = useState('');
+  const [editCycleScheduleMode, setEditCycleScheduleMode] = useState<CalendarMode>('all_days');
   const [editAccentColor, setEditAccentColor] = useState('');
   const [editProgressPercentage, setEditProgressPercentage] = useState(0);
   const [isEditing, setIsEditing] = useState(false);
@@ -354,6 +360,15 @@ const ProjectsPage: React.FC = () => {
     : selectedItem?.type === 'cycle'
       ? selectedItem.id
       : null;
+  const activeCycleScheduleMode: CalendarMode = (() => {
+    if (!activeCycleId) return 'all_days';
+    for (const programId in mockCycles) {
+      const cycle = (mockCycles[programId] || []).find((c: MockCycle) => c.id === activeCycleId);
+      if (cycle?.scheduleMode === 'working_days') return 'working_days';
+      if (cycle?.scheduleMode === 'all_days') return 'all_days';
+    }
+    return 'all_days';
+  })();
 
   const scheduleWeekDates = Array.from({ length: 7 }, (_, idx) => {
     const d = new Date(scheduleWeekStart);
@@ -834,6 +849,7 @@ const ProjectsPage: React.FC = () => {
           name: newItemName,
           startDate: new Date().toISOString().split('T')[0],
           endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          scheduleMode: newCycleScheduleMode,
         });
         queryClient.invalidateQueries({ queryKey: ['mockCycles'] });
         setExpandedPrograms(new Set(expandedPrograms).add(contextProgramId));
@@ -885,6 +901,7 @@ const ProjectsPage: React.FC = () => {
     setContextCycleId(cycleId || null);
     setNewItemName('');
     setNewItemDesc('');
+    setNewCycleScheduleMode('all_days');
     setCreateDialogOpen(true);
   };
 
@@ -1016,6 +1033,7 @@ const ProjectsPage: React.FC = () => {
           setEditItemDesc('');
           setEditStartDate(cycle.startDate);
           setEditEndDate(cycle.endDate);
+          setEditCycleScheduleMode((cycle.scheduleMode || 'all_days') as CalendarMode);
           setEditAccentColor('');
           break;
         }
@@ -1053,6 +1071,7 @@ const ProjectsPage: React.FC = () => {
           name: editItemName,
           startDate: editStartDate,
           endDate: editEndDate,
+          scheduleMode: editCycleScheduleMode,
         });
       } else if (editItemType === 'project') {
         await apiClient.patch(`/api/projects/${editItemId}`, {
@@ -1237,15 +1256,49 @@ const ProjectsPage: React.FC = () => {
     }
   };
 
-  const calcEndDate = (startDate: string, duration: number, durationUnit?: string): string => {
-    if (!startDate || !duration) return '';
-    const d = new Date(startDate.substring(0, 10) + 'T00:00:00');
-    // Always treat duration as days
-    d.setDate(d.getDate() + Math.max(0, duration - 1)); // 1 day = same day
+  const isWeekend = (d: Date) => d.getDay() === 0 || d.getDay() === 6;
+
+  const formatDateOnly = (d: Date) => {
     const y = d.getFullYear();
     const m = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
     return `${y}-${m}-${day}`;
+  };
+
+  const adjustStartForMode = (startDate: string, mode: CalendarMode) => {
+    const d = new Date(startDate.substring(0, 10) + 'T00:00:00');
+    if (mode === 'working_days') {
+      while (isWeekend(d)) d.setDate(d.getDate() + 1);
+    }
+    return d;
+  };
+
+  const addOneDay = (d: Date) => {
+    const next = new Date(d);
+    next.setDate(next.getDate() + 1);
+    return next;
+  };
+
+  const getTaskCalendarMode = (task: any): CalendarMode => {
+    if (task?.scheduleModeOverride === 'working_days') return 'working_days';
+    if (task?.scheduleModeOverride === 'all_days') return 'all_days';
+    return activeCycleScheduleMode;
+  };
+
+  const calcEndDate = (startDate: string, duration: number, task?: any): string => {
+    if (!startDate || !duration) return '';
+    const mode = getTaskCalendarMode(task);
+    const d = adjustStartForMode(startDate, mode);
+    let remaining = Math.max(1, Math.floor(Number(duration) || 0));
+    if (mode === 'all_days') {
+      d.setDate(d.getDate() + Math.max(0, remaining - 1));
+      return formatDateOnly(d);
+    }
+    while (remaining > 1) {
+      d.setDate(d.getDate() + 1);
+      if (!isWeekend(d)) remaining--;
+    }
+    return formatDateOnly(d);
   };
 
   const updateTaskInline = async (taskId: string, field: string, value: string) => {
@@ -1318,13 +1371,16 @@ const ProjectsPage: React.FC = () => {
           if (end && (!maxEnd || end > maxEnd)) maxEnd = end;
         }
         if (!maxEnd) continue;
-        const unit = 'days';
         let newStart: string;
         const nd = new Date(maxEnd.substring(0, 10) + 'T00:00:00');
         nd.setDate(nd.getDate() + 1);
-        newStart = `${nd.getFullYear()}-${String(nd.getMonth() + 1).padStart(2, '0')}-${String(nd.getDate()).padStart(2, '0')}`;
+        const mode = getTaskCalendarMode(task);
+        if (mode === 'working_days') {
+          while (isWeekend(nd)) nd.setDate(nd.getDate() + 1);
+        }
+        newStart = formatDateOnly(nd);
         const newEnd = task?.duration
-          ? (calcEndDate(newStart, Number(task.duration), unit) || newStart)
+          ? (calcEndDate(newStart, Number(task.duration), task) || newStart)
           : newStart; // no duration: end = start (point in time)
         if (newStart !== startMap[taskId] || newEnd !== endMap[taskId]) {
           patches[taskId] = { startDate: newStart, endDate: newEnd };
@@ -1441,6 +1497,7 @@ const ProjectsPage: React.FC = () => {
     ...task,
     startDate: toDateInputValue(task?.startDate),
     endDate: toDateInputValue(task?.endDate),
+    scheduleModeOverride: task?.scheduleModeOverride || null,
   });
 
   const today = new Date();
@@ -2207,15 +2264,15 @@ const ProjectsPage: React.FC = () => {
                                         </Box>
                                       )}
                                       {/* Table header */}
-                                      <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 120px 60px 150px 130px 100px 100px 100px', gap: 0, px: 2, py: 0.5, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                                        {['TASK', 'STATUS', '%', 'ASSIGNED TO', 'DURATION', 'START DATE', 'END DATE', 'ACTIONS'].map(h => (
+                                      <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 120px 60px 150px 130px 120px 100px 100px 100px', gap: 0, px: 2, py: 0.5, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                                        {['TASK', 'STATUS', '%', 'ASSIGNED TO', 'DURATION', 'CALENDAR', 'START DATE', 'END DATE', 'ACTIONS'].map(h => (
                                           <Typography key={h} variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', letterSpacing: '0.05em', fontWeight: 600 }}>{h}</Typography>
                                         ))}
                                       </Box>
                                       {tasksForObject.length === 0
                                         ? <Typography variant="caption" color="text.disabled" sx={{ px: 2, py: 1, display: 'block' }}>No tasks</Typography>
                                         : tasksForObject.map((task) => (
-                                          <Box key={task.id} sx={{ display: 'grid', gridTemplateColumns: '1fr 120px 60px 150px 130px 100px 100px 100px', gap: 0, px: 2, py: 0.5, alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.03)', '&:hover': { backgroundColor: 'rgba(255,255,255,0.02)' } }}>
+                                          <Box key={task.id} sx={{ display: 'grid', gridTemplateColumns: '1fr 120px 60px 150px 130px 120px 100px 100px 100px', gap: 0, px: 2, py: 0.5, alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.03)', '&:hover': { backgroundColor: 'rgba(255,255,255,0.02)' } }}>
                                             {/* Task name */}
                                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
                                               <Box sx={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: getTaskStatusColor(task.status), flexShrink: 0 }} />
@@ -2263,7 +2320,7 @@ const ProjectsPage: React.FC = () => {
                                                     if (t.id !== task.id) return t;
                                                     const updates: any = { duration: dur };
                                                     if (dur && t.startDate) {
-                                                      const newEnd = calcEndDate(t.startDate, dur, 'days');
+                                                      const newEnd = calcEndDate(t.startDate, dur, t);
                                                       if (newEnd) updates.endDate = newEnd;
                                                     }
                                                     return { ...t, ...updates };
@@ -2272,7 +2329,7 @@ const ProjectsPage: React.FC = () => {
                                                 onBlur={e => {
                                                   const dur = parseFloat(e.target.value) || 0;
                                                   const freshStart = projectTasksRef.current.find(t => t.id === task.id)?.startDate || task.startDate;
-                                                  const newEnd = dur && freshStart ? calcEndDate(freshStart, dur, 'days') : null;
+                                                  const newEnd = dur && freshStart ? calcEndDate(freshStart, dur, task) : null;
                                                   const patch: any = { duration: dur || null, durationUnit: 'days' };
                                                   if (newEnd) patch.endDate = newEnd;
                                                   // Immediate state update
@@ -2291,6 +2348,34 @@ const ProjectsPage: React.FC = () => {
                                                 sx={{ ...taskFieldSx, '& input': { textAlign: 'center', px: 0.5, width: 38 } }} />
                                               <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.72rem', px: 0.5 }}>days</Typography>
                                             </Box>
+                                            {/* Calendar Override */}
+                                            <TextField
+                                              select
+                                              size="small"
+                                              value={(task.scheduleModeOverride as TaskCalendarOverride) || 'inherit'}
+                                              onChange={e => {
+                                                const scheduleModeOverride = e.target.value === 'inherit' ? null : e.target.value;
+                                                const taskSnapshot = projectTasksRef.current.find(t => t.id === task.id) || task;
+                                                const nextTask = { ...taskSnapshot, scheduleModeOverride };
+                                                const patchData: any = { scheduleModeOverride };
+                                                if (nextTask.startDate && nextTask.duration) {
+                                                  const recalculatedEnd = calcEndDate(nextTask.startDate, Number(nextTask.duration), nextTask);
+                                                  if (recalculatedEnd) patchData.endDate = recalculatedEnd;
+                                                }
+                                                setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, ...patchData } : t));
+                                                apiClient.patch(`/api/tasks/${task.id}`, patchData)
+                                                  .then(() => {
+                                                    const snap = projectTasksRef.current.map(t => t.id === task.id ? { ...t, ...patchData } : t);
+                                                    cascadeAllDates(snap, taskDepsRef.current);
+                                                  })
+                                                  .catch(() => {});
+                                              }}
+                                              sx={taskFieldSx}
+                                            >
+                                              <MenuItem value="inherit">Inherit cycle</MenuItem>
+                                              <MenuItem value="all_days">All days</MenuItem>
+                                              <MenuItem value="working_days">Working days</MenuItem>
+                                            </TextField>
                                             {/* Start Date */}
                                             {(taskDeps[task.id] || []).length > 0 ? (
                                               <Box title="Set by dependency — adjust via › button" sx={{ display: 'flex', alignItems: 'center', px: 1, height: 26, minWidth: 100, border: '1px dashed rgba(255,255,255,0.2)', borderRadius: 1, backgroundColor: 'rgba(255,255,255,0.08)', cursor: 'not-allowed', fontSize: '0.72rem', color: 'rgba(255,255,255,0.75)' }}>
@@ -2304,7 +2389,7 @@ const ProjectsPage: React.FC = () => {
                                                     const newStart = e.target.value;
                                                     const freshTask = projectTasksRef.current.find(t => t.id === task.id);
                                                     const dur = freshTask?.duration ?? task.duration;
-                                                    const endToSet = dur ? (calcEndDate(newStart, Number(dur), 'days') || null) : null;
+                                                    const endToSet = dur ? (calcEndDate(newStart, Number(dur), task) || null) : null;
                                                     const patchData: any = { startDate: newStart };
                                                     if (endToSet) patchData.endDate = endToSet;
                                                     setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, startDate: newStart, ...(endToSet ? { endDate: endToSet } : {}) } : t));
@@ -2323,7 +2408,7 @@ const ProjectsPage: React.FC = () => {
                                             {/* End Date */}
                                             {!!task.duration ? (
                                               <Box title="Calculated from start date + duration" sx={{ display: 'flex', alignItems: 'center', px: 1, height: 26, minWidth: 100, border: '1px dashed rgba(255,255,255,0.2)', borderRadius: 1, backgroundColor: 'rgba(255,255,255,0.08)', cursor: 'not-allowed', fontSize: '0.72rem', color: 'rgba(255,255,255,0.75)' }}>
-                                                {(() => { if (!task.startDate) return '—'; const c = calcEndDate(task.startDate, Number(task.duration), 'days'); if (!c) return '—'; const [y,m,d] = c.split('-'); return `${m}/${d}/${y}`; })()}
+                                                {(() => { if (!task.startDate) return '—'; const c = calcEndDate(task.startDate, Number(task.duration), task); if (!c) return '—'; const [y,m,d] = c.split('-'); return `${m}/${d}/${y}`; })()}
                                               </Box>
                                             ) : task.endDate ? (
                                               <Box sx={{ display: 'flex', alignItems: 'center', px: 1, height: 26, minWidth: 100, border: '1px dashed rgba(255,255,255,0.2)', borderRadius: 1, backgroundColor: 'rgba(255,255,255,0.08)', fontSize: '0.72rem', color: 'rgba(255,255,255,0.75)' }}>
@@ -2497,15 +2582,15 @@ const ProjectsPage: React.FC = () => {
                                   {isExpanded && (
                                     <Box sx={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
                                       {/* Table header */}
-                                      <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 120px 60px 150px 130px 100px 100px 100px', gap: 0, px: 2, py: 0.5, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                                        {['TASK', 'STATUS', '%', 'ASSIGNED TO', 'DURATION', 'START DATE', 'END DATE', 'ACTIONS'].map(h => (
+                                      <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 120px 60px 150px 130px 120px 100px 100px 100px', gap: 0, px: 2, py: 0.5, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                                        {['TASK', 'STATUS', '%', 'ASSIGNED TO', 'DURATION', 'CALENDAR', 'START DATE', 'END DATE', 'ACTIONS'].map(h => (
                                           <Typography key={h} variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', letterSpacing: '0.05em', fontWeight: 600 }}>{h}</Typography>
                                         ))}
                                       </Box>
                                       {groupTasks.length === 0
                                         ? <Typography variant="caption" color="text.disabled" sx={{ px: 2, py: 1, display: 'block' }}>No tasks</Typography>
                                         : groupTasks.map((task) => (
-                                          <Box key={task.id} sx={{ display: 'grid', gridTemplateColumns: '1fr 120px 60px 150px 130px 100px 100px 100px', gap: 0, px: 2, py: 0.5, alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.03)', '&:hover': { backgroundColor: 'rgba(255,255,255,0.02)' } }}>
+                                          <Box key={task.id} sx={{ display: 'grid', gridTemplateColumns: '1fr 120px 60px 150px 130px 120px 100px 100px 100px', gap: 0, px: 2, py: 0.5, alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.03)', '&:hover': { backgroundColor: 'rgba(255,255,255,0.02)' } }}>
                                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
                                               <Box sx={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: getTaskStatusColor(task.status), flexShrink: 0 }} />
                                               <TextField size="small" value={task.name || ''} onBlur={e => updateTaskInline(task.id, 'name', e.target.value)}
@@ -2549,7 +2634,7 @@ const ProjectsPage: React.FC = () => {
                                                     if (t.id !== task.id) return t;
                                                     const updates: any = { duration: dur };
                                                     if (dur && t.startDate) {
-                                                      const newEnd = calcEndDate(t.startDate, dur, 'days');
+                                                      const newEnd = calcEndDate(t.startDate, dur, t);
                                                       if (newEnd) updates.endDate = newEnd;
                                                     }
                                                     return { ...t, ...updates };
@@ -2558,7 +2643,7 @@ const ProjectsPage: React.FC = () => {
                                                 onBlur={e => {
                                                   const dur = parseFloat(e.target.value) || 0;
                                                   const freshStart = projectTasksRef.current.find(t => t.id === task.id)?.startDate || task.startDate;
-                                                  const newEnd = dur && freshStart ? calcEndDate(freshStart, dur, 'days') : null;
+                                                  const newEnd = dur && freshStart ? calcEndDate(freshStart, dur, task) : null;
                                                   const patch: any = { duration: dur || null, durationUnit: 'days' };
                                                   if (newEnd) patch.endDate = newEnd;
                                                   // Immediate state update
@@ -2577,6 +2662,34 @@ const ProjectsPage: React.FC = () => {
                                                 sx={{ ...taskFieldSx, '& input': { textAlign: 'center', px: 0.5, width: 38 } }} />
                                               <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.72rem', px: 0.5 }}>days</Typography>
                                             </Box>
+                                            {/* Calendar Override */}
+                                            <TextField
+                                              select
+                                              size="small"
+                                              value={(task.scheduleModeOverride as TaskCalendarOverride) || 'inherit'}
+                                              onChange={e => {
+                                                const scheduleModeOverride = e.target.value === 'inherit' ? null : e.target.value;
+                                                const taskSnapshot = projectTasksRef.current.find(t => t.id === task.id) || task;
+                                                const nextTask = { ...taskSnapshot, scheduleModeOverride };
+                                                const patchData: any = { scheduleModeOverride };
+                                                if (nextTask.startDate && nextTask.duration) {
+                                                  const recalculatedEnd = calcEndDate(nextTask.startDate, Number(nextTask.duration), nextTask);
+                                                  if (recalculatedEnd) patchData.endDate = recalculatedEnd;
+                                                }
+                                                setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, ...patchData } : t));
+                                                apiClient.patch(`/api/tasks/${task.id}`, patchData)
+                                                  .then(() => {
+                                                    const snap = projectTasksRef.current.map(t => t.id === task.id ? { ...t, ...patchData } : t);
+                                                    cascadeAllDates(snap, taskDepsRef.current);
+                                                  })
+                                                  .catch(() => {});
+                                              }}
+                                              sx={taskFieldSx}
+                                            >
+                                              <MenuItem value="inherit">Inherit cycle</MenuItem>
+                                              <MenuItem value="all_days">All days</MenuItem>
+                                              <MenuItem value="working_days">Working days</MenuItem>
+                                            </TextField>
                                             {/* Start Date */}
                                             {(taskDeps[task.id] || []).length > 0 ? (
                                               <Box title="Set by dependency — adjust via › button" sx={{ display: 'flex', alignItems: 'center', px: 1, height: 26, minWidth: 100, border: '1px dashed rgba(255,255,255,0.2)', borderRadius: 1, backgroundColor: 'rgba(255,255,255,0.08)', cursor: 'not-allowed', fontSize: '0.72rem', color: 'rgba(255,255,255,0.75)' }}>
@@ -2590,7 +2703,7 @@ const ProjectsPage: React.FC = () => {
                                                     const newStart = e.target.value;
                                                     const freshTask = projectTasksRef.current.find(t => t.id === task.id);
                                                     const dur = freshTask?.duration ?? task.duration;
-                                                    const endToSet = dur ? (calcEndDate(newStart, Number(dur), 'days') || null) : null;
+                                                    const endToSet = dur ? (calcEndDate(newStart, Number(dur), task) || null) : null;
                                                     const patchData: any = { startDate: newStart };
                                                     if (endToSet) patchData.endDate = endToSet;
                                                     setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, startDate: newStart, ...(endToSet ? { endDate: endToSet } : {}) } : t));
@@ -2609,7 +2722,7 @@ const ProjectsPage: React.FC = () => {
                                             {/* End Date */}
                                             {!!task.duration ? (
                                               <Box title="Calculated from start date + duration" sx={{ display: 'flex', alignItems: 'center', px: 1, height: 26, minWidth: 100, border: '1px dashed rgba(255,255,255,0.2)', borderRadius: 1, backgroundColor: 'rgba(255,255,255,0.08)', cursor: 'not-allowed', fontSize: '0.72rem', color: 'rgba(255,255,255,0.75)' }}>
-                                                {(() => { if (!task.startDate) return '—'; const c = calcEndDate(task.startDate, Number(task.duration), 'days'); if (!c) return '—'; const [y,m,d] = c.split('-'); return `${m}/${d}/${y}`; })()}
+                                                {(() => { if (!task.startDate) return '—'; const c = calcEndDate(task.startDate, Number(task.duration), task); if (!c) return '—'; const [y,m,d] = c.split('-'); return `${m}/${d}/${y}`; })()}
                                               </Box>
                                             ) : task.endDate ? (
                                               <Box sx={{ display: 'flex', alignItems: 'center', px: 1, height: 26, minWidth: 100, border: '1px dashed rgba(255,255,255,0.2)', borderRadius: 1, backgroundColor: 'rgba(255,255,255,0.08)', fontSize: '0.72rem', color: 'rgba(255,255,255,0.75)' }}>
@@ -3294,6 +3407,21 @@ const ProjectsPage: React.FC = () => {
               size="small"
             />
           )}
+          {dialogMode === 'cycle' && (
+            <TextField
+              select
+              fullWidth
+              label="Schedule Mode"
+              value={newCycleScheduleMode}
+              onChange={(e) => setNewCycleScheduleMode(e.target.value as CalendarMode)}
+              variant="outlined"
+              size="small"
+              helperText="Controls whether durations/counting include weekends by default."
+            >
+              <MenuItem value="all_days">All days (include weekends)</MenuItem>
+              <MenuItem value="working_days">Working days only (skip weekends)</MenuItem>
+            </TextField>
+          )}
         </DialogContent>
         <DialogActions sx={{ gap: 1, p: 2, borderTop: '1px solid', borderColor: 'divider' }}>
           <Button onClick={() => setCreateDialogOpen(false)} sx={{ textTransform: 'none' }}>Cancel</Button>
@@ -3587,6 +3715,19 @@ const ProjectsPage: React.FC = () => {
 
           {editItemType === 'cycle' && (
             <>
+              <TextField
+                label="Schedule Mode"
+                select
+                value={editCycleScheduleMode}
+                onChange={(e) => setEditCycleScheduleMode(e.target.value as CalendarMode)}
+                fullWidth
+                variant="outlined"
+                size="small"
+                helperText="Default mode for tasks in this cycle."
+              >
+                <MenuItem value="all_days">All days (include weekends)</MenuItem>
+                <MenuItem value="working_days">Working days only (skip weekends)</MenuItem>
+              </TextField>
               <TextField
                 label="Start Date"
                 type="date"
@@ -4017,13 +4158,16 @@ const ProjectsPage: React.FC = () => {
                                           if (depEnd && (!maxEndDate || depEnd > maxEndDate)) maxEndDate = depEnd;
                                         }
                                         if (maxEndDate) {
-                                          const durationUnit = 'days';
                                           let newStart: string;
                                           const ddep = new Date(maxEndDate.substring(0, 10) + 'T00:00:00');
                                           ddep.setDate(ddep.getDate() + 1);
-                                          newStart = `${ddep.getFullYear()}-${String(ddep.getMonth()+1).padStart(2,'0')}-${String(ddep.getDate()).padStart(2,'0')}`;
+                                          const taskMode = getTaskCalendarMode(affectedTask);
+                                          if (taskMode === 'working_days') {
+                                            while (isWeekend(ddep)) ddep.setDate(ddep.getDate() + 1);
+                                          }
+                                          newStart = formatDateOnly(ddep);
                                           const patchPayload: any = { startDate: newStart };
-                                          const newEnd = calcEndDate(newStart, affectedTask.duration, durationUnit);
+                                          const newEnd = calcEndDate(newStart, affectedTask.duration, affectedTask);
                                           if (newEnd) patchPayload.endDate = newEnd;
                                           try {
                                             await apiClient.patch(`/api/tasks/${taskId}`, patchPayload);
