@@ -377,8 +377,40 @@ const ProjectsPage: React.FC = () => {
     }).catch(() => {});
   }, []);
 
-  // Get the active project ID from either inventory tab or plan tab selection
-  const activeProjectId = selectedItem?.type === 'project' ? selectedItem.id : selectedProjectForInventory;
+  const inventoryProjects = React.useMemo(() => {
+    const seen = new Set<string>();
+    const unique: Project[] = [];
+    Object.values(mockCycles).flat().forEach((cycle: any) => {
+      const cycleProjects = projectsByMockCycle[cycle.id] || [];
+      cycleProjects.forEach((project: Project) => {
+        if (!seen.has(project.id)) {
+          seen.add(project.id);
+          unique.push(project);
+        }
+      });
+    });
+    return unique;
+  }, [mockCycles, projectsByMockCycle]);
+
+  useEffect(() => {
+    if (inventoryProjects.length === 0) {
+      if (selectedProjectForInventory !== null) setSelectedProjectForInventory(null);
+      return;
+    }
+
+    const stillExists = selectedProjectForInventory
+      ? inventoryProjects.some((project) => project.id === selectedProjectForInventory)
+      : false;
+
+    if (!stillExists) {
+      setSelectedProjectForInventory(inventoryProjects[0].id);
+    }
+  }, [inventoryProjects, selectedProjectForInventory]);
+
+  // Keep inventory and plan project contexts isolated.
+  const activeProjectId = tabValue === 1
+    ? selectedProjectForInventory
+    : (selectedItem?.type === 'project' ? selectedItem.id : null);
   const activeCycleId = selectedItem?.type === 'project'
     ? selectedItem.cycleId
     : selectedItem?.type === 'cycle'
@@ -3376,39 +3408,36 @@ const ProjectsPage: React.FC = () => {
                   <CardContent sx={{ p: 2 }}>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1.5, mb: 2, flexWrap: 'wrap' }}>
                       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                        {Object.keys(mockCycles).length === 0 || Object.values(mockCycles).flat().length === 0 ? (
+                        {inventoryProjects.length === 0 ? (
                           <Typography variant="caption" sx={{ color: '#8EA3CB' }}>
                             No projects available
                           </Typography>
                         ) : (
-                          Object.values(mockCycles).flat().flatMap((cycle: MockCycle) => {
-                            const cycleProjects = projectsByMockCycle[cycle.id] || [];
-                            return cycleProjects.map((project: Project) => (
-                              <Box
-                                key={project.id}
-                                component="button"
-                                onClick={() => setSelectedProjectForInventory(project.id)}
-                                sx={{
-                                  px: 1.6,
-                                  py: 0.5,
-                                  borderRadius: '999px',
-                                  border: selectedProjectForInventory === project.id ? '1px solid rgba(122,164,248,0.9)' : '1px solid rgba(89,112,160,0.35)',
-                                  background: selectedProjectForInventory === project.id ? 'linear-gradient(135deg, #6E7BFF 0%, #6A8BFF 100%)' : 'rgba(30, 46, 79, 0.72)',
-                                  color: selectedProjectForInventory === project.id ? '#EFF4FF' : '#9FB0D8',
-                                  cursor: 'pointer',
-                                  fontWeight: 700,
-                                  fontSize: '0.78rem',
-                                  lineHeight: 1.3,
-                                  transition: 'all 0.16s ease',
-                                  '&:hover': {
-                                    background: selectedProjectForInventory === project.id ? 'linear-gradient(135deg, #6E7BFF 0%, #6A8BFF 100%)' : 'rgba(35,54,90,0.9)',
-                                  },
-                                }}
-                              >
-                                {project.name}
-                              </Box>
-                            ));
-                          })
+                          inventoryProjects.map((project: Project) => (
+                            <Box
+                              key={project.id}
+                              component="button"
+                              onClick={() => setSelectedProjectForInventory(project.id)}
+                              sx={{
+                                px: 1.6,
+                                py: 0.5,
+                                borderRadius: '999px',
+                                border: selectedProjectForInventory === project.id ? '1px solid rgba(122,164,248,0.9)' : '1px solid rgba(89,112,160,0.35)',
+                                background: selectedProjectForInventory === project.id ? 'linear-gradient(135deg, #6E7BFF 0%, #6A8BFF 100%)' : 'rgba(30, 46, 79, 0.72)',
+                                color: selectedProjectForInventory === project.id ? '#EFF4FF' : '#9FB0D8',
+                                cursor: 'pointer',
+                                fontWeight: 700,
+                                fontSize: '0.78rem',
+                                lineHeight: 1.3,
+                                transition: 'all 0.16s ease',
+                                '&:hover': {
+                                  background: selectedProjectForInventory === project.id ? 'linear-gradient(135deg, #6E7BFF 0%, #6A8BFF 100%)' : 'rgba(35,54,90,0.9)',
+                                },
+                              }}
+                            >
+                              {project.name}
+                            </Box>
+                          ))
                         )}
                       </Box>
 
