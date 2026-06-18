@@ -1237,16 +1237,11 @@ const ProjectsPage: React.FC = () => {
     }
   };
 
-  const calcEndDate = (startDate: string, duration: number, durationUnit: string): string => {
+  const calcEndDate = (startDate: string, duration: number, durationUnit?: string): string => {
     if (!startDate || !duration) return '';
     const d = new Date(startDate.substring(0, 10) + 'T00:00:00');
-    if (durationUnit === 'days') {
-      d.setDate(d.getDate() + Math.max(0, duration - 1)); // 1 day = same day
-    } else {
-      // hours: treat 8 hrs as 1 work-day; ≤8 hrs = same day
-      const extraDays = Math.max(0, Math.ceil(duration / 8) - 1);
-      d.setDate(d.getDate() + extraDays);
-    }
+    // Always treat duration as days
+    d.setDate(d.getDate() + Math.max(0, duration - 1)); // 1 day = same day
     const y = d.getFullYear();
     const m = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
@@ -1323,15 +1318,11 @@ const ProjectsPage: React.FC = () => {
           if (end && (!maxEnd || end > maxEnd)) maxEnd = end;
         }
         if (!maxEnd) continue;
-        const unit = (task?.durationUnit) || 'days';
+        const unit = 'days';
         let newStart: string;
-        if (unit === 'hours') {
-          newStart = maxEnd.substring(0, 10);
-        } else {
-          const d = new Date(maxEnd.substring(0, 10) + 'T00:00:00');
-          d.setDate(d.getDate() + 1);
-          newStart = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-        }
+        const nd = new Date(maxEnd.substring(0, 10) + 'T00:00:00');
+        nd.setDate(nd.getDate() + 1);
+        newStart = `${nd.getFullYear()}-${String(nd.getMonth() + 1).padStart(2, '0')}-${String(nd.getDate()).padStart(2, '0')}`;
         const newEnd = task?.duration
           ? (calcEndDate(newStart, Number(task.duration), unit) || newStart)
           : newStart; // no duration: end = start (point in time)
@@ -1360,7 +1351,7 @@ const ProjectsPage: React.FC = () => {
           progressPercentage: task.progressPercentage ?? 0,
           assignedTo: task.assignedTo || null,
           duration: task.duration ? Number(task.duration) : null,
-          durationUnit: task.durationUnit || 'days',
+          durationUnit: 'days',
           startDate: task.startDate || null,
           endDate: task.endDate || null,
         });
@@ -2272,7 +2263,7 @@ const ProjectsPage: React.FC = () => {
                                                     if (t.id !== task.id) return t;
                                                     const updates: any = { duration: dur };
                                                     if (dur && t.startDate) {
-                                                      const newEnd = calcEndDate(t.startDate, dur, t.durationUnit || 'days');
+                                                      const newEnd = calcEndDate(t.startDate, dur, 'days');
                                                       if (newEnd) updates.endDate = newEnd;
                                                     }
                                                     return { ...t, ...updates };
@@ -2281,8 +2272,8 @@ const ProjectsPage: React.FC = () => {
                                                 onBlur={e => {
                                                   const dur = parseFloat(e.target.value) || 0;
                                                   const freshStart = projectTasksRef.current.find(t => t.id === task.id)?.startDate || task.startDate;
-                                                  const newEnd = dur && freshStart ? calcEndDate(freshStart, dur, task.durationUnit || 'days') : null;
-                                                  const patch: any = { duration: dur || null };
+                                                  const newEnd = dur && freshStart ? calcEndDate(freshStart, dur, 'days') : null;
+                                                  const patch: any = { duration: dur || null, durationUnit: 'days' };
                                                   if (newEnd) patch.endDate = newEnd;
                                                   // Immediate state update
                                                   setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, ...patch } : t));
@@ -2298,18 +2289,7 @@ const ProjectsPage: React.FC = () => {
                                                 }}
                                                 slotProps={{ htmlInput: { min: 0, step: 1 } }}
                                                 sx={{ ...taskFieldSx, '& input': { textAlign: 'center', px: 0.5, width: 38 } }} />
-                                              <TextField select size="small" value={task.durationUnit || 'days'}
-                                                onChange={e => {
-                                                  updateTaskInline(task.id, 'durationUnit', e.target.value);
-                                                  if (task.duration && task.startDate) {
-                                                    const newEnd = calcEndDate(task.startDate, task.duration, e.target.value);
-                                                    if (newEnd) updateTaskInline(task.id, 'endDate', newEnd);
-                                                  }
-                                                }}
-                                                sx={{ ...taskFieldSx, width: 82 }}>
-                                                <MenuItem value="hours">hrs</MenuItem>
-                                                <MenuItem value="days">days</MenuItem>
-                                              </TextField>
+                                              <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.72rem', px: 0.5 }}>days</Typography>
                                             </Box>
                                             {/* Start Date */}
                                             <TextField size="small" type="date"
@@ -2321,7 +2301,7 @@ const ProjectsPage: React.FC = () => {
                                                 const freshTask = projectTasksRef.current.find(t => t.id === task.id);
                                                 const dur = freshTask?.duration ?? task.duration;
                                                 const endToSet = dur
-                                                  ? (calcEndDate(newStart, Number(dur), freshTask?.durationUnit || task.durationUnit || 'days') || newStart)
+                                                  ? (calcEndDate(newStart, Number(dur), 'days') || newStart)
                                                   : newStart;
                                                 // Immediate state update for responsiveness
                                                 setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, startDate: newStart, endDate: endToSet } : t));
@@ -2558,7 +2538,7 @@ const ProjectsPage: React.FC = () => {
                                                     if (t.id !== task.id) return t;
                                                     const updates: any = { duration: dur };
                                                     if (dur && t.startDate) {
-                                                      const newEnd = calcEndDate(t.startDate, dur, t.durationUnit || 'days');
+                                                      const newEnd = calcEndDate(t.startDate, dur, 'days');
                                                       if (newEnd) updates.endDate = newEnd;
                                                     }
                                                     return { ...t, ...updates };
@@ -2567,8 +2547,8 @@ const ProjectsPage: React.FC = () => {
                                                 onBlur={e => {
                                                   const dur = parseFloat(e.target.value) || 0;
                                                   const freshStart = projectTasksRef.current.find(t => t.id === task.id)?.startDate || task.startDate;
-                                                  const newEnd = dur && freshStart ? calcEndDate(freshStart, dur, task.durationUnit || 'days') : null;
-                                                  const patch: any = { duration: dur || null };
+                                                  const newEnd = dur && freshStart ? calcEndDate(freshStart, dur, 'days') : null;
+                                                  const patch: any = { duration: dur || null, durationUnit: 'days' };
                                                   if (newEnd) patch.endDate = newEnd;
                                                   // Immediate state update
                                                   setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, ...patch } : t));
@@ -2584,18 +2564,7 @@ const ProjectsPage: React.FC = () => {
                                                 }}
                                                 slotProps={{ htmlInput: { min: 0, step: 1 } }}
                                                 sx={{ ...taskFieldSx, '& input': { textAlign: 'center', px: 0.5, width: 38 } }} />
-                                              <TextField select size="small" value={task.durationUnit || 'days'}
-                                                onChange={e => {
-                                                  updateTaskInline(task.id, 'durationUnit', e.target.value);
-                                                  if (task.duration && task.startDate) {
-                                                    const newEnd = calcEndDate(task.startDate, task.duration, e.target.value);
-                                                    if (newEnd) updateTaskInline(task.id, 'endDate', newEnd);
-                                                  }
-                                                }}
-                                                sx={{ ...taskFieldSx, width: 82 }}>
-                                                <MenuItem value="hours">hrs</MenuItem>
-                                                <MenuItem value="days">days</MenuItem>
-                                              </TextField>
+                                              <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.72rem', px: 0.5 }}>days</Typography>
                                             </Box>
                                             {/* Start Date */}
                                             <TextField size="small" type="date"
@@ -2607,7 +2576,7 @@ const ProjectsPage: React.FC = () => {
                                                 const freshTask = projectTasksRef.current.find(t => t.id === task.id);
                                                 const dur = freshTask?.duration ?? task.duration;
                                                 const endToSet = dur
-                                                  ? (calcEndDate(newStart, Number(dur), freshTask?.durationUnit || task.durationUnit || 'days') || newStart)
+                                                  ? (calcEndDate(newStart, Number(dur), 'days') || newStart)
                                                   : newStart;
                                                 // Immediate state update for responsiveness
                                                 setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, startDate: newStart, endDate: endToSet } : t));
@@ -4026,15 +3995,11 @@ const ProjectsPage: React.FC = () => {
                                           if (depEnd && (!maxEndDate || depEnd > maxEndDate)) maxEndDate = depEnd;
                                         }
                                         if (maxEndDate) {
-                                          const durationUnit = affectedTask.durationUnit || 'days';
+                                          const durationUnit = 'days';
                                           let newStart: string;
-                                          if (durationUnit === 'hours') {
-                                            newStart = maxEndDate.substring(0, 10); // same day for hours
-                                          } else {
-                                            const d = new Date(maxEndDate.substring(0, 10) + 'T00:00:00');
-                                            d.setDate(d.getDate() + 1);
-                                            newStart = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-                                          }
+                                          const ddep = new Date(maxEndDate.substring(0, 10) + 'T00:00:00');
+                                          ddep.setDate(ddep.getDate() + 1);
+                                          newStart = `${ddep.getFullYear()}-${String(ddep.getMonth()+1).padStart(2,'0')}-${String(ddep.getDate()).padStart(2,'0')}`;
                                           const patchPayload: any = { startDate: newStart };
                                           const newEnd = calcEndDate(newStart, affectedTask.duration, durationUnit);
                                           if (newEnd) patchPayload.endDate = newEnd;
