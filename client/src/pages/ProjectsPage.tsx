@@ -383,8 +383,10 @@ const ProjectsPage: React.FC = () => {
     Object.values(mockCycles).flat().forEach((cycle: any) => {
       const cycleProjects = projectsByMockCycle[cycle.id] || [];
       cycleProjects.forEach((project: Project) => {
-        if (!seen.has(project.id)) {
-          seen.add(project.id);
+        const nameKey = (project.name || '').trim().toLowerCase();
+        const dedupeKey = nameKey || project.id;
+        if (!seen.has(dedupeKey)) {
+          seen.add(dedupeKey);
           unique.push(project);
         }
       });
