@@ -2170,7 +2170,7 @@ const ProjectsPage: React.FC = () => {
                                                 updateTaskInline(task.id, 'progressPercentage', String(val));
                                               }}
                                               slotProps={{ htmlInput: { min: 0, max: 100 } }}
-                                              sx={{ ...taskFieldSx, '& input': { textAlign: 'center', px: 0.5 }, '& .MuiInputBase-root.Mui-disabled': { opacity: 1, backgroundColor: 'rgba(255,255,255,0.08)' }, '& .MuiInputBase-root.Mui-disabled input': { WebkitTextFillColor: 'rgba(255,255,255,0.75)', cursor: 'not-allowed' }, '& .MuiOutlinedInput-root.Mui-disabled .MuiOutlinedInput-notchedOutline': { borderStyle: 'dashed' } }} />
+                                              sx={{ ...taskFieldSx, '& input': { textAlign: 'center', px: 0.5 } }} />
                                             {/* Assigned To */}
                                             <TextField select size="small" value={task.assignedTo || ''}
                                               onChange={e => setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, assignedTo: e.target.value } : t))}
@@ -2220,7 +2220,7 @@ const ProjectsPage: React.FC = () => {
                                                 }
                                                 e.target.blur();
                                               }}
-                                              sx={{ ...taskFieldSx, '& input': { colorScheme: 'dark' }, '& .MuiInputBase-root.Mui-disabled': { opacity: 1, backgroundColor: 'rgba(255,255,255,0.08)' }, '& .MuiInputBase-root.Mui-disabled input': { WebkitTextFillColor: 'rgba(255,255,255,0.75)', cursor: 'not-allowed' }, '& .MuiOutlinedInput-root.Mui-disabled .MuiOutlinedInput-notchedOutline': { borderStyle: 'dashed' } }} />
+                                              sx={{ ...taskFieldSx, '& input': { colorScheme: 'dark' } }} />
                                             {/* End Date */}
                                             <TextField size="small" type="date"
                                               value={task.endDate || ''}
@@ -2230,7 +2230,7 @@ const ProjectsPage: React.FC = () => {
                                                 updateTaskInline(task.id, 'endDate', e.target.value);
                                                 e.target.blur();
                                               }}
-                                              sx={{ ...taskFieldSx, '& input': { colorScheme: 'dark' }, '& .MuiInputBase-root.Mui-disabled': { opacity: 1, backgroundColor: 'rgba(255,255,255,0.08)' }, '& .MuiInputBase-root.Mui-disabled input': { WebkitTextFillColor: 'rgba(255,255,255,0.75)', cursor: 'not-allowed' }, '& .MuiOutlinedInput-root.Mui-disabled .MuiOutlinedInput-notchedOutline': { borderStyle: 'dashed' } }} />
+                                              sx={{ ...taskFieldSx, '& input': { colorScheme: 'dark' } }} />
                                             {/* Actions */}
                                             <Box sx={{ display: 'flex', gap: 0.25, alignItems: 'center' }}>
                                               <Badge badgeContent={taskCommentCounts[task.id] || 0} color="primary">
@@ -2427,7 +2427,7 @@ const ProjectsPage: React.FC = () => {
                                                 updateTaskInline(task.id, 'progressPercentage', String(val));
                                               }}
                                               slotProps={{ htmlInput: { min: 0, max: 100 } }}
-                                              sx={{ ...taskFieldSx, '& input': { textAlign: 'center', px: 0.5 }, '& .MuiInputBase-root.Mui-disabled': { opacity: 1, backgroundColor: 'rgba(255,255,255,0.08)' }, '& .MuiInputBase-root.Mui-disabled input': { WebkitTextFillColor: 'rgba(255,255,255,0.75)', cursor: 'not-allowed' }, '& .MuiOutlinedInput-root.Mui-disabled .MuiOutlinedInput-notchedOutline': { borderStyle: 'dashed' } }} />
+                                              sx={{ ...taskFieldSx, '& input': { textAlign: 'center', px: 0.5 } }} />
                                             <TextField select size="small" value={task.assignedTo || ''} onChange={e => updateTaskInline(task.id, 'assignedTo', e.target.value)}
                                               sx={taskFieldSx}>
                                               <MenuItem value=""><em>Unassigned</em></MenuItem>
@@ -2475,7 +2475,7 @@ const ProjectsPage: React.FC = () => {
                                                 }
                                                 e.target.blur();
                                               }}
-                                              sx={{ ...taskFieldSx, '& input': { colorScheme: 'dark' }, '& .MuiInputBase-root.Mui-disabled': { opacity: 1, backgroundColor: 'rgba(255,255,255,0.08)' }, '& .MuiInputBase-root.Mui-disabled input': { WebkitTextFillColor: 'rgba(255,255,255,0.75)', cursor: 'not-allowed' }, '& .MuiOutlinedInput-root.Mui-disabled .MuiOutlinedInput-notchedOutline': { borderStyle: 'dashed' } }} />
+                                              sx={{ ...taskFieldSx, '& input': { colorScheme: 'dark' } }} />
                                             {/* End Date */}
                                             <TextField size="small" type="date"
                                               value={task.endDate || ''}
@@ -2485,7 +2485,7 @@ const ProjectsPage: React.FC = () => {
                                                 updateTaskInline(task.id, 'endDate', e.target.value);
                                                 e.target.blur();
                                               }}
-                                              sx={{ ...taskFieldSx, '& input': { colorScheme: 'dark' }, '& .MuiInputBase-root.Mui-disabled': { opacity: 1, backgroundColor: 'rgba(255,255,255,0.08)' }, '& .MuiInputBase-root.Mui-disabled input': { WebkitTextFillColor: 'rgba(255,255,255,0.75)', cursor: 'not-allowed' }, '& .MuiOutlinedInput-root.Mui-disabled .MuiOutlinedInput-notchedOutline': { borderStyle: 'dashed' } }} />
+                                              sx={{ ...taskFieldSx, '& input': { colorScheme: 'dark' } }} />
                                             <Box sx={{ display: 'flex', gap: 0.25, alignItems: 'center' }}>
                                               <Badge badgeContent={taskCommentCounts[task.id] || 0} color="primary">
                                                 <IconButton size="small" title="Discussion" onClick={() => setCommentModalTask({ id: task.id, name: task.name || 'Task' })}
