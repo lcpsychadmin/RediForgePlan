@@ -222,6 +222,8 @@ const ProjectsPage: React.FC = () => {
   const [depDialogTaskId, setDepDialogTaskId] = useState<string | null>(null);
   const [cycleTasksForDep, setCycleTasksForDep] = useState<any[]>([]);
   const [taskDeps, setTaskDeps] = useState<Record<string, any[]>>({});
+  const [depSearchTerm, setDepSearchTerm] = useState('');
+  const [depTreeExpanded, setDepTreeExpanded] = useState<Record<string, boolean>>({});
   const [defaultTaskOrder, setDefaultTaskOrder] = useState<string[]>([]);
 
   // Comment modal state
@@ -1266,6 +1268,42 @@ const ProjectsPage: React.FC = () => {
     } catch (e) { /* ignore */ }
   };
 
+  const loadCycleTasksForDep = async () => {
+    const cycleProjects: any[] = activeCycleId ? (projectsByMockCycle[activeCycleId] || []) : [];
+    const allProjects = cycleProjects.length > 0 ? cycleProjects : (activeProjectId ? [{ id: activeProjectId, name: 'Current Project', accentColor: '#00BFA5' }] : []);
+    const enriched: any[] = [];
+    await Promise.all(allProjects.map(async (proj: any) => {
+      try {
+        const [tasksRes, invRes, groupsRes] = await Promise.all([
+          apiClient.get(`/api/tasks/project/${proj.id}`),
+          apiClient.get(`/api/project-objects/project/${proj.id}`),
+          apiClient.get(`/api/tasks/groups/project/${proj.id}`),
+        ]);
+        const projTasks: any[] = tasksRes.data.data || [];
+        const projInv: any[] = invRes.data.data || [];
+        const projGroups: any[] = groupsRes.data.data || [];
+        projTasks.forEach(t => {
+          const invItem = projInv.find(o => o.id === t.projectObjectId);
+          const group = projGroups.find(g => g.id === t.taskGroupId);
+          enriched.push({
+            ...t,
+            projectId: proj.id,
+            projectName: proj.name,
+            projectAccentColor: proj.accentColor || '#00BFA5',
+            objectLabel: invItem ? (invItem.objectId + (invItem.description ? ' — ' + invItem.description : '')) : null,
+            groupLabel: group?.name || null,
+          });
+        });
+      } catch (e) { /* skip project on error */ }
+    }));
+    setCycleTasksForDep(enriched);
+    // Default expand all projects and objects
+    const expanded: Record<string, boolean> = {};
+    allProjects.forEach((proj: any) => { expanded[`proj-${proj.id}`] = true; });
+    setDepTreeExpanded(expanded);
+  };
+  };
+
   const cycleCount = Object.values(mockCycles).reduce((acc: number, arr: any) => acc + (arr?.length || 0), 0);
 
   const parseDateOnly = (value?: string) => {
@@ -2161,8 +2199,8 @@ const ProjectsPage: React.FC = () => {
                                               <IconButton size="small" title="Dependencies" onClick={async () => {
                                                 await loadTaskDeps(task.id);
                                                 setDepDialogTaskId(task.id);
-                                                const all = await apiClient.get(`/api/tasks/project/${activeProjectId}`);
-                                                setCycleTasksForDep(all.data.data || []);
+                                                setDepSearchTerm('');
+                                                await loadCycleTasksForDep();
                                               }} sx={{ opacity: 0.6, '&:hover': { opacity: 1 } }}>
                                                 <ChevronRightIcon sx={{ fontSize: '0.9rem' }} />
                                               </IconButton>
@@ -2415,8 +2453,8 @@ const ProjectsPage: React.FC = () => {
                                               <IconButton size="small" onClick={async () => {
                                                 await loadTaskDeps(task.id);
                                                 setDepDialogTaskId(task.id);
-                                                const all = await apiClient.get(`/api/tasks/project/${activeProjectId}`);
-                                                setCycleTasksForDep(all.data.data || []);
+                                                setDepSearchTerm('');
+                                                await loadCycleTasksForDep();
                                               }} sx={{ opacity: 0.6, '&:hover': { opacity: 1 } }}>
                                                 <ChevronRightIcon sx={{ fontSize: '0.9rem' }} />
                                               </IconButton>
@@ -3688,56 +3726,118 @@ const ProjectsPage: React.FC = () => {
 
       {/* Task Dependency Dialog */}
       <Dialog open={!!depDialogTaskId} onClose={() => setDepDialogTaskId(null)} maxWidth="sm" fullWidth>
-        <DialogTitle>Task Dependencies</DialogTitle>
-        <DialogContent>
+        <DialogTitle sx={{ pb: 1 }}>Task Dependencies</DialogTitle>
+        <DialogContent sx={{ pb: 0 }}>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
             Select tasks that must complete before this task can start.
           </Typography>
           <TextField
             fullWidth size="small" placeholder="Search tasks..."
+            value={depSearchTerm}
             sx={{ mb: 1.5 }}
-            onChange={e => {
-              const v = e.target.value.toLowerCase();
-              setCycleTasksForDep(prev => prev.map(t => ({ ...t, _hidden: v ? !(t.name || '').toLowerCase().includes(v) : false })));
-            }}
+            slotProps={{ input: { startAdornment: <SearchIcon sx={{ mr: 0.5, fontSize: '1rem', color: 'text.secondary' }} /> } }}
+            onChange={e => setDepSearchTerm(e.target.value.toLowerCase())}
           />
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, maxHeight: 300, overflowY: 'auto' }}>
-            {cycleTasksForDep.filter(t => t.id !== depDialogTaskId && !t._hidden).map(t => {
-              const isDep = (taskDeps[depDialogTaskId || ''] || []).some((d: any) => d.dependsOnTaskId === t.id);
-              const obj = projectInventoryItems.find(o => o.id === t.projectObjectId);
+          <Box sx={{ maxHeight: 400, overflowY: 'auto' }}>
+            {(() => {
+              // Get cycle name
+              let cycleName = 'Current Cycle';
+              for (const progId in mockCycles) {
+                const cycle = (mockCycles[progId] || []).find((c: any) => c.id === activeCycleId);
+                if (cycle) { cycleName = cycle.name; break; }
+              }
+
+              // Group by project
+              const projectMap: Record<string, { name: string; color: string; objects: Record<string, { label: string; tasks: any[] }> }> = {};
+              cycleTasksForDep
+                .filter(t => t.id !== depDialogTaskId && (!depSearchTerm || (t.name || '').toLowerCase().includes(depSearchTerm) || (t.objectLabel || '').toLowerCase().includes(depSearchTerm) || (t.groupLabel || '').toLowerCase().includes(depSearchTerm)))
+                .forEach(t => {
+                  const pid = t.projectId || activeProjectId || '';
+                  if (!projectMap[pid]) projectMap[pid] = { name: t.projectName || 'Project', color: t.projectAccentColor || '#00BFA5', objects: {} };
+                  const oKey = t.objectLabel ? `obj-${t.projectObjectId}` : t.groupLabel ? `grp-${t.taskGroupId}` : 'ungrouped';
+                  const oLabel = t.objectLabel || t.groupLabel || 'Other Tasks';
+                  if (!projectMap[pid].objects[oKey]) projectMap[pid].objects[oKey] = { label: oLabel, tasks: [] };
+                  projectMap[pid].objects[oKey].tasks.push(t);
+                });
+
               return (
-                <Box key={t.id} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 0.6, px: 1, borderRadius: 1, cursor: 'pointer', backgroundColor: isDep ? 'rgba(91,103,202,0.12)' : 'transparent', '&:hover': { backgroundColor: 'rgba(255,255,255,0.05)' } }}
-                  onClick={async () => {
-                    if (isDep) {
-                      await apiClient.delete(`/api/tasks/${depDialogTaskId}/dependencies/${t.id}`);
-                    } else {
-                      await apiClient.post(`/api/tasks/${depDialogTaskId}/dependencies`, { dependsOnTaskId: t.id });
-                      // Auto-set start date from this dependency's end date
-                      if (t.endDate && depDialogTaskId) {
-                        const d = new Date(t.endDate + 'T00:00:00');
-                        d.setDate(d.getDate() + 1);
-                        const newStart = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-                        await updateTaskInline(depDialogTaskId, 'startDate', newStart);
-                        const depTask = projectTasks.find(pt => pt.id === depDialogTaskId);
-                        if (depTask?.duration) {
-                          const newEnd = calcEndDate(newStart, depTask.duration, depTask.durationUnit || 'hours');
-                          if (newEnd) await updateTaskInline(depDialogTaskId, 'endDate', newEnd);
-                        }
-                      }
-                    }
-                    if (depDialogTaskId) await loadTaskDeps(depDialogTaskId);
-                  }}>
-                  <Box sx={{ width: 16, height: 16, borderRadius: '3px', border: '2px solid', borderColor: isDep ? 'primary.main' : 'rgba(255,255,255,0.3)', backgroundColor: isDep ? 'primary.main' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    {isDep && <Box sx={{ width: 8, height: 8, backgroundColor: 'white', borderRadius: '1px' }} />}
+                <Box>
+                  {/* Cycle label */}
+                  <Box sx={{ px: 0.5, pb: 0.5, display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                    <SyncIcon sx={{ fontSize: '0.8rem', color: 'text.disabled' }} />
+                    <Typography variant="caption" sx={{ color: 'text.disabled', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', fontSize: '0.65rem' }}>{cycleName}</Typography>
                   </Box>
-                  <Box sx={{ flex: 1, minWidth: 0 }}>
-                    <Typography variant="body2" sx={{ fontWeight: 500 }}>{t.name || 'Unnamed'}</Typography>
-                    {obj && <Typography variant="caption" color="text.disabled">{obj.objectId}</Typography>}
-                  </Box>
-                  <Box sx={{ px: 1, py: 0.25, borderRadius: 1, fontSize: '0.68rem', fontWeight: 600, backgroundColor: `${getTaskStatusColor(t.status)}22`, color: getTaskStatusColor(t.status) }}>{t.status}</Box>
+
+                  {Object.entries(projectMap).map(([pid, proj]) => {
+                    const projKey = `proj-${pid}`;
+                    const projExpanded = depTreeExpanded[projKey] !== false;
+                    return (
+                      <Box key={pid} sx={{ mb: 0.25 }}>
+                        {/* Project row */}
+                        <Box onClick={() => setDepTreeExpanded(prev => ({ ...prev, [projKey]: !projExpanded }))}
+                          sx={{ display: 'flex', alignItems: 'center', gap: 0.75, py: 0.5, px: 0.75, borderRadius: 1, cursor: 'pointer', '&:hover': { backgroundColor: 'rgba(255,255,255,0.04)' } }}>
+                          <ChevronRightIcon sx={{ fontSize: '0.85rem', color: 'text.secondary', transform: projExpanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s', flexShrink: 0 }} />
+                          <Box sx={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: proj.color, flexShrink: 0 }} />
+                          <Typography variant="caption" sx={{ fontWeight: 600, color: proj.color }}>{proj.name}</Typography>
+                        </Box>
+
+                        {projExpanded && Object.entries(proj.objects).map(([oKey, objData]) => {
+                          const objExpKey = `${projKey}-${oKey}`;
+                          const objExpanded = depTreeExpanded[objExpKey] !== false;
+                          return (
+                            <Box key={oKey} sx={{ ml: 2.5, mb: 0.25 }}>
+                              {/* Object/Group row */}
+                              <Box onClick={() => setDepTreeExpanded(prev => ({ ...prev, [objExpKey]: !objExpanded }))}
+                                sx={{ display: 'flex', alignItems: 'center', gap: 0.75, py: 0.4, px: 0.75, borderRadius: 1, cursor: 'pointer', '&:hover': { backgroundColor: 'rgba(255,255,255,0.04)' } }}>
+                                <ChevronRightIcon sx={{ fontSize: '0.75rem', color: 'text.disabled', transform: objExpanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s', flexShrink: 0 }} />
+                                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500, fontSize: '0.72rem' }}>{objData.label}</Typography>
+                              </Box>
+
+                              {objExpanded && objData.tasks.map((t: any) => {
+                                const isDep = (taskDeps[depDialogTaskId || ''] || []).some((d: any) => d.dependsOnTaskId === t.id);
+                                return (
+                                  <Box key={t.id} sx={{ ml: 2.5, display: 'flex', alignItems: 'center', gap: 1.25, py: 0.5, px: 0.75, borderRadius: 1, cursor: 'pointer', backgroundColor: isDep ? 'rgba(91,103,202,0.14)' : 'transparent', '&:hover': { backgroundColor: isDep ? 'rgba(91,103,202,0.2)' : 'rgba(255,255,255,0.05)' } }}
+                                    onClick={async () => {
+                                      if (isDep) {
+                                        await apiClient.delete(`/api/tasks/${depDialogTaskId}/dependencies/${t.id}`);
+                                      } else {
+                                        await apiClient.post(`/api/tasks/${depDialogTaskId}/dependencies`, { dependsOnTaskId: t.id });
+                                        if (t.endDate && depDialogTaskId) {
+                                          const d = new Date(t.endDate + 'T00:00:00');
+                                          d.setDate(d.getDate() + 1);
+                                          const newStart = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+                                          await updateTaskInline(depDialogTaskId, 'startDate', newStart);
+                                          const depTask = projectTasks.find(pt => pt.id === depDialogTaskId);
+                                          if (depTask?.duration) {
+                                            const newEnd = calcEndDate(newStart, depTask.duration, depTask.durationUnit || 'days');
+                                            if (newEnd) await updateTaskInline(depDialogTaskId, 'endDate', newEnd);
+                                          }
+                                        }
+                                      }
+                                      if (depDialogTaskId) await loadTaskDeps(depDialogTaskId);
+                                    }}>
+                                    <Box sx={{ width: 14, height: 14, borderRadius: '3px', border: '1.5px solid', borderColor: isDep ? 'primary.main' : 'rgba(255,255,255,0.25)', backgroundColor: isDep ? 'primary.main' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                      {isDep && <Box sx={{ width: 6, height: 6, backgroundColor: 'white', borderRadius: '1px' }} />}
+                                    </Box>
+                                    <Typography variant="body2" sx={{ fontSize: '0.78rem', flex: 1 }}>{t.name || 'Unnamed'}</Typography>
+                                    <Box sx={{ px: 0.75, py: 0.15, borderRadius: 0.5, fontSize: '0.65rem', fontWeight: 600, backgroundColor: `${getTaskStatusColor(t.status)}22`, color: getTaskStatusColor(t.status), flexShrink: 0 }}>{(t.status || '').replace(/_/g, ' ')}</Box>
+                                  </Box>
+                                );
+                              })}
+                            </Box>
+                          );
+                        })}
+                      </Box>
+                    );
+                  })}
+                  {Object.keys(projectMap).length === 0 && (
+                    <Typography variant="body2" color="text.secondary" sx={{ px: 1, py: 2, textAlign: 'center' }}>
+                      {depSearchTerm ? 'No matching tasks' : 'Loading…'}
+                    </Typography>
+                  )}
                 </Box>
               );
-            })}
+            })()}
           </Box>
         </DialogContent>
         <DialogActions>
