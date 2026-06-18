@@ -1357,12 +1357,16 @@ const ProjectsPage: React.FC = () => {
 
   const toDateInputValue = (value?: string) => {
     if (!value) return '';
+    // Direct YYYY-MM-DD — already correct format
     if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+    // ISO string — extract the date portion directly to avoid timezone shifting
+    if (value.length >= 10 && /^\d{4}-\d{2}-\d{2}/.test(value)) return value.substring(0, 10);
+    // Fallback: parse using UTC methods to avoid local-timezone offset
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return '';
-    const y = date.getFullYear();
-    const m = String(date.getMonth() + 1).padStart(2, '0');
-    const d = String(date.getDate()).padStart(2, '0');
+    const y = date.getUTCFullYear();
+    const m = String(date.getUTCMonth() + 1).padStart(2, '0');
+    const d = String(date.getUTCDate()).padStart(2, '0');
     return `${y}-${m}-${d}`;
   };
 

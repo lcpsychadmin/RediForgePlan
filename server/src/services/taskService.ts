@@ -21,7 +21,16 @@ interface TaskInput {
 }
 
 export class TaskService {
-  // Task Groups
+  // Timezone-safe date formatter: always returns YYYY-MM-DD string
+  private fmtDate(d: any): string | null {
+    if (!d) return null;
+    if (typeof d === 'string') return d.substring(0, 10);
+    // Date object from pg — use UTC to avoid timezone offset
+    const y = d.getUTCFullYear();
+    const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(d.getUTCDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
   async getTaskGroupsByProject(projectId: string) {
     const result = await db.query(
       'SELECT id, project_id, name, description, start_date, end_date, created_at, updated_at FROM task_groups WHERE project_id = $1 ORDER BY created_at DESC',
@@ -277,8 +286,8 @@ export class TaskService {
       dependsOnTaskId: r.depends_on_task_id,
       dependsOnName: r.depends_on_name,
       objectId: r.object_id,
-      endDate: r.end_date ? r.end_date.toISOString().split('T')[0] : null,
-      startDate: r.start_date ? r.start_date.toISOString().split('T')[0] : null,
+      endDate: this.fmtDate(r.end_date),
+      startDate: this.fmtDate(r.start_date),
     }));
   }
 
@@ -370,8 +379,8 @@ export class TaskService {
       projectId: row.project_id,
       name: row.name,
       description: row.description,
-      startDate: row.start_date,
-      endDate: row.end_date,
+      startDate: this.fmtDate(row.start_date),
+      endDate: this.fmtDate(row.end_date),
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };
@@ -386,8 +395,8 @@ export class TaskService {
       taskType: row.task_type,
       name: row.name,
       status: row.status,
-      startDate: row.start_date,
-      endDate: row.end_date,
+      startDate: this.fmtDate(row.start_date),
+      endDate: this.fmtDate(row.end_date),
       assignedTo: row.assigned_to,
       duration: row.duration,
       durationUnit: row.duration_unit,
