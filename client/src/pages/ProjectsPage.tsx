@@ -1300,14 +1300,13 @@ const ProjectsPage: React.FC = () => {
       for (const [taskId, taskDepsArr] of Object.entries(deps)) {
         if (!taskDepsArr.length) continue;
         const task = tasks.find((t: any) => t.id === taskId);
-        if (!task?.duration) continue;
         let maxEnd: string | null = null;
         for (const dep of taskDepsArr as any[]) {
           const end = endMap[dep.dependsOnTaskId] || dep.endDate;
           if (end && (!maxEnd || end > maxEnd)) maxEnd = end;
         }
         if (!maxEnd) continue;
-        const unit = task.durationUnit || 'days';
+        const unit = (task?.durationUnit) || 'days';
         let newStart: string;
         if (unit === 'hours') {
           newStart = maxEnd.substring(0, 10);
@@ -1316,8 +1315,9 @@ const ProjectsPage: React.FC = () => {
           d.setDate(d.getDate() + 1);
           newStart = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
         }
-        const newEnd = calcEndDate(newStart, Number(task.duration), unit);
-        if (!newEnd) continue;
+        const newEnd = task?.duration
+          ? (calcEndDate(newStart, Number(task.duration), unit) || newStart)
+          : newStart; // no duration: end = start (point in time)
         if (newStart !== startMap[taskId] || newEnd !== endMap[taskId]) {
           patches[taskId] = { startDate: newStart, endDate: newEnd };
           startMap[taskId] = newStart;
@@ -2294,6 +2294,9 @@ const ProjectsPage: React.FC = () => {
                                                 if (task.duration) {
                                                   const newEnd = calcEndDate(e.target.value, task.duration, task.durationUnit || 'days');
                                                   if (newEnd) updateTaskInline(task.id, 'endDate', newEnd);
+                                                } else {
+                                                  // No duration: end = start, triggers cascade to downstream tasks
+                                                  updateTaskInline(task.id, 'endDate', e.target.value);
                                                 }
                                                 e.target.blur();
                                               }}
@@ -2560,6 +2563,9 @@ const ProjectsPage: React.FC = () => {
                                                 if (task.duration) {
                                                   const newEnd = calcEndDate(e.target.value, task.duration, task.durationUnit || 'days');
                                                   if (newEnd) updateTaskInline(task.id, 'endDate', newEnd);
+                                                } else {
+                                                  // No duration: end = start, triggers cascade to downstream tasks
+                                                  updateTaskInline(task.id, 'endDate', e.target.value);
                                                 }
                                                 e.target.blur();
                                               }}
