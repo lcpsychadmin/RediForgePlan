@@ -27,6 +27,7 @@ import {
   Breadcrumbs,
   Link,
   Badge,
+  Checkbox,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
@@ -3808,34 +3809,37 @@ const ProjectsPage: React.FC = () => {
                               {objExpanded && objData.tasks.map((t: any) => {
                                 const isDep = (taskDeps[depDialogTaskId || ''] || []).some((d: any) => d.dependsOnTaskId === t.id);
                                 return (
-                                  <Box key={t.id} component="button" type="button" sx={{ ml: 2.5, width: '100%', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 1.25, py: 0.5, px: 0.75, borderRadius: 1, cursor: 'pointer', border: 'none', backgroundColor: isDep ? 'rgba(91,103,202,0.14)' : 'transparent', '&:hover': { backgroundColor: isDep ? 'rgba(91,103,202,0.2)' : 'rgba(255,255,255,0.05)' } }}
-                                    onClick={async (e) => {
-                                      e.stopPropagation();
-                                      try {
-                                        if (isDep) {
-                                          await apiClient.delete(`/api/tasks/${depDialogTaskId}/dependencies/${t.id}`);
-                                        } else {
-                                          await apiClient.post(`/api/tasks/${depDialogTaskId}/dependencies`, { dependsOnTaskId: t.id });
-                                          if (t.endDate && depDialogTaskId) {
-                                            try {
-                                              const d = new Date(t.endDate + 'T00:00:00');
-                                              d.setDate(d.getDate() + 1);
-                                              const newStart = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-                                              await updateTaskInline(depDialogTaskId, 'startDate', newStart);
-                                              const depTask = projectTasks.find(pt => pt.id === depDialogTaskId);
-                                              if (depTask?.duration) {
-                                                const newEnd = calcEndDate(newStart, depTask.duration, depTask.durationUnit || 'days');
-                                                if (newEnd) await updateTaskInline(depDialogTaskId, 'endDate', newEnd);
-                                              }
-                                            } catch (autoDateErr) { /* auto-date update failed, ignore */ }
+                                  <Box key={t.id} component="label" htmlFor={`dep-${t.id}`} sx={{ ml: 2.5, width: '100%', display: 'flex', alignItems: 'center', gap: 1, py: 0.4, px: 0.75, borderRadius: 1, cursor: 'pointer', backgroundColor: isDep ? 'rgba(91,103,202,0.14)' : 'transparent', '&:hover': { backgroundColor: isDep ? 'rgba(91,103,202,0.2)' : 'rgba(255,255,255,0.05)' } }}>
+                                    <Checkbox
+                                      id={`dep-${t.id}`}
+                                      checked={isDep}
+                                      size="small"
+                                      sx={{ p: 0.25, color: 'rgba(255,255,255,0.3)', '&.Mui-checked': { color: 'primary.main' } }}
+                                      onChange={async (e) => {
+                                        e.stopPropagation();
+                                        try {
+                                          if (isDep) {
+                                            await apiClient.delete(`/api/tasks/${depDialogTaskId}/dependencies/${t.id}`);
+                                          } else {
+                                            await apiClient.post(`/api/tasks/${depDialogTaskId}/dependencies`, { dependsOnTaskId: t.id });
+                                            if (t.endDate && depDialogTaskId) {
+                                              try {
+                                                const d = new Date(t.endDate + 'T00:00:00');
+                                                d.setDate(d.getDate() + 1);
+                                                const newStart = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+                                                await updateTaskInline(depDialogTaskId, 'startDate', newStart);
+                                                const depTask = projectTasks.find(pt => pt.id === depDialogTaskId);
+                                                if (depTask?.duration) {
+                                                  const newEnd = calcEndDate(newStart, depTask.duration, depTask.durationUnit || 'days');
+                                                  if (newEnd) await updateTaskInline(depDialogTaskId, 'endDate', newEnd);
+                                                }
+                                              } catch (autoDateErr) { /* ignore */ }
+                                            }
                                           }
-                                        }
-                                      } catch (depErr) { console.error('Dep toggle failed', depErr); }
-                                      if (depDialogTaskId) await loadTaskDeps(depDialogTaskId);
-                                    }}>
-                                    <Box sx={{ width: 14, height: 14, borderRadius: '3px', border: '1.5px solid', borderColor: isDep ? 'primary.main' : 'rgba(255,255,255,0.25)', backgroundColor: isDep ? 'primary.main' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                      {isDep && <Box sx={{ width: 6, height: 6, backgroundColor: 'white', borderRadius: '1px' }} />}
-                                    </Box>
+                                        } catch (depErr) { console.error('Dep toggle failed', depErr); }
+                                        if (depDialogTaskId) await loadTaskDeps(depDialogTaskId);
+                                      }}
+                                    />
                                     <Typography variant="body2" sx={{ fontSize: '0.78rem', flex: 1 }}>{t.name || 'Unnamed'}</Typography>
                                     <Box sx={{ px: 0.75, py: 0.15, borderRadius: 0.5, fontSize: '0.65rem', fontWeight: 600, backgroundColor: `${getTaskStatusColor(t.status)}22`, color: getTaskStatusColor(t.status), flexShrink: 0 }}>{(t.status || '').replace(/_/g, ' ')}</Box>
                                   </Box>
