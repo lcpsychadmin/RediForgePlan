@@ -2292,28 +2292,34 @@ const ProjectsPage: React.FC = () => {
                                               <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.72rem', px: 0.5 }}>days</Typography>
                                             </Box>
                                             {/* Start Date */}
-                                            <TextField size="small" type="date"
-                                              value={task.startDate || ''}
-                                              disabled={(taskDeps[task.id] || []).length > 0 && !!task.duration}
-                                              title={(taskDeps[task.id] || []).length > 0 && task.duration ? 'Set by dependency — adjust via › button' : (taskDeps[task.id] || []).length > 0 ? 'Has dependency' : ''}
-                                              onChange={e => {
-                                                const newStart = e.target.value;
-                                                const freshTask = projectTasksRef.current.find(t => t.id === task.id);
-                                                const dur = freshTask?.duration ?? task.duration;
-                                                // Only set endDate when duration exists; otherwise leave it null
-                                                const endToSet = dur ? (calcEndDate(newStart, Number(dur), 'days') || null) : null;
-                                                const patchData: any = { startDate: newStart };
-                                                if (endToSet) patchData.endDate = endToSet;
-                                                setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, startDate: newStart, ...(endToSet ? { endDate: endToSet } : {}) } : t));
-                                                apiClient.patch(`/api/tasks/${task.id}`, patchData)
-                                                  .then(() => {
-                                                    const snap = projectTasksRef.current.map(t => t.id === task.id ? { ...t, startDate: newStart, ...(endToSet ? { endDate: endToSet } : {}) } : t);
-                                                    cascadeAllDates(snap, taskDepsRef.current);
-                                                  })
-                                                  .catch(() => {});
-                                                e.target.blur();
-                                              }}
-                                              sx={taskFieldSx} />
+                                            {(taskDeps[task.id] || []).length > 0 && !!task.duration ? (
+                                              <Box title="Set by dependency — adjust via › button" sx={{ display: 'flex', alignItems: 'center', px: 1, height: 26, minWidth: 100, border: '1px dashed rgba(255,255,255,0.2)', borderRadius: 1, backgroundColor: 'rgba(255,255,255,0.08)', cursor: 'not-allowed', fontSize: '0.72rem', color: 'rgba(255,255,255,0.75)' }}>
+                                                {task.startDate ? (() => { const [y,m,d] = task.startDate.split('-'); return `${m}/${d}/${y}`; })() : '—'}
+                                              </Box>
+                                            ) : (
+                                              <Box sx={{ position: 'relative', '&:focus-within .date-empty': { display: 'none' } }}>
+                                                <TextField size="small" type="date"
+                                                  value={task.startDate || ''}
+                                                  onChange={e => {
+                                                    const newStart = e.target.value;
+                                                    const freshTask = projectTasksRef.current.find(t => t.id === task.id);
+                                                    const dur = freshTask?.duration ?? task.duration;
+                                                    const endToSet = dur ? (calcEndDate(newStart, Number(dur), 'days') || null) : null;
+                                                    const patchData: any = { startDate: newStart };
+                                                    if (endToSet) patchData.endDate = endToSet;
+                                                    setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, startDate: newStart, ...(endToSet ? { endDate: endToSet } : {}) } : t));
+                                                    apiClient.patch(`/api/tasks/${task.id}`, patchData)
+                                                      .then(() => {
+                                                        const snap = projectTasksRef.current.map(t => t.id === task.id ? { ...t, startDate: newStart, ...(endToSet ? { endDate: endToSet } : {}) } : t);
+                                                        cascadeAllDates(snap, taskDepsRef.current);
+                                                      })
+                                                      .catch(() => {});
+                                                    e.target.blur();
+                                                  }}
+                                                  sx={{ ...taskFieldSx, ...(!task.startDate ? { '& input': { color: 'transparent' }, '& input:focus': { color: 'inherit' }, '& input::-webkit-calendar-picker-indicator': { opacity: 0 }, '& input:focus::-webkit-calendar-picker-indicator': { opacity: 1 } } : {}) }} />
+                                                {!task.startDate && <Box className="date-empty" sx={{ position: 'absolute', inset: 0, pl: 1.5, display: 'flex', alignItems: 'center', pointerEvents: 'none', fontSize: '0.72rem', color: 'text.disabled' }}>—</Box>}
+                                              </Box>
+                                            )}
                                             {/* End Date */}
                                             {!!task.duration ? (
                                               <Box title="Calculated from start date + duration" sx={{ display: 'flex', alignItems: 'center', px: 1, height: 26, minWidth: 100, border: '1px dashed rgba(255,255,255,0.2)', borderRadius: 1, backgroundColor: 'rgba(255,255,255,0.08)', cursor: 'not-allowed', fontSize: '0.72rem', color: 'rgba(255,255,255,0.75)' }}>
@@ -2567,28 +2573,34 @@ const ProjectsPage: React.FC = () => {
                                               <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.72rem', px: 0.5 }}>days</Typography>
                                             </Box>
                                             {/* Start Date */}
-                                            <TextField size="small" type="date"
-                                              value={task.startDate || ''}
-                                              disabled={(taskDeps[task.id] || []).length > 0 && !!task.duration}
-                                              title={(taskDeps[task.id] || []).length > 0 && task.duration ? 'Set by dependency — adjust via › button' : (taskDeps[task.id] || []).length > 0 ? 'Has dependency' : ''}
-                                              onChange={e => {
-                                                const newStart = e.target.value;
-                                                const freshTask = projectTasksRef.current.find(t => t.id === task.id);
-                                                const dur = freshTask?.duration ?? task.duration;
-                                                // Only set endDate when duration exists; otherwise leave it null
-                                                const endToSet = dur ? (calcEndDate(newStart, Number(dur), 'days') || null) : null;
-                                                const patchData: any = { startDate: newStart };
-                                                if (endToSet) patchData.endDate = endToSet;
-                                                setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, startDate: newStart, ...(endToSet ? { endDate: endToSet } : {}) } : t));
-                                                apiClient.patch(`/api/tasks/${task.id}`, patchData)
-                                                  .then(() => {
-                                                    const snap = projectTasksRef.current.map(t => t.id === task.id ? { ...t, startDate: newStart, ...(endToSet ? { endDate: endToSet } : {}) } : t);
-                                                    cascadeAllDates(snap, taskDepsRef.current);
-                                                  })
-                                                  .catch(() => {});
-                                                e.target.blur();
-                                              }}
-                                              sx={taskFieldSx} />
+                                            {(taskDeps[task.id] || []).length > 0 && !!task.duration ? (
+                                              <Box title="Set by dependency — adjust via › button" sx={{ display: 'flex', alignItems: 'center', px: 1, height: 26, minWidth: 100, border: '1px dashed rgba(255,255,255,0.2)', borderRadius: 1, backgroundColor: 'rgba(255,255,255,0.08)', cursor: 'not-allowed', fontSize: '0.72rem', color: 'rgba(255,255,255,0.75)' }}>
+                                                {task.startDate ? (() => { const [y,m,d] = task.startDate.split('-'); return `${m}/${d}/${y}`; })() : '—'}
+                                              </Box>
+                                            ) : (
+                                              <Box sx={{ position: 'relative', '&:focus-within .date-empty': { display: 'none' } }}>
+                                                <TextField size="small" type="date"
+                                                  value={task.startDate || ''}
+                                                  onChange={e => {
+                                                    const newStart = e.target.value;
+                                                    const freshTask = projectTasksRef.current.find(t => t.id === task.id);
+                                                    const dur = freshTask?.duration ?? task.duration;
+                                                    const endToSet = dur ? (calcEndDate(newStart, Number(dur), 'days') || null) : null;
+                                                    const patchData: any = { startDate: newStart };
+                                                    if (endToSet) patchData.endDate = endToSet;
+                                                    setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, startDate: newStart, ...(endToSet ? { endDate: endToSet } : {}) } : t));
+                                                    apiClient.patch(`/api/tasks/${task.id}`, patchData)
+                                                      .then(() => {
+                                                        const snap = projectTasksRef.current.map(t => t.id === task.id ? { ...t, startDate: newStart, ...(endToSet ? { endDate: endToSet } : {}) } : t);
+                                                        cascadeAllDates(snap, taskDepsRef.current);
+                                                      })
+                                                      .catch(() => {});
+                                                    e.target.blur();
+                                                  }}
+                                                  sx={{ ...taskFieldSx, ...(!task.startDate ? { '& input': { color: 'transparent' }, '& input:focus': { color: 'inherit' }, '& input::-webkit-calendar-picker-indicator': { opacity: 0 }, '& input:focus::-webkit-calendar-picker-indicator': { opacity: 1 } } : {}) }} />
+                                                {!task.startDate && <Box className="date-empty" sx={{ position: 'absolute', inset: 0, pl: 1.5, display: 'flex', alignItems: 'center', pointerEvents: 'none', fontSize: '0.72rem', color: 'text.disabled' }}>—</Box>}
+                                              </Box>
+                                            )}
                                             {/* End Date */}
                                             {!!task.duration ? (
                                               <Box title="Calculated from start date + duration" sx={{ display: 'flex', alignItems: 'center', px: 1, height: 26, minWidth: 100, border: '1px dashed rgba(255,255,255,0.2)', borderRadius: 1, backgroundColor: 'rgba(255,255,255,0.08)', cursor: 'not-allowed', fontSize: '0.72rem', color: 'rgba(255,255,255,0.75)' }}>
