@@ -2317,7 +2317,7 @@ const ProjectsPage: React.FC = () => {
                                               sx={taskFieldSx} />
                                             {/* End Date */}
                                             <TextField size="small" type="date"
-                                              value={task.endDate || ''}
+                                              value={task.duration && task.startDate ? (calcEndDate(task.startDate, Number(task.duration), 'days') || task.endDate || '') : (task.endDate || '')}
                                               disabled={!!task.duration}
                                               title={task.duration ? 'Calculated from start date + duration' : ''}
                                               onChange={e => {
@@ -2592,7 +2592,7 @@ const ProjectsPage: React.FC = () => {
                                               sx={taskFieldSx} />
                                             {/* End Date */}
                                             <TextField size="small" type="date"
-                                              value={task.endDate || ''}
+                                              value={task.duration && task.startDate ? (calcEndDate(task.startDate, Number(task.duration), 'days') || task.endDate || '') : (task.endDate || '')}
                                               disabled={!!task.duration}
                                               title={task.duration ? 'Calculated from start date + duration' : ''}
                                               onChange={e => {
