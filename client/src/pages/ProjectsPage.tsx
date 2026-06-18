@@ -669,6 +669,9 @@ const ProjectsPage: React.FC = () => {
         }));
         setTaskDeps(allDeps);
 
+        // Cascade dates for tasks with dependencies+duration
+        await cascadeAllDates(tasks, allDeps);
+
         // Load task groups
         const groupsResponse = await apiClient.get(`/api/tasks/groups/project/${activeProjectId}`);
         const groups = groupsResponse.data.data || [];
@@ -1272,6 +1275,57 @@ const ProjectsPage: React.FC = () => {
       return newDeps as any[];
     } catch (e) { /* ignore */ }
     return [] as any[];
+  };
+
+  // Cascade date recalculation: for all tasks with deps+duration, propagate dates downstream.
+  // tasks/deps are passed as snapshots so this works before React state flushes.
+  const cascadeAllDates = async (tasks: any[], deps: Record<string, any[]>) => {
+    const endMap: Record<string, string> = {};
+    const startMap: Record<string, string> = {};
+    for (const t of tasks) {
+      if (t.endDate) endMap[t.id] = t.endDate;
+      if (t.startDate) startMap[t.id] = t.startDate;
+    }
+    const patches: Record<string, { startDate: string; endDate: string }> = {};
+    let changed = true;
+    let iter = 0;
+    while (changed && iter < 30) {
+      changed = false;
+      iter++;
+      for (const [taskId, taskDepsArr] of Object.entries(deps)) {
+        if (!taskDepsArr.length) continue;
+        const task = tasks.find((t: any) => t.id === taskId);
+        if (!task?.duration) continue;
+        let maxEnd: string | null = null;
+        for (const dep of taskDepsArr as any[]) {
+          const end = endMap[dep.dependsOnTaskId] || dep.endDate;
+          if (end && (!maxEnd || end > maxEnd)) maxEnd = end;
+        }
+        if (!maxEnd) continue;
+        const unit = task.durationUnit || 'days';
+        let newStart: string;
+        if (unit === 'hours') {
+          newStart = maxEnd.substring(0, 10);
+        } else {
+          const d = new Date(maxEnd.substring(0, 10) + 'T00:00:00');
+          d.setDate(d.getDate() + 1);
+          newStart = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        }
+        const newEnd = calcEndDate(newStart, Number(task.duration), unit);
+        if (!newEnd) continue;
+        if (newStart !== startMap[taskId] || newEnd !== endMap[taskId]) {
+          patches[taskId] = { startDate: newStart, endDate: newEnd };
+          startMap[taskId] = newStart;
+          endMap[taskId] = newEnd;
+          changed = true;
+        }
+      }
+    }
+    if (Object.keys(patches).length === 0) return;
+    await Promise.all(Object.entries(patches).map(([id, p]) =>
+      apiClient.patch(`/api/tasks/${id}`, p).catch(() => {})
+    ));
+    setProjectTasks(prev => prev.map(t => patches[t.id] ? { ...t, ...patches[t.id] } : t));
   };
 
   const saveObjectTasks = async (taskIds: string[]) => {
@@ -3910,6 +3964,10 @@ const ProjectsPage: React.FC = () => {
                                           try {
                                             await apiClient.patch(`/api/tasks/${taskId}`, patchPayload);
                                             setProjectTasks(prev => prev.map(pt => pt.id === taskId ? { ...pt, ...patchPayload } : pt));
+                                            // Cascade dates downstream to all dependent tasks
+                                            const updatedTasks = projectTasks.map(pt => pt.id === taskId ? { ...pt, ...patchPayload } : pt);
+                                            const updatedDeps = { ...taskDeps, [taskId]: freshDeps };
+                                            await cascadeAllDates(updatedTasks, updatedDeps);
                                           } catch (e) { /* ignore */ }
                                         }
                                       }
