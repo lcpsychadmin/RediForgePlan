@@ -1268,7 +1268,7 @@ const ProjectsPage: React.FC = () => {
     } catch (e) { /* ignore */ }
   };
 
-  const loadCycleTasksForDep = async () => {
+  const loadCycleTasksForDep = async (currentTaskId: string) => {
     const cycleProjects: any[] = activeCycleId ? (projectsByMockCycle[activeCycleId] || []) : [];
     const allProjects = cycleProjects.length > 0 ? cycleProjects : (activeProjectId ? [{ id: activeProjectId, name: 'Current Project', accentColor: '#00BFA5' }] : []);
     const enriched: any[] = [];
@@ -1297,9 +1297,21 @@ const ProjectsPage: React.FC = () => {
       } catch (e) { /* skip project on error */ }
     }));
     setCycleTasksForDep(enriched);
-    // Default expand all projects and objects
+    // Only expand the branch containing the current task
+    const currentTask = projectTasks.find(t => t.id === currentTaskId);
     const expanded: Record<string, boolean> = {};
-    allProjects.forEach((proj: any) => { expanded[`proj-${proj.id}`] = true; });
+    if (currentTask && activeProjectId) {
+      expanded[`proj-${activeProjectId}`] = true;
+      if (currentTask.projectObjectId) {
+        expanded[`proj-${activeProjectId}-obj-${currentTask.projectObjectId}`] = true;
+      } else if (currentTask.taskGroupId) {
+        expanded[`proj-${activeProjectId}-grp-${currentTask.taskGroupId}`] = true;
+      } else {
+        expanded[`proj-${activeProjectId}-ungrouped`] = true;
+      }
+    } else if (activeProjectId) {
+      expanded[`proj-${activeProjectId}`] = true;
+    }
     setDepTreeExpanded(expanded);
   };
 
@@ -2199,7 +2211,7 @@ const ProjectsPage: React.FC = () => {
                                                 await loadTaskDeps(task.id);
                                                 setDepDialogTaskId(task.id);
                                                 setDepSearchTerm('');
-                                                await loadCycleTasksForDep();
+                                                await loadCycleTasksForDep(task.id);
                                               }} sx={{ opacity: 0.6, '&:hover': { opacity: 1 } }}>
                                                 <ChevronRightIcon sx={{ fontSize: '0.9rem' }} />
                                               </IconButton>
@@ -2453,7 +2465,7 @@ const ProjectsPage: React.FC = () => {
                                                 await loadTaskDeps(task.id);
                                                 setDepDialogTaskId(task.id);
                                                 setDepSearchTerm('');
-                                                await loadCycleTasksForDep();
+                                                await loadCycleTasksForDep(task.id);
                                               }} sx={{ opacity: 0.6, '&:hover': { opacity: 1 } }}>
                                                 <ChevronRightIcon sx={{ fontSize: '0.9rem' }} />
                                               </IconButton>
@@ -3796,7 +3808,8 @@ const ProjectsPage: React.FC = () => {
                                 const isDep = (taskDeps[depDialogTaskId || ''] || []).some((d: any) => d.dependsOnTaskId === t.id);
                                 return (
                                   <Box key={t.id} sx={{ ml: 2.5, display: 'flex', alignItems: 'center', gap: 1.25, py: 0.5, px: 0.75, borderRadius: 1, cursor: 'pointer', backgroundColor: isDep ? 'rgba(91,103,202,0.14)' : 'transparent', '&:hover': { backgroundColor: isDep ? 'rgba(91,103,202,0.2)' : 'rgba(255,255,255,0.05)' } }}
-                                    onClick={async () => {
+                                    onClick={async (e) => {
+                                      e.stopPropagation();
                                       if (isDep) {
                                         await apiClient.delete(`/api/tasks/${depDialogTaskId}/dependencies/${t.id}`);
                                       } else {
