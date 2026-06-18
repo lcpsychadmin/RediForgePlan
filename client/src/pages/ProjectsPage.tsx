@@ -1236,24 +1236,26 @@ const ProjectsPage: React.FC = () => {
         : value;
       const payload = { [field]: parsedValue };
       await apiClient.patch(`/api/tasks/${taskId}`, payload);
-      const updatedTasks = projectTasks.map(t => t.id === taskId ? { ...t, [field]: parsedValue } : t);
-      setProjectTasks(updatedTasks);
-
-      // Recalculate and persist project % complete
-      if (activeProjectId) {
-        const allPct = updatedTasks.filter(t => t.projectObjectId || t.taskGroupId);
-        const avg = allPct.length > 0
-          ? Math.round(allPct.reduce((sum, t) => {
-              const pct = t.id === taskId && field === 'status' && value === 'complete' ? 100
-                : t.id === taskId && field === 'progressPercentage' ? (parseInt(value) || 0)
-                : (t.progressPercentage ?? 0);
-              return sum + pct;
-            }, 0) / allPct.length)
-          : 0;
-        await apiClient.patch(`/api/projects/${activeProjectId}`, { progressPercentage: avg });
-        // Update local projectsByMockCycle so tree reflects new %
-        queryClient.invalidateQueries({ queryKey: ['projectsByMockCycle'] });
-      }
+      // Use functional updater to avoid stale closure when multiple fields update simultaneously
+      setProjectTasks(prev => {
+        const updatedTasks = prev.map(t => t.id === taskId ? { ...t, [field]: parsedValue } : t);
+        // Recalculate project % complete inline using updated snapshot
+        if (activeProjectId) {
+          const allPct = updatedTasks.filter(t => t.projectObjectId || t.taskGroupId);
+          const avg = allPct.length > 0
+            ? Math.round(allPct.reduce((sum, t) => {
+                const pct = t.id === taskId && field === 'status' && value === 'complete' ? 100
+                  : t.id === taskId && field === 'progressPercentage' ? (parseInt(value) || 0)
+                  : (t.progressPercentage ?? 0);
+                return sum + pct;
+              }, 0) / allPct.length)
+            : 0;
+          apiClient.patch(`/api/projects/${activeProjectId}`, { progressPercentage: avg })
+            .then(() => queryClient.invalidateQueries({ queryKey: ['projectsByMockCycle'] }))
+            .catch(() => {});
+        }
+        return updatedTasks;
+      });
     } catch (e) { console.error('Failed to update task', e); }
   };
 
