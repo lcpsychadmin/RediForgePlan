@@ -657,9 +657,10 @@ const ProjectsPage: React.FC = () => {
 
         // Load task dependencies for all tasks in parallel
         const allDeps: Record<string, any[]> = {};
+        const depsTs = Date.now();
         await Promise.all(tasks.map(async (task: any) => {
           try {
-            const depsRes = await apiClient.get(`/api/tasks/${task.id}/dependencies`);
+            const depsRes = await apiClient.get(`/api/tasks/${task.id}/dependencies?t=${depsTs}`);
             allDeps[task.id] = depsRes.data.data || [];
           } catch (e) {
             allDeps[task.id] = [];
