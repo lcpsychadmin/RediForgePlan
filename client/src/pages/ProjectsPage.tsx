@@ -2094,18 +2094,18 @@ const ProjectsPage: React.FC = () => {
                                             </TextField>
                                             {/* Duration */}
                                             <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
-                                              <TextField size="small" type="number" value={task.duration ?? ''} placeholder="—"
+                                              <TextField size="small" type="number" value={task.duration != null ? Number(task.duration) : ''} placeholder="—"
                                                 onChange={e => {
                                                   const dur = parseFloat(e.target.value) || 0;
                                                   updateTaskInline(task.id, 'duration', String(dur || ''));
                                                   if (dur && task.startDate) {
-                                                    const newEnd = calcEndDate(task.startDate, dur, task.durationUnit || 'hours');
+                                                    const newEnd = calcEndDate(task.startDate, dur, task.durationUnit || 'days');
                                                     if (newEnd) updateTaskInline(task.id, 'endDate', newEnd);
                                                   }
                                                 }}
-                                                slotProps={{ htmlInput: { min: 0, step: 0.5 } }}
+                                                slotProps={{ htmlInput: { min: 0, step: 1 } }}
                                                 sx={{ ...taskFieldSx, '& input': { textAlign: 'center', px: 0.5, width: 38 } }} />
-                                              <TextField select size="small" value={task.durationUnit || 'hours'}
+                                              <TextField select size="small" value={task.durationUnit || 'days'}
                                                 onChange={e => {
                                                   updateTaskInline(task.id, 'durationUnit', e.target.value);
                                                   if (task.duration && task.startDate) {
@@ -2113,7 +2113,7 @@ const ProjectsPage: React.FC = () => {
                                                     if (newEnd) updateTaskInline(task.id, 'endDate', newEnd);
                                                   }
                                                 }}
-                                                sx={{ ...taskFieldSx, width: 70 }}>
+                                                sx={{ ...taskFieldSx, width: 82 }}>
                                                 <MenuItem value="hours">hrs</MenuItem>
                                                 <MenuItem value="days">days</MenuItem>
                                               </TextField>
@@ -2126,12 +2126,12 @@ const ProjectsPage: React.FC = () => {
                                               onChange={e => {
                                                 updateTaskInline(task.id, 'startDate', e.target.value);
                                                 if (task.duration) {
-                                                  const newEnd = calcEndDate(e.target.value, task.duration, task.durationUnit || 'hours');
+                                                  const newEnd = calcEndDate(e.target.value, task.duration, task.durationUnit || 'days');
                                                   if (newEnd) updateTaskInline(task.id, 'endDate', newEnd);
                                                 }
                                                 e.target.blur();
                                               }}
-                                              sx={{ ...taskFieldSx, '& input': { colorScheme: 'dark' } }} />
+                                              sx={{ ...taskFieldSx, '& input': { colorScheme: 'dark' }, '& .MuiInputBase-root.Mui-disabled': { opacity: 1 }, '& .MuiInputBase-root.Mui-disabled input': { WebkitTextFillColor: 'rgba(255,255,255,0.55)', cursor: 'not-allowed' }, '& .MuiOutlinedInput-root.Mui-disabled .MuiOutlinedInput-notchedOutline': { borderStyle: 'dashed' } }} />
                                             {/* End Date */}
                                             <TextField size="small" type="date"
                                               value={task.endDate || ''}
@@ -2141,7 +2141,7 @@ const ProjectsPage: React.FC = () => {
                                                 updateTaskInline(task.id, 'endDate', e.target.value);
                                                 e.target.blur();
                                               }}
-                                              sx={{ ...taskFieldSx, '& input': { colorScheme: 'dark' } }} />
+                                              sx={{ ...taskFieldSx, '& input': { colorScheme: 'dark' }, '& .MuiInputBase-root.Mui-disabled': { opacity: 1 }, '& .MuiInputBase-root.Mui-disabled input': { WebkitTextFillColor: 'rgba(255,255,255,0.55)', cursor: 'not-allowed' }, '& .MuiOutlinedInput-root.Mui-disabled .MuiOutlinedInput-notchedOutline': { borderStyle: 'dashed' } }} />
                                           </Box>
                                         ))}
                                       {/* Add Task row */}
@@ -2326,18 +2326,18 @@ const ProjectsPage: React.FC = () => {
                                             </TextField>
                                             {/* Duration */}
                                             <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
-                                              <TextField size="small" type="number" value={task.duration ?? ''} placeholder="—"
+                                              <TextField size="small" type="number" value={task.duration != null ? Number(task.duration) : ''} placeholder="—"
                                                 onChange={e => {
                                                   const dur = parseFloat(e.target.value) || 0;
                                                   updateTaskInline(task.id, 'duration', String(dur || ''));
                                                   if (dur && task.startDate) {
-                                                    const newEnd = calcEndDate(task.startDate, dur, task.durationUnit || 'hours');
+                                                    const newEnd = calcEndDate(task.startDate, dur, task.durationUnit || 'days');
                                                     if (newEnd) updateTaskInline(task.id, 'endDate', newEnd);
                                                   }
                                                 }}
-                                                slotProps={{ htmlInput: { min: 0, step: 0.5 } }}
+                                                slotProps={{ htmlInput: { min: 0, step: 1 } }}
                                                 sx={{ ...taskFieldSx, '& input': { textAlign: 'center', px: 0.5, width: 38 } }} />
-                                              <TextField select size="small" value={task.durationUnit || 'hours'}
+                                              <TextField select size="small" value={task.durationUnit || 'days'}
                                                 onChange={e => {
                                                   updateTaskInline(task.id, 'durationUnit', e.target.value);
                                                   if (task.duration && task.startDate) {
@@ -2345,7 +2345,7 @@ const ProjectsPage: React.FC = () => {
                                                     if (newEnd) updateTaskInline(task.id, 'endDate', newEnd);
                                                   }
                                                 }}
-                                                sx={{ ...taskFieldSx, width: 70 }}>
+                                                sx={{ ...taskFieldSx, width: 82 }}>
                                                 <MenuItem value="hours">hrs</MenuItem>
                                                 <MenuItem value="days">days</MenuItem>
                                               </TextField>
@@ -2358,12 +2358,12 @@ const ProjectsPage: React.FC = () => {
                                               onChange={e => {
                                                 updateTaskInline(task.id, 'startDate', e.target.value);
                                                 if (task.duration) {
-                                                  const newEnd = calcEndDate(e.target.value, task.duration, task.durationUnit || 'hours');
+                                                  const newEnd = calcEndDate(e.target.value, task.duration, task.durationUnit || 'days');
                                                   if (newEnd) updateTaskInline(task.id, 'endDate', newEnd);
                                                 }
                                                 e.target.blur();
                                               }}
-                                              sx={{ ...taskFieldSx, '& input': { colorScheme: 'dark' } }} />
+                                              sx={{ ...taskFieldSx, '& input': { colorScheme: 'dark' }, '& .MuiInputBase-root.Mui-disabled': { opacity: 1 }, '& .MuiInputBase-root.Mui-disabled input': { WebkitTextFillColor: 'rgba(255,255,255,0.55)', cursor: 'not-allowed' }, '& .MuiOutlinedInput-root.Mui-disabled .MuiOutlinedInput-notchedOutline': { borderStyle: 'dashed' } }} />
                                             {/* End Date */}
                                             <TextField size="small" type="date"
                                               value={task.endDate || ''}
@@ -2373,7 +2373,7 @@ const ProjectsPage: React.FC = () => {
                                                 updateTaskInline(task.id, 'endDate', e.target.value);
                                                 e.target.blur();
                                               }}
-                                              sx={{ ...taskFieldSx, '& input': { colorScheme: 'dark' } }} />
+                                              sx={{ ...taskFieldSx, '& input': { colorScheme: 'dark' }, '& .MuiInputBase-root.Mui-disabled': { opacity: 1 }, '& .MuiInputBase-root.Mui-disabled input': { WebkitTextFillColor: 'rgba(255,255,255,0.55)', cursor: 'not-allowed' }, '& .MuiOutlinedInput-root.Mui-disabled .MuiOutlinedInput-notchedOutline': { borderStyle: 'dashed' } }} />
                                             <Box sx={{ display: 'flex', gap: 0.25, alignItems: 'center' }}>
                                               <Badge badgeContent={taskCommentCounts[task.id] || 0} color="primary">
                                                 <IconButton size="small" title="Discussion" onClick={() => setCommentModalTask({ id: task.id, name: task.name || 'Task' })}
