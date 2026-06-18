@@ -3399,86 +3399,82 @@ const ProjectsPage: React.FC = () => {
                     {isLoadingCycleSchedule ? (
                       <Box sx={{ p: 2 }}><Typography variant="body2" color="text.secondary">Loading schedule...</Typography></Box>
                     ) : (
-                      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', minHeight: 190 }}>
-                        {scheduleWeekDates.map((day) => {
-                          const dayItems = cycleScheduleItems.filter((item: any) => {
-                            if (schedulePhaseFilter !== 'all' && (item.cutoverPhase || '') !== schedulePhaseFilter) return false;
-                            const loadStart = normalizeDateOnly(item.loadStartDate || undefined);
-                            const loadEnd = normalizeDateOnly(item.loadEndDate || item.loadStartDate || undefined);
-                            if (!loadStart && !loadEnd) return false;
+                      <Box sx={{ p: 1.25, minHeight: 190, display: 'flex', flexDirection: 'column', gap: 0.75 }}>
+                        {(() => {
+                          const weekStart = scheduleWeekDates[0];
+                          const weekEnd = scheduleWeekDates[6];
+                          const scheduledItems = cycleScheduleItems
+                            .filter((item: any) => {
+                              if (schedulePhaseFilter !== 'all' && (item.cutoverPhase || '') !== schedulePhaseFilter) return false;
+                              const loadStart = normalizeDateOnly(item.loadStartDate || undefined);
+                              const loadEnd = normalizeDateOnly(item.loadEndDate || item.loadStartDate || undefined);
+                              if (!loadStart && !loadEnd) return false;
+                              const rangeStart = loadStart || loadEnd;
+                              const rangeEnd = loadEnd || loadStart;
+                              if (!rangeStart || !rangeEnd) return false;
+                              return rangeEnd >= weekStart && rangeStart <= weekEnd;
+                            })
+                            .sort((a: any, b: any) => {
+                              const aStart = normalizeDateOnly(a.loadStartDate || a.loadEndDate || undefined);
+                              const bStart = normalizeDateOnly(b.loadStartDate || b.loadEndDate || undefined);
+                              return (aStart?.getTime() || 0) - (bStart?.getTime() || 0);
+                            });
 
-                            const rangeStart = loadStart || loadEnd;
-                            const rangeEnd = loadEnd || loadStart;
-                            if (!rangeStart || !rangeEnd) return false;
+                          if (scheduledItems.length === 0) {
+                            return <Typography variant="caption" color="text.disabled">No loads this week</Typography>;
+                          }
 
-                            return day >= rangeStart && day <= rangeEnd;
+                          return scheduledItems.map((item: any) => {
+                            const start = normalizeDateOnly(item.loadStartDate || item.loadEndDate || undefined);
+                            const end = normalizeDateOnly(item.loadEndDate || item.loadStartDate || undefined);
+                            if (!start || !end) return null;
+
+                            const clampedStart = start < weekStart ? weekStart : start;
+                            const clampedEnd = end > weekEnd ? weekEnd : end;
+                            const startIndex = Math.max(0, Math.min(6, Math.floor((clampedStart.getTime() - weekStart.getTime()) / (24 * 60 * 60 * 1000))));
+                            const endIndex = Math.max(0, Math.min(6, Math.floor((clampedEnd.getTime() - weekStart.getTime()) / (24 * 60 * 60 * 1000))));
+
+                            return (
+                              <Box key={`sched-${item.id}-${item.projectId}`} sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 0.75 }}>
+                                <Box
+                                  sx={{
+                                    gridColumn: `${startIndex + 1} / ${endIndex + 2}`,
+                                    p: 0.75,
+                                    borderRadius: 1,
+                                    backgroundColor: toRgba(item.projectColor, 0.28),
+                                    border: `1px solid ${toRgba(item.projectColor, 0.6)}`,
+                                    minWidth: 0,
+                                  }}
+                                >
+                                  <Typography variant="caption" sx={{ display: 'block', fontFamily: 'monospace', fontWeight: 700, color: item.projectColor }}>
+                                    {item.objectId || 'Object'}
+                                  </Typography>
+                                  <Typography variant="caption" sx={{ display: 'block', fontWeight: 600, color: '#D2DDF8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    {item.description || 'Load Object'}
+                                  </Typography>
+                                  <Typography variant="caption" sx={{ display: 'block', color: '#9FB0D8' }}>
+                                    {item.projectName}
+                                  </Typography>
+                                  <Typography variant="caption" sx={{ display: 'block', color: '#9FB0D8' }}>
+                                    {(() => {
+                                      const s = item.loadStartDate;
+                                      const e = item.loadEndDate || item.loadStartDate;
+                                      if (!s && !e) return '';
+                                      const fmt = (v: string) => {
+                                        const [yy, mm, dd] = v.split('-');
+                                        return `${mm}/${dd}`;
+                                      };
+                                      if (s && e) return s === e ? fmt(s) : `${fmt(s)} - ${fmt(e)}`;
+                                      return fmt((s || e) as string);
+                                    })()}
+                                  </Typography>
+                                </Box>
+                              </Box>
+                            );
                           });
-
-                          return (
-                            <Box key={`${day.toISOString()}-cell`} sx={{ p: 1, borderRight: '1px solid rgba(88,117,175,0.18)', '&:last-of-type': { borderRight: 'none' }, display: 'flex', flexDirection: 'column', gap: 0.75 }}>
-                              {dayItems.length === 0 ? (
-                                <Typography variant="caption" color="text.disabled">No loads</Typography>
-                              ) : (
-                                dayItems.map((item: any) => (
-                                  <Box key={item.id} sx={{ p: 0.75, borderRadius: 1, backgroundColor: toRgba(item.projectColor, 0.28), border: `1px solid ${toRgba(item.projectColor, 0.6)}` }}>
-                                    <Typography variant="caption" sx={{ display: 'block', fontFamily: 'monospace', fontWeight: 700, color: item.projectColor }}>
-                                      {item.objectId || 'Object'}
-                                    </Typography>
-                                    <Typography variant="caption" sx={{ display: 'block', fontWeight: 600, color: '#D2DDF8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                      {item.description || 'Load Object'}
-                                    </Typography>
-                                    <Typography variant="caption" sx={{ display: 'block', color: '#9FB0D8' }}>
-                                      {item.projectName}
-                                    </Typography>
-                                    <Typography variant="caption" sx={{ display: 'block', color: '#9FB0D8' }}>
-                                      {(() => {
-                                        const s = item.loadStartDate;
-                                        const e = item.loadEndDate || item.loadStartDate;
-                                        if (!s && !e) return 'Unscheduled';
-                                        const fmt = (v: string) => {
-                                          const [yy, mm, dd] = v.split('-');
-                                          return `${mm}/${dd}`;
-                                        };
-                                        if (s && e) return s === e ? fmt(s) : `${fmt(s)} - ${fmt(e)}`;
-                                        return fmt((s || e) as string);
-                                      })()}
-                                    </Typography>
-                                  </Box>
-                                ))
-                              )}
-                            </Box>
-                          );
-                        })}
+                        })()}
                       </Box>
                     )}
-                  </Box>
-
-                  <Box sx={{ border: '1px solid rgba(88,117,175,0.35)', borderRadius: 2, overflow: 'hidden', backgroundColor: 'rgba(14,27,55,0.7)' }}>
-                    <Box sx={{ px: 1.5, py: 1, borderBottom: '1px solid rgba(88,117,175,0.25)', backgroundColor: 'rgba(255,255,255,0.03)' }}>
-                      <Typography sx={{ fontWeight: 700 }}>Unscheduled</Typography>
-                    </Box>
-                    <Box sx={{ p: 1.25, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 1 }}>
-                      {cycleScheduleItems
-                        .filter((item: any) => {
-                          if (schedulePhaseFilter !== 'all' && (item.cutoverPhase || '') !== schedulePhaseFilter) return false;
-                          const loadStart = normalizeDateOnly(item.loadStartDate || undefined);
-                          const loadEnd = normalizeDateOnly(item.loadEndDate || item.loadStartDate || undefined);
-                          return !loadStart && !loadEnd;
-                        })
-                        .map((item: any) => (
-                          <Box key={`unscheduled-${item.id}`} sx={{ p: 0.75, borderRadius: 1, backgroundColor: toRgba(item.projectColor, 0.22), border: `1px solid ${toRgba(item.projectColor, 0.5)}` }}>
-                            <Typography variant="caption" sx={{ display: 'block', fontFamily: 'monospace', fontWeight: 700, color: item.projectColor }}>
-                              {item.objectId || 'Object'}
-                            </Typography>
-                            <Typography variant="caption" sx={{ display: 'block', color: '#D2DDF8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                              {item.description || 'Load Object'}
-                            </Typography>
-                            <Typography variant="caption" sx={{ display: 'block', color: '#9FB0D8' }}>
-                              {item.projectName}
-                            </Typography>
-                          </Box>
-                        ))}
-                    </Box>
                   </Box>
                 </>
               )}
