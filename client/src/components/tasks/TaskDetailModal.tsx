@@ -15,6 +15,7 @@ import {
   MenuItem,
   Alert,
 } from '@mui/material';
+import StatusChip from '../shared/StatusChip';
 import CloseIcon from '@mui/icons-material/Close';
 import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutline';
 import EditIcon from '@mui/icons-material/Edit';
@@ -139,11 +140,19 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   return (
     <>
       <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
-        <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-          <Typography variant="h6" sx={{ fontWeight: 700 }}>
-            {resolvedTask?.taskName || resolvedTask?.name || 'Task details'}
-          </Typography>
-          <Box sx={{ display: 'flex', gap: 0.5 }}>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.08)', pb: 1.5 }}>
+          <Box>
+            <Typography variant="h5" sx={{ fontWeight: 700, lineHeight: 1.2, mb: resolvedTask?.status ? 0.75 : 0 }}>
+              {resolvedTask?.taskName || resolvedTask?.name || 'Task details'}
+            </Typography>
+            {resolvedTask?.status && (
+              <StatusChip
+                status={resolvedTask.status}
+                sx={{ fontSize: '0.78rem', fontWeight: 700, px: 0.5 }}
+              />
+            )}
+          </Box>
+          <Box sx={{ display: 'flex', gap: 0.5, ml: 1, flexShrink: 0 }}>
             {!editMode && (
               <>
                 <IconButton
@@ -290,12 +299,11 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
           ) : (
             // View Mode
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                {!!resolvedTask.taskType && (
+              {!!resolvedTask.taskType && (
+                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
                   <Chip label={resolvedTask.taskType.replace(/_/g, ' ').toUpperCase()} variant="outlined" size="small" />
-                )}
-                {!!resolvedTask.status && <Chip label={resolvedTask.status.replace(/_/g, ' ').toUpperCase()} size="small" color="primary" />}
-              </Box>
+                </Box>
+              )}
 
               <Grid container spacing={2}>
                 <Grid item xs={12} sm={6}>
