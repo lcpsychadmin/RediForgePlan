@@ -8,7 +8,7 @@ import DashboardIcon from '@mui/icons-material/Dashboard';
 import FolderOpenIcon from '@mui/icons-material/FolderOpen';
 import SettingsIcon from '@mui/icons-material/Settings';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
-import StorageIcon from '@mui/icons-material/Storage';
+import CompareArrowsIcon from '@mui/icons-material/CompareArrows';
 import GroupIcon from '@mui/icons-material/Group';
 import DownloadIcon from '@mui/icons-material/Download';
 import GridViewIcon from '@mui/icons-material/GridView';
@@ -141,9 +141,9 @@ const TopNav: React.FC<TopNavProps> = ({
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
               {/* Icon and Title */}
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                <StorageIcon sx={{ fontSize: '1.4rem', color: 'primary.light' }} />
+                <CompareArrowsIcon sx={{ fontSize: '1.4rem', color: 'secondary.light' }} />
                 <Typography variant="h6" sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>
-                  Migration Plan
+                  Mock/Cutover Execution
                 </Typography>
               </Box>
 
