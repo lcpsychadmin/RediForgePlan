@@ -1265,8 +1265,11 @@ const ProjectsPage: React.FC = () => {
   const loadTaskDeps = async (taskId: string) => {
     try {
       const res = await apiClient.get(`/api/tasks/${taskId}/dependencies?t=${Date.now()}`);
-      setTaskDeps(prev => ({ ...prev, [taskId]: res.data.data || [] }));
+      const newDeps = res.data.data || [];
+      setTaskDeps(prev => ({ ...prev, [taskId]: newDeps }));
+      return newDeps as any[];
     } catch (e) { /* ignore */ }
+    return [] as any[];
   };
 
   const loadCycleTasksForDep = async (currentTaskId: string) => {
@@ -2180,8 +2183,8 @@ const ProjectsPage: React.FC = () => {
                                             {/* Start Date */}
                                             <TextField size="small" type="date"
                                               value={task.startDate || ''}
-                                              disabled={(taskDeps[task.id] || []).length > 0}
-                                              title={(taskDeps[task.id] || []).length > 0 ? 'Set by dependency — adjust via › button' : ''}
+                                              disabled={(taskDeps[task.id] || []).length > 0 && !!task.duration}
+                                              title={(taskDeps[task.id] || []).length > 0 && task.duration ? 'Set by dependency — adjust via › button' : (taskDeps[task.id] || []).length > 0 ? 'Has dependency' : ''}
                                               onChange={e => {
                                                 updateTaskInline(task.id, 'startDate', e.target.value);
                                                 if (task.duration) {
@@ -2435,8 +2438,8 @@ const ProjectsPage: React.FC = () => {
                                             {/* Start Date */}
                                             <TextField size="small" type="date"
                                               value={task.startDate || ''}
-                                              disabled={(taskDeps[task.id] || []).length > 0}
-                                              title={(taskDeps[task.id] || []).length > 0 ? 'Set by dependency — adjust via › button' : ''}
+                                              disabled={(taskDeps[task.id] || []).length > 0 && !!task.duration}
+                                              title={(taskDeps[task.id] || []).length > 0 && task.duration ? 'Set by dependency — adjust via › button' : (taskDeps[task.id] || []).length > 0 ? 'Has dependency' : ''}
                                               onChange={e => {
                                                 updateTaskInline(task.id, 'startDate', e.target.value);
                                                 if (task.duration) {
@@ -3818,28 +3821,38 @@ const ProjectsPage: React.FC = () => {
                                           await apiClient.delete(`/api/tasks/${taskId}/dependencies/${t.id}`);
                                         } else {
                                           await apiClient.post(`/api/tasks/${taskId}/dependencies`, { dependsOnTaskId: t.id });
-                                          // Update start date of dependent task to dep end date + 1
-                                          if (t.endDate) {
-                                            try {
-                                              const d = new Date(t.endDate + 'T00:00:00');
-                                              d.setDate(d.getDate() + 1);
-                                              const newStart = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-                                              const patchPayload: any = { startDate: newStart };
-                                              const affectedTask = projectTasks.find(pt => pt.id === taskId);
-                                              if (affectedTask?.duration) {
-                                                const newEnd = calcEndDate(newStart, affectedTask.duration, affectedTask.durationUnit || 'days');
-                                                if (newEnd) patchPayload.endDate = newEnd;
-                                              }
-                                              await apiClient.patch(`/api/tasks/${taskId}`, patchPayload);
-                                            } catch (dateErr) { /* ignore */ }
-                                          }
                                         }
                                       } catch (depErr) { console.error('Dep toggle failed', depErr); return; }
-                                      // Await full reload from server — source of truth (cache-busted)
-                                      await loadTaskDeps(taskId);
-                                      if (activeProjectId) {
-                                        const res = await apiClient.get(`/api/tasks/project/${activeProjectId}?t=${Date.now()}`);
-                                        setProjectTasks((res.data.data || []).map((t2: any) => normalizeTaskDateFields(t2)));
+
+                                      // Reload fresh deps from server
+                                      const freshDeps = await loadTaskDeps(taskId);
+                                      const affectedTask = projectTasks.find(pt => pt.id === taskId);
+
+                                      // Recalculate startDate/endDate when task has duration + deps
+                                      if (affectedTask?.duration && freshDeps.length > 0) {
+                                        let maxEndDate: string | null = null;
+                                        for (const dep of freshDeps) {
+                                          const depTask = cycleTasksForDep.find((ct: any) => ct.id === dep.dependsOnTaskId);
+                                          if (depTask?.endDate && (!maxEndDate || depTask.endDate > maxEndDate)) maxEndDate = depTask.endDate;
+                                        }
+                                        if (maxEndDate) {
+                                          const durationUnit = affectedTask.durationUnit || 'days';
+                                          let newStart: string;
+                                          if (durationUnit === 'hours') {
+                                            newStart = maxEndDate; // same day for hours
+                                          } else {
+                                            const d = new Date(maxEndDate + 'T00:00:00');
+                                            d.setDate(d.getDate() + 1);
+                                            newStart = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+                                          }
+                                          const patchPayload: any = { startDate: newStart };
+                                          const newEnd = calcEndDate(newStart, affectedTask.duration, durationUnit);
+                                          if (newEnd) patchPayload.endDate = newEnd;
+                                          try {
+                                            await apiClient.patch(`/api/tasks/${taskId}`, patchPayload);
+                                            setProjectTasks(prev => prev.map(pt => pt.id === taskId ? { ...pt, ...patchPayload } : pt));
+                                          } catch (e) { /* ignore */ }
+                                        }
                                       }
                                     }}>
                                     <Box sx={{ width: 14, height: 14, borderRadius: '3px', border: '1.5px solid', borderColor: isDep ? 'primary.main' : 'rgba(255,255,255,0.3)', backgroundColor: isDep ? 'primary.main' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
