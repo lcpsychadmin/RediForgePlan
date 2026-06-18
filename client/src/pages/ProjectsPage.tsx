@@ -2150,6 +2150,26 @@ const ProjectsPage: React.FC = () => {
                                                 e.target.blur();
                                               }}
                                               sx={{ ...taskFieldSx, '& input': { colorScheme: 'dark' }, '& .MuiInputBase-root.Mui-disabled': { opacity: 1, backgroundColor: 'rgba(255,255,255,0.08)' }, '& .MuiInputBase-root.Mui-disabled input': { WebkitTextFillColor: 'rgba(255,255,255,0.75)', cursor: 'not-allowed' }, '& .MuiOutlinedInput-root.Mui-disabled .MuiOutlinedInput-notchedOutline': { borderStyle: 'dashed' } }} />
+                                            {/* Actions */}
+                                            <Box sx={{ display: 'flex', gap: 0.25, alignItems: 'center' }}>
+                                              <Badge badgeContent={taskCommentCounts[task.id] || 0} color="primary">
+                                                <IconButton size="small" title="Discussion" onClick={() => setCommentModalTask({ id: task.id, name: task.name || 'Task' })}
+                                                  sx={{ opacity: 0.6, '&:hover': { opacity: 1, color: accentColor } }}>
+                                                  <ChatBubbleOutlineIcon sx={{ fontSize: '0.9rem' }} />
+                                                </IconButton>
+                                              </Badge>
+                                              <IconButton size="small" title="Dependencies" onClick={async () => {
+                                                await loadTaskDeps(task.id);
+                                                setDepDialogTaskId(task.id);
+                                                const all = await apiClient.get(`/api/tasks/project/${activeProjectId}`);
+                                                setCycleTasksForDep(all.data.data || []);
+                                              }} sx={{ opacity: 0.6, '&:hover': { opacity: 1 } }}>
+                                                <ChevronRightIcon sx={{ fontSize: '0.9rem' }} />
+                                              </IconButton>
+                                              <IconButton size="small" onClick={() => openDeleteDialog('taskSingle' as any, task.id, task.name)} sx={{ opacity: 0.6, '&:hover': { opacity: 1 } }}>
+                                                <DeleteIcon sx={{ fontSize: '0.9rem' }} />
+                                              </IconButton>
+                                            </Box>
                                           </Box>
                                         ))}
                                       {/* Add Task row */}
