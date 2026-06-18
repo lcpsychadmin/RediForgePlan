@@ -2316,9 +2316,9 @@ const ProjectsPage: React.FC = () => {
                                               }}
                                               sx={taskFieldSx} />
                                             {/* End Date */}
-                                            {task.duration && task.startDate ? (
+                                            {!!task.duration ? (
                                               <Box title="Calculated from start date + duration" sx={{ display: 'flex', alignItems: 'center', px: 1, height: 26, minWidth: 100, border: '1px dashed rgba(255,255,255,0.2)', borderRadius: 1, backgroundColor: 'rgba(255,255,255,0.08)', cursor: 'not-allowed', fontSize: '0.72rem', color: 'rgba(255,255,255,0.75)' }}>
-                                                {(() => { const c = calcEndDate(task.startDate, Number(task.duration), 'days'); if (!c) return task.endDate || ''; const [y,m,d] = c.split('-'); return `${m}/${d}/${y}`; })()}
+                                                {(() => { if (!task.startDate) return '—'; const c = calcEndDate(task.startDate, Number(task.duration), 'days'); if (!c) return '—'; const [y,m,d] = c.split('-'); return `${m}/${d}/${y}`; })()}
                                               </Box>
                                             ) : (
                                               <TextField size="small" type="date"
@@ -2592,9 +2592,9 @@ const ProjectsPage: React.FC = () => {
                                               }}
                                               sx={taskFieldSx} />
                                             {/* End Date */}
-                                            {task.duration && task.startDate ? (
+                                            {!!task.duration ? (
                                               <Box title="Calculated from start date + duration" sx={{ display: 'flex', alignItems: 'center', px: 1, height: 26, minWidth: 100, border: '1px dashed rgba(255,255,255,0.2)', borderRadius: 1, backgroundColor: 'rgba(255,255,255,0.08)', cursor: 'not-allowed', fontSize: '0.72rem', color: 'rgba(255,255,255,0.75)' }}>
-                                                {(() => { const c = calcEndDate(task.startDate, Number(task.duration), 'days'); if (!c) return task.endDate || ''; const [y,m,d] = c.split('-'); return `${m}/${d}/${y}`; })()}
+                                                {(() => { if (!task.startDate) return '—'; const c = calcEndDate(task.startDate, Number(task.duration), 'days'); if (!c) return '—'; const [y,m,d] = c.split('-'); return `${m}/${d}/${y}`; })()}
                                               </Box>
                                             ) : (
                                               <TextField size="small" type="date"
