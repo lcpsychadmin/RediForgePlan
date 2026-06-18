@@ -2325,11 +2325,18 @@ const ProjectsPage: React.FC = () => {
                                               <Box title="Calculated from start date + duration" sx={{ display: 'flex', alignItems: 'center', px: 1, height: 26, minWidth: 100, border: '1px dashed rgba(255,255,255,0.2)', borderRadius: 1, backgroundColor: 'rgba(255,255,255,0.08)', cursor: 'not-allowed', fontSize: '0.72rem', color: 'rgba(255,255,255,0.75)' }}>
                                                 {(() => { if (!task.startDate) return '—'; const c = calcEndDate(task.startDate, Number(task.duration), 'days'); if (!c) return '—'; const [y,m,d] = c.split('-'); return `${m}/${d}/${y}`; })()}
                                               </Box>
+                                            ) : task.endDate ? (
+                                              <Box sx={{ display: 'flex', alignItems: 'center', px: 1, height: 26, minWidth: 100, border: '1px dashed rgba(255,255,255,0.2)', borderRadius: 1, backgroundColor: 'rgba(255,255,255,0.08)', fontSize: '0.72rem', color: 'rgba(255,255,255,0.75)' }}>
+                                                {(() => { const [y,m,d] = task.endDate.split('-'); return `${m}/${d}/${y}`; })()}
+                                              </Box>
                                             ) : (
-                                              <TextField size="small" type="date"
-                                                value={task.endDate || ''}
-                                                onChange={e => { updateTaskInline(task.id, 'endDate', e.target.value); e.target.blur(); }}
-                                                sx={taskFieldSx} />
+                                              <Box sx={{ position: 'relative', '&:focus-within .date-empty-end': { display: 'none' } }}>
+                                                <TextField size="small" type="date"
+                                                  value={task.endDate || ''}
+                                                  onChange={e => { updateTaskInline(task.id, 'endDate', e.target.value); e.target.blur(); }}
+                                                  sx={{ ...taskFieldSx, '& input': { color: 'transparent' }, '& input:focus': { color: 'inherit' }, '& input::-webkit-calendar-picker-indicator': { opacity: 0 }, '& input:focus::-webkit-calendar-picker-indicator': { opacity: 1 } }} />
+                                                <Box className="date-empty-end" sx={{ position: 'absolute', inset: 0, pl: 1.5, display: 'flex', alignItems: 'center', pointerEvents: 'none', fontSize: '0.72rem', color: 'text.disabled' }}>—</Box>
+                                              </Box>
                                             )}
                                             {/* Actions */}
                                             <Box sx={{ display: 'flex', gap: 0.25, alignItems: 'center' }}>
@@ -2606,11 +2613,18 @@ const ProjectsPage: React.FC = () => {
                                               <Box title="Calculated from start date + duration" sx={{ display: 'flex', alignItems: 'center', px: 1, height: 26, minWidth: 100, border: '1px dashed rgba(255,255,255,0.2)', borderRadius: 1, backgroundColor: 'rgba(255,255,255,0.08)', cursor: 'not-allowed', fontSize: '0.72rem', color: 'rgba(255,255,255,0.75)' }}>
                                                 {(() => { if (!task.startDate) return '—'; const c = calcEndDate(task.startDate, Number(task.duration), 'days'); if (!c) return '—'; const [y,m,d] = c.split('-'); return `${m}/${d}/${y}`; })()}
                                               </Box>
+                                            ) : task.endDate ? (
+                                              <Box sx={{ display: 'flex', alignItems: 'center', px: 1, height: 26, minWidth: 100, border: '1px dashed rgba(255,255,255,0.2)', borderRadius: 1, backgroundColor: 'rgba(255,255,255,0.08)', fontSize: '0.72rem', color: 'rgba(255,255,255,0.75)' }}>
+                                                {(() => { const [y,m,d] = task.endDate.split('-'); return `${m}/${d}/${y}`; })()}
+                                              </Box>
                                             ) : (
-                                              <TextField size="small" type="date"
-                                                value={task.endDate || ''}
-                                                onChange={e => { updateTaskInline(task.id, 'endDate', e.target.value); e.target.blur(); }}
-                                                sx={taskFieldSx} />
+                                              <Box sx={{ position: 'relative', '&:focus-within .date-empty-end': { display: 'none' } }}>
+                                                <TextField size="small" type="date"
+                                                  value={task.endDate || ''}
+                                                  onChange={e => { updateTaskInline(task.id, 'endDate', e.target.value); e.target.blur(); }}
+                                                  sx={{ ...taskFieldSx, '& input': { color: 'transparent' }, '& input:focus': { color: 'inherit' }, '& input::-webkit-calendar-picker-indicator': { opacity: 0 }, '& input:focus::-webkit-calendar-picker-indicator': { opacity: 1 } }} />
+                                                <Box className="date-empty-end" sx={{ position: 'absolute', inset: 0, pl: 1.5, display: 'flex', alignItems: 'center', pointerEvents: 'none', fontSize: '0.72rem', color: 'text.disabled' }}>—</Box>
+                                              </Box>
                                             )}
                                             <Box sx={{ display: 'flex', gap: 0.25, alignItems: 'center' }}>
                                               <Badge badgeContent={taskCommentCounts[task.id] || 0} color="primary">
