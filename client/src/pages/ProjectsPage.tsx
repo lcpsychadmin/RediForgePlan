@@ -959,12 +959,23 @@ const ProjectsPage: React.FC = () => {
       
       // Reload tasks if we deleted a task or task group
       if (activeProjectId && (deleteItemType === 'task' || deleteItemType === 'taskGroup')) {
+        const reloadTs = Date.now();
         const [tasksRes, groupsRes] = await Promise.all([
           apiClient.get(`/api/tasks/project/${activeProjectId}`),
           apiClient.get(`/api/tasks/groups/project/${activeProjectId}`),
         ]);
-        setProjectTasks((tasksRes.data.data || []).map((task: any) => normalizeTaskDateFields(task)));
+        const reloadedTasks = (tasksRes.data.data || []).map((task: any) => normalizeTaskDateFields(task));
+        setProjectTasks(reloadedTasks);
         setProjectTaskGroups(groupsRes.data.data || []);
+        // Reload deps for all remaining tasks so stale dep state is cleared
+        const freshDepsMap: Record<string, any[]> = {};
+        await Promise.all(reloadedTasks.map(async (task: any) => {
+          try {
+            const dr = await apiClient.get(`/api/tasks/${task.id}/dependencies?t=${reloadTs}`);
+            freshDepsMap[task.id] = dr.data.data || [];
+          } catch { freshDepsMap[task.id] = []; }
+        }));
+        setTaskDeps(freshDepsMap);
       }
       
       // Clear selection if we deleted the selected item
@@ -2270,9 +2281,14 @@ const ProjectsPage: React.FC = () => {
                                                 onBlur={e => {
                                                   const dur = parseFloat(e.target.value) || 0;
                                                   updateTaskInline(task.id, 'duration', String(dur || ''));
-                                                  if (dur && task.startDate) {
-                                                    const newEnd = calcEndDate(task.startDate, dur, task.durationUnit || 'days');
-                                                    if (newEnd) updateTaskInline(task.id, 'endDate', newEnd);
+                                                  const freshStart = projectTasksRef.current.find(t => t.id === task.id)?.startDate || task.startDate;
+                                                  if (dur && freshStart) {
+                                                    const newEnd = calcEndDate(freshStart, dur, task.durationUnit || 'days');
+                                                    if (newEnd) {
+                                                      updateTaskInline(task.id, 'endDate', newEnd);
+                                                      const snap = projectTasksRef.current.map(t => t.id === task.id ? { ...t, duration: dur, endDate: newEnd } : t);
+                                                      cascadeAllDates(snap, taskDepsRef.current);
+                                                    }
                                                   }
                                                 }}
                                                 slotProps={{ htmlInput: { min: 0, step: 1 } }}
@@ -2296,14 +2312,16 @@ const ProjectsPage: React.FC = () => {
                                               disabled={(taskDeps[task.id] || []).length > 0 && !!task.duration}
                                               title={(taskDeps[task.id] || []).length > 0 && task.duration ? 'Set by dependency — adjust via › button' : (taskDeps[task.id] || []).length > 0 ? 'Has dependency' : ''}
                                               onChange={e => {
-                                                updateTaskInline(task.id, 'startDate', e.target.value);
-                                                if (task.duration) {
-                                                  const newEnd = calcEndDate(e.target.value, task.duration, task.durationUnit || 'days');
-                                                  if (newEnd) updateTaskInline(task.id, 'endDate', newEnd);
-                                                } else {
-                                                  // No duration: end = start, triggers cascade to downstream tasks
-                                                  updateTaskInline(task.id, 'endDate', e.target.value);
-                                                }
+                                                const newStart = e.target.value;
+                                                updateTaskInline(task.id, 'startDate', newStart);
+                                                const freshTask = projectTasksRef.current.find(t => t.id === task.id);
+                                                const dur = freshTask?.duration ?? task.duration;
+                                                const endToSet = dur
+                                                  ? (calcEndDate(newStart, Number(dur), freshTask?.durationUnit || task.durationUnit || 'days') || newStart)
+                                                  : newStart;
+                                                updateTaskInline(task.id, 'endDate', endToSet);
+                                                const snap = projectTasksRef.current.map(t => t.id === task.id ? { ...t, startDate: newStart, endDate: endToSet } : t);
+                                                cascadeAllDates(snap, taskDepsRef.current);
                                                 e.target.blur();
                                               }}
                                               sx={taskFieldSx} />
@@ -2539,9 +2557,14 @@ const ProjectsPage: React.FC = () => {
                                                 onBlur={e => {
                                                   const dur = parseFloat(e.target.value) || 0;
                                                   updateTaskInline(task.id, 'duration', String(dur || ''));
-                                                  if (dur && task.startDate) {
-                                                    const newEnd = calcEndDate(task.startDate, dur, task.durationUnit || 'days');
-                                                    if (newEnd) updateTaskInline(task.id, 'endDate', newEnd);
+                                                  const freshStart = projectTasksRef.current.find(t => t.id === task.id)?.startDate || task.startDate;
+                                                  if (dur && freshStart) {
+                                                    const newEnd = calcEndDate(freshStart, dur, task.durationUnit || 'days');
+                                                    if (newEnd) {
+                                                      updateTaskInline(task.id, 'endDate', newEnd);
+                                                      const snap = projectTasksRef.current.map(t => t.id === task.id ? { ...t, duration: dur, endDate: newEnd } : t);
+                                                      cascadeAllDates(snap, taskDepsRef.current);
+                                                    }
                                                   }
                                                 }}
                                                 slotProps={{ htmlInput: { min: 0, step: 1 } }}
@@ -2565,14 +2588,16 @@ const ProjectsPage: React.FC = () => {
                                               disabled={(taskDeps[task.id] || []).length > 0 && !!task.duration}
                                               title={(taskDeps[task.id] || []).length > 0 && task.duration ? 'Set by dependency — adjust via › button' : (taskDeps[task.id] || []).length > 0 ? 'Has dependency' : ''}
                                               onChange={e => {
-                                                updateTaskInline(task.id, 'startDate', e.target.value);
-                                                if (task.duration) {
-                                                  const newEnd = calcEndDate(e.target.value, task.duration, task.durationUnit || 'days');
-                                                  if (newEnd) updateTaskInline(task.id, 'endDate', newEnd);
-                                                } else {
-                                                  // No duration: end = start, triggers cascade to downstream tasks
-                                                  updateTaskInline(task.id, 'endDate', e.target.value);
-                                                }
+                                                const newStart = e.target.value;
+                                                updateTaskInline(task.id, 'startDate', newStart);
+                                                const freshTask = projectTasksRef.current.find(t => t.id === task.id);
+                                                const dur = freshTask?.duration ?? task.duration;
+                                                const endToSet = dur
+                                                  ? (calcEndDate(newStart, Number(dur), freshTask?.durationUnit || task.durationUnit || 'days') || newStart)
+                                                  : newStart;
+                                                updateTaskInline(task.id, 'endDate', endToSet);
+                                                const snap = projectTasksRef.current.map(t => t.id === task.id ? { ...t, startDate: newStart, endDate: endToSet } : t);
+                                                cascadeAllDates(snap, taskDepsRef.current);
                                                 e.target.blur();
                                               }}
                                               sx={taskFieldSx} />
