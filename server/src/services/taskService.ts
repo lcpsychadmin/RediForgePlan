@@ -207,7 +207,7 @@ export class TaskService {
         data.endDate || null,
         data.assignedTo || null,
         data.duration || null,
-        data.durationUnit || 'hours',
+        data.durationUnit || 'days',
         data.progressPercentage || 0,
         data.draUserId || null,
         data.developerUserId || null,
@@ -365,8 +365,6 @@ export class TaskService {
         taskType: tpl.taskType,
         name: tpl.name,
         status: 'not_started',
-        duration: tpl.duration,
-        durationUnit: tpl.durationUnit,
       });
       created.push(task);
     }
