@@ -2300,15 +2300,14 @@ const ProjectsPage: React.FC = () => {
                                                 const newStart = e.target.value;
                                                 const freshTask = projectTasksRef.current.find(t => t.id === task.id);
                                                 const dur = freshTask?.duration ?? task.duration;
-                                                const endToSet = dur
-                                                  ? (calcEndDate(newStart, Number(dur), 'days') || newStart)
-                                                  : newStart;
-                                                // Immediate state update for responsiveness
-                                                setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, startDate: newStart, endDate: endToSet } : t));
-                                                // Single PATCH for both fields, then cascade
-                                                apiClient.patch(`/api/tasks/${task.id}`, { startDate: newStart, endDate: endToSet })
+                                                // Only set endDate when duration exists; otherwise leave it null
+                                                const endToSet = dur ? (calcEndDate(newStart, Number(dur), 'days') || null) : null;
+                                                const patchData: any = { startDate: newStart };
+                                                if (endToSet) patchData.endDate = endToSet;
+                                                setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, startDate: newStart, ...(endToSet ? { endDate: endToSet } : {}) } : t));
+                                                apiClient.patch(`/api/tasks/${task.id}`, patchData)
                                                   .then(() => {
-                                                    const snap = projectTasksRef.current.map(t => t.id === task.id ? { ...t, startDate: newStart, endDate: endToSet } : t);
+                                                    const snap = projectTasksRef.current.map(t => t.id === task.id ? { ...t, startDate: newStart, ...(endToSet ? { endDate: endToSet } : {}) } : t);
                                                     cascadeAllDates(snap, taskDepsRef.current);
                                                   })
                                                   .catch(() => {});
@@ -2576,15 +2575,14 @@ const ProjectsPage: React.FC = () => {
                                                 const newStart = e.target.value;
                                                 const freshTask = projectTasksRef.current.find(t => t.id === task.id);
                                                 const dur = freshTask?.duration ?? task.duration;
-                                                const endToSet = dur
-                                                  ? (calcEndDate(newStart, Number(dur), 'days') || newStart)
-                                                  : newStart;
-                                                // Immediate state update for responsiveness
-                                                setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, startDate: newStart, endDate: endToSet } : t));
-                                                // Single PATCH for both fields, then cascade
-                                                apiClient.patch(`/api/tasks/${task.id}`, { startDate: newStart, endDate: endToSet })
+                                                // Only set endDate when duration exists; otherwise leave it null
+                                                const endToSet = dur ? (calcEndDate(newStart, Number(dur), 'days') || null) : null;
+                                                const patchData: any = { startDate: newStart };
+                                                if (endToSet) patchData.endDate = endToSet;
+                                                setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, startDate: newStart, ...(endToSet ? { endDate: endToSet } : {}) } : t));
+                                                apiClient.patch(`/api/tasks/${task.id}`, patchData)
                                                   .then(() => {
-                                                    const snap = projectTasksRef.current.map(t => t.id === task.id ? { ...t, startDate: newStart, endDate: endToSet } : t);
+                                                    const snap = projectTasksRef.current.map(t => t.id === task.id ? { ...t, startDate: newStart, ...(endToSet ? { endDate: endToSet } : {}) } : t);
                                                     cascadeAllDates(snap, taskDepsRef.current);
                                                   })
                                                   .catch(() => {});
