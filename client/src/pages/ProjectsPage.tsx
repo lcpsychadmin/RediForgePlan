@@ -136,6 +136,11 @@ const ProjectsPage: React.FC = () => {
   const [editAccentColor, setEditAccentColor] = useState('');
   const [editProgressPercentage, setEditProgressPercentage] = useState(0);
   const [isEditing, setIsEditing] = useState(false);
+  const [cloneCycleDialogOpen, setCloneCycleDialogOpen] = useState(false);
+  const [cloneCycleSourceId, setCloneCycleSourceId] = useState<string | null>(null);
+  const [cloneCycleSourceProgramId, setCloneCycleSourceProgramId] = useState<string | null>(null);
+  const [cloneCycleName, setCloneCycleName] = useState('');
+  const [isCloningCycle, setIsCloningCycle] = useState(false);
 
   // Data object dialog states
   const [dataObjectDialogOpen, setDataObjectDialogOpen] = useState(false);
@@ -1097,7 +1102,7 @@ const ProjectsPage: React.FC = () => {
     }
   };
 
-  const handleCloneCycle = async (cycleId: string) => {
+  const handleCloneCycle = (cycleId: string) => {
     let sourceCycle: MockCycle | null = null;
     let sourceProgramId: string | null = null;
 
@@ -1115,31 +1120,43 @@ const ProjectsPage: React.FC = () => {
       return;
     }
 
-    const suggestedName = `${sourceCycle.name} Copy`;
-    const enteredName = window.prompt('Name for copied mock cycle', suggestedName);
-    if (enteredName === null) return;
+    setCloneCycleSourceId(cycleId);
+    setCloneCycleSourceProgramId(sourceProgramId);
+    setCloneCycleName(`${sourceCycle.name} Copy`);
+    setCloneCycleDialogOpen(true);
+  };
 
-    const name = enteredName.trim();
+  const handleCloneCycleConfirm = async () => {
+    if (!cloneCycleSourceId || !cloneCycleSourceProgramId) return;
+
+    const name = cloneCycleName.trim();
     if (!name) {
       alert('A name is required to copy a mock cycle.');
       return;
     }
 
     try {
-      const res = await apiClient.post(`/api/mock-cycles/${cycleId}/clone`, { name });
+      setIsCloningCycle(true);
+      const res = await apiClient.post(`/api/mock-cycles/${cloneCycleSourceId}/clone`, { name });
       const cloned = res?.data?.data;
 
       queryClient.invalidateQueries({ queryKey: ['mockCycles'] });
       queryClient.invalidateQueries({ queryKey: ['projectsByMockCycle'] });
 
-      setExpandedPrograms(prev => new Set(prev).add(sourceProgramId as string));
+      setExpandedPrograms(prev => new Set(prev).add(cloneCycleSourceProgramId as string));
       if (cloned?.id) {
-        setSelectedItem({ type: 'cycle', id: cloned.id, programId: sourceProgramId });
+        setSelectedItem({ type: 'cycle', id: cloned.id, programId: cloneCycleSourceProgramId });
       }
       setTabValue(0);
+      setCloneCycleDialogOpen(false);
+      setCloneCycleSourceId(null);
+      setCloneCycleSourceProgramId(null);
+      setCloneCycleName('');
     } catch (error) {
       console.error('Failed to copy mock cycle:', error);
       alert('Failed to copy mock cycle. Please try again.');
+    } finally {
+      setIsCloningCycle(false);
     }
   };
 
@@ -3482,6 +3499,47 @@ const ProjectsPage: React.FC = () => {
         </DialogActions>
       </Dialog>
 
+      {/* Copy Mock Cycle Dialog */}
+      <Dialog open={cloneCycleDialogOpen} onClose={() => !isCloningCycle && setCloneCycleDialogOpen(false)} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 2 } }}>
+        <DialogTitle sx={{
+          background: theme => `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark || theme.palette.primary.main} 100%)`,
+          color: 'white',
+          fontWeight: 600,
+          fontSize: '1.1rem',
+          pb: 2,
+        }}>
+          Copy Mock Cycle
+        </DialogTitle>
+        <DialogContent sx={{ pt: 2, px: 3 }}>
+          <Typography variant="body2" sx={{ mt: 2, mb: 2, color: 'text.secondary' }}>
+            This will create a new mock cycle and copy projects, inventory, dependencies, tasks, and schedule data.
+          </Typography>
+          <TextField
+            autoFocus
+            fullWidth
+            label="New Mock Cycle Name"
+            value={cloneCycleName}
+            onChange={(e) => setCloneCycleName(e.target.value)}
+            placeholder="Enter name"
+            variant="outlined"
+            size="small"
+          />
+        </DialogContent>
+        <DialogActions sx={{ gap: 1, p: 2, borderTop: '1px solid', borderColor: 'divider' }}>
+          <Button onClick={() => setCloneCycleDialogOpen(false)} disabled={isCloningCycle} sx={{ textTransform: 'none' }}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleCloneCycleConfirm}
+            variant="contained"
+            disabled={isCloningCycle || !cloneCycleName.trim()}
+            sx={{ textTransform: 'none' }}
+          >
+            {isCloningCycle ? 'Copying...' : 'Copy'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       {/* Context Menu */}
       <Menu
         anchorEl={menuAnchorEl}
@@ -3620,10 +3678,10 @@ const ProjectsPage: React.FC = () => {
           </>
         )}
         <MenuItem
-          onClick={async () => {
+          onClick={() => {
             if (menuType !== 'cycle' || !menuItemId) return;
             setMenuAnchorEl(null);
-            await handleCloneCycle(menuItemId);
+            handleCloneCycle(menuItemId);
           }}
           sx={{ display: menuType === 'cycle' ? 'flex' : 'none' }}
         >
