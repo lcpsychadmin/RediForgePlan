@@ -41,6 +41,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import GroupIcon from '@mui/icons-material/Group';
 import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutline';
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
+import SaveIcon from '@mui/icons-material/Save';
 import { TaskCommentsModal } from '../components/TaskCommentsModal';
 import FolderOutlinedIcon from '@mui/icons-material/FolderOutlined';
 import CorporateFareIcon from '@mui/icons-material/CorporateFare';
@@ -1273,6 +1274,30 @@ const ProjectsPage: React.FC = () => {
     return [] as any[];
   };
 
+  const saveObjectTasks = async (taskIds: string[]) => {
+    const tasksToSave = projectTasks.filter(t => taskIds.includes(t.id));
+    await Promise.all(tasksToSave.map(async (task) => {
+      try {
+        await apiClient.patch(`/api/tasks/${task.id}`, {
+          name: task.name || '',
+          status: task.status,
+          progressPercentage: task.progressPercentage ?? 0,
+          assignedTo: task.assignedTo || null,
+          duration: task.duration ? Number(task.duration) : null,
+          durationUnit: task.durationUnit || 'days',
+          startDate: task.startDate || null,
+          endDate: task.endDate || null,
+        });
+      } catch (e) { console.error('Failed to save task', task.id, e); }
+    }));
+    if (activeProjectId) {
+      const allPct = projectTasks.filter(t => t.projectObjectId || t.taskGroupId);
+      const avg = allPct.length > 0 ? Math.round(allPct.reduce((s, t) => s + (t.progressPercentage ?? 0), 0) / allPct.length) : 0;
+      apiClient.patch(`/api/projects/${activeProjectId}`, { progressPercentage: avg })
+        .then(() => queryClient.invalidateQueries({ queryKey: ['projectsByMockCycle'] })).catch(() => {});
+    }
+  };
+
   const loadCycleTasksForDep = async (currentTaskId: string) => {
     const currentTask = projectTasks.find(t => t.id === currentTaskId);
     const cycleProjects: any[] = activeCycleId ? (projectsByMockCycle[activeCycleId] || []) : [];
@@ -2120,34 +2145,33 @@ const ProjectsPage: React.FC = () => {
                                             {/* Task name */}
                                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
                                               <Box sx={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: getTaskStatusColor(task.status), flexShrink: 0 }} />
-                                              <TextField size="small" value={task.name || ''} onBlur={e => updateTaskInline(task.id, 'name', e.target.value)}
+                                              <TextField size="small" value={task.name || ''}
                                                 onChange={e => setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, name: e.target.value } : t))}
                                                 sx={{ ...taskFieldSx, flex: 1 }} />
                                             </Box>
                                             {/* Status dropdown */}
                                             <TextField select size="small" value={task.status} onChange={e => {
-                                              const newStatus = e.target.value;
-                                              updateTaskInline(task.id, 'status', newStatus);
-                                              if (newStatus === 'complete') updateTaskInline(task.id, 'progressPercentage', '100');
-                                              else if (newStatus !== 'in_progress') updateTaskInline(task.id, 'progressPercentage', '0');
-                                            }}
-                                              sx={taskFieldSx}>
+                                              const s = e.target.value;
+                                              const pct = s === 'complete' ? 100 : s !== 'in_progress' ? 0 : (task.progressPercentage ?? 0);
+                                              setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: s, progressPercentage: pct } : t));
+                                            }} sx={taskFieldSx}>
                                               <MenuItem value="not_started">Not Started</MenuItem>
                                               <MenuItem value="in_progress">In Progress</MenuItem>
                                               <MenuItem value="complete">Completed</MenuItem>
                                               <MenuItem value="blocked">Blocked</MenuItem>
                                             </TextField>
-                                            {/* % Complete - right after status */}
+                                            {/* % Complete */}
                                             <TextField size="small" type="number" value={task.progressPercentage ?? 0}
                                               disabled={task.status !== 'in_progress'}
                                               onChange={e => {
                                                 const val = Math.min(100, Math.max(0, parseInt(e.target.value) || 0));
-                                                updateTaskInline(task.id, 'progressPercentage', String(val));
+                                                setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, progressPercentage: val } : t));
                                               }}
                                               slotProps={{ htmlInput: { min: 0, max: 100 } }}
                                               sx={{ ...taskFieldSx, '& input': { textAlign: 'center', px: 0.5 }, '& .MuiInputBase-root.Mui-disabled': { opacity: 1, backgroundColor: 'rgba(255,255,255,0.08)' }, '& .MuiInputBase-root.Mui-disabled input': { WebkitTextFillColor: 'rgba(255,255,255,0.75)', cursor: 'not-allowed' }, '& .MuiOutlinedInput-root.Mui-disabled .MuiOutlinedInput-notchedOutline': { borderStyle: 'dashed' } }} />
                                             {/* Assigned To */}
-                                            <TextField select size="small" value={task.assignedTo || ''} onChange={e => updateTaskInline(task.id, 'assignedTo', e.target.value)}
+                                            <TextField select size="small" value={task.assignedTo || ''}
+                                              onChange={e => setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, assignedTo: e.target.value } : t))}
                                               sx={taskFieldSx}>
                                               <MenuItem value=""><em>Unassigned</em></MenuItem>
                                               {people.map(p => <MenuItem key={p.id} value={p.name}>{p.name}</MenuItem>)}
@@ -2160,21 +2184,16 @@ const ProjectsPage: React.FC = () => {
                                                 onChange={e => setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, duration: parseFloat(e.target.value) || null } : t))}
                                                 onBlur={e => {
                                                   const dur = parseFloat(e.target.value) || 0;
-                                                  updateTaskInline(task.id, 'duration', String(dur || ''));
-                                                  if (dur && task.startDate) {
-                                                    const newEnd = calcEndDate(task.startDate, dur, task.durationUnit || 'days');
-                                                    if (newEnd) updateTaskInline(task.id, 'endDate', newEnd);
-                                                  }
+                                                  const newEnd = dur && task.startDate ? calcEndDate(task.startDate, dur, task.durationUnit || 'days') : task.endDate;
+                                                  setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, duration: dur || null, ...(newEnd ? { endDate: newEnd } : {}) } : t));
                                                 }}
                                                 slotProps={{ htmlInput: { min: 0, step: 1 } }}
                                                 sx={{ ...taskFieldSx, '& input': { textAlign: 'center', px: 0.5, width: 38 } }} />
                                               <TextField select size="small" value={task.durationUnit || 'days'}
                                                 onChange={e => {
-                                                  updateTaskInline(task.id, 'durationUnit', e.target.value);
-                                                  if (task.duration && task.startDate) {
-                                                    const newEnd = calcEndDate(task.startDate, task.duration, e.target.value);
-                                                    if (newEnd) updateTaskInline(task.id, 'endDate', newEnd);
-                                                  }
+                                                  const newUnit = e.target.value;
+                                                  const newEndU = task.duration && task.startDate ? calcEndDate(task.startDate, task.duration, newUnit) : task.endDate;
+                                                  setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, durationUnit: newUnit, ...(newEndU ? { endDate: newEndU } : {}) } : t));
                                                 }}
                                                 sx={{ ...taskFieldSx, width: 82 }}>
                                                 <MenuItem value="hours">hrs</MenuItem>
@@ -2187,11 +2206,9 @@ const ProjectsPage: React.FC = () => {
                                               disabled={(taskDeps[task.id] || []).length > 0 && !!task.duration}
                                               title={(taskDeps[task.id] || []).length > 0 && task.duration ? 'Set by dependency — adjust via › button' : (taskDeps[task.id] || []).length > 0 ? 'Has dependency' : ''}
                                               onChange={e => {
-                                                updateTaskInline(task.id, 'startDate', e.target.value);
-                                                if (task.duration) {
-                                                  const newEnd = calcEndDate(e.target.value, task.duration, task.durationUnit || 'days');
-                                                  if (newEnd) updateTaskInline(task.id, 'endDate', newEnd);
-                                                }
+                                                const newStart = e.target.value;
+                                                const newEndS = task.duration ? calcEndDate(newStart, task.duration, task.durationUnit || 'days') : task.endDate;
+                                                setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, startDate: newStart, ...(newEndS ? { endDate: newEndS } : {}) } : t));
                                                 e.target.blur();
                                               }}
                                               sx={{ ...taskFieldSx, '& input': { colorScheme: 'dark' }, '& .MuiInputBase-root.Mui-disabled': { opacity: 1, backgroundColor: 'rgba(255,255,255,0.08)' }, '& .MuiInputBase-root.Mui-disabled input': { WebkitTextFillColor: 'rgba(255,255,255,0.75)', cursor: 'not-allowed' }, '& .MuiOutlinedInput-root.Mui-disabled .MuiOutlinedInput-notchedOutline': { borderStyle: 'dashed' } }} />
@@ -2201,7 +2218,7 @@ const ProjectsPage: React.FC = () => {
                                               disabled={!!task.duration}
                                               title={task.duration ? 'Calculated from start date + duration' : ''}
                                               onChange={e => {
-                                                updateTaskInline(task.id, 'endDate', e.target.value);
+                                                setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, endDate: e.target.value } : t));
                                                 e.target.blur();
                                               }}
                                               sx={{ ...taskFieldSx, '& input': { colorScheme: 'dark' }, '& .MuiInputBase-root.Mui-disabled': { opacity: 1, backgroundColor: 'rgba(255,255,255,0.08)' }, '& .MuiInputBase-root.Mui-disabled input': { WebkitTextFillColor: 'rgba(255,255,255,0.75)', cursor: 'not-allowed' }, '& .MuiOutlinedInput-root.Mui-disabled .MuiOutlinedInput-notchedOutline': { borderStyle: 'dashed' } }} />
@@ -2227,8 +2244,8 @@ const ProjectsPage: React.FC = () => {
                                             </Box>
                                           </Box>
                                         ))}
-                                      {/* Add Task row */}
-                                      <Box sx={{ px: 2, py: 0.5 }}>
+                                      {/* Add Task + Save Changes */}
+                                      <Box sx={{ px: 2, py: 0.75, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                                         <Button size="small" variant="text" startIcon={<AddIcon sx={{ fontSize: '0.8rem !important' }} />}
                                           onClick={async () => {
                                             try {
@@ -2238,6 +2255,11 @@ const ProjectsPage: React.FC = () => {
                                           }}
                                           sx={{ fontSize: '0.72rem', color: '#7C83D0', textTransform: 'none' }}>
                                           Add Task
+                                        </Button>
+                                        <Button size="small" variant="contained" startIcon={<SaveIcon sx={{ fontSize: '0.85rem !important' }} />}
+                                          onClick={() => saveObjectTasks(tasksForObject.map(t => t.id))}
+                                          sx={{ fontSize: '0.72rem', textTransform: 'none', background: `linear-gradient(135deg, ${accentColor} 0%, ${accentColor}99 100%)`, boxShadow: 'none', px: 1.5 }}>
+                                          Save Changes
                                         </Button>
                                       </Box>
                                       {/* Object Notes */}
@@ -2377,15 +2399,14 @@ const ProjectsPage: React.FC = () => {
                                           <Box key={task.id} sx={{ display: 'grid', gridTemplateColumns: '1fr 120px 60px 150px 130px 100px 100px 100px', gap: 0, px: 2, py: 0.5, alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.03)', '&:hover': { backgroundColor: 'rgba(255,255,255,0.02)' } }}>
                                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
                                               <Box sx={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: getTaskStatusColor(task.status), flexShrink: 0 }} />
-                                              <TextField size="small" value={task.name || ''} onBlur={e => updateTaskInline(task.id, 'name', e.target.value)}
+                                              <TextField size="small" value={task.name || ''}
                                                 onChange={e => setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, name: e.target.value } : t))}
                                                 sx={{ ...taskFieldSx, flex: 1 }} />
                                             </Box>
                                             <TextField select size="small" value={task.status} onChange={e => {
                                               const newStatus = e.target.value;
-                                              updateTaskInline(task.id, 'status', newStatus);
-                                              if (newStatus === 'complete') updateTaskInline(task.id, 'progressPercentage', '100');
-                                              else if (newStatus !== 'in_progress') updateTaskInline(task.id, 'progressPercentage', '0');
+                                              const pct2 = newStatus === 'complete' ? 100 : newStatus !== 'in_progress' ? 0 : (task.progressPercentage ?? 0);
+                                              setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: newStatus, progressPercentage: pct2 } : t));
                                             }}
                                               sx={taskFieldSx}>
                                               <MenuItem value="not_started">Not Started</MenuItem>
@@ -2398,11 +2419,11 @@ const ProjectsPage: React.FC = () => {
                                               disabled={task.status !== 'in_progress'}
                                               onChange={e => {
                                                 const val = Math.min(100, Math.max(0, parseInt(e.target.value) || 0));
-                                                updateTaskInline(task.id, 'progressPercentage', String(val));
+                                                setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, progressPercentage: val } : t));
                                               }}
                                               slotProps={{ htmlInput: { min: 0, max: 100 } }}
                                               sx={{ ...taskFieldSx, '& input': { textAlign: 'center', px: 0.5 }, '& .MuiInputBase-root.Mui-disabled': { opacity: 1, backgroundColor: 'rgba(255,255,255,0.08)' }, '& .MuiInputBase-root.Mui-disabled input': { WebkitTextFillColor: 'rgba(255,255,255,0.75)', cursor: 'not-allowed' }, '& .MuiOutlinedInput-root.Mui-disabled .MuiOutlinedInput-notchedOutline': { borderStyle: 'dashed' } }} />
-                                            <TextField select size="small" value={task.assignedTo || ''} onChange={e => updateTaskInline(task.id, 'assignedTo', e.target.value)}
+                                            <TextField select size="small" value={task.assignedTo || ''} onChange={e => setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, assignedTo: e.target.value } : t))}
                                               sx={taskFieldSx}>
                                               <MenuItem value=""><em>Unassigned</em></MenuItem>
                                               {people.map(p => <MenuItem key={p.id} value={p.name}>{p.name}</MenuItem>)}
@@ -2415,21 +2436,16 @@ const ProjectsPage: React.FC = () => {
                                                 onChange={e => setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, duration: parseFloat(e.target.value) || null } : t))}
                                                 onBlur={e => {
                                                   const dur = parseFloat(e.target.value) || 0;
-                                                  updateTaskInline(task.id, 'duration', String(dur || ''));
-                                                  if (dur && task.startDate) {
-                                                    const newEnd = calcEndDate(task.startDate, dur, task.durationUnit || 'days');
-                                                    if (newEnd) updateTaskInline(task.id, 'endDate', newEnd);
-                                                  }
+                                                  const newEnd = dur && task.startDate ? calcEndDate(task.startDate, dur, task.durationUnit || 'days') : task.endDate;
+                                                  setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, duration: dur || null, ...(newEnd ? { endDate: newEnd } : {}) } : t));
                                                 }}
                                                 slotProps={{ htmlInput: { min: 0, step: 1 } }}
                                                 sx={{ ...taskFieldSx, '& input': { textAlign: 'center', px: 0.5, width: 38 } }} />
                                               <TextField select size="small" value={task.durationUnit || 'days'}
                                                 onChange={e => {
-                                                  updateTaskInline(task.id, 'durationUnit', e.target.value);
-                                                  if (task.duration && task.startDate) {
-                                                    const newEnd = calcEndDate(task.startDate, task.duration, e.target.value);
-                                                    if (newEnd) updateTaskInline(task.id, 'endDate', newEnd);
-                                                  }
+                                                  const newUnit = e.target.value;
+                                                  const newEndU = task.duration && task.startDate ? calcEndDate(task.startDate, task.duration, newUnit) : task.endDate;
+                                                  setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, durationUnit: newUnit, ...(newEndU ? { endDate: newEndU } : {}) } : t));
                                                 }}
                                                 sx={{ ...taskFieldSx, width: 82 }}>
                                                 <MenuItem value="hours">hrs</MenuItem>
@@ -2442,11 +2458,9 @@ const ProjectsPage: React.FC = () => {
                                               disabled={(taskDeps[task.id] || []).length > 0 && !!task.duration}
                                               title={(taskDeps[task.id] || []).length > 0 && task.duration ? 'Set by dependency — adjust via › button' : (taskDeps[task.id] || []).length > 0 ? 'Has dependency' : ''}
                                               onChange={e => {
-                                                updateTaskInline(task.id, 'startDate', e.target.value);
-                                                if (task.duration) {
-                                                  const newEnd = calcEndDate(e.target.value, task.duration, task.durationUnit || 'days');
-                                                  if (newEnd) updateTaskInline(task.id, 'endDate', newEnd);
-                                                }
+                                                const newStart = e.target.value;
+                                                const newEndS = task.duration ? calcEndDate(newStart, task.duration, task.durationUnit || 'days') : task.endDate;
+                                                setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, startDate: newStart, ...(newEndS ? { endDate: newEndS } : {}) } : t));
                                                 e.target.blur();
                                               }}
                                               sx={{ ...taskFieldSx, '& input': { colorScheme: 'dark' }, '& .MuiInputBase-root.Mui-disabled': { opacity: 1, backgroundColor: 'rgba(255,255,255,0.08)' }, '& .MuiInputBase-root.Mui-disabled input': { WebkitTextFillColor: 'rgba(255,255,255,0.75)', cursor: 'not-allowed' }, '& .MuiOutlinedInput-root.Mui-disabled .MuiOutlinedInput-notchedOutline': { borderStyle: 'dashed' } }} />
@@ -2456,7 +2470,7 @@ const ProjectsPage: React.FC = () => {
                                               disabled={!!task.duration}
                                               title={task.duration ? 'Calculated from start date + duration' : ''}
                                               onChange={e => {
-                                                updateTaskInline(task.id, 'endDate', e.target.value);
+                                                setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, endDate: e.target.value } : t));
                                                 e.target.blur();
                                               }}
                                               sx={{ ...taskFieldSx, '& input': { colorScheme: 'dark' }, '& .MuiInputBase-root.Mui-disabled': { opacity: 1, backgroundColor: 'rgba(255,255,255,0.08)' }, '& .MuiInputBase-root.Mui-disabled input': { WebkitTextFillColor: 'rgba(255,255,255,0.75)', cursor: 'not-allowed' }, '& .MuiOutlinedInput-root.Mui-disabled .MuiOutlinedInput-notchedOutline': { borderStyle: 'dashed' } }} />
@@ -2481,8 +2495,8 @@ const ProjectsPage: React.FC = () => {
                                             </Box>
                                           </Box>
                                         ))}
-                                      {/* Add Task to group */}
-                                      <Box sx={{ px: 2, py: 0.5 }}>
+                                      {/* Add Task + Save Changes */}
+                                      <Box sx={{ px: 2, py: 0.75, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                                         <Button size="small" variant="text" startIcon={<AddIcon sx={{ fontSize: '0.8rem !important' }} />}
                                           onClick={async () => {
                                             try {
@@ -2492,6 +2506,11 @@ const ProjectsPage: React.FC = () => {
                                           }}
                                           sx={{ fontSize: '0.72rem', color: '#7C83D0', textTransform: 'none' }}>
                                           Add Task
+                                        </Button>
+                                        <Button size="small" variant="contained" startIcon={<SaveIcon sx={{ fontSize: '0.85rem !important' }} />}
+                                          onClick={() => saveObjectTasks(groupTasks.map(t => t.id))}
+                                          sx={{ fontSize: '0.72rem', textTransform: 'none', background: `linear-gradient(135deg, ${accentColor} 0%, ${accentColor}99 100%)`, boxShadow: 'none', px: 1.5 }}>
+                                          Save Changes
                                         </Button>
                                       </Box>
                                     </Box>
