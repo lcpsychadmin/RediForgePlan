@@ -652,6 +652,18 @@ const ProjectsPage: React.FC = () => {
         const tasks = (tasksResponse.data.data || []).map((task: any) => normalizeTaskDateFields(task));
         setProjectTasks(tasks);
 
+        // Load task dependencies for all tasks in parallel
+        const allDeps: Record<string, any[]> = {};
+        await Promise.all(tasks.map(async (task: any) => {
+          try {
+            const depsRes = await apiClient.get(`/api/tasks/${task.id}/dependencies`);
+            allDeps[task.id] = depsRes.data.data || [];
+          } catch (e) {
+            allDeps[task.id] = [];
+          }
+        }));
+        setTaskDeps(allDeps);
+
         // Load task groups
         const groupsResponse = await apiClient.get(`/api/tasks/groups/project/${activeProjectId}`);
         const groups = groupsResponse.data.data || [];
@@ -1200,19 +1212,31 @@ const ProjectsPage: React.FC = () => {
     }
   };
 
-  const calcEndDate = (startDate: string, duration: number, durationUnit: string) => {
+  const calcEndDate = (startDate: string, duration: number, durationUnit: string): string => {
     if (!startDate || !duration) return '';
-    const d = new Date(startDate);
-    const hours = durationUnit === 'days' ? duration * 8 : duration;
-    d.setHours(d.getHours() + hours);
-    return d.toISOString().split('T')[0];
+    const d = new Date(startDate + 'T00:00:00');
+    if (durationUnit === 'days') {
+      d.setDate(d.getDate() + Math.max(0, duration - 1)); // 1 day = same day
+    } else {
+      // hours: treat 8 hrs as 1 work-day; ≤8 hrs = same day
+      const extraDays = Math.max(0, Math.ceil(duration / 8) - 1);
+      d.setDate(d.getDate() + extraDays);
+    }
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
   };
 
   const updateTaskInline = async (taskId: string, field: string, value: string) => {
     try {
-      const payload = field === 'progressPercentage' ? { [field]: parseInt(value) || 0 } : { [field]: value };
+      const numericFields = ['progressPercentage', 'duration'];
+      const parsedValue = numericFields.includes(field)
+        ? (field === 'duration' ? (parseFloat(value) || null) : (parseInt(value) || 0))
+        : value;
+      const payload = { [field]: parsedValue };
       await apiClient.patch(`/api/tasks/${taskId}`, payload);
-      const updatedTasks = projectTasks.map(t => t.id === taskId ? { ...t, [field]: field === 'progressPercentage' ? parseInt(value) || 0 : value } : t);
+      const updatedTasks = projectTasks.map(t => t.id === taskId ? { ...t, [field]: parsedValue } : t);
       setProjectTasks(updatedTasks);
 
       // Recalculate and persist project % complete
@@ -2024,15 +2048,15 @@ const ProjectsPage: React.FC = () => {
                                         </Box>
                                       )}
                                       {/* Table header */}
-                                      <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 120px 60px 150px 100px 100px 100px', gap: 0, px: 2, py: 0.5, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                                        {['TASK', 'STATUS', '%', 'ASSIGNED TO', 'START DATE', 'END DATE', 'ACTIONS'].map(h => (
+                                      <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 120px 60px 150px 130px 100px 100px 100px', gap: 0, px: 2, py: 0.5, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                                        {['TASK', 'STATUS', '%', 'ASSIGNED TO', 'DURATION', 'START DATE', 'END DATE', 'ACTIONS'].map(h => (
                                           <Typography key={h} variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', letterSpacing: '0.05em', fontWeight: 600 }}>{h}</Typography>
                                         ))}
                                       </Box>
                                       {tasksForObject.length === 0
                                         ? <Typography variant="caption" color="text.disabled" sx={{ px: 2, py: 1, display: 'block' }}>No tasks</Typography>
                                         : tasksForObject.map((task) => (
-                                          <Box key={task.id} sx={{ display: 'grid', gridTemplateColumns: '1fr 120px 60px 150px 100px 100px 100px', gap: 0, px: 2, py: 0.5, alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.03)', '&:hover': { backgroundColor: 'rgba(255,255,255,0.02)' } }}>
+                                          <Box key={task.id} sx={{ display: 'grid', gridTemplateColumns: '1fr 120px 60px 150px 130px 100px 100px 100px', gap: 0, px: 2, py: 0.5, alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.03)', '&:hover': { backgroundColor: 'rgba(255,255,255,0.02)' } }}>
                                             {/* Task name */}
                                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
                                               <Box sx={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: getTaskStatusColor(task.status), flexShrink: 0 }} />
@@ -2068,36 +2092,56 @@ const ProjectsPage: React.FC = () => {
                                               <MenuItem value=""><em>Unassigned</em></MenuItem>
                                               {people.map(p => <MenuItem key={p.id} value={p.name}>{p.name}</MenuItem>)}
                                             </TextField>
-                                            {/* Start Date */}
-                                            <TextField size="small" type="date" value={task.startDate || ''} onChange={e => {
-                                              updateTaskInline(task.id, 'startDate', e.target.value);
-                                              e.target.blur();
-                                            }} sx={{ ...taskFieldSx, '& input': { colorScheme: 'dark' } }} />
-                                            {/* End Date */}
-                                            <TextField size="small" type="date" value={task.endDate || ''} onChange={e => {
-                                              updateTaskInline(task.id, 'endDate', e.target.value);
-                                              e.target.blur();
-                                            }} sx={{ ...taskFieldSx, '& input': { colorScheme: 'dark' } }} />
-                                            {/* Actions */}
-                                            <Box sx={{ display: 'flex', gap: 0.25, alignItems: 'center' }}>
-                                              <Badge badgeContent={taskCommentCounts[task.id] || 0} color="primary">
-                                                <IconButton size="small" title="Discussion" onClick={() => setCommentModalTask({ id: task.id, name: task.name || 'Task' })}
-                                                  sx={{ opacity: 0.6, '&:hover': { opacity: 1, color: accentColor } }}>
-                                                  <ChatBubbleOutlineIcon sx={{ fontSize: '0.9rem' }} />
-                                                </IconButton>
-                                              </Badge>
-                                              <IconButton size="small" title="Dependencies" onClick={async () => {
-                                                await loadTaskDeps(task.id);
-                                                setDepDialogTaskId(task.id);
-                                                const all = await apiClient.get(`/api/tasks/project/${activeProjectId}`);
-                                                setCycleTasksForDep(all.data.data || []);
-                                              }} sx={{ opacity: 0.6, '&:hover': { opacity: 1 } }}>
-                                                <ChevronRightIcon sx={{ fontSize: '0.9rem' }} />
-                                              </IconButton>
-                                              <IconButton size="small" onClick={() => openDeleteDialog('taskSingle' as any, task.id, task.name)} sx={{ opacity: 0.6, '&:hover': { opacity: 1 } }}>
-                                                <DeleteIcon sx={{ fontSize: '0.9rem' }} />
-                                              </IconButton>
+                                            {/* Duration */}
+                                            <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
+                                              <TextField size="small" type="number" value={task.duration ?? ''} placeholder="—"
+                                                onChange={e => {
+                                                  const dur = parseFloat(e.target.value) || 0;
+                                                  updateTaskInline(task.id, 'duration', String(dur || ''));
+                                                  if (dur && task.startDate) {
+                                                    const newEnd = calcEndDate(task.startDate, dur, task.durationUnit || 'hours');
+                                                    if (newEnd) updateTaskInline(task.id, 'endDate', newEnd);
+                                                  }
+                                                }}
+                                                slotProps={{ htmlInput: { min: 0, step: 0.5 } }}
+                                                sx={{ ...taskFieldSx, '& input': { textAlign: 'center', px: 0.5, width: 38 } }} />
+                                              <TextField select size="small" value={task.durationUnit || 'hours'}
+                                                onChange={e => {
+                                                  updateTaskInline(task.id, 'durationUnit', e.target.value);
+                                                  if (task.duration && task.startDate) {
+                                                    const newEnd = calcEndDate(task.startDate, task.duration, e.target.value);
+                                                    if (newEnd) updateTaskInline(task.id, 'endDate', newEnd);
+                                                  }
+                                                }}
+                                                sx={{ ...taskFieldSx, width: 70 }}>
+                                                <MenuItem value="hours">hrs</MenuItem>
+                                                <MenuItem value="days">days</MenuItem>
+                                              </TextField>
                                             </Box>
+                                            {/* Start Date */}
+                                            <TextField size="small" type="date"
+                                              value={task.startDate || ''}
+                                              disabled={(taskDeps[task.id] || []).length > 0}
+                                              title={(taskDeps[task.id] || []).length > 0 ? 'Set by dependency — adjust via › button' : ''}
+                                              onChange={e => {
+                                                updateTaskInline(task.id, 'startDate', e.target.value);
+                                                if (task.duration) {
+                                                  const newEnd = calcEndDate(e.target.value, task.duration, task.durationUnit || 'hours');
+                                                  if (newEnd) updateTaskInline(task.id, 'endDate', newEnd);
+                                                }
+                                                e.target.blur();
+                                              }}
+                                              sx={{ ...taskFieldSx, '& input': { colorScheme: 'dark' } }} />
+                                            {/* End Date */}
+                                            <TextField size="small" type="date"
+                                              value={task.endDate || ''}
+                                              disabled={!!task.duration}
+                                              title={task.duration ? 'Calculated from start date + duration' : ''}
+                                              onChange={e => {
+                                                updateTaskInline(task.id, 'endDate', e.target.value);
+                                                e.target.blur();
+                                              }}
+                                              sx={{ ...taskFieldSx, '& input': { colorScheme: 'dark' } }} />
                                           </Box>
                                         ))}
                                       {/* Add Task row */}
@@ -2239,15 +2283,15 @@ const ProjectsPage: React.FC = () => {
                                   {isExpanded && (
                                     <Box sx={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
                                       {/* Table header */}
-                                      <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 120px 60px 150px 100px 100px 100px', gap: 0, px: 2, py: 0.5, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                                        {['TASK', 'STATUS', '%', 'ASSIGNED TO', 'START DATE', 'END DATE', 'ACTIONS'].map(h => (
+                                      <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 120px 60px 150px 130px 100px 100px 100px', gap: 0, px: 2, py: 0.5, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                                        {['TASK', 'STATUS', '%', 'ASSIGNED TO', 'DURATION', 'START DATE', 'END DATE', 'ACTIONS'].map(h => (
                                           <Typography key={h} variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', letterSpacing: '0.05em', fontWeight: 600 }}>{h}</Typography>
                                         ))}
                                       </Box>
                                       {groupTasks.length === 0
                                         ? <Typography variant="caption" color="text.disabled" sx={{ px: 2, py: 1, display: 'block' }}>No tasks</Typography>
                                         : groupTasks.map((task) => (
-                                          <Box key={task.id} sx={{ display: 'grid', gridTemplateColumns: '1fr 120px 60px 150px 100px 100px 100px', gap: 0, px: 2, py: 0.5, alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.03)', '&:hover': { backgroundColor: 'rgba(255,255,255,0.02)' } }}>
+                                          <Box key={task.id} sx={{ display: 'grid', gridTemplateColumns: '1fr 120px 60px 150px 130px 100px 100px 100px', gap: 0, px: 2, py: 0.5, alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.03)', '&:hover': { backgroundColor: 'rgba(255,255,255,0.02)' } }}>
                                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
                                               <Box sx={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: getTaskStatusColor(task.status), flexShrink: 0 }} />
                                               <TextField size="small" value={task.name || ''} onBlur={e => updateTaskInline(task.id, 'name', e.target.value)}
@@ -2280,14 +2324,56 @@ const ProjectsPage: React.FC = () => {
                                               <MenuItem value=""><em>Unassigned</em></MenuItem>
                                               {people.map(p => <MenuItem key={p.id} value={p.name}>{p.name}</MenuItem>)}
                                             </TextField>
-                                            <TextField size="small" type="date" value={task.startDate || ''} onChange={e => {
-                                              updateTaskInline(task.id, 'startDate', e.target.value);
-                                              e.target.blur();
-                                            }} sx={{ ...taskFieldSx, '& input': { colorScheme: 'dark' } }} />
-                                            <TextField size="small" type="date" value={task.endDate || ''} onChange={e => {
-                                              updateTaskInline(task.id, 'endDate', e.target.value);
-                                              e.target.blur();
-                                            }} sx={{ ...taskFieldSx, '& input': { colorScheme: 'dark' } }} />
+                                            {/* Duration */}
+                                            <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
+                                              <TextField size="small" type="number" value={task.duration ?? ''} placeholder="—"
+                                                onChange={e => {
+                                                  const dur = parseFloat(e.target.value) || 0;
+                                                  updateTaskInline(task.id, 'duration', String(dur || ''));
+                                                  if (dur && task.startDate) {
+                                                    const newEnd = calcEndDate(task.startDate, dur, task.durationUnit || 'hours');
+                                                    if (newEnd) updateTaskInline(task.id, 'endDate', newEnd);
+                                                  }
+                                                }}
+                                                slotProps={{ htmlInput: { min: 0, step: 0.5 } }}
+                                                sx={{ ...taskFieldSx, '& input': { textAlign: 'center', px: 0.5, width: 38 } }} />
+                                              <TextField select size="small" value={task.durationUnit || 'hours'}
+                                                onChange={e => {
+                                                  updateTaskInline(task.id, 'durationUnit', e.target.value);
+                                                  if (task.duration && task.startDate) {
+                                                    const newEnd = calcEndDate(task.startDate, task.duration, e.target.value);
+                                                    if (newEnd) updateTaskInline(task.id, 'endDate', newEnd);
+                                                  }
+                                                }}
+                                                sx={{ ...taskFieldSx, width: 70 }}>
+                                                <MenuItem value="hours">hrs</MenuItem>
+                                                <MenuItem value="days">days</MenuItem>
+                                              </TextField>
+                                            </Box>
+                                            {/* Start Date */}
+                                            <TextField size="small" type="date"
+                                              value={task.startDate || ''}
+                                              disabled={(taskDeps[task.id] || []).length > 0}
+                                              title={(taskDeps[task.id] || []).length > 0 ? 'Set by dependency — adjust via › button' : ''}
+                                              onChange={e => {
+                                                updateTaskInline(task.id, 'startDate', e.target.value);
+                                                if (task.duration) {
+                                                  const newEnd = calcEndDate(e.target.value, task.duration, task.durationUnit || 'hours');
+                                                  if (newEnd) updateTaskInline(task.id, 'endDate', newEnd);
+                                                }
+                                                e.target.blur();
+                                              }}
+                                              sx={{ ...taskFieldSx, '& input': { colorScheme: 'dark' } }} />
+                                            {/* End Date */}
+                                            <TextField size="small" type="date"
+                                              value={task.endDate || ''}
+                                              disabled={!!task.duration}
+                                              title={task.duration ? 'Calculated from start date + duration' : ''}
+                                              onChange={e => {
+                                                updateTaskInline(task.id, 'endDate', e.target.value);
+                                                e.target.blur();
+                                              }}
+                                              sx={{ ...taskFieldSx, '& input': { colorScheme: 'dark' } }} />
                                             <Box sx={{ display: 'flex', gap: 0.25, alignItems: 'center' }}>
                                               <Badge badgeContent={taskCommentCounts[task.id] || 0} color="primary">
                                                 <IconButton size="small" title="Discussion" onClick={() => setCommentModalTask({ id: task.id, name: task.name || 'Task' })}
@@ -3595,6 +3681,18 @@ const ProjectsPage: React.FC = () => {
                       await apiClient.delete(`/api/tasks/${depDialogTaskId}/dependencies/${t.id}`);
                     } else {
                       await apiClient.post(`/api/tasks/${depDialogTaskId}/dependencies`, { dependsOnTaskId: t.id });
+                      // Auto-set start date from this dependency's end date
+                      if (t.endDate && depDialogTaskId) {
+                        const d = new Date(t.endDate + 'T00:00:00');
+                        d.setDate(d.getDate() + 1);
+                        const newStart = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+                        await updateTaskInline(depDialogTaskId, 'startDate', newStart);
+                        const depTask = projectTasks.find(pt => pt.id === depDialogTaskId);
+                        if (depTask?.duration) {
+                          const newEnd = calcEndDate(newStart, depTask.duration, depTask.durationUnit || 'hours');
+                          if (newEnd) await updateTaskInline(depDialogTaskId, 'endDate', newEnd);
+                        }
+                      }
                     }
                     if (depDialogTaskId) await loadTaskDeps(depDialogTaskId);
                   }}>
