@@ -2089,7 +2089,7 @@ const ProjectsPage: React.FC = () => {
                                               }}
                                               slotProps={{ htmlInput: { min: 0, max: 100 } }}
                                               sx={{ ...taskFieldSx, '& input': { textAlign: 'center', px: 0.5 }, '& .MuiInputBase-root.Mui-disabled': { opacity: 1, backgroundColor: 'rgba(255,255,255,0.08)' }, '& .MuiInputBase-root.Mui-disabled input': { WebkitTextFillColor: 'rgba(255,255,255,0.75)', cursor: 'not-allowed' }, '& .MuiOutlinedInput-root.Mui-disabled .MuiOutlinedInput-notchedOutline': { borderStyle: 'dashed' } }} />
-                                            {/* Assigned To */}}
+                                            {/* Assigned To */}
                                             <TextField select size="small" value={task.assignedTo || ''} onChange={e => updateTaskInline(task.id, 'assignedTo', e.target.value)}
                                               sx={taskFieldSx}>
                                               <MenuItem value=""><em>Unassigned</em></MenuItem>
