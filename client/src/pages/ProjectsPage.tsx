@@ -405,6 +405,11 @@ const ProjectsPage: React.FC = () => {
 
   const normalizeDateOnly = (value?: string) => {
     if (!value) return null;
+    // Preserve date-only strings as local calendar dates (avoid UTC shift to prior day).
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      const [y, m, d] = value.split('-').map(n => Number(n));
+      return new Date(y, m - 1, d);
+    }
     const d = new Date(value);
     if (Number.isNaN(d.getTime())) return null;
     return new Date(d.getFullYear(), d.getMonth(), d.getDate());
