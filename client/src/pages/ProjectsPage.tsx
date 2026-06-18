@@ -160,6 +160,7 @@ const ProjectsPage: React.FC = () => {
   const [inventorySearchTerm, setInventorySearchTerm] = useState('');
   const [planSearchTerm, setPlanSearchTerm] = useState('');
   const [planStatusFilter, setPlanStatusFilter] = useState('');
+  const [planAssignedFilter, setPlanAssignedFilter] = useState('');
   const [catalogSearchTerm, setCatalogSearchTerm] = useState('');
   const [catalogSortColumn, setCatalogSortColumn] = useState<'objectId' | 'description'>('objectId');
   const [catalogSortDirection, setCatalogSortDirection] = useState<'asc' | 'desc'>('asc');
@@ -1747,6 +1748,9 @@ const ProjectsPage: React.FC = () => {
                     };
                     return (
                       <Box>
+                        {/* Top section: info left, buttons right */}
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', mb: 3 }}>
+                          <Box>
                         {/* Breadcrumbs */}
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1.5 }}>
                           {parentProgramName && <><Typography variant="caption" color="text.disabled">{parentProgramName}</Typography><Typography variant="caption" color="text.disabled">›</Typography></>}
@@ -1765,7 +1769,7 @@ const ProjectsPage: React.FC = () => {
                         </Box>
 
                         {/* Progress */}
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
                           <LinearProgress variant="determinate" value={progressPct} sx={{ width: 160, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.1)', '& .MuiLinearProgress-bar': { backgroundColor: accentColor, borderRadius: 3 } }} />
                           <Typography variant="body2" sx={{ color: accentColor, fontWeight: 600 }}>{progressPct}%</Typography>
                         </Box>
@@ -1820,7 +1824,7 @@ const ProjectsPage: React.FC = () => {
                           const endStr = `${monthNames[maxEnd.month - 1]} ${maxEnd.day}`;
                           
                           return (
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                               <EventIcon sx={{ fontSize: '0.9rem', color: 'text.disabled' }} />
                               <Typography variant="caption" color="text.disabled">
                                 Timeline: {startStr} → {endStr}
@@ -1828,23 +1832,23 @@ const ProjectsPage: React.FC = () => {
                             </Box>
                           );
                         })()}
-
-                        {/* Action Buttons */}
-                        <Box sx={{ display: 'flex', gap: 1.5, mb: 3, justifyContent: 'flex-end' }}>
-                          <Button variant="contained" startIcon={<AddIcon />} onClick={() => setDataObjectDialogOpen(true)}
-                            sx={{ background: `linear-gradient(135deg, ${accentColor} 0%, ${accentColor}99 100%)`, textTransform: 'none', fontWeight: 600, boxShadow: 'none' }}>
-                            Add Data Object
-                          </Button>
-                          <Button variant="contained" startIcon={<AddIcon />} onClick={() => setTaskGroupDialogOpen(true)}
-                            sx={{ background: 'linear-gradient(135deg, #5B67CA 0%, #3B4DB3 100%)', textTransform: 'none', fontWeight: 600, boxShadow: 'none' }}>
-                            Add Task Group
-                          </Button>
-                        </Box>
+                          </Box>{/* end left info box */}
+                          <Box sx={{ display: 'flex', gap: 1.5, flexShrink: 0, ml: 2 }}>
+                            <Button variant="contained" startIcon={<AddIcon />} onClick={() => setDataObjectDialogOpen(true)}
+                              sx={{ background: `linear-gradient(135deg, ${accentColor} 0%, ${accentColor}99 100%)`, textTransform: 'none', fontWeight: 600, boxShadow: 'none' }}>
+                              Add Data Object
+                            </Button>
+                            <Button variant="contained" startIcon={<AddIcon />} onClick={() => setTaskGroupDialogOpen(true)}
+                              sx={{ background: 'linear-gradient(135deg, #5B67CA 0%, #3B4DB3 100%)', textTransform: 'none', fontWeight: 600, boxShadow: 'none' }}>
+                              Add Task Group
+                            </Button>
+                          </Box>
+                        </Box>{/* end top section flex row */}
 
                         {/* Filter Row */}
                         <Box sx={{ display: 'flex', gap: 1.5, mb: 3, alignItems: 'center', flexWrap: 'wrap' }}>
-                          <TextField placeholder="Search..." size="small" value={planSearchTerm} onChange={(e) => setPlanSearchTerm(e.target.value)}
-                            sx={{ width: 180, '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': { borderColor: accentColor }, '& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: accentColor } }}
+                          <TextField placeholder="Search by name or ID..." size="small" value={planSearchTerm} onChange={(e) => setPlanSearchTerm(e.target.value)}
+                            sx={{ width: 240, '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': { borderColor: accentColor }, '& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: accentColor } }}
                             slotProps={{ input: { startAdornment: <SearchIcon sx={{ mr: 0.5, fontSize: '1rem', color: 'text.secondary' }} /> } }} />
                           <TextField select size="small" value={planStatusFilter} onChange={(e) => setPlanStatusFilter(e.target.value)}
                             sx={{ width: 150, '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': { borderColor: accentColor }, '& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: accentColor } }}>
@@ -1853,8 +1857,15 @@ const ProjectsPage: React.FC = () => {
                             <MenuItem value="in_progress">In Progress</MenuItem>
                             <MenuItem value="complete">Completed</MenuItem>
                           </TextField>
-                          {(planSearchTerm || planStatusFilter) && (
-                            <Button size="small" variant="text" onClick={() => { setPlanSearchTerm(''); setPlanStatusFilter(''); }} sx={{ textTransform: 'none', color: 'text.secondary' }}>Clear</Button>
+                          <TextField select size="small" value={planAssignedFilter} onChange={(e) => setPlanAssignedFilter(e.target.value)}
+                            sx={{ width: 170, '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': { borderColor: accentColor }, '& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: accentColor } }}>
+                            <MenuItem value="">All Assignees</MenuItem>
+                            {people.map((p: any) => (
+                              <MenuItem key={p.id} value={p.id}>{p.name || p.email}</MenuItem>
+                            ))}
+                          </TextField>
+                          {(planSearchTerm || planStatusFilter || planAssignedFilter) && (
+                            <Button size="small" variant="text" onClick={() => { setPlanSearchTerm(''); setPlanStatusFilter(''); setPlanAssignedFilter(''); }} sx={{ textTransform: 'none', color: 'text.secondary' }}>Clear</Button>
                           )}
                         </Box>
 
@@ -1893,6 +1904,7 @@ const ProjectsPage: React.FC = () => {
                               const isExpanded = expandedObjects.has(objectId || '');
                               if (planSearchTerm && !objectName.toLowerCase().includes(planSearchTerm.toLowerCase()) && !description.toLowerCase().includes(planSearchTerm.toLowerCase())) return null;
                               if (planStatusFilter && !tasksForObject.some(t => t.status === planStatusFilter)) return null;
+                              if (planAssignedFilter && !tasksForObject.some(t => t.draUserId === planAssignedFilter || t.developerUserId === planAssignedFilter)) return null;
                               const overallStatus = tasksForObject.length > 0 && tasksForObject.every(t => t.status === 'complete') ? 'complete' : tasksForObject.some(t => t.status === 'in_progress') ? 'in_progress' : tasksForObject.some(t => t.status === 'blocked') ? 'blocked' : 'not_started';
                               return (
                                 <Box
@@ -2114,6 +2126,9 @@ const ProjectsPage: React.FC = () => {
                               const isExpanded = expandedTaskGroups.has(group.id);
                               const groupTasks = projectTasks.filter(t => t.taskGroupId === group.id);
                               const overallStatus = groupTasks.length > 0 && groupTasks.every(t => t.status === 'complete') ? 'complete' : groupTasks.some(t => t.status === 'in_progress') ? 'in_progress' : groupTasks.some(t => t.status === 'blocked') ? 'blocked' : 'not_started';
+                              if (planSearchTerm && !group.name.toLowerCase().includes(planSearchTerm.toLowerCase())) return null;
+                              if (planStatusFilter && !groupTasks.some(t => t.status === planStatusFilter)) return null;
+                              if (planAssignedFilter && !groupTasks.some(t => t.draUserId === planAssignedFilter || t.developerUserId === planAssignedFilter)) return null;
                               return (
                                 <Box
                                   key={`group-${group.id}`}
