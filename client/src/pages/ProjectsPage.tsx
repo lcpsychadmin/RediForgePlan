@@ -1269,6 +1269,7 @@ const ProjectsPage: React.FC = () => {
   };
 
   const loadCycleTasksForDep = async (currentTaskId: string) => {
+    const currentTask = projectTasks.find(t => t.id === currentTaskId);
     const cycleProjects: any[] = activeCycleId ? (projectsByMockCycle[activeCycleId] || []) : [];
     const allProjects = cycleProjects.length > 0 ? cycleProjects : (activeProjectId ? [{ id: activeProjectId, name: 'Current Project', accentColor: '#00BFA5' }] : []);
     const enriched: any[] = [];
@@ -1297,9 +1298,9 @@ const ProjectsPage: React.FC = () => {
       } catch (e) { /* skip project on error */ }
     }));
     setCycleTasksForDep(enriched);
-    // Only expand the branch containing the current task
-    const currentTask = projectTasks.find(t => t.id === currentTaskId);
+    // Collapse all by default, then expand only the current branch
     const expanded: Record<string, boolean> = {};
+    allProjects.forEach((proj: any) => { expanded[`proj-${proj.id}`] = false; });
     if (currentTask && activeProjectId) {
       expanded[`proj-${activeProjectId}`] = true;
       if (currentTask.projectObjectId) {
@@ -3781,7 +3782,7 @@ const ProjectsPage: React.FC = () => {
 
                   {Object.entries(projectMap).map(([pid, proj]) => {
                     const projKey = `proj-${pid}`;
-                    const projExpanded = depTreeExpanded[projKey] !== false;
+                    const projExpanded = depTreeExpanded[projKey] === true;
                     return (
                       <Box key={pid} sx={{ mb: 0.25 }}>
                         {/* Project row */}
@@ -3794,7 +3795,7 @@ const ProjectsPage: React.FC = () => {
 
                         {projExpanded && Object.entries(proj.objects).map(([oKey, objData]) => {
                           const objExpKey = `${projKey}-${oKey}`;
-                          const objExpanded = depTreeExpanded[objExpKey] !== false;
+                          const objExpanded = depTreeExpanded[objExpKey] === true;
                           return (
                             <Box key={oKey} sx={{ ml: 2.5, mb: 0.25 }}>
                               {/* Object/Group row */}
