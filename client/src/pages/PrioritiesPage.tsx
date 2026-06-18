@@ -208,6 +208,8 @@ const PrioritiesPage: React.FC = () => {
         taskId={selectedTask?.taskId || selectedTask?.id}
         task={selectedTask}
         peopleById={peopleById}
+        people={people}
+        accentColor="#ffa726"
       />
     </PageContainer>
   );

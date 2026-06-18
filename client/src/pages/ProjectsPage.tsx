@@ -3544,6 +3544,8 @@ const ProjectsPage: React.FC = () => {
         taskId={priorityModalTask?.id}
         task={priorityModalTask}
         peopleById={Object.fromEntries((people || []).map((person: any) => [person.id, person]))}
+        people={people}
+        accentColor="#ffa726"
       />
 
       {/* Task Dependency Dialog */}
