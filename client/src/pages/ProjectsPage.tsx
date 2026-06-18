@@ -2071,11 +2071,13 @@ const ProjectsPage: React.FC = () => {
                                             {/* Start Date */}
                                             <TextField size="small" type="date" value={task.startDate || ''} onChange={e => {
                                               updateTaskInline(task.id, 'startDate', e.target.value);
-                                              if (task.duration) updateTaskInline(task.id, 'endDate', calcEndDate(e.target.value, task.duration, task.durationUnit || 'hours'));
+                                              e.target.blur();
                                             }} sx={{ ...taskFieldSx, '& input': { colorScheme: 'dark' } }} />
                                             {/* End Date */}
-                                            <TextField size="small" type="date" value={task.endDate || ''} onChange={e => updateTaskInline(task.id, 'endDate', e.target.value)}
-                                              sx={{ ...taskFieldSx, '& input': { colorScheme: 'dark' } }} />
+                                            <TextField size="small" type="date" value={task.endDate || ''} onChange={e => {
+                                              updateTaskInline(task.id, 'endDate', e.target.value);
+                                              e.target.blur();
+                                            }} sx={{ ...taskFieldSx, '& input': { colorScheme: 'dark' } }} />
                                             {/* Actions */}
                                             <Box sx={{ display: 'flex', gap: 0.25, alignItems: 'center' }}>
                                               <Badge badgeContent={taskCommentCounts[task.id] || 0} color="primary">
@@ -2278,10 +2280,14 @@ const ProjectsPage: React.FC = () => {
                                               <MenuItem value=""><em>Unassigned</em></MenuItem>
                                               {people.map(p => <MenuItem key={p.id} value={p.name}>{p.name}</MenuItem>)}
                                             </TextField>
-                                            <TextField size="small" type="date" value={task.startDate || ''} onChange={e => updateTaskInline(task.id, 'startDate', e.target.value)}
-                                              sx={{ ...taskFieldSx, '& input': { colorScheme: 'dark' } }} />
-                                            <TextField size="small" type="date" value={task.endDate || ''} onChange={e => updateTaskInline(task.id, 'endDate', e.target.value)}
-                                              sx={{ ...taskFieldSx, '& input': { colorScheme: 'dark' } }} />
+                                            <TextField size="small" type="date" value={task.startDate || ''} onChange={e => {
+                                              updateTaskInline(task.id, 'startDate', e.target.value);
+                                              e.target.blur();
+                                            }} sx={{ ...taskFieldSx, '& input': { colorScheme: 'dark' } }} />
+                                            <TextField size="small" type="date" value={task.endDate || ''} onChange={e => {
+                                              updateTaskInline(task.id, 'endDate', e.target.value);
+                                              e.target.blur();
+                                            }} sx={{ ...taskFieldSx, '& input': { colorScheme: 'dark' } }} />
                                             <Box sx={{ display: 'flex', gap: 0.25, alignItems: 'center' }}>
                                               <Badge badgeContent={taskCommentCounts[task.id] || 0} color="primary">
                                                 <IconButton size="small" title="Discussion" onClick={() => setCommentModalTask({ id: task.id, name: task.name || 'Task' })}
