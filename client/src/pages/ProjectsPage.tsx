@@ -2223,7 +2223,7 @@ const ProjectsPage: React.FC = () => {
                                             </Box>
                                           </Box>
                                         ))}
-                                      {/* Add Task row */}}
+                                      {/* Add Task row */}
                                       <Box sx={{ px: 2, py: 0.5 }}>
                                         <Button size="small" variant="text" startIcon={<AddIcon sx={{ fontSize: '0.8rem !important' }} />}
                                           onClick={async () => {
@@ -2477,7 +2477,7 @@ const ProjectsPage: React.FC = () => {
                                             </Box>
                                           </Box>
                                         ))}
-                                      {/* Add Task to group */}}
+                                      {/* Add Task to group */}
                                       <Box sx={{ px: 2, py: 0.5 }}>
                                         <Button size="small" variant="text" startIcon={<AddIcon sx={{ fontSize: '0.8rem !important' }} />}
                                           onClick={async () => {
