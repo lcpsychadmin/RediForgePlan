@@ -1850,15 +1850,15 @@ const ProjectsPage: React.FC = () => {
                           <TextField placeholder="Search by name or ID..." size="small" value={planSearchTerm} onChange={(e) => setPlanSearchTerm(e.target.value)}
                             sx={{ width: 240, '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': { borderColor: accentColor }, '& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: accentColor } }}
                             slotProps={{ input: { startAdornment: <SearchIcon sx={{ mr: 0.5, fontSize: '1rem', color: 'text.secondary' }} /> } }} />
-                          <TextField select size="small" value={planStatusFilter} onChange={(e) => setPlanStatusFilter(e.target.value)}
-                            sx={{ width: 150, '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': { borderColor: accentColor }, '& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: accentColor } }}>
+                          <TextField select size="small" label="Status" value={planStatusFilter} onChange={(e) => setPlanStatusFilter(e.target.value)}
+                            sx={{ width: 150, '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': { borderColor: accentColor }, '& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: accentColor }, '& .MuiInputLabel-root.Mui-focused': { color: accentColor } }}>
                             <MenuItem value="">All Statuses</MenuItem>
                             <MenuItem value="not_started">Not Started</MenuItem>
                             <MenuItem value="in_progress">In Progress</MenuItem>
                             <MenuItem value="complete">Completed</MenuItem>
                           </TextField>
-                          <TextField select size="small" value={planAssignedFilter} onChange={(e) => setPlanAssignedFilter(e.target.value)}
-                            sx={{ width: 170, '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': { borderColor: accentColor }, '& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: accentColor } }}>
+                          <TextField select size="small" label="Assigned To" value={planAssignedFilter} onChange={(e) => setPlanAssignedFilter(e.target.value)}
+                            sx={{ width: 170, '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': { borderColor: accentColor }, '& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: accentColor }, '& .MuiInputLabel-root.Mui-focused': { color: accentColor } }}>
                             <MenuItem value="">All Assignees</MenuItem>
                             {people.map((p: any) => (
                               <MenuItem key={p.id} value={p.id}>{p.name || p.email}</MenuItem>
