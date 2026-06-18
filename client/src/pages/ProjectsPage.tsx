@@ -144,6 +144,17 @@ const ProjectsPage: React.FC = () => {
   const [cloneCycleSourceProgramId, setCloneCycleSourceProgramId] = useState<string | null>(null);
   const [cloneCycleName, setCloneCycleName] = useState('');
   const [isCloningCycle, setIsCloningCycle] = useState(false);
+  const [cycleOverview, setCycleOverview] = useState<{
+    projectCount: number;
+    objectCount: number;
+    taskGroupCount: number;
+    taskCount: number;
+    statusCounts: { complete: number; in_progress: number; blocked: number; not_started: number };
+    progressPct: number;
+    timelineStart: string | null;
+    timelineEnd: string | null;
+  } | null>(null);
+  const [isLoadingCycleOverview, setIsLoadingCycleOverview] = useState(false);
 
   // Data object dialog states
   const [dataObjectDialogOpen, setDataObjectDialogOpen] = useState(false);
@@ -747,6 +758,96 @@ const ProjectsPage: React.FC = () => {
     loadTasksAndGroups();
   }, [activeProjectId]);
 
+  useEffect(() => {
+    const loadCycleOverview = async () => {
+      if (tabValue !== 0 || selectedItem?.type !== 'cycle') {
+        setCycleOverview(null);
+        return;
+      }
+
+      const cycleId = selectedItem.id;
+      const projects = projectsByMockCycle[cycleId] || [];
+
+      if (projects.length === 0) {
+        setCycleOverview({
+          projectCount: 0,
+          objectCount: 0,
+          taskGroupCount: 0,
+          taskCount: 0,
+          statusCounts: { complete: 0, in_progress: 0, blocked: 0, not_started: 0 },
+          progressPct: 0,
+          timelineStart: null,
+          timelineEnd: null,
+        });
+        return;
+      }
+
+      try {
+        setIsLoadingCycleOverview(true);
+        const perProject = await Promise.all(projects.map(async (project: Project) => {
+          const [tasksRes, objectsRes, groupsRes] = await Promise.all([
+            apiClient.get(`/api/tasks/project/${project.id}`),
+            apiClient.get(`/api/project-objects/project/${project.id}`),
+            apiClient.get(`/api/tasks/groups/project/${project.id}`),
+          ]);
+
+          return {
+            tasks: tasksRes.data?.data || [],
+            objects: objectsRes.data?.data || [],
+            groups: groupsRes.data?.data || [],
+          };
+        }));
+
+        const allTasks = perProject.flatMap((item: any) => item.tasks);
+        const objectCount = perProject.reduce((sum: number, item: any) => sum + (item.objects?.length || 0), 0);
+        const taskGroupCount = perProject.reduce((sum: number, item: any) => sum + (item.groups?.length || 0), 0);
+
+        let minDate: Date | null = null;
+        let maxDate: Date | null = null;
+        for (const task of allTasks) {
+          const start = normalizeDateOnly(task.startDate || undefined);
+          const end = normalizeDateOnly(task.endDate || undefined);
+          if (start && (!minDate || start < minDate)) minDate = start;
+          if (end && (!maxDate || end > maxDate)) maxDate = end;
+        }
+
+        const statusCounts = {
+          complete: allTasks.filter((task: any) => task.status === 'complete').length,
+          in_progress: allTasks.filter((task: any) => task.status === 'in_progress').length,
+          blocked: allTasks.filter((task: any) => task.status === 'blocked').length,
+          not_started: allTasks.filter((task: any) => task.status === 'not_started').length,
+        };
+
+        const progressPct = allTasks.length > 0
+          ? Math.round(allTasks.reduce((sum: number, task: any) => sum + (task.progressPercentage ?? 0), 0) / allTasks.length)
+          : Math.round(projects.reduce((sum, project) => sum + (project.progressPercentage || 0), 0) / Math.max(1, projects.length));
+
+        const formatDate = (value: Date | null) => {
+          if (!value) return null;
+          return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`;
+        };
+
+        setCycleOverview({
+          projectCount: projects.length,
+          objectCount,
+          taskGroupCount,
+          taskCount: allTasks.length,
+          statusCounts,
+          progressPct,
+          timelineStart: formatDate(minDate),
+          timelineEnd: formatDate(maxDate),
+        });
+      } catch (error) {
+        console.error('Failed to load cycle overview:', error);
+        setCycleOverview(null);
+      } finally {
+        setIsLoadingCycleOverview(false);
+      }
+    };
+
+    loadCycleOverview();
+  }, [tabValue, selectedItem, projectsByMockCycle]);
+
   // Hydrate notification navigation target from URL query params.
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -1102,8 +1203,6 @@ const ProjectsPage: React.FC = () => {
       } else if (editItemType === 'cycle') {
         await apiClient.patch(`/api/mock-cycles/${editItemId}`, {
           name: editItemName,
-          startDate: editStartDate,
-          endDate: editEndDate,
           scheduleMode: editCycleScheduleMode,
           accentColor: editAccentColor || null,
         });
@@ -2876,10 +2975,67 @@ const ProjectsPage: React.FC = () => {
                     );
                   })() : (
                     <Box sx={{ p: 1 }}>
-                      <Typography variant="h6" sx={{ mb: 1 }}>{selectedDetails?.name}</Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        {selectedDetails?.description || (selectedItem.type === 'cycle' ? `${(selectedDetails as MockCycle).startDate} → ${(selectedDetails as MockCycle).endDate}` : '')}
-                      </Typography>
+                      {selectedItem.type === 'cycle' ? (
+                        <>
+                          <Typography variant="h6" sx={{ mb: 0.75 }}>{selectedDetails?.name}</Typography>
+                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
+                            High-level cycle summary derived from projects, objects, and tasks.
+                          </Typography>
+
+                          {isLoadingCycleOverview ? (
+                            <Box sx={{ py: 2, display: 'flex', justifyContent: 'center' }}>
+                              <CircularProgress size={22} />
+                            </Box>
+                          ) : cycleOverview ? (
+                            <>
+                              <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(110px, 1fr))', gap: 1, mb: 1.5 }}>
+                                {[
+                                  { label: 'Projects', value: cycleOverview.projectCount },
+                                  { label: 'Objects', value: cycleOverview.objectCount },
+                                  { label: 'Task Groups', value: cycleOverview.taskGroupCount },
+                                  { label: 'Tasks', value: cycleOverview.taskCount },
+                                ].map((metric) => (
+                                  <Box key={metric.label} sx={{ p: 1, borderRadius: 1, backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                                    <Typography variant="caption" color="text.secondary">{metric.label}</Typography>
+                                    <Typography variant="h6" sx={{ lineHeight: 1.2 }}>{metric.value}</Typography>
+                                  </Box>
+                                ))}
+                              </Box>
+
+                              <Box sx={{ mb: 1.2 }}>
+                                <Typography variant="body2" sx={{ mb: 0.4, fontWeight: 600 }}>
+                                  Overall Progress: {cycleOverview.progressPct}%
+                                </Typography>
+                                <LinearProgress
+                                  variant="determinate"
+                                  value={Math.max(0, Math.min(100, cycleOverview.progressPct))}
+                                  sx={{ height: 8, borderRadius: 99 }}
+                                />
+                              </Box>
+
+                              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.8, mb: 1.2 }}>
+                                <Chip size="small" label={`Complete: ${cycleOverview.statusCounts.complete}`} color="success" variant="outlined" />
+                                <Chip size="small" label={`In Progress: ${cycleOverview.statusCounts.in_progress}`} color="info" variant="outlined" />
+                                <Chip size="small" label={`Blocked: ${cycleOverview.statusCounts.blocked}`} color="error" variant="outlined" />
+                                <Chip size="small" label={`Not Started: ${cycleOverview.statusCounts.not_started}`} variant="outlined" />
+                              </Box>
+
+                              <Typography variant="body2" color="text.secondary">
+                                Timeline: {cycleOverview.timelineStart || 'TBD'} → {cycleOverview.timelineEnd || 'TBD'}
+                              </Typography>
+                            </>
+                          ) : (
+                            <Typography variant="body2" color="text.secondary">Unable to load cycle overview.</Typography>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          <Typography variant="h6" sx={{ mb: 1 }}>{selectedDetails?.name}</Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            {selectedDetails?.description || ''}
+                          </Typography>
+                        </>
+                      )}
                     </Box>
                   )}
                 </>
@@ -3941,26 +4097,6 @@ const ProjectsPage: React.FC = () => {
                   <Typography variant="body2">{editCycleScheduleMode === 'all_days' ? 'Checked: all days' : 'Unchecked: working days only'}</Typography>
                 </Box>
               </Box>
-              <TextField
-                label="Start Date"
-                type="date"
-                value={editStartDate}
-                onChange={(e) => setEditStartDate(e.target.value)}
-                InputLabelProps={{ shrink: true }}
-                fullWidth
-                variant="outlined"
-                size="small"
-              />
-              <TextField
-                label="End Date"
-                type="date"
-                value={editEndDate}
-                onChange={(e) => setEditEndDate(e.target.value)}
-                InputLabelProps={{ shrink: true }}
-                fullWidth
-                variant="outlined"
-                size="small"
-              />
             </>
           )}
 
