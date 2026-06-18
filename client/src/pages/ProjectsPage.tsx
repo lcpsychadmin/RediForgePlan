@@ -1769,6 +1769,9 @@ const ProjectsPage: React.FC = () => {
                       '& .MuiInputBase-root': { fontSize: '0.72rem', height: 26 },
                       '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': { borderColor: accentColor },
                       '& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: accentColor },
+                      '& input::-webkit-outer-spin-button': { WebkitAppearance: 'none', margin: 0 },
+                      '& input::-webkit-inner-spin-button': { WebkitAppearance: 'none', margin: 0 },
+                      '& input[type=number]': { MozAppearance: 'textfield' },
                     };
                     return (
                       <Box>
