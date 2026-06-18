@@ -2265,7 +2265,7 @@ const ProjectsPage: React.FC = () => {
                                       )}
                                       {/* Table header */}
                                       <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 120px 60px 150px 130px 120px 100px 100px 100px', gap: 0, px: 2, py: 0.5, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                                        {['TASK', 'STATUS', '%', 'ASSIGNED TO', 'DURATION', 'CALENDAR', 'START DATE', 'END DATE', 'ACTIONS'].map(h => (
+                                        {['TASK', 'STATUS', '%', 'ASSIGNED TO', 'DURATION', 'INCL WKND', 'START DATE', 'END DATE', 'ACTIONS'].map(h => (
                                           <Typography key={h} variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', letterSpacing: '0.05em', fontWeight: 600 }}>{h}</Typography>
                                         ))}
                                       </Box>
@@ -2348,34 +2348,38 @@ const ProjectsPage: React.FC = () => {
                                                 sx={{ ...taskFieldSx, '& input': { textAlign: 'center', px: 0.5, width: 38 } }} />
                                               <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.72rem', px: 0.5 }}>days</Typography>
                                             </Box>
-                                            {/* Calendar Override */}
-                                            <TextField
-                                              select
-                                              size="small"
-                                              value={(task.scheduleModeOverride as TaskCalendarOverride) || 'inherit'}
-                                              onChange={e => {
-                                                const scheduleModeOverride = e.target.value === 'inherit' ? null : e.target.value;
-                                                const taskSnapshot = projectTasksRef.current.find(t => t.id === task.id) || task;
-                                                const nextTask = { ...taskSnapshot, scheduleModeOverride };
-                                                const patchData: any = { scheduleModeOverride };
-                                                if (nextTask.startDate && nextTask.duration) {
-                                                  const recalculatedEnd = calcEndDate(nextTask.startDate, Number(nextTask.duration), nextTask);
-                                                  if (recalculatedEnd) patchData.endDate = recalculatedEnd;
-                                                }
-                                                setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, ...patchData } : t));
-                                                apiClient.patch(`/api/tasks/${task.id}`, patchData)
-                                                  .then(() => {
-                                                    const snap = projectTasksRef.current.map(t => t.id === task.id ? { ...t, ...patchData } : t);
-                                                    cascadeAllDates(snap, taskDepsRef.current);
-                                                  })
-                                                  .catch(() => {});
-                                              }}
-                                              sx={taskFieldSx}
-                                            >
-                                              <MenuItem value="inherit">Inherit cycle</MenuItem>
-                                              <MenuItem value="all_days">All days</MenuItem>
-                                              <MenuItem value="working_days">Working days</MenuItem>
-                                            </TextField>
+                                            {/* Include weekends override */}
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                              <Checkbox
+                                                size="small"
+                                                checked={getTaskCalendarMode(task) === 'all_days'}
+                                                onChange={e => {
+                                                  const cycleIsAllDays = activeCycleScheduleMode === 'all_days';
+                                                  const checked = e.target.checked;
+                                                  const scheduleModeOverride = checked === cycleIsAllDays
+                                                    ? null
+                                                    : (checked ? 'all_days' : 'working_days');
+                                                  const taskSnapshot = projectTasksRef.current.find(t => t.id === task.id) || task;
+                                                  const nextTask = { ...taskSnapshot, scheduleModeOverride };
+                                                  const patchData: any = { scheduleModeOverride };
+                                                  if (nextTask.startDate && nextTask.duration) {
+                                                    const recalculatedEnd = calcEndDate(nextTask.startDate, Number(nextTask.duration), nextTask);
+                                                    if (recalculatedEnd) patchData.endDate = recalculatedEnd;
+                                                  }
+                                                  setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, ...patchData } : t));
+                                                  apiClient.patch(`/api/tasks/${task.id}`, patchData)
+                                                    .then(() => {
+                                                      const snap = projectTasksRef.current.map(t => t.id === task.id ? { ...t, ...patchData } : t);
+                                                      cascadeAllDates(snap, taskDepsRef.current);
+                                                    })
+                                                    .catch(() => {});
+                                                }}
+                                                sx={{ p: 0.25 }}
+                                              />
+                                              <Typography variant="caption" sx={{ color: task.scheduleModeOverride ? 'text.secondary' : 'text.disabled', fontSize: '0.68rem' }}>
+                                                {task.scheduleModeOverride ? 'Override' : 'Inherit'}
+                                              </Typography>
+                                            </Box>
                                             {/* Start Date */}
                                             {(taskDeps[task.id] || []).length > 0 ? (
                                               <Box title="Set by dependency — adjust via › button" sx={{ display: 'flex', alignItems: 'center', px: 1, height: 26, minWidth: 100, border: '1px dashed rgba(255,255,255,0.2)', borderRadius: 1, backgroundColor: 'rgba(255,255,255,0.08)', cursor: 'not-allowed', fontSize: '0.72rem', color: 'rgba(255,255,255,0.75)' }}>
@@ -2583,7 +2587,7 @@ const ProjectsPage: React.FC = () => {
                                     <Box sx={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
                                       {/* Table header */}
                                       <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 120px 60px 150px 130px 120px 100px 100px 100px', gap: 0, px: 2, py: 0.5, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                                        {['TASK', 'STATUS', '%', 'ASSIGNED TO', 'DURATION', 'CALENDAR', 'START DATE', 'END DATE', 'ACTIONS'].map(h => (
+                                        {['TASK', 'STATUS', '%', 'ASSIGNED TO', 'DURATION', 'INCL WKND', 'START DATE', 'END DATE', 'ACTIONS'].map(h => (
                                           <Typography key={h} variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', letterSpacing: '0.05em', fontWeight: 600 }}>{h}</Typography>
                                         ))}
                                       </Box>
@@ -2662,34 +2666,38 @@ const ProjectsPage: React.FC = () => {
                                                 sx={{ ...taskFieldSx, '& input': { textAlign: 'center', px: 0.5, width: 38 } }} />
                                               <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.72rem', px: 0.5 }}>days</Typography>
                                             </Box>
-                                            {/* Calendar Override */}
-                                            <TextField
-                                              select
-                                              size="small"
-                                              value={(task.scheduleModeOverride as TaskCalendarOverride) || 'inherit'}
-                                              onChange={e => {
-                                                const scheduleModeOverride = e.target.value === 'inherit' ? null : e.target.value;
-                                                const taskSnapshot = projectTasksRef.current.find(t => t.id === task.id) || task;
-                                                const nextTask = { ...taskSnapshot, scheduleModeOverride };
-                                                const patchData: any = { scheduleModeOverride };
-                                                if (nextTask.startDate && nextTask.duration) {
-                                                  const recalculatedEnd = calcEndDate(nextTask.startDate, Number(nextTask.duration), nextTask);
-                                                  if (recalculatedEnd) patchData.endDate = recalculatedEnd;
-                                                }
-                                                setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, ...patchData } : t));
-                                                apiClient.patch(`/api/tasks/${task.id}`, patchData)
-                                                  .then(() => {
-                                                    const snap = projectTasksRef.current.map(t => t.id === task.id ? { ...t, ...patchData } : t);
-                                                    cascadeAllDates(snap, taskDepsRef.current);
-                                                  })
-                                                  .catch(() => {});
-                                              }}
-                                              sx={taskFieldSx}
-                                            >
-                                              <MenuItem value="inherit">Inherit cycle</MenuItem>
-                                              <MenuItem value="all_days">All days</MenuItem>
-                                              <MenuItem value="working_days">Working days</MenuItem>
-                                            </TextField>
+                                            {/* Include weekends override */}
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                              <Checkbox
+                                                size="small"
+                                                checked={getTaskCalendarMode(task) === 'all_days'}
+                                                onChange={e => {
+                                                  const cycleIsAllDays = activeCycleScheduleMode === 'all_days';
+                                                  const checked = e.target.checked;
+                                                  const scheduleModeOverride = checked === cycleIsAllDays
+                                                    ? null
+                                                    : (checked ? 'all_days' : 'working_days');
+                                                  const taskSnapshot = projectTasksRef.current.find(t => t.id === task.id) || task;
+                                                  const nextTask = { ...taskSnapshot, scheduleModeOverride };
+                                                  const patchData: any = { scheduleModeOverride };
+                                                  if (nextTask.startDate && nextTask.duration) {
+                                                    const recalculatedEnd = calcEndDate(nextTask.startDate, Number(nextTask.duration), nextTask);
+                                                    if (recalculatedEnd) patchData.endDate = recalculatedEnd;
+                                                  }
+                                                  setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, ...patchData } : t));
+                                                  apiClient.patch(`/api/tasks/${task.id}`, patchData)
+                                                    .then(() => {
+                                                      const snap = projectTasksRef.current.map(t => t.id === task.id ? { ...t, ...patchData } : t);
+                                                      cascadeAllDates(snap, taskDepsRef.current);
+                                                    })
+                                                    .catch(() => {});
+                                                }}
+                                                sx={{ p: 0.25 }}
+                                              />
+                                              <Typography variant="caption" sx={{ color: task.scheduleModeOverride ? 'text.secondary' : 'text.disabled', fontSize: '0.68rem' }}>
+                                                {task.scheduleModeOverride ? 'Override' : 'Inherit'}
+                                              </Typography>
+                                            </Box>
                                             {/* Start Date */}
                                             {(taskDeps[task.id] || []).length > 0 ? (
                                               <Box title="Set by dependency — adjust via › button" sx={{ display: 'flex', alignItems: 'center', px: 1, height: 26, minWidth: 100, border: '1px dashed rgba(255,255,255,0.2)', borderRadius: 1, backgroundColor: 'rgba(255,255,255,0.08)', cursor: 'not-allowed', fontSize: '0.72rem', color: 'rgba(255,255,255,0.75)' }}>
@@ -3408,19 +3416,17 @@ const ProjectsPage: React.FC = () => {
             />
           )}
           {dialogMode === 'cycle' && (
-            <TextField
-              select
-              fullWidth
-              label="Schedule Mode"
-              value={newCycleScheduleMode}
-              onChange={(e) => setNewCycleScheduleMode(e.target.value as CalendarMode)}
-              variant="outlined"
-              size="small"
-              helperText="Controls whether durations/counting include weekends by default."
-            >
-              <MenuItem value="all_days">All days (include weekends)</MenuItem>
-              <MenuItem value="working_days">Working days only (skip weekends)</MenuItem>
-            </TextField>
+            <Box sx={{ mt: 1 }}>
+              <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Include Weekends</Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Checkbox
+                  checked={newCycleScheduleMode === 'all_days'}
+                  onChange={(e) => setNewCycleScheduleMode(e.target.checked ? 'all_days' : 'working_days')}
+                  sx={{ p: 0.25 }}
+                />
+                <Typography variant="body2">{newCycleScheduleMode === 'all_days' ? 'Checked: all days' : 'Unchecked: working days only'}</Typography>
+              </Box>
+            </Box>
           )}
         </DialogContent>
         <DialogActions sx={{ gap: 1, p: 2, borderTop: '1px solid', borderColor: 'divider' }}>
@@ -3715,19 +3721,17 @@ const ProjectsPage: React.FC = () => {
 
           {editItemType === 'cycle' && (
             <>
-              <TextField
-                label="Schedule Mode"
-                select
-                value={editCycleScheduleMode}
-                onChange={(e) => setEditCycleScheduleMode(e.target.value as CalendarMode)}
-                fullWidth
-                variant="outlined"
-                size="small"
-                helperText="Default mode for tasks in this cycle."
-              >
-                <MenuItem value="all_days">All days (include weekends)</MenuItem>
-                <MenuItem value="working_days">Working days only (skip weekends)</MenuItem>
-              </TextField>
+              <Box>
+                <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Include Weekends</Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Checkbox
+                    checked={editCycleScheduleMode === 'all_days'}
+                    onChange={(e) => setEditCycleScheduleMode(e.target.checked ? 'all_days' : 'working_days')}
+                    sx={{ p: 0.25 }}
+                  />
+                  <Typography variant="body2">{editCycleScheduleMode === 'all_days' ? 'Checked: all days' : 'Unchecked: working days only'}</Typography>
+                </Box>
+              </Box>
               <TextField
                 label="Start Date"
                 type="date"
