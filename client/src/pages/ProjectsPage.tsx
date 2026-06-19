@@ -330,7 +330,9 @@ const ProjectsPage: React.FC = () => {
 
   const handleHierarchySelection = (item: SelectableItem) => {
     setSelectedItem(item);
-    if (isMobile) {
+    // On mobile, keep the tree open while traversing hierarchy levels.
+    // Close only once the user selects a concrete project.
+    if (isMobile && item.type === 'project') {
       setIsHierarchySidebarOpen(false);
     }
   };
@@ -2057,7 +2059,7 @@ const ProjectsPage: React.FC = () => {
               left: 0,
               right: 0,
               bottom: '36px',
-              backgroundColor: 'rgba(0,0,0,0.5)',
+              backgroundColor: 'rgba(0,0,0,0.3)',
               zIndex: 1298,
             }}
           />
