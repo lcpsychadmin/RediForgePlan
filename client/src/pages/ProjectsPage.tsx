@@ -422,6 +422,39 @@ const ProjectsPage: React.FC = () => {
       ? selectedItem.id
       : null;
 
+  const selectedProjectContext = React.useMemo(() => {
+    if (selectedItem?.type !== 'project') return null;
+
+    const cycleId = selectedItem.cycleId;
+    const programId = Object.keys(mockCycles).find((id) =>
+      (mockCycles[id] || []).some((cycle: MockCycle) => cycle.id === cycleId)
+    );
+
+    if (!programId) return null;
+
+    return {
+      programId,
+      cycleId,
+      projectId: selectedItem.id,
+    };
+  }, [selectedItem, mockCycles]);
+
+  const getProjectWorkspacePath = (section: 'plan' | 'priorities' | 'schedule' | 'reporting') => {
+    if (!selectedProjectContext) return null;
+
+    return `/programs/${selectedProjectContext.programId}/mock-cycles/${selectedProjectContext.cycleId}/projects/${selectedProjectContext.projectId}/${section}`;
+  };
+
+  const { data: selectedProjectReportingSummary, isLoading: isLoadingSelectedProjectReportingSummary } = useQuery({
+    queryKey: ['projects-page', 'selected-project-reporting-summary', selectedProjectContext?.projectId],
+    queryFn: async () => {
+      const response = await apiClient.get(`/api/reporting/projects/${selectedProjectContext!.projectId}/summary`);
+      return response.data?.data;
+    },
+    enabled: !!selectedProjectContext?.projectId,
+    staleTime: 30_000,
+  });
+
   useEffect(() => {
     if (!selectedItem) return;
 
@@ -2516,6 +2549,84 @@ const ProjectsPage: React.FC = () => {
                             </Box>
                           );
                         })()}
+
+                        {/* Data quality and defect controls stay visible in Projects, without needing to leave this view first. */}
+                        <Box sx={{ mt: 2, p: 1.5, borderRadius: 2, border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'rgba(255,255,255,0.03)' }}>
+                          <Typography variant="caption" sx={{ color: 'text.disabled', letterSpacing: '0.04em', fontWeight: 700 }}>
+                            DATA QUALITY AND DEFECTS
+                          </Typography>
+
+                          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 1 }}>
+                            <Chip
+                              size="small"
+                              label={`Invalid Records: ${(selectedProjectReportingSummary?.validation?.preload?.invalidRecords || 0) + (selectedProjectReportingSummary?.validation?.postload?.invalidRecords || 0)}`}
+                              sx={{ backgroundColor: 'rgba(255, 152, 0, 0.16)', color: '#ffb74d', fontWeight: 600 }}
+                            />
+                            <Chip
+                              size="small"
+                              label={`Load Failures: ${selectedProjectReportingSummary?.loadMetrics?.failed || 0}`}
+                              sx={{ backgroundColor: 'rgba(239, 83, 80, 0.16)', color: '#ef9a9a', fontWeight: 600 }}
+                            />
+                            <Chip
+                              size="small"
+                              label={`Active Defects: ${(selectedProjectReportingSummary?.defects?.open || 0) + (selectedProjectReportingSummary?.defects?.inProgress || 0)}`}
+                              sx={{ backgroundColor: 'rgba(33, 150, 243, 0.16)', color: '#90caf9', fontWeight: 600 }}
+                            />
+                          </Box>
+
+                          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 1.25 }}>
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              onClick={() => {
+                                const path = getProjectWorkspacePath('plan');
+                                if (path) navigate(path);
+                              }}
+                              sx={{ textTransform: 'none', borderColor: `${accentColor}66`, color: accentColor }}
+                            >
+                              Validation and Issues
+                            </Button>
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              onClick={() => {
+                                const path = getProjectWorkspacePath('priorities');
+                                if (path) navigate(path);
+                              }}
+                              sx={{ textTransform: 'none', borderColor: `${accentColor}66`, color: accentColor }}
+                            >
+                              Defect Queue
+                            </Button>
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              onClick={() => {
+                                const path = getProjectWorkspacePath('schedule');
+                                if (path) navigate(path);
+                              }}
+                              sx={{ textTransform: 'none', borderColor: `${accentColor}66`, color: accentColor }}
+                            >
+                              Schedule Warnings
+                            </Button>
+                            <Button
+                              size="small"
+                              variant="contained"
+                              onClick={() => {
+                                const path = getProjectWorkspacePath('reporting');
+                                if (path) navigate(path);
+                              }}
+                              sx={{ textTransform: 'none', background: `linear-gradient(135deg, ${accentColor} 0%, ${accentColor}99 100%)`, boxShadow: 'none' }}
+                            >
+                              Open Reporting Dashboard
+                            </Button>
+                          </Box>
+
+                          {isLoadingSelectedProjectReportingSummary && (
+                            <Typography variant="caption" color="text.disabled" sx={{ mt: 1, display: 'block' }}>
+                              Refreshing latest quality and defect metrics...
+                            </Typography>
+                          )}
+                        </Box>
                           </Box>{/* end left info box */}
                           <Box sx={{ display: 'flex', gap: 1.5, flexShrink: 0, ml: 2 }}>
                             <Button variant="contained" startIcon={<AddIcon />} onClick={() => setDataObjectDialogOpen(true)}
