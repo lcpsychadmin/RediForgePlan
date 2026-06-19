@@ -1,5 +1,5 @@
 import React from 'react';
-import { AppBar, Toolbar, IconButton, Typography, Box, Menu, MenuItem, Divider, Button, LinearProgress, Badge } from '@mui/material';
+import { AppBar, Toolbar, IconButton, Typography, Box, Menu, MenuItem, Divider, Button, LinearProgress, Badge, useMediaQuery, useTheme } from '@mui/material';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import LogoutIcon from '@mui/icons-material/Logout';
@@ -16,6 +16,7 @@ import TableChartIcon from '@mui/icons-material/TableChart';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 import AssignmentTurnedInIcon from '@mui/icons-material/AssignmentTurnedIn';
+import MenuIcon from '@mui/icons-material/Menu';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import apiClient from '../api/client';
@@ -51,6 +52,8 @@ const TopNav: React.FC<TopNavProps> = ({
   onPeopleClick
 }) => {
   const { user, logout } = useAuth();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const navigate = useNavigate();
   const location = useLocation();
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
@@ -135,8 +138,27 @@ const TopNav: React.FC<TopNavProps> = ({
 
   return (
     <AppBar position="fixed" sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}>
-      <Toolbar sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <Toolbar sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: { xs: 1, sm: 2 } }}>
         {isProjectsPage ? (
+          isMobile ? (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1, minWidth: 0 }}>
+              <IconButton color="inherit" size="small" onClick={onMenuClick}>
+                <MenuIcon />
+              </IconButton>
+              <Typography variant="subtitle1" sx={{ fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>
+                Mock/Cutover Execution
+              </Typography>
+              <Button
+                variant="contained"
+                size="small"
+                startIcon={<GroupIcon />}
+                onClick={onPeopleClick}
+                sx={{ textTransform: 'none', minWidth: 0, px: 1.25, boxShadow: 'none' }}
+              >
+                People
+              </Button>
+            </Box>
+          ) : (
           <>
             {/* Projects Page Header */}
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
@@ -226,6 +248,7 @@ const TopNav: React.FC<TopNavProps> = ({
               </Button>
             </Box>
           </>
+          )
         ) : (
           <>
             {/* Default Header */}
@@ -357,11 +380,16 @@ const TopNav: React.FC<TopNavProps> = ({
           sx={{
             display: 'flex',
             alignItems: 'center',
-            gap: 0.5,
-            px: 2,
+            gap: { xs: 0.75, sm: 0.5 },
+            px: { xs: 1, sm: 2 },
             pt: 1,
             pb: 1,
             borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+            overflowX: 'auto',
+            overflowY: 'hidden',
+            whiteSpace: 'nowrap',
+            scrollbarWidth: 'none',
+            '&::-webkit-scrollbar': { display: 'none' },
           }}
         >
           {subNavItems.map((item, idx) => (
@@ -381,11 +409,18 @@ const TopNav: React.FC<TopNavProps> = ({
               sx={{
                 textTransform: 'none',
                 fontWeight: 500,
-                fontSize: '0.8rem',
+                fontSize: { xs: '0.72rem', sm: '0.8rem' },
                 borderRadius: '20px',
-                px: 1.5,
+                px: { xs: 1.1, sm: 1.5 },
                 py: 0.4,
                 color: 'white',
+                flexShrink: 0,
+                whiteSpace: 'nowrap',
+                '& .MuiButton-startIcon': {
+                  display: { xs: 'none', sm: 'inline-flex' },
+                  mr: { xs: 0, sm: 0.75 },
+                  ml: { xs: 0, sm: -0.5 },
+                },
                 backgroundColor: (typeof item.tabIndex === 'number' && tabValue === item.tabIndex)
                   ? 'primary.main'
                   : 'rgba(255, 255, 255, 0.08)',

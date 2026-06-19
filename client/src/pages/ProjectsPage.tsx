@@ -29,6 +29,8 @@ import {
   Badge,
   Checkbox,
   Chip,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
@@ -51,6 +53,7 @@ import SyncIcon from '@mui/icons-material/Sync';
 import SearchIcon from '@mui/icons-material/Search';
 import EventIcon from '@mui/icons-material/Event';
 import ViewListIcon from '@mui/icons-material/ViewList';
+import MenuIcon from '@mui/icons-material/Menu';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Menu from '@mui/material/Menu';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -109,6 +112,8 @@ const ProjectsPage: React.FC = () => {
   const location = useLocation();
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   
   // State for expanded nodes in tree
   const [expandedPrograms, setExpandedPrograms] = useState<Set<string>>(new Set());
@@ -290,6 +295,7 @@ const ProjectsPage: React.FC = () => {
     cycles: {},
     projects: {},
   });
+  const [isHierarchySidebarOpen, setIsHierarchySidebarOpen] = useState(false);
 
   // People sidebar state
   const [peopleSidebarOpen, setPeopleSidebarOpen] = useState(false);
@@ -321,6 +327,19 @@ const ProjectsPage: React.FC = () => {
     setEditingTask(task);
     setEditingTaskInitialTab(initialTab);
   };
+
+  const handleHierarchySelection = (item: SelectableItem) => {
+    setSelectedItem(item);
+    if (isMobile) {
+      setIsHierarchySidebarOpen(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!isMobile) {
+      setIsHierarchySidebarOpen(false);
+    }
+  }, [isMobile]);
 
   const { data: programs = [], isLoading } = useQuery({
     queryKey: ['programs'],
@@ -2018,6 +2037,7 @@ const ProjectsPage: React.FC = () => {
 
   return (
     <Layout
+      onMenuClick={() => setIsHierarchySidebarOpen(true)}
       programCount={programs.length}
       cycleCount={cycleCount}
       objectCount={projectInventoryItems.length}
@@ -2027,24 +2047,59 @@ const ProjectsPage: React.FC = () => {
       onPeopleClick={() => setPeopleSidebarOpen(true)}
     >
       {/* Main Content Area */}
-      <Box sx={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+      <Box sx={{ display: 'flex', flex: 1, overflow: 'hidden', position: 'relative' }}>
+        {isMobile && isHierarchySidebarOpen && (
+          <Box
+            onClick={() => setIsHierarchySidebarOpen(false)}
+            sx={{
+              position: 'fixed',
+              top: '112px',
+              left: 0,
+              right: 0,
+              bottom: '36px',
+              backgroundColor: 'rgba(0,0,0,0.5)',
+              zIndex: 1298,
+            }}
+          />
+        )}
+
         {/* Left Sidebar - Hierarchy Tree */}
         <Paper
           sx={{
-            width: '280px',
+            width: { xs: 'min(86vw, 320px)', md: '280px' },
             overflowY: 'auto',
             flexShrink: 0,
             backgroundColor: 'transparent',
             borderRight: '1px solid rgba(255, 255, 255, 0.08)',
-            boxShadow: 'none',
             borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
             borderTop: 'none',
             borderLeft: 'none',
             borderRadius: 0,
             display: 'flex',
             flexDirection: 'column',
+            position: { xs: 'fixed', md: 'relative' },
+            top: { xs: '112px', md: 'auto' },
+            left: { xs: 0, md: 'auto' },
+            bottom: { xs: '36px', md: 'auto' },
+            height: { xs: 'auto', md: '100%' },
+            zIndex: { xs: 1299, md: 'auto' },
+            transform: { xs: isHierarchySidebarOpen ? 'translateX(0)' : 'translateX(-100%)', md: 'none' },
+            transition: { xs: 'transform 0.22s ease-out', md: 'none' },
+            boxShadow: { xs: '8px 0 28px rgba(0,0,0,0.45)', md: 'none' },
           }}
         >
+          {isMobile && (
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 1.5, py: 1, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <MenuIcon sx={{ fontSize: '1rem', color: 'text.secondary' }} />
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>Hierarchy</Typography>
+              </Box>
+              <IconButton size="small" onClick={() => setIsHierarchySidebarOpen(false)}>
+                <CloseIcon sx={{ fontSize: '1rem' }} />
+              </IconButton>
+            </Box>
+          )}
+
           <Box sx={{ flex: 1, overflowY: 'auto', pt: 1 }}>
             {programs.length === 0 ? (
               <Typography variant="caption" color="textSecondary" sx={{ px: 2 }}>
@@ -2106,7 +2161,7 @@ const ProjectsPage: React.FC = () => {
                           '&:hover': { backgroundColor: isProgramSelected ? 'rgba(91, 103, 202, 0.15)' : 'rgba(255,255,255,0.05)' },
                         }}
                         onClick={() => {
-                          setSelectedItem({ type: 'program', id: program.id });
+                          handleHierarchySelection({ type: 'program', id: program.id });
                           toggleProgramExpanded(program.id);
                         }}
                       >
@@ -2213,7 +2268,7 @@ const ProjectsPage: React.FC = () => {
                                     '&:hover': { backgroundColor: isCycleSelected ? 'rgba(91, 103, 202, 0.15)' : 'rgba(255,255,255,0.05)' },
                                   }}
                                   onClick={() => {
-                                    setSelectedItem({ type: 'cycle', id: cycle.id, programId: program.id });
+                                    handleHierarchySelection({ type: 'cycle', id: cycle.id, programId: program.id });
                                     toggleCycleExpanded(cycle.id);
                                   }}
                                 >
@@ -2326,7 +2381,7 @@ const ProjectsPage: React.FC = () => {
                                             } : {},
                                             '&:hover': { backgroundColor: isProjectSelected ? `${accentColor}22` : 'rgba(255,255,255,0.05)' },
                                           }}
-                                          onClick={() => setSelectedItem({ type: 'project', id: project.id, cycleId: cycle.id })}
+                                          onClick={() => handleHierarchySelection({ type: 'project', id: project.id, cycleId: cycle.id })}
                                         >
                                           {/* Tree connector */}
                                           <Box sx={{ width: 8, flexShrink: 0 }} />
@@ -2405,7 +2460,7 @@ const ProjectsPage: React.FC = () => {
         </Paper>
 
         {/* Right Content Area - Details */}
-        <Box sx={{ flex: 1, overflowY: 'auto', p: 3 }}>
+        <Box sx={{ flex: 1, overflowY: 'auto', p: { xs: 1.25, sm: 3 }, minWidth: 0 }}>
           {/* Plan Tab Content */}
           {tabValue === 0 && (
             <>
@@ -2456,7 +2511,7 @@ const ProjectsPage: React.FC = () => {
                     return (
                       <Box>
                         {/* Top section: info left, buttons right */}
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', mb: 3 }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'flex-start', md: 'flex-end' }, flexWrap: 'wrap', rowGap: 1.5, mb: 3 }}>
                           <Box>
                         {/* Breadcrumbs */}
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1.5 }}>
@@ -2466,7 +2521,7 @@ const ProjectsPage: React.FC = () => {
                         </Box>
 
                         {/* Title */}
-                        <Typography variant="h4" sx={{ fontWeight: 700, color: accentColor, mb: 0.75 }}>{project.name}</Typography>
+                        <Typography variant="h4" sx={{ fontWeight: 700, color: accentColor, mb: 0.75, fontSize: { xs: '1.55rem', sm: '2.125rem' } }}>{project.name}</Typography>
 
                         {/* Stats */}
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
@@ -2541,13 +2596,13 @@ const ProjectsPage: React.FC = () => {
                         })()}
 
                           </Box>{/* end left info box */}
-                          <Box sx={{ display: 'flex', gap: 1.5, flexShrink: 0, ml: 2 }}>
+                          <Box sx={{ display: 'flex', gap: 1, flexShrink: 0, ml: { xs: 0, md: 2 }, width: { xs: '100%', md: 'auto' }, flexWrap: { xs: 'wrap', md: 'nowrap' } }}>
                             <Button variant="contained" startIcon={<AddIcon />} onClick={() => setDataObjectDialogOpen(true)}
-                              sx={{ background: `linear-gradient(135deg, ${accentColor} 0%, ${accentColor}99 100%)`, textTransform: 'none', fontWeight: 600, boxShadow: 'none' }}>
+                              sx={{ background: `linear-gradient(135deg, ${accentColor} 0%, ${accentColor}99 100%)`, textTransform: 'none', fontWeight: 600, boxShadow: 'none', width: { xs: '100%', sm: 'auto' } }}>
                               Add Data Object
                             </Button>
                             <Button variant="contained" startIcon={<AddIcon />} onClick={() => setTaskGroupDialogOpen(true)}
-                              sx={{ background: 'linear-gradient(135deg, #5B67CA 0%, #3B4DB3 100%)', textTransform: 'none', fontWeight: 600, boxShadow: 'none' }}>
+                              sx={{ background: 'linear-gradient(135deg, #5B67CA 0%, #3B4DB3 100%)', textTransform: 'none', fontWeight: 600, boxShadow: 'none', width: { xs: '100%', sm: 'auto' } }}>
                               Add Task Group
                             </Button>
                           </Box>
@@ -2556,17 +2611,17 @@ const ProjectsPage: React.FC = () => {
                         {/* Filter Row */}
                         <Box sx={{ display: 'flex', gap: 1.5, mb: 3, alignItems: 'center', flexWrap: 'wrap' }}>
                           <TextField placeholder="Search by name or ID..." size="small" value={planSearchTerm} onChange={(e) => setPlanSearchTerm(e.target.value)}
-                            sx={{ width: 240, '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': { borderColor: accentColor }, '& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: accentColor } }}
+                            sx={{ width: { xs: '100%', sm: 240 }, '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': { borderColor: accentColor }, '& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: accentColor } }}
                             slotProps={{ input: { startAdornment: <SearchIcon sx={{ mr: 0.5, fontSize: '1rem', color: 'text.secondary' }} /> } }} />
                           <TextField select size="small" label="Status" value={planStatusFilter} onChange={(e) => setPlanStatusFilter(e.target.value)}
-                            sx={{ width: 150, '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': { borderColor: accentColor }, '& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: accentColor }, '& .MuiInputLabel-root.Mui-focused': { color: accentColor } }}>
+                            sx={{ width: { xs: 'calc(50% - 6px)', sm: 150 }, minWidth: { xs: 140, sm: 150 }, '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': { borderColor: accentColor }, '& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: accentColor }, '& .MuiInputLabel-root.Mui-focused': { color: accentColor } }}>
                             <MenuItem value="">All Statuses</MenuItem>
                             <MenuItem value="not_started">Not Started</MenuItem>
                             <MenuItem value="in_progress">In Progress</MenuItem>
                             <MenuItem value="complete">Completed</MenuItem>
                           </TextField>
                           <TextField select size="small" label="Assigned To" value={planAssignedFilter} onChange={(e) => setPlanAssignedFilter(e.target.value)}
-                            sx={{ width: 170, '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': { borderColor: accentColor }, '& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: accentColor }, '& .MuiInputLabel-root.Mui-focused': { color: accentColor } }}>
+                            sx={{ width: { xs: 'calc(50% - 6px)', sm: 170 }, minWidth: { xs: 140, sm: 170 }, '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': { borderColor: accentColor }, '& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: accentColor }, '& .MuiInputLabel-root.Mui-focused': { color: accentColor } }}>
                             <MenuItem value="">All Assignees</MenuItem>
                             {people.map((p: any) => (
                               <MenuItem key={p.id} value={p.id}>{p.name || p.email}</MenuItem>
@@ -4759,7 +4814,7 @@ const ProjectsPage: React.FC = () => {
           />
           {/* Sidebar Panel */}
           <Box sx={{
-            position: 'fixed', top: 0, right: 0, bottom: 0, width: 380,
+            position: 'fixed', top: 0, right: 0, bottom: 0, width: { xs: '100vw', sm: 380 },
             backgroundColor: '#1A1E2E', borderLeft: '1px solid rgba(255,255,255,0.08)',
             zIndex: 1300, display: 'flex', flexDirection: 'column',
             boxShadow: '-8px 0 32px rgba(0,0,0,0.4)',

@@ -13,6 +13,7 @@ interface LayoutProps {
   tabValue?: number;
   onTabChange?: (value: number) => void;
   onPeopleClick?: () => void;
+  onMenuClick?: () => void;
 }
 
 const Layout: React.FC<LayoutProps> = ({ 
@@ -23,7 +24,8 @@ const Layout: React.FC<LayoutProps> = ({
   completionPercentage = 0,
   tabValue = 0,
   onTabChange,
-  onPeopleClick
+  onPeopleClick,
+  onMenuClick
 }) => {
   const location = useLocation();
   const { user } = useAuth();
@@ -38,7 +40,7 @@ const Layout: React.FC<LayoutProps> = ({
   return (
     <Box sx={{ display: 'flex', height: '100vh', flexDirection: 'column', overflow: 'hidden' }}>
       <TopNav 
-        onMenuClick={() => {}} 
+        onMenuClick={onMenuClick || (() => {})} 
         programCount={programCount}
         cycleCount={cycleCount}
         objectCount={objectCount}
@@ -51,7 +53,7 @@ const Layout: React.FC<LayoutProps> = ({
       <Box
         component="main"
         sx={{
-          mt: isProjectsPage ? '120px' : '64px',
+          mt: isProjectsPage ? { xs: '112px', sm: '120px' } : '64px',
           flex: 1,
           overflow: 'hidden',
           display: 'flex',
