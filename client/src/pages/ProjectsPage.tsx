@@ -307,11 +307,13 @@ const ProjectsPage: React.FC = () => {
     event.stopPropagation();
     setTaskRowMenuAnchorEl(event.currentTarget);
     setTaskRowMenuTask(task);
+    setMenuType('task');
   };
 
   const closeTaskRowMenu = () => {
     setTaskRowMenuAnchorEl(null);
     setTaskRowMenuTask(null);
+    setMenuType(null);
   };
 
   const openTaskDetails = (task: any, initialTab = 0) => {
@@ -4189,8 +4191,8 @@ const ProjectsPage: React.FC = () => {
 
       {/* Context Menu */}
       <Menu
-        anchorEl={menuAnchorEl}
-        open={Boolean(menuAnchorEl)}
+        anchorEl={taskRowMenuTask ? taskRowMenuAnchorEl : menuAnchorEl}
+        open={Boolean(taskRowMenuTask ? taskRowMenuAnchorEl : menuAnchorEl)}
         onClose={() => {
           setMenuAnchorEl(null);
           closeTaskRowMenu();
