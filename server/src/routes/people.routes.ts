@@ -7,7 +7,10 @@ import { formatListResponse, formatSingleResponse } from '../utils/responseForma
 const router = Router();
 
 router.get('/', requireAuth, async (req, res, next) => {
-  try { res.json(formatListResponse(await peopleService.getAll(), (await peopleService.getAll()).length)); } catch (e) { next(e); }
+  try {
+    const people = await peopleService.getAll();
+    res.json(formatListResponse(people, people.length));
+  } catch (e) { next(e); }
 });
 
 router.post('/', requireAuth, requireRole('analyst', 'admin'), async (req, res, next) => {

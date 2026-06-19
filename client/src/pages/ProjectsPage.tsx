@@ -4537,12 +4537,18 @@ const ProjectsPage: React.FC = () => {
                     <Typography variant="caption" color="text.secondary">{person.role || '—'}</Typography>
                     <Typography variant="caption" color="text.secondary" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{person.email || '—'}</Typography>
                     <Box sx={{ display: 'flex', gap: 0.25 }}>
-                      <IconButton size="small" onClick={() => { setEditingPersonId(person.id); setEditPersonName(person.name); setEditPersonRole(person.role || ''); setEditPersonEmail(person.email || ''); }} sx={{ opacity: 0.6, '&:hover': { opacity: 1 } }}>
-                        <EditIcon sx={{ fontSize: '0.9rem' }} />
-                      </IconButton>
-                      <IconButton size="small" onClick={async () => { await apiClient.delete(`/api/people/${person.id}`); setPeople(prev => prev.filter(p => p.id !== person.id)); }} sx={{ opacity: 0.6, '&:hover': { opacity: 1 } }}>
-                        <DeleteIcon sx={{ fontSize: '0.9rem' }} />
-                      </IconButton>
+                      {person.isSystemUser ? (
+                        <Typography variant="caption" color="text.secondary">System</Typography>
+                      ) : (
+                        <>
+                          <IconButton size="small" onClick={() => { setEditingPersonId(person.id); setEditPersonName(person.name); setEditPersonRole(person.role || ''); setEditPersonEmail(person.email || ''); }} sx={{ opacity: 0.6, '&:hover': { opacity: 1 } }}>
+                            <EditIcon sx={{ fontSize: '0.9rem' }} />
+                          </IconButton>
+                          <IconButton size="small" onClick={async () => { await apiClient.delete(`/api/people/${person.id}`); setPeople(prev => prev.filter(p => p.id !== person.id)); }} sx={{ opacity: 0.6, '&:hover': { opacity: 1 } }}>
+                            <DeleteIcon sx={{ fontSize: '0.9rem' }} />
+                          </IconButton>
+                        </>
+                      )}
                     </Box>
                   </Box>
                 )}

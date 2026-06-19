@@ -3,7 +3,36 @@ import db from '../db.js';
 export class PeopleService {
   async getAll() {
     const result = await db.query(
-      'SELECT id, name, role, email, created_at FROM people ORDER BY name ASC'
+      `WITH combined AS (
+        SELECT id, name, role, email, created_at, FALSE AS is_system_user
+        FROM people
+        UNION ALL
+        SELECT
+          id,
+          split_part(email, '@', 1) AS name,
+          'Application User'::text AS role,
+          email,
+          created_at,
+          TRUE AS is_system_user
+        FROM users
+      ), ranked AS (
+        SELECT
+          id,
+          name,
+          role,
+          email,
+          created_at,
+          is_system_user,
+          ROW_NUMBER() OVER (
+            PARTITION BY COALESCE(LOWER(email), id::text)
+            ORDER BY is_system_user ASC, created_at ASC
+          ) AS rn
+        FROM combined
+      )
+      SELECT id, name, role, email, created_at, is_system_user
+      FROM ranked
+      WHERE rn = 1
+      ORDER BY LOWER(name) ASC, LOWER(COALESCE(email, '')) ASC`
     );
     return result.rows.map(this.format);
   }
@@ -68,7 +97,14 @@ export class PeopleService {
   }
 
   private format(row: any) {
-    return { id: row.id, name: row.name, role: row.role, email: row.email, createdAt: row.created_at };
+    return {
+      id: row.id,
+      name: row.name,
+      role: row.role,
+      email: row.email,
+      createdAt: row.created_at,
+      isSystemUser: !!row.is_system_user,
+    };
   }
 }
 
