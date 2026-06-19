@@ -4189,22 +4189,17 @@ const ProjectsPage: React.FC = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Context Menu */}
       <Menu
-        anchorEl={taskRowMenuTask ? taskRowMenuAnchorEl : menuAnchorEl}
-        open={Boolean(taskRowMenuTask ? taskRowMenuAnchorEl : menuAnchorEl)}
-        onClose={() => {
-          setMenuAnchorEl(null);
-          closeTaskRowMenu();
-        }}
+        anchorEl={taskRowMenuAnchorEl}
+        open={Boolean(taskRowMenuAnchorEl && taskRowMenuTask)}
+        onClose={closeTaskRowMenu}
       >
-        {menuType === 'task' && taskRowMenuTask ? (
+        {taskRowMenuTask ? (
           <>
             <MenuItem
               onClick={() => {
                 openTaskDetails(taskRowMenuTask, 0);
                 closeTaskRowMenu();
-                setMenuAnchorEl(null);
               }}
             >
               <EditIcon fontSize="small" sx={{ mr: 1 }} /> Task Details
@@ -4213,7 +4208,6 @@ const ProjectsPage: React.FC = () => {
               onClick={() => {
                 openTaskDetails(taskRowMenuTask, (taskRowMenuTask.taskType === 'preload_validation' || taskRowMenuTask.taskType === 'postload_validation') ? 2 : 1);
                 closeTaskRowMenu();
-                setMenuAnchorEl(null);
               }}
             >
               <WarningAmberIcon fontSize="small" sx={{ mr: 1 }} /> Add Defect
@@ -4223,7 +4217,6 @@ const ProjectsPage: React.FC = () => {
                 onClick={() => {
                   openTaskDetails(taskRowMenuTask, 1);
                   closeTaskRowMenu();
-                  setMenuAnchorEl(null);
                 }}
               >
                 <WarningAmberIcon fontSize="small" sx={{ mr: 1 }} /> {taskRowMenuTask.taskType === 'preload_validation' ? 'Preload Quality' : 'Postload Quality'}
@@ -4233,7 +4226,6 @@ const ProjectsPage: React.FC = () => {
               onClick={() => {
                 openDeleteDialog('taskSingle' as any, taskRowMenuTask.id, taskRowMenuTask.name || 'Task');
                 closeTaskRowMenu();
-                setMenuAnchorEl(null);
               }}
               sx={{ color: 'error.main' }}
             >
@@ -4241,8 +4233,18 @@ const ProjectsPage: React.FC = () => {
             </MenuItem>
           </>
         ) : null}
+      </Menu>
 
-        {!(menuType === 'task' && taskRowMenuTask) && (menuType === 'task' || menuType === 'taskGroup' || menuType === 'program' || menuType === 'cycle' || menuType === 'project') && (
+      {/* Context Menu */}
+      <Menu
+        anchorEl={menuAnchorEl}
+        open={Boolean(menuAnchorEl)}
+        onClose={() => {
+          setMenuAnchorEl(null);
+          setMenuType(null);
+        }}
+      >
+        {(menuType === 'task' || menuType === 'taskGroup' || menuType === 'program' || menuType === 'cycle' || menuType === 'project') && (
           <>
             <MenuItem
               onClick={() => {
