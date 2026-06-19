@@ -2747,7 +2747,7 @@ const ProjectsPage: React.FC = () => {
                                               sx={{ ...taskFieldSx, '& input': { textAlign: 'center', px: 0.5 } }} />
                                             {/* Assigned To */}
                                             <TextField select size="small" value={task.assignedTo || ''}
-                                              onChange={e => setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, assignedTo: e.target.value } : t))}
+                                              onChange={e => updateTaskInline(task.id, 'assignedTo', e.target.value)}
                                               sx={taskFieldSx}>
                                               <MenuItem value=""><em>Unassigned</em></MenuItem>
                                               {people.map(p => <MenuItem key={p.id} value={p.name}>{p.name}</MenuItem>)}
