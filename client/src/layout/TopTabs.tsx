@@ -23,6 +23,7 @@ const TopTabs: React.FC<TopTabsProps> = ({ projectId }) => {
     { label: 'Plan', path: `plan` },
     { label: 'Inventory', path: `inventory` },
     { label: 'Priorities', path: `priorities` },
+    { label: 'Defects', path: `defects` },
     { label: 'Schedule', path: `schedule` },
     { label: 'Reporting', path: `reporting` },
   ];

@@ -2559,13 +2559,18 @@ const ProjectsPage: React.FC = () => {
                           <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 1 }}>
                             <Chip
                               size="small"
-                              label={`Invalid Records: ${(selectedProjectReportingSummary?.validation?.preload?.invalidRecords || 0) + (selectedProjectReportingSummary?.validation?.postload?.invalidRecords || 0)}`}
+                              label={`Preload Invalid: ${selectedProjectReportingSummary?.validation?.preload?.invalidRecords || 0}`}
                               sx={{ backgroundColor: 'rgba(255, 152, 0, 0.16)', color: '#ffb74d', fontWeight: 600 }}
                             />
                             <Chip
                               size="small"
-                              label={`Load Failures: ${selectedProjectReportingSummary?.loadMetrics?.failed || 0}`}
+                              label={`Postload Invalid: ${selectedProjectReportingSummary?.validation?.postload?.invalidRecords || 0}`}
                               sx={{ backgroundColor: 'rgba(239, 83, 80, 0.16)', color: '#ef9a9a', fontWeight: 600 }}
+                            />
+                            <Chip
+                              size="small"
+                              label={`Load Failures: ${selectedProjectReportingSummary?.loadMetrics?.failed || 0}`}
+                              sx={{ backgroundColor: 'rgba(33, 150, 243, 0.16)', color: '#90caf9', fontWeight: 600 }}
                             />
                             <Chip
                               size="small"
@@ -2590,12 +2595,12 @@ const ProjectsPage: React.FC = () => {
                               size="small"
                               variant="outlined"
                               onClick={() => {
-                                const path = getProjectWorkspacePath('priorities');
+                                const path = getProjectWorkspacePath('defects');
                                 if (path) navigate(path);
                               }}
                               sx={{ textTransform: 'none', borderColor: `${accentColor}66`, color: accentColor }}
                             >
-                              Defect Queue
+                              Project Defects
                             </Button>
                             <Button
                               size="small"
@@ -4418,7 +4423,7 @@ const ProjectsPage: React.FC = () => {
           onClick={() => {
             if (!menuItemId || !menuType) return;
             if (menuType === 'task' || menuType === 'taskGroup') {
-              // For tasks and task groups, open edit dialog
+              // For tasks and task groups, open the detail modal so defects and validation stats are available.
               if (menuType === 'task') {
                 setEditingTaskId(menuItemId);
               } else {
@@ -4430,7 +4435,7 @@ const ProjectsPage: React.FC = () => {
             setMenuAnchorEl(null);
           }}
         >
-          <EditIcon fontSize="small" sx={{ mr: 1 }} /> Edit
+          <EditIcon fontSize="small" sx={{ mr: 1 }} /> Task Details / Defects
         </MenuItem>
         <MenuItem
           onClick={() => {
@@ -4908,6 +4913,15 @@ const ProjectsPage: React.FC = () => {
         peopleById={Object.fromEntries((people || []).map((person: any) => [person.id, person]))}
         people={people}
         accentColor="#ffa726"
+      />
+
+      <TaskDetailModal
+        open={!!editingTaskId}
+        onClose={() => setEditingTaskId(null)}
+        taskId={editingTaskId || undefined}
+        peopleById={Object.fromEntries((people || []).map((person: any) => [person.id, person]))}
+        people={people}
+        accentColor="#5B67CA"
       />
 
       {/* Task Dependency Dialog */}

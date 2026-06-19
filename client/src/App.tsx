@@ -19,6 +19,7 @@ import SettingsPage from './pages/SettingsPage';
 import PlanPage from './pages/PlanPage';
 import InventoryPage from './pages/InventoryPage';
 import PrioritiesPage from './pages/PrioritiesPage';
+import ProjectDefectsPage from './pages/ProjectDefectsPage';
 import SchedulePage from './pages/SchedulePage';
 import ReportingDashboardPage from './pages/ReportingDashboardPage';
 
@@ -124,6 +125,7 @@ const AppRoutes: React.FC = () => {
         <Route path="plan" element={<PlanPage />} />
         <Route path="inventory" element={<InventoryPage />} />
         <Route path="priorities" element={<PrioritiesPage />} />
+        <Route path="defects" element={<ProjectDefectsPage />} />
         <Route path="schedule" element={<SchedulePage />} />
         <Route path="reporting" element={<ReportingDashboardPage />} />
       </Route>
@@ -156,6 +158,17 @@ const AppRoutes: React.FC = () => {
           <ProtectedRoute>
             <ProjectLayout>
               <PrioritiesPage />
+            </ProjectLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/programs/:programId/mock-cycles/:mockCycleId/projects/:projectId/defects"
+        element={
+          <ProtectedRoute>
+            <ProjectLayout>
+              <ProjectDefectsPage />
             </ProjectLayout>
           </ProtectedRoute>
         }

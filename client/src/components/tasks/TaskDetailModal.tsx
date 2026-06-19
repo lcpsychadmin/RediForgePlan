@@ -14,6 +14,8 @@ import {
   TextField,
   MenuItem,
   Alert,
+  Tabs,
+  Tab,
 } from '@mui/material';
 import StatusChip from '../shared/StatusChip';
 import CloseIcon from '@mui/icons-material/Close';
@@ -24,6 +26,9 @@ import CancelIcon from '@mui/icons-material/Cancel';
 import { useQuery } from '@tanstack/react-query';
 import apiClient from '../../api/client';
 import { TaskCommentsModal } from '../TaskCommentsModal';
+import ValidationStatsSection from '../validation/ValidationStatsSection';
+import IssueTypesSection from '../validation/IssueTypesSection';
+import DefectsSection from '../defects/DefectsSection';
 
 type DisplayTask = {
   taskId?: string;
@@ -76,6 +81,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   const [editData, setEditData] = useState<DisplayTask | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [currentTab, setCurrentTab] = useState(0);
   
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['task-details-modal', taskId],
@@ -87,6 +93,9 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   });
 
   const resolvedTask = (data || task || null) as DisplayTask | null;
+  const resolvedTaskId = resolvedTask?.id || resolvedTask?.taskId || taskId || '';
+  const taskType = (resolvedTask?.taskType || '').toLowerCase();
+  const supportsValidation = taskType === 'preload_validation' || taskType === 'postload_validation';
 
   // Initialize edit data when modal opens or task changes
   React.useEffect(() => {
@@ -94,6 +103,14 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
       setEditData(resolvedTask);
     }
   }, [editMode, resolvedTask]);
+
+  React.useEffect(() => {
+    if (open) {
+      setCurrentTab(0);
+      setEditMode(false);
+      setError(null);
+    }
+  }, [open, resolvedTaskId]);
 
   const personLabel = (id?: string) => {
     if (!id) return 'Unassigned';
@@ -299,70 +316,100 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
           ) : (
             // View Mode
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              {!!resolvedTask.taskType && (
-                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                  <Chip label={resolvedTask.taskType.replace(/_/g, ' ').toUpperCase()} variant="outlined" size="small" />
+              <Tabs
+                value={currentTab}
+                onChange={(_, value) => setCurrentTab(value)}
+                variant="scrollable"
+                scrollButtons="auto"
+                sx={{ borderBottom: '1px solid rgba(255,255,255,0.08)', mb: 1 }}
+              >
+                <Tab label="Overview" />
+                {supportsValidation ? <Tab label={taskType === 'preload_validation' ? 'Preload Quality' : 'Postload Quality'} /> : null}
+                <Tab label="Defects" />
+              </Tabs>
+
+              {currentTab === 0 && (
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  {!!resolvedTask.taskType && (
+                    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                      <Chip label={resolvedTask.taskType.replace(/_/g, ' ').toUpperCase()} variant="outlined" size="small" />
+                    </Box>
+                  )}
+
+                  <Grid container spacing={2}>
+                    <Grid item xs={12} sm={6}>
+                      <Typography variant="caption" color="text.secondary">Start date</Typography>
+                      <Typography variant="body2">{formatDate(resolvedTask.startDate)}</Typography>
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <Typography variant="caption" color="text.secondary">End date</Typography>
+                      <Typography variant="body2">{formatDate(resolvedTask.endDate)}</Typography>
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <Typography variant="caption" color="text.secondary">DRA owner</Typography>
+                      <Typography variant="body2">{personLabel(resolvedTask.draUserId)}</Typography>
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <Typography variant="caption" color="text.secondary">Developer owner</Typography>
+                      <Typography variant="body2">{personLabel(resolvedTask.developerUserId)}</Typography>
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <Typography variant="caption" color="text.secondary">Project</Typography>
+                      <Typography variant="body2">{resolvedTask.projectName || 'N/A'}</Typography>
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <Typography variant="caption" color="text.secondary">Object</Typography>
+                      <Typography variant="body2">{resolvedTask.objectId || 'N/A'}</Typography>
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <Typography variant="caption" color="text.secondary">Task group</Typography>
+                      <Typography variant="body2">{resolvedTask.taskGroupId || 'N/A'}</Typography>
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <Typography variant="caption" color="text.secondary">Progress</Typography>
+                      <Typography variant="body2">
+                        {typeof resolvedTask.progressPercentage === 'number'
+                          ? `${resolvedTask.progressPercentage}%`
+                          : 'N/A'}
+                      </Typography>
+                    </Grid>
+                  </Grid>
+
+                  {(resolvedTask.programName || resolvedTask.mockCycleName) && (
+                    <>
+                      <Divider />
+                      <Box>
+                        <Typography variant="caption" color="text.secondary">Program / Cycle</Typography>
+                        <Typography variant="body2">
+                          {[resolvedTask.programName, resolvedTask.mockCycleName].filter(Boolean).join(' / ')}
+                        </Typography>
+                      </Box>
+                    </>
+                  )}
+
+                  <Divider />
+                  <Box>
+                    <Typography variant="caption" color="text.secondary">Notes</Typography>
+                    <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
+                      {resolvedTask.notes || 'No notes for this task.'}
+                    </Typography>
+                  </Box>
                 </Box>
               )}
 
-              <Grid container spacing={2}>
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="caption" color="text.secondary">Start date</Typography>
-                  <Typography variant="body2">{formatDate(resolvedTask.startDate)}</Typography>
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="caption" color="text.secondary">End date</Typography>
-                  <Typography variant="body2">{formatDate(resolvedTask.endDate)}</Typography>
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="caption" color="text.secondary">DRA owner</Typography>
-                  <Typography variant="body2">{personLabel(resolvedTask.draUserId)}</Typography>
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="caption" color="text.secondary">Developer owner</Typography>
-                  <Typography variant="body2">{personLabel(resolvedTask.developerUserId)}</Typography>
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="caption" color="text.secondary">Project</Typography>
-                  <Typography variant="body2">{resolvedTask.projectName || 'N/A'}</Typography>
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="caption" color="text.secondary">Object</Typography>
-                  <Typography variant="body2">{resolvedTask.objectId || 'N/A'}</Typography>
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="caption" color="text.secondary">Task group</Typography>
-                  <Typography variant="body2">{resolvedTask.taskGroupId || 'N/A'}</Typography>
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="caption" color="text.secondary">Progress</Typography>
-                  <Typography variant="body2">
-                    {typeof resolvedTask.progressPercentage === 'number'
-                      ? `${resolvedTask.progressPercentage}%`
-                      : 'N/A'}
-                  </Typography>
-                </Grid>
-              </Grid>
-
-              {(resolvedTask.programName || resolvedTask.mockCycleName) && (
-                <>
-                  <Divider />
-                  <Box>
-                    <Typography variant="caption" color="text.secondary">Program / Cycle</Typography>
-                    <Typography variant="body2">
-                      {[resolvedTask.programName, resolvedTask.mockCycleName].filter(Boolean).join(' / ')}
-                    </Typography>
-                  </Box>
-                </>
+              {supportsValidation && currentTab === 1 && (
+                <Stack spacing={2}>
+                  <Alert severity="info">
+                    Capture the load validation metrics for this task here. Invalid preload records and postload errors roll up into project reporting.
+                  </Alert>
+                  <ValidationStatsSection taskId={resolvedTaskId} />
+                  <IssueTypesSection taskId={resolvedTaskId} />
+                </Stack>
               )}
 
-              <Divider />
-              <Box>
-                <Typography variant="caption" color="text.secondary">Notes</Typography>
-                <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
-                  {resolvedTask.notes || 'No notes for this task.'}
-                </Typography>
-              </Box>
+              {((supportsValidation && currentTab === 2) || (!supportsValidation && currentTab === 1)) && (
+                <DefectsSection taskId={resolvedTaskId} />
+              )}
             </Box>
           )}
         </DialogContent>
