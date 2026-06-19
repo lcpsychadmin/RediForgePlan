@@ -56,6 +56,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import apiClient from '../api/client';
 import Layout from '../components/Layout';
 import TaskDetailModal from '../components/tasks/TaskDetailModal';
+import ProjectDefectsPage from './ProjectDefectsPage';
 import { useAuth } from '../contexts/AuthContext';
 
 interface Program {
@@ -270,10 +271,13 @@ const ProjectsPage: React.FC = () => {
   // Comment modal state
   const [commentModalTask, setCommentModalTask] = useState<{ id: string; name: string } | null>(null);
   const [priorityModalTask, setPriorityModalTask] = useState<any | null>(null);
+  const [editingTaskInitialTab, setEditingTaskInitialTab] = useState(0);
   const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
   const [taskCommentCounts, setTaskCommentCounts] = useState<Record<string, number>>({});
   const [planRowOrder, setPlanRowOrder] = useState<string[]>([]);
   const [dragItem, setDragItem] = useState<{ type: 'planRow'; key: string } | null>(null);
+  const [taskRowMenuAnchorEl, setTaskRowMenuAnchorEl] = useState<null | HTMLElement>(null);
+  const [taskRowMenuTask, setTaskRowMenuTask] = useState<any | null>(null);
   const [treeDragItem, setTreeDragItem] = useState<
     | { type: 'program'; id: string }
     | { type: 'cycle'; id: string; programId: string }
@@ -298,6 +302,22 @@ const ProjectsPage: React.FC = () => {
   const [editPersonName, setEditPersonName] = useState('');
   const [editPersonRole, setEditPersonRole] = useState('');
   const [editPersonEmail, setEditPersonEmail] = useState('');
+
+  const openTaskRowMenu = (event: React.MouseEvent<HTMLElement>, task: any) => {
+    event.stopPropagation();
+    setTaskRowMenuAnchorEl(event.currentTarget);
+    setTaskRowMenuTask(task);
+  };
+
+  const closeTaskRowMenu = () => {
+    setTaskRowMenuAnchorEl(null);
+    setTaskRowMenuTask(null);
+  };
+
+  const openTaskDetails = (task: any, initialTab = 0) => {
+    setEditingTask(task);
+    setEditingTaskInitialTab(initialTab);
+  };
 
   const { data: programs = [], isLoading } = useQuery({
     queryKey: ['programs'],
@@ -422,39 +442,6 @@ const ProjectsPage: React.FC = () => {
       ? selectedItem.id
       : null;
 
-  const selectedProjectContext = React.useMemo(() => {
-    if (selectedItem?.type !== 'project') return null;
-
-    const cycleId = selectedItem.cycleId;
-    const programId = Object.keys(mockCycles).find((id) =>
-      (mockCycles[id] || []).some((cycle: MockCycle) => cycle.id === cycleId)
-    );
-
-    if (!programId) return null;
-
-    return {
-      programId,
-      cycleId,
-      projectId: selectedItem.id,
-    };
-  }, [selectedItem, mockCycles]);
-
-  const getProjectWorkspacePath = (section: 'plan' | 'priorities' | 'schedule' | 'reporting') => {
-    if (!selectedProjectContext) return null;
-
-    return `/programs/${selectedProjectContext.programId}/mock-cycles/${selectedProjectContext.cycleId}/projects/${selectedProjectContext.projectId}/${section}`;
-  };
-
-  const { data: selectedProjectReportingSummary, isLoading: isLoadingSelectedProjectReportingSummary } = useQuery({
-    queryKey: ['projects-page', 'selected-project-reporting-summary', selectedProjectContext?.projectId],
-    queryFn: async () => {
-      const response = await apiClient.get(`/api/reporting/projects/${selectedProjectContext!.projectId}/summary`);
-      return response.data?.data;
-    },
-    enabled: !!selectedProjectContext?.projectId,
-    staleTime: 30_000,
-  });
-
   useEffect(() => {
     if (!selectedItem) return;
 
@@ -565,7 +552,7 @@ const ProjectsPage: React.FC = () => {
         selectedCycleName,
       };
     },
-    enabled: !!user && tabValue === 4 && Object.keys(mockCycles).length > 0,
+    enabled: !!user && tabValue === 5 && Object.keys(mockCycles).length > 0,
   });
 
   const scheduleWeekDates = Array.from({ length: 7 }, (_, idx) => {
@@ -1147,7 +1134,7 @@ const ProjectsPage: React.FC = () => {
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     if (params.get('tab') === 'my-tasks') {
-      setTabValue(4);
+      setTabValue(5);
     }
   }, [location.search]);
 
@@ -2550,88 +2537,6 @@ const ProjectsPage: React.FC = () => {
                           );
                         })()}
 
-                        {/* Data quality and defect controls stay visible in Projects, without needing to leave this view first. */}
-                        <Box sx={{ mt: 2, p: 1.5, borderRadius: 2, border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'rgba(255,255,255,0.03)' }}>
-                          <Typography variant="caption" sx={{ color: 'text.disabled', letterSpacing: '0.04em', fontWeight: 700 }}>
-                            DATA QUALITY AND DEFECTS
-                          </Typography>
-
-                          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 1 }}>
-                            <Chip
-                              size="small"
-                              label={`Preload Invalid: ${selectedProjectReportingSummary?.validation?.preload?.invalidRecords || 0}`}
-                              sx={{ backgroundColor: 'rgba(255, 152, 0, 0.16)', color: '#ffb74d', fontWeight: 600 }}
-                            />
-                            <Chip
-                              size="small"
-                              label={`Postload Invalid: ${selectedProjectReportingSummary?.validation?.postload?.invalidRecords || 0}`}
-                              sx={{ backgroundColor: 'rgba(239, 83, 80, 0.16)', color: '#ef9a9a', fontWeight: 600 }}
-                            />
-                            <Chip
-                              size="small"
-                              label={`Load Failures: ${selectedProjectReportingSummary?.loadMetrics?.failed || 0}`}
-                              sx={{ backgroundColor: 'rgba(33, 150, 243, 0.16)', color: '#90caf9', fontWeight: 600 }}
-                            />
-                            <Chip
-                              size="small"
-                              label={`Active Defects: ${(selectedProjectReportingSummary?.defects?.open || 0) + (selectedProjectReportingSummary?.defects?.inProgress || 0)}`}
-                              sx={{ backgroundColor: 'rgba(33, 150, 243, 0.16)', color: '#90caf9', fontWeight: 600 }}
-                            />
-                          </Box>
-
-                          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 1.25 }}>
-                            <Button
-                              size="small"
-                              variant="outlined"
-                              onClick={() => {
-                                const path = getProjectWorkspacePath('plan');
-                                if (path) navigate(path);
-                              }}
-                              sx={{ textTransform: 'none', borderColor: `${accentColor}66`, color: accentColor }}
-                            >
-                              Validation and Issues
-                            </Button>
-                            <Button
-                              size="small"
-                              variant="outlined"
-                              onClick={() => {
-                                const path = getProjectWorkspacePath('defects');
-                                if (path) navigate(path);
-                              }}
-                              sx={{ textTransform: 'none', borderColor: `${accentColor}66`, color: accentColor }}
-                            >
-                              Project Defects
-                            </Button>
-                            <Button
-                              size="small"
-                              variant="outlined"
-                              onClick={() => {
-                                const path = getProjectWorkspacePath('schedule');
-                                if (path) navigate(path);
-                              }}
-                              sx={{ textTransform: 'none', borderColor: `${accentColor}66`, color: accentColor }}
-                            >
-                              Schedule Warnings
-                            </Button>
-                            <Button
-                              size="small"
-                              variant="contained"
-                              onClick={() => {
-                                const path = getProjectWorkspacePath('reporting');
-                                if (path) navigate(path);
-                              }}
-                              sx={{ textTransform: 'none', background: `linear-gradient(135deg, ${accentColor} 0%, ${accentColor}99 100%)`, boxShadow: 'none' }}
-                            >
-                              Open Reporting Dashboard
-                            </Button>
-                          </Box>
-
-                          {isLoadingSelectedProjectReportingSummary && (
-                            <Typography variant="caption" color="text.disabled" sx={{ mt: 1, display: 'block' }}>
-                              Refreshing latest quality and defect metrics...
-                            </Typography>
-                          )}
-                        </Box>
                           </Box>{/* end left info box */}
                           <Box sx={{ display: 'flex', gap: 1.5, flexShrink: 0, ml: 2 }}>
                             <Button variant="contained" startIcon={<AddIcon />} onClick={() => setDataObjectDialogOpen(true)}
@@ -2997,6 +2902,9 @@ const ProjectsPage: React.FC = () => {
                                                 await loadCycleTasksForDep(task.id);
                                               }} sx={{ opacity: (taskDeps[task.id] || []).length > 0 ? 1 : 0.6, color: (taskDeps[task.id] || []).length > 0 ? accentColor : 'inherit', '&:hover': { opacity: 1, color: accentColor } }}>
                                                 <ChevronRightIcon sx={{ fontSize: '0.9rem' }} />
+                                              </IconButton>
+                                              <IconButton size="small" title="More task actions" onClick={(e) => openTaskRowMenu(e, task)} sx={{ opacity: 0.6, '&:hover': { opacity: 1 } }}>
+                                                <MoreVertIcon sx={{ fontSize: '0.9rem' }} />
                                               </IconButton>
                                               <IconButton size="small" onClick={() => openDeleteDialog('taskSingle' as any, task.id, task.name)} sx={{ opacity: 0.6, '&:hover': { opacity: 1 } }}>
                                                 <DeleteIcon sx={{ fontSize: '0.9rem' }} />
@@ -4057,8 +3965,15 @@ const ProjectsPage: React.FC = () => {
             </Box>
           )}
 
-          {/* My Tasks Tab Content */}
+          {/* Defects Tab Content */}
           {tabValue === 4 && (
+            <Box sx={{ flex: 1, overflow: 'hidden' }}>
+              <ProjectDefectsPage />
+            </Box>
+          )}
+
+          {/* My Tasks Tab Content */}
+          {tabValue === 5 && (
             <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
               <Box sx={{
                 border: '1px solid rgba(93,121,176,0.35)',
@@ -4276,9 +4191,56 @@ const ProjectsPage: React.FC = () => {
       <Menu
         anchorEl={menuAnchorEl}
         open={Boolean(menuAnchorEl)}
-        onClose={() => setMenuAnchorEl(null)}
+        onClose={() => {
+          setMenuAnchorEl(null);
+          closeTaskRowMenu();
+        }}
       >
-        {(menuType === 'task' || menuType === 'taskGroup' || menuType === 'program' || menuType === 'cycle' || menuType === 'project') && (
+        {menuType === 'task' && taskRowMenuTask ? (
+          <>
+            <MenuItem
+              onClick={() => {
+                openTaskDetails(taskRowMenuTask, 0);
+                closeTaskRowMenu();
+                setMenuAnchorEl(null);
+              }}
+            >
+              <EditIcon fontSize="small" sx={{ mr: 1 }} /> Task Details
+            </MenuItem>
+            <MenuItem
+              onClick={() => {
+                openTaskDetails(taskRowMenuTask, (taskRowMenuTask.taskType === 'preload_validation' || taskRowMenuTask.taskType === 'postload_validation') ? 2 : 1);
+                closeTaskRowMenu();
+                setMenuAnchorEl(null);
+              }}
+            >
+              <WarningAmberIcon fontSize="small" sx={{ mr: 1 }} /> Add Defect
+            </MenuItem>
+            {(taskRowMenuTask.taskType === 'preload_validation' || taskRowMenuTask.taskType === 'postload_validation') && (
+              <MenuItem
+                onClick={() => {
+                  openTaskDetails(taskRowMenuTask, 1);
+                  closeTaskRowMenu();
+                  setMenuAnchorEl(null);
+                }}
+              >
+                <WarningAmberIcon fontSize="small" sx={{ mr: 1 }} /> {taskRowMenuTask.taskType === 'preload_validation' ? 'Preload Quality' : 'Postload Quality'}
+              </MenuItem>
+            )}
+            <MenuItem
+              onClick={() => {
+                openDeleteDialog('taskSingle' as any, taskRowMenuTask.id, taskRowMenuTask.name || 'Task');
+                closeTaskRowMenu();
+                setMenuAnchorEl(null);
+              }}
+              sx={{ color: 'error.main' }}
+            >
+              <DeleteIcon fontSize="small" sx={{ mr: 1 }} /> Delete
+            </MenuItem>
+          </>
+        ) : null}
+
+        {!(menuType === 'task' && taskRowMenuTask) && (menuType === 'task' || menuType === 'taskGroup' || menuType === 'program' || menuType === 'cycle' || menuType === 'project') && (
           <>
             <MenuItem
               onClick={() => {
@@ -4425,7 +4387,12 @@ const ProjectsPage: React.FC = () => {
             if (menuType === 'task' || menuType === 'taskGroup') {
               // For tasks and task groups, open the detail modal so defects and validation stats are available.
               if (menuType === 'task') {
-                setEditingTaskId(menuItemId);
+                const task = projectTasks.find(t => t.id === menuItemId);
+                if (task) {
+                  openTaskDetails(task, 0);
+                } else {
+                  setEditingTaskId(menuItemId);
+                }
               } else {
                 setEditingTaskGroupId(menuItemId);
               }
@@ -4913,6 +4880,17 @@ const ProjectsPage: React.FC = () => {
         peopleById={Object.fromEntries((people || []).map((person: any) => [person.id, person]))}
         people={people}
         accentColor="#ffa726"
+      />
+
+      <TaskDetailModal
+        open={!!editingTask}
+        onClose={() => setEditingTask(null)}
+        taskId={editingTask?.id}
+        task={editingTask}
+        peopleById={Object.fromEntries((people || []).map((person: any) => [person.id, person]))}
+        people={people}
+        accentColor="#5B67CA"
+        initialTab={editingTaskInitialTab}
       />
 
       <TaskDetailModal

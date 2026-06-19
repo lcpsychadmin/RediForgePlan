@@ -1,12 +1,13 @@
 import React from 'react';
-import { Alert, Box, Card, CardContent, Chip, CircularProgress, Grid, Stack, Typography, Button } from '@mui/material';
+import { Alert, Box, Card, CardContent, Chip, CircularProgress, Grid, Stack, Typography, Button, Divider } from '@mui/material';
 import { useParams } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueries, useQueryClient } from '@tanstack/react-query';
 import PageContainer from '../layout/PageContainer';
 import ContentHeader from '../layout/ContentHeader';
 import TaskDetailModal from '../components/tasks/TaskDetailModal';
+import DefectCard from '../components/defects/DefectCard';
 import apiClient from '../api/client';
-import { ReportingSummary } from '../api/types';
+import { Defect, DefectStatus, ReportingSummary } from '../api/types';
 
 const qualityTaskTypes = new Set(['preload_validation', 'postload_validation', 'load']);
 
@@ -33,6 +34,19 @@ const ProjectDefectsPage: React.FC = () => {
     enabled: !!projectId,
   });
 
+  const taskIds = React.useMemo(() => (tasks || []).map((task: any) => task.id).filter(Boolean), [tasks]);
+
+  const defectQueries = useQueries({
+    queries: taskIds.map((taskId) => ({
+      queryKey: ['project-defects', projectId, taskId],
+      queryFn: async () => {
+        const response = await apiClient.get(`/api/tasks/${taskId}/defects`);
+        return response.data.data || [];
+      },
+      enabled: !!projectId && !!taskId,
+    })),
+  });
+
   const { data: summary } = useQuery<ReportingSummary>({
     queryKey: ['project-defects-summary', projectId],
     queryFn: async () => {
@@ -51,10 +65,56 @@ const ProjectDefectsPage: React.FC = () => {
     },
   });
 
+  const queryClient = useQueryClient();
+
   const peopleById = React.useMemo(
     () => Object.fromEntries((people || []).map((person: any) => [person.id, person])),
     [people]
   );
+
+  const taskById = React.useMemo(
+    () => Object.fromEntries((tasks || []).map((task: any) => [task.id, task])),
+    [tasks]
+  );
+
+  const allDefects = React.useMemo(() => {
+    return defectQueries.flatMap((query: any, index: number) => {
+      const taskId = taskIds[index];
+      const task = taskById[taskId];
+      return (query.data || []).map((defect: any) => ({
+        ...defect,
+        taskId,
+        taskName: task?.name || task?.taskName || 'Task',
+        taskType: task?.taskType || task?.task_type || 'custom',
+        projectObjectId: defect.projectObjectId || task?.projectObjectId || null,
+      }));
+    });
+  }, [defectQueries, taskIds, taskById]);
+
+  const groupedDefects = React.useMemo(() => {
+    const groups: Record<DefectStatus, Defect[]> = {
+      open: [],
+      in_progress: [],
+      resolved: [],
+      closed: [],
+    };
+
+    allDefects.forEach((defect: any) => {
+      const status = (defect.status || 'open') as DefectStatus;
+      groups[status].push(defect);
+    });
+
+    return groups;
+  }, [allDefects]);
+
+  const allTaskTypes = React.useMemo(() => {
+    const grouped: Record<string, number> = {};
+    (tasks || []).forEach((task: any) => {
+      const type = (task.taskType || task.task_type || 'custom').toLowerCase();
+      grouped[type] = (grouped[type] || 0) + 1;
+    });
+    return grouped;
+  }, [tasks]);
 
   const filteredTasks = React.useMemo(() => {
     return (tasks || []).filter((task: any) => {
@@ -115,7 +175,71 @@ const ProjectDefectsPage: React.FC = () => {
               <Chip size="small" label={`Load failures: ${summary?.loadMetrics.failed ?? 0}`} />
               <Chip size="small" label={`Preload invalid: ${summary?.validation.preload.invalidRecords ?? 0}`} color="warning" variant="outlined" />
               <Chip size="small" label={`Postload invalid: ${summary?.validation.postload.invalidRecords ?? 0}`} color="error" variant="outlined" />
+              <Chip size="small" label={`Validation tasks: ${(allTaskTypes.preload_validation || 0) + (allTaskTypes.postload_validation || 0)}`} />
+              <Chip size="small" label={`Load tasks: ${allTaskTypes.load || 0}`} />
             </Box>
+          </Stack>
+        </CardContent>
+      </Card>
+
+      <Card variant="outlined" sx={{ mb: 3 }}>
+        <CardContent>
+          <Stack spacing={2}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+              <Box>
+                <Typography variant="subtitle1" fontWeight={700}>All defects</Typography>
+                <Typography variant="body2" color="text.secondary">Every defect in this project is editable here, grouped by current status.</Typography>
+              </Box>
+              <Button size="small" variant="outlined" onClick={() => setSelectedTask(filteredTasks[0] || null)} sx={{ textTransform: 'none' }}>
+                Open first task
+              </Button>
+            </Box>
+            <Divider />
+            {defectQueries.some((query: any) => query.isLoading) ? (
+              <Typography variant="body2">Loading defects...</Typography>
+            ) : allDefects.length === 0 ? (
+              <Alert severity="info">No defects have been created for tasks in this project yet.</Alert>
+            ) : (
+              <Stack spacing={2}>
+                {(['open', 'in_progress', 'resolved', 'closed'] as DefectStatus[]).map((status) => {
+                  const items = groupedDefects[status] || [];
+                  return (
+                    <Box key={status}>
+                      <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1, textTransform: 'capitalize' }}>
+                        {status.replace('_', ' ')} ({items.length})
+                      </Typography>
+                      {items.length === 0 ? (
+                        <Alert severity="info" variant="outlined">No {status.replace('_', ' ')} defects.</Alert>
+                      ) : (
+                        <Stack spacing={1.25}>
+                          {items.map((defect: any) => (
+                            <Box key={defect.id} sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
+                                <Chip size="small" variant="outlined" label={defect.taskName || 'Task'} />
+                                {defect.taskType ? <Chip size="small" variant="outlined" label={(defect.taskType || '').replace(/_/g, ' ')} /> : null}
+                              </Box>
+                              <DefectCard
+                                defect={defect}
+                                users={people}
+                                onEdit={() => setSelectedTask(taskById[defect.taskId] || null)}
+                                onStatusChange={async (defectId, nextStatus) => {
+                                  await apiClient.patch(`/api/defects/${defectId}`, { status: nextStatus });
+                                  await queryClient.invalidateQueries({ queryKey: ['project-defects', projectId] });
+                                }}
+                                onAssign={async (defectId, assignedToUserId) => {
+                                  await apiClient.patch(`/api/defects/${defectId}`, { assignedToUserId });
+                                  await queryClient.invalidateQueries({ queryKey: ['project-defects', projectId] });
+                                }}
+                              />
+                            </Box>
+                          ))}
+                        </Stack>
+                      )}
+                    </Box>
+                  );
+                })}
+              </Stack>
+            )}
           </Stack>
         </CardContent>
       </Card>

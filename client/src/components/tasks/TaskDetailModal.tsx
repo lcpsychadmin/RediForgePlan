@@ -58,6 +58,7 @@ interface TaskDetailModalProps {
   peopleById?: Record<string, { id: string; name: string; email?: string }>;
   people?: Array<{ id: string; name: string; email?: string }>;
   accentColor?: string;
+  initialTab?: number;
 }
 
 const formatDate = (dateValue?: string) => {
@@ -75,6 +76,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   peopleById = {},
   people = [],
   accentColor = '#29b6f6',
+  initialTab = 0,
 }) => {
   const [editMode, setEditMode] = useState(false);
   const [showDiscussion, setShowDiscussion] = useState(false);
@@ -106,11 +108,11 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
 
   React.useEffect(() => {
     if (open) {
-      setCurrentTab(0);
+      setCurrentTab(initialTab);
       setEditMode(false);
       setError(null);
     }
-  }, [open, resolvedTaskId]);
+  }, [open, resolvedTaskId, initialTab]);
 
   const personLabel = (id?: string) => {
     if (!id) return 'Unassigned';
