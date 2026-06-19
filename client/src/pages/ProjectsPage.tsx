@@ -56,6 +56,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import apiClient from '../api/client';
 import Layout from '../components/Layout';
 import TaskDetailModal from '../components/tasks/TaskDetailModal';
+import { useAuth } from '../contexts/AuthContext';
 
 interface Program {
   id: string;
@@ -105,6 +106,7 @@ const ProjectsPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   
   // State for expanded nodes in tree
   const [expandedPrograms, setExpandedPrograms] = useState<Set<string>>(new Set());
@@ -440,6 +442,97 @@ const ProjectsPage: React.FC = () => {
     }
     return 'all_days';
   })();
+
+  const { data: myTasksData, isLoading: isLoadingMyTasks, error: myTasksError } = useQuery({
+    queryKey: ['projects-my-tasks', user?.id, user?.email, activeCycleId, programs.length, Object.keys(mockCycles).length, Object.keys(projectsByMockCycle).length],
+    queryFn: async () => {
+      const normalizeValue = (value?: string | null) => (value || '').trim().toLowerCase();
+      const tokenSet = new Set(
+        [user?.id, user?.email]
+          .map((item) => normalizeValue(item))
+          .filter(Boolean)
+      );
+
+      const cycleScopes = Object.entries(mockCycles).flatMap(([programId, cycles]) => {
+        const program = programs.find((p: any) => p.id === programId);
+        return (cycles || []).map((cycle: any) => ({ program, cycle }));
+      });
+
+      const filteredCycleScopes = activeCycleId
+        ? cycleScopes.filter(({ cycle }: any) => cycle?.id === activeCycleId)
+        : cycleScopes;
+
+      const projectScopes = filteredCycleScopes.flatMap(({ program, cycle }: any) => {
+        const projects = projectsByMockCycle[cycle.id] || [];
+        return projects.map((project: any) => ({ program, cycle, project }));
+      });
+
+      const taskBatches = await Promise.all(
+        projectScopes.map(async ({ program, cycle, project }: any) => {
+          try {
+            const tasksResponse = await apiClient.get(`/api/tasks/project/${project.id}`);
+            const tasks = tasksResponse.data.data || [];
+            return tasks
+              .filter((task: any) => {
+                const dra = normalizeValue(task.draUserId);
+                const developer = normalizeValue(task.developerUserId);
+                const assignedTo = normalizeValue(task.assignedTo);
+                return tokenSet.has(dra) || tokenSet.has(developer) || tokenSet.has(assignedTo);
+              })
+              .map((task: any) => ({
+                ...task,
+                taskId: task.id,
+                taskName: task.name,
+                projectName: project.name,
+                mockCycleName: cycle.name,
+                programName: program?.name || 'Program',
+              }));
+          } catch {
+            return [];
+          }
+        })
+      );
+
+      const assignedTasks = taskBatches.flat();
+      const parseDateOnlyLocal = (value?: string) => {
+        if (!value) return null;
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return null;
+        return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+      };
+      const now = new Date();
+      const todayStartLocal = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const weekEndLocal = new Date(todayStartLocal);
+      weekEndLocal.setDate(todayStartLocal.getDate() + 6);
+
+      const sections = {
+        late: assignedTasks.filter((task: any) => {
+          if (task.status === 'complete') return false;
+          const end = parseDateOnlyLocal(task.endDate);
+          return !!end && end < todayStartLocal;
+        }),
+        in_progress: assignedTasks.filter((task: any) => task.status === 'in_progress'),
+        due_this_week: assignedTasks.filter((task: any) => {
+          if (task.status === 'complete') return false;
+          const end = parseDateOnlyLocal(task.endDate);
+          return !!end && end >= todayStartLocal && end <= weekEndLocal;
+        }),
+        blocked: assignedTasks.filter((task: any) => task.status === 'blocked'),
+        complete: assignedTasks.filter((task: any) => task.status === 'complete'),
+      };
+
+      const selectedCycleName = activeCycleId
+        ? filteredCycleScopes.find(({ cycle }: any) => cycle.id === activeCycleId)?.cycle?.name || null
+        : null;
+
+      return {
+        sections,
+        totalAssigned: assignedTasks.length,
+        selectedCycleName,
+      };
+    },
+    enabled: !!user && tabValue === 4 && Object.keys(mockCycles).length > 0,
+  });
 
   const scheduleWeekDates = Array.from({ length: 7 }, (_, idx) => {
     const d = new Date(scheduleWeekStart);
@@ -1015,6 +1108,13 @@ const ProjectsPage: React.FC = () => {
         }));
       }
     }).catch(() => {});
+  }, [location.search]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get('tab') === 'my-tasks') {
+      setTabValue(4);
+    }
   }, [location.search]);
 
   // Ensure Priorities tab has a project context so the panel doesn't appear blank.
@@ -3836,6 +3936,87 @@ const ProjectsPage: React.FC = () => {
                     )}
                   </Box>
                 </>
+              )}
+            </Box>
+          )}
+
+          {/* My Tasks Tab Content */}
+          {tabValue === 4 && (
+            <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <Box sx={{
+                border: '1px solid rgba(93,121,176,0.35)',
+                borderRadius: 2,
+                backgroundColor: 'rgba(18,33,65,0.72)',
+                p: 2,
+              }}>
+                <Typography variant="h5" sx={{ fontWeight: 700, mb: 0.5 }}>My Tasks</Typography>
+                <Typography variant="body2" sx={{ color: '#8EA3CB' }}>
+                  {myTasksData?.selectedCycleName
+                    ? `Tasks assigned to you in ${myTasksData.selectedCycleName}.`
+                    : 'Tasks assigned to you across all programs and cycles.'}
+                </Typography>
+                <Typography variant="caption" sx={{ color: '#9FB0D8', display: 'block', mt: 0.8 }}>
+                  Assigned Tasks: {myTasksData?.totalAssigned ?? 0}
+                </Typography>
+              </Box>
+
+              {isLoadingMyTasks ? (
+                <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+                  <CircularProgress />
+                </Box>
+              ) : myTasksError ? (
+                <Alert severity="error">Unable to load your tasks right now.</Alert>
+              ) : !myTasksData || myTasksData.totalAssigned === 0 ? (
+                <Alert severity="info">No tasks are currently assigned to your account for this scope.</Alert>
+              ) : (
+                [
+                  { title: 'Late Tasks', tasks: myTasksData.sections.late, border: 'rgba(214,77,119,0.45)', chipBg: 'rgba(168,58,87,0.32)', chipColor: '#FF809A' },
+                  { title: 'In Progress', tasks: myTasksData.sections.in_progress, border: 'rgba(61,152,213,0.45)', chipBg: 'rgba(44,122,175,0.32)', chipColor: '#6EC7FF' },
+                  { title: 'Due This Week', tasks: myTasksData.sections.due_this_week, border: 'rgba(205,145,53,0.45)', chipBg: 'rgba(156,108,43,0.32)', chipColor: '#FFC567' },
+                  { title: 'Blocked', tasks: myTasksData.sections.blocked, border: 'rgba(216,83,83,0.45)', chipBg: 'rgba(150,58,58,0.32)', chipColor: '#FF8E8E' },
+                  { title: 'Completed', tasks: myTasksData.sections.complete, border: 'rgba(82,163,106,0.45)', chipBg: 'rgba(63,130,83,0.32)', chipColor: '#8CE09F' },
+                ].map((section) => (
+                  <Box key={section.title} sx={{ border: `1px solid ${section.border}`, borderRadius: 2, overflow: 'hidden', backgroundColor: 'rgba(20,34,66,0.65)' }}>
+                    <Box sx={{ px: 1.5, py: 1, display: 'flex', alignItems: 'center', gap: 1, backgroundColor: 'rgba(255,255,255,0.03)' }}>
+                      <Typography sx={{ fontWeight: 700, color: section.chipColor }}>{section.title}</Typography>
+                      <Box sx={{ px: 0.7, py: 0.05, borderRadius: 1, backgroundColor: section.chipBg, color: section.chipColor, fontWeight: 700, fontSize: '0.75rem' }}>
+                        {section.tasks.length}
+                      </Box>
+                    </Box>
+
+                    {section.tasks.length === 0 ? (
+                      <Box sx={{ p: 2 }}>
+                        <Typography variant="body2" color="text.secondary">No tasks in this section.</Typography>
+                      </Box>
+                    ) : (
+                      <Box sx={{ p: 1.25, display: 'flex', flexDirection: 'column', gap: 0.75 }}>
+                        {section.tasks.map((task: any) => (
+                          <Box key={`${section.title}-${task.id}`} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, px: 1, py: 0.75, borderRadius: 1, backgroundColor: 'rgba(255,255,255,0.03)' }}>
+                            <Box sx={{ minWidth: 0 }}>
+                              <Typography variant="body2" sx={{ fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {task.name || task.taskName || 'Untitled Task'}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                                {(task.programName || 'Program') + ' / ' + (task.mockCycleName || 'Cycle') + ' / ' + (task.projectName || 'Project')}
+                              </Typography>
+                              <Typography variant="caption" sx={{ display: 'block', color: '#8EA3CB' }}>
+                                {task.endDate ? `Due ${new Date(task.endDate).toLocaleDateString()}` : 'No due date'}
+                              </Typography>
+                            </Box>
+                            <Link
+                              component="button"
+                              underline="hover"
+                              onClick={() => handlePriorityTaskClick(task)}
+                              sx={{ fontSize: '0.8rem', fontWeight: 600, color: 'primary.light', whiteSpace: 'nowrap' }}
+                            >
+                              Open Task
+                            </Link>
+                          </Box>
+                        ))}
+                      </Box>
+                    )}
+                  </Box>
+                ))
               )}
             </Box>
           )}

@@ -16,7 +16,6 @@ import Home from './pages/Home';
 import AdminUsers from './pages/AdminUsers';
 import ProjectsPage from './pages/ProjectsPage';
 import SettingsPage from './pages/SettingsPage';
-import MyTasksPage from './pages/MyTasksPage';
 import PlanPage from './pages/PlanPage';
 import InventoryPage from './pages/InventoryPage';
 import PrioritiesPage from './pages/PrioritiesPage';
@@ -105,7 +104,7 @@ const AppRoutes: React.FC = () => {
         path="/my-tasks"
         element={
           <ProtectedRoute>
-            <MyTasksPage />
+            <Navigate to="/projects?tab=my-tasks" replace />
           </ProtectedRoute>
         }
       />

@@ -36,7 +36,7 @@ const subNavItems = [
   { label: 'Inventory', icon: <TableChartIcon sx={{ fontSize: '0.95rem' }} />, tabIndex: 1 },
   { label: 'Priorities', icon: <WarningAmberIcon sx={{ fontSize: '0.95rem' }} />, tabIndex: 2 },
   { label: 'Schedule', icon: <CalendarMonthIcon sx={{ fontSize: '0.95rem' }} />, tabIndex: 3 },
-  { label: 'My Tasks', icon: <AssignmentTurnedInIcon sx={{ fontSize: '0.95rem' }} />, path: '/my-tasks' },
+  { label: 'My Tasks', icon: <AssignmentTurnedInIcon sx={{ fontSize: '0.95rem' }} />, tabIndex: 4 },
 ];
 
 const TopNav: React.FC<TopNavProps> = ({ 
