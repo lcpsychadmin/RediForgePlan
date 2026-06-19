@@ -1,7 +1,7 @@
 // client/src/components/objects/DataObjectCard.tsx
 
 import React from 'react';
-import { Card, CardContent, CardHeader, Box, Stack, Typography, IconButton, useTheme } from '@mui/material';
+import { Card, CardContent, CardHeader, Box, Stack, Typography, IconButton, useTheme, Chip } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import StatusChip from '../shared/StatusChip';
@@ -13,12 +13,21 @@ import { palette } from '../../theme/palette';
 
 interface DataObjectCardProps {
   object: ProjectObject;
+  invalidRecordsCount?: number;
+  openDefectsCount?: number;
   onEdit?: (object: ProjectObject) => void;
   onDelete?: (objectId: string) => void;
   onClick?: () => void;
 }
 
-const DataObjectCard: React.FC<DataObjectCardProps> = ({ object, onEdit, onDelete, onClick }) => {
+const DataObjectCard: React.FC<DataObjectCardProps> = ({
+  object,
+  invalidRecordsCount = 0,
+  openDefectsCount = 0,
+  onEdit,
+  onDelete,
+  onClick,
+}) => {
   const theme = useTheme();
 
   return (
@@ -135,6 +144,12 @@ const DataObjectCard: React.FC<DataObjectCardProps> = ({ object, onEdit, onDelet
                 variant="outlined"
               />
             )}
+            {invalidRecordsCount > 0 ? (
+              <Chip size="small" color="warning" label={`${invalidRecordsCount} invalid`} />
+            ) : null}
+            {openDefectsCount > 0 ? (
+              <Chip size="small" color="error" label={`${openDefectsCount} open defects`} />
+            ) : null}
           </Box>
 
           {/* Dates */}

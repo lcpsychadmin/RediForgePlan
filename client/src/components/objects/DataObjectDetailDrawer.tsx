@@ -22,8 +22,10 @@ import CancelIcon from '@mui/icons-material/Cancel';
 import TimelineBar from '../TimelineBar';
 import StatusChip from '../StatusChip';
 import DataObjectTasksSection from './DataObjectTasksSection';
-import DataObjectDependenciesSection from './DataObjectDependenciesSection';
-import { useProjectObject, useUpdateProjectObject } from '../../api/hooks';
+import { useProjectObject, useUpdateProjectObject, useTasks } from '../../api/hooks';
+import ValidationStatsSection from '../validation/ValidationStatsSection';
+import IssueTypesSection from '../validation/IssueTypesSection';
+import DefectsSection from '../defects/DefectsSection';
 import { ProjectObject } from '../../api/types';
 import { useParams } from 'react-router-dom';
 import MuiAlert from '@mui/material/Alert';
@@ -69,6 +71,7 @@ export const DataObjectDetailDrawer: React.FC<DataObjectDetailDrawerProps> = ({
   const [currentTab, setCurrentTab] = useState(0);
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState<Partial<ProjectObject>>({});
+  const [selectedTaskId, setSelectedTaskId] = useState('');
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
     open: false,
     message: '',
@@ -77,6 +80,7 @@ export const DataObjectDetailDrawer: React.FC<DataObjectDetailDrawerProps> = ({
 
   // Fetch object details
   const { data: object, isLoading, error } = useProjectObject(projectObjectId || '');
+  const { data: objectTasks = [] } = useTasks(projectId || '', { projectObjectId: projectObjectId || '' });
 
   // Mutation for updating
   const { mutate: updateObject, isPending: isUpdating } = useUpdateProjectObject(projectObjectId || '', projectId || '');
@@ -88,6 +92,25 @@ export const DataObjectDetailDrawer: React.FC<DataObjectDetailDrawerProps> = ({
       setIsEditing(false);
     }
   }, [object]);
+
+  useEffect(() => {
+    if (!objectTasks.length) {
+      setSelectedTaskId('');
+      return;
+    }
+
+    const preloadTask = objectTasks.find((task: any) => {
+      const taskType = task.taskType || task.task_type;
+      return taskType === 'preload_validation';
+    });
+    const postloadTask = objectTasks.find((task: any) => {
+      const taskType = task.taskType || task.task_type;
+      return taskType === 'postload_validation';
+    });
+
+    const preferred = preloadTask || postloadTask || objectTasks[0];
+    setSelectedTaskId(preferred?.id || '');
+  }, [objectTasks]);
 
   const handleFormChange = (field: string, value: any) => {
     setFormData((prev) => ({
@@ -189,7 +212,9 @@ export const DataObjectDetailDrawer: React.FC<DataObjectDetailDrawerProps> = ({
             >
               <Tab label="Overview" id="object-tab-0" aria-controls="object-tabpanel-0" />
               <Tab label="Tasks" id="object-tab-1" aria-controls="object-tabpanel-1" />
-              <Tab label="Dependencies" id="object-tab-2" aria-controls="object-tabpanel-2" />
+              <Tab label="Validation" id="object-tab-2" aria-controls="object-tabpanel-2" />
+              <Tab label="Issues" id="object-tab-3" aria-controls="object-tabpanel-3" />
+              <Tab label="Defects" id="object-tab-4" aria-controls="object-tabpanel-4" />
             </Tabs>
 
             {/* Tab Content */}
@@ -356,9 +381,67 @@ export const DataObjectDetailDrawer: React.FC<DataObjectDetailDrawerProps> = ({
                 <DataObjectTasksSection projectId={projectId} projectObjectId={projectObjectId} />
               </TabPanel>
 
-              {/* Dependencies Tab */}
+              {/* Validation Tab */}
               <TabPanel value={currentTab} index={2}>
-                <DataObjectDependenciesSection projectId={projectId} projectObjectId={projectObjectId} />
+                <Stack spacing={2}>
+                  <TextField
+                    label="Validation Task"
+                    select
+                    size="small"
+                    value={selectedTaskId}
+                    onChange={(e) => setSelectedTaskId(e.target.value)}
+                    fullWidth
+                  >
+                    {objectTasks.map((task: any) => (
+                      <MenuItem key={task.id} value={task.id}>
+                        {(task.name || task.taskName || 'Task').toString()} ({task.taskType || task.task_type || 'custom'})
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                  <ValidationStatsSection taskId={selectedTaskId} />
+                </Stack>
+              </TabPanel>
+
+              {/* Issues Tab */}
+              <TabPanel value={currentTab} index={3}>
+                <Stack spacing={2}>
+                  <TextField
+                    label="Task"
+                    select
+                    size="small"
+                    value={selectedTaskId}
+                    onChange={(e) => setSelectedTaskId(e.target.value)}
+                    fullWidth
+                  >
+                    {objectTasks.map((task: any) => (
+                      <MenuItem key={task.id} value={task.id}>
+                        {(task.name || task.taskName || 'Task').toString()} ({task.taskType || task.task_type || 'custom'})
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                  <IssueTypesSection taskId={selectedTaskId} />
+                </Stack>
+              </TabPanel>
+
+              {/* Defects Tab */}
+              <TabPanel value={currentTab} index={4}>
+                <Stack spacing={2}>
+                  <TextField
+                    label="Task"
+                    select
+                    size="small"
+                    value={selectedTaskId}
+                    onChange={(e) => setSelectedTaskId(e.target.value)}
+                    fullWidth
+                  >
+                    {objectTasks.map((task: any) => (
+                      <MenuItem key={task.id} value={task.id}>
+                        {(task.name || task.taskName || 'Task').toString()} ({task.taskType || task.task_type || 'custom'})
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                  <DefectsSection taskId={selectedTaskId} />
+                </Stack>
               </TabPanel>
             </Box>
           </>

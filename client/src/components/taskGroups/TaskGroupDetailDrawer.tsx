@@ -20,7 +20,8 @@ import SaveIcon from '@mui/icons-material/Save';
 import CancelIcon from '@mui/icons-material/Cancel';
 import TimelineBar from '../TimelineBar';
 import TaskGroupTasksSection from './TaskGroupTasksSection';
-import { useTaskGroup, useUpdateTaskGroup } from '../../api/hooks';
+import { useTaskGroup, useUpdateTaskGroup, useTasks } from '../../api/hooks';
+import DefectsSection from '../defects/DefectsSection';
 import { TaskGroup } from '../../api/types';
 import { useParams } from 'react-router-dom';
 import MuiAlert from '@mui/material/Alert';
@@ -66,6 +67,7 @@ export const TaskGroupDetailDrawer: React.FC<TaskGroupDetailDrawerProps> = ({
   const [currentTab, setCurrentTab] = useState(0);
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState<Partial<TaskGroup>>({});
+  const [selectedTaskId, setSelectedTaskId] = useState('');
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
     open: false,
     message: '',
@@ -74,6 +76,7 @@ export const TaskGroupDetailDrawer: React.FC<TaskGroupDetailDrawerProps> = ({
 
   // Fetch task group details
   const { data: taskGroup, isLoading, error } = useTaskGroup(taskGroupId || '');
+  const { data: groupTasks = [] } = useTasks(projectId || '', { taskGroupId: taskGroupId || '' });
 
   // Mutation for updating
   const { mutate: updateTaskGroup, isPending: isUpdating } = useUpdateTaskGroup(taskGroupId || '', projectId || '');
@@ -85,6 +88,14 @@ export const TaskGroupDetailDrawer: React.FC<TaskGroupDetailDrawerProps> = ({
       setIsEditing(false);
     }
   }, [taskGroup]);
+
+  useEffect(() => {
+    if (groupTasks.length > 0) {
+      setSelectedTaskId(groupTasks[0].id);
+    } else {
+      setSelectedTaskId('');
+    }
+  }, [groupTasks]);
 
   const handleFormChange = (field: string, value: any) => {
     setFormData((prev) => ({
@@ -183,6 +194,7 @@ export const TaskGroupDetailDrawer: React.FC<TaskGroupDetailDrawerProps> = ({
             >
               <Tab label="Overview" id="taskgroup-tab-0" aria-controls="taskgroup-tabpanel-0" />
               <Tab label="Tasks" id="taskgroup-tab-1" aria-controls="taskgroup-tabpanel-1" />
+              <Tab label="Defects" id="taskgroup-tab-2" aria-controls="taskgroup-tabpanel-2" />
             </Tabs>
 
             {/* Tab Content */}
@@ -319,6 +331,27 @@ export const TaskGroupDetailDrawer: React.FC<TaskGroupDetailDrawerProps> = ({
               {/* Tasks Tab */}
               <TabPanel value={currentTab} index={1}>
                 <TaskGroupTasksSection projectId={projectId} taskGroupId={taskGroupId} />
+              </TabPanel>
+
+              {/* Defects Tab */}
+              <TabPanel value={currentTab} index={2}>
+                <Stack spacing={2}>
+                  <TextField
+                    label="Task"
+                    select
+                    size="small"
+                    value={selectedTaskId}
+                    onChange={(e) => setSelectedTaskId(e.target.value)}
+                    fullWidth
+                  >
+                    {groupTasks.map((task) => (
+                      <MenuItem key={task.id} value={task.id}>
+                        {(task.name || task.taskName || 'Task').toString()} ({task.taskType || task.task_type || 'custom'})
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                  <DefectsSection taskId={selectedTaskId} />
+                </Stack>
               </TabPanel>
             </Box>
           </>

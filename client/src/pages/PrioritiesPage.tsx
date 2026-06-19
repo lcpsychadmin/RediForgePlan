@@ -1,7 +1,7 @@
 // client/src/pages/PrioritiesPage.tsx
 
 import React from 'react';
-import { Box, CircularProgress, Alert, Grid, Card, CardContent, Typography } from '@mui/material';
+import { Box, CircularProgress, Alert, Grid, Card, CardContent, Typography, Paper, Stack, Chip } from '@mui/material';
 import PageContainer from '../layout/PageContainer';
 import ContentHeader from '../layout/ContentHeader';
 import PrioritySection from '../components/priorities/PrioritySection';
@@ -10,6 +10,8 @@ import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import apiClient from '../api/client';
 import TaskDetailModal from '../components/tasks/TaskDetailModal';
+
+type DefectSeverity = 'critical' | 'high' | 'medium' | 'low';
 
 const PrioritiesPage: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
@@ -32,6 +34,22 @@ const PrioritiesPage: React.FC = () => {
       return response.data.data || [];
     },
     enabled: !!projectId,
+  });
+
+  const taskIds = React.useMemo(
+    () => (rawTasks || []).map((task: any) => task.taskId || task.id).filter(Boolean),
+    [rawTasks]
+  );
+
+  const { data: defects = [] } = useQuery({
+    queryKey: ['priorities-defects', projectId, taskIds],
+    queryFn: async () => {
+      const responses = await Promise.all(
+        taskIds.map((taskId) => apiClient.get(`/api/tasks/${taskId}/defects`).catch(() => ({ data: { data: [] } })))
+      );
+      return responses.flatMap((response: any) => response?.data?.data || []);
+    },
+    enabled: !!projectId && taskIds.length > 0,
   });
 
   if (!projectId) {
@@ -110,6 +128,24 @@ const PrioritiesPage: React.FC = () => {
   }, [prioritized, rawTaskMap, rawTasks]);
 
   const openTaskModal = (task: any) => setSelectedTask(task);
+
+  const defectsBySeverity = React.useMemo(() => {
+    const groups: Record<DefectSeverity, any[]> = {
+      critical: [],
+      high: [],
+      medium: [],
+      low: [],
+    };
+
+    defects.forEach((defect: any) => {
+      const severity = (defect.severity || 'low') as DefectSeverity;
+      if (groups[severity]) {
+        groups[severity].push(defect);
+      }
+    });
+
+    return groups;
+  }, [defects]);
 
   return (
     <PageContainer>
@@ -211,6 +247,42 @@ const PrioritiesPage: React.FC = () => {
         people={people}
         accentColor="#ffa726"
       />
+
+      <Box sx={{ mt: 4 }}>
+        <Typography variant="h6" sx={{ mb: 2 }}>
+          Defects
+        </Typography>
+        <Stack spacing={2}>
+          {(['critical', 'high', 'medium', 'low'] as DefectSeverity[]).map((severity) => {
+            const items = defectsBySeverity[severity] || [];
+            return (
+              <Paper key={severity} variant="outlined" sx={{ p: 2 }}>
+                <Typography variant="subtitle2" sx={{ mb: 1, textTransform: 'capitalize', fontWeight: 700 }}>
+                  {severity} ({items.length})
+                </Typography>
+                {items.length === 0 ? (
+                  <Alert severity="info" variant="outlined">
+                    No {severity} defects
+                  </Alert>
+                ) : (
+                  <Stack spacing={1}>
+                    {items.map((defect: any) => (
+                      <Box key={defect.id} sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+                        <Chip size="small" color={severity === 'critical' ? 'error' : severity === 'high' ? 'warning' : severity === 'medium' ? 'success' : 'default'} label={severity} />
+                        <Typography variant="body2" fontWeight={600}>
+                          {defect.title}
+                        </Typography>
+                        <Chip size="small" variant="outlined" label={(defect.status || 'open').replace('_', ' ')} />
+                        {defect.issueCode ? <Chip size="small" variant="outlined" label={`Issue ${defect.issueCode}`} /> : null}
+                      </Box>
+                    ))}
+                  </Stack>
+                )}
+              </Paper>
+            );
+          })}
+        </Stack>
+      </Box>
     </PageContainer>
   );
 };

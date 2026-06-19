@@ -49,7 +49,7 @@ export const DraggableScheduleItem: React.FC<DraggableScheduleItemProps> = ({
         },
       }}
     >
-      <ScheduleItemComponent item={item} isDragover={isDragging} />
+      <ScheduleItemComponent item={item as any} hasOpenDefects={(item as any).hasOpenDefects} isDragover={isDragging} />
     </Box>
   );
 };

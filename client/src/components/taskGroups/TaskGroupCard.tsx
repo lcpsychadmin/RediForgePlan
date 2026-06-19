@@ -10,12 +10,13 @@ import { TaskGroup } from '../../hooks/useTaskGroups';
 
 interface TaskGroupCardProps {
   group: TaskGroup & { stats?: { taskCount: number; completedTasks: number } };
+  openDefectsCount?: number;
   onEdit?: (group: TaskGroup) => void;
   onDelete?: (groupId: string) => void;
   onClick?: () => void;
 }
 
-const TaskGroupCard: React.FC<TaskGroupCardProps> = ({ group, onEdit, onDelete, onClick }) => {
+const TaskGroupCard: React.FC<TaskGroupCardProps> = ({ group, openDefectsCount = 0, onEdit, onDelete, onClick }) => {
   return (
     <Card
       sx={{
@@ -85,8 +86,17 @@ const TaskGroupCard: React.FC<TaskGroupCardProps> = ({ group, onEdit, onDelete, 
                 color="success"
                 variant="outlined"
               />
+              {openDefectsCount > 0 ? (
+                <Chip size="small" label={`${openDefectsCount} Open Defects`} color="error" variant="outlined" />
+              ) : null}
             </Stack>
           )}
+
+          {!group.stats && openDefectsCount > 0 ? (
+            <Stack direction="row" spacing={1}>
+              <Chip size="small" label={`${openDefectsCount} Open Defects`} color="error" variant="outlined" />
+            </Stack>
+          ) : null}
 
           {/* Dates */}
           {group.startDate && group.endDate && (

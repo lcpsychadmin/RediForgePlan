@@ -13,6 +13,10 @@ import prioritiesRouter from './priorities.routes.js';
 import auditRouter from './audit.routes.js';
 import peopleRouter from './people.routes.js';
 import commentsRouter from './comments.routes.js';
+import validationRouter from '../validation/validation.routes.js';
+import issuesRouter from '../issues/issues.routes.js';
+import defectsRouter from '../defects/defects.routes.js';
+import reportingRouter from '../reporting/reporting.routes.js';
 
 const apiRouter = Router();
 
@@ -28,6 +32,11 @@ apiRouter.use('/project-objects', projectObjectsRouter);
 // Task management routes
 apiRouter.use('/tasks', tasksRouter);
 
+// Validation, issue tracking, and defects routes
+apiRouter.use('/', validationRouter);
+apiRouter.use('/', issuesRouter);
+apiRouter.use('/', defectsRouter);
+
 // Schedule and priorities routes
 apiRouter.use('/schedule', scheduleRouter);
 apiRouter.use('/priorities', prioritiesRouter);
@@ -36,5 +45,6 @@ apiRouter.use('/priorities', prioritiesRouter);
 apiRouter.use('/audit', auditRouter);
 apiRouter.use('/people', peopleRouter);
 apiRouter.use('/comments', commentsRouter);
+apiRouter.use('/reporting', reportingRouter);
 
 export default apiRouter;

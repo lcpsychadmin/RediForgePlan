@@ -18,6 +18,7 @@ import DashboardIcon from '@mui/icons-material/Dashboard';
 import FolderOpenIcon from '@mui/icons-material/FolderOpen';
 import AssignmentTurnedInIcon from '@mui/icons-material/AssignmentTurnedIn';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
+import AssessmentIcon from '@mui/icons-material/Assessment';
 import { palette } from '../theme/palette';
 
 const DRAWER_WIDTH = 260;
@@ -58,6 +59,21 @@ const Sidebar: React.FC<{ open: boolean; onClose: () => void }> = ({ open, onClo
       icon: <AdminPanelSettingsIcon sx={{ fontSize: '1.25rem' }} />,
     },
   ];
+
+  const projectMatch = location.pathname.match(/^\/programs\/([^/]+)\/mock-cycles\/([^/]+)\/projects\/([^/]+)/);
+  const projectReportingPath = projectMatch
+    ? `/programs/${projectMatch[1]}/mock-cycles/${projectMatch[2]}/projects/${projectMatch[3]}/reporting`
+    : null;
+
+  const projectMenuItems: MenuItemType[] = projectReportingPath
+    ? [
+        {
+          label: 'Reporting',
+          path: projectReportingPath,
+          icon: <AssessmentIcon sx={{ fontSize: '1.25rem' }} />,
+        },
+      ]
+    : [];
 
   const isActive = (path: string) => location.pathname === path || location.pathname.startsWith(path);
 
@@ -206,6 +222,35 @@ const Sidebar: React.FC<{ open: boolean; onClose: () => void }> = ({ open, onClo
           >
             {renderMenuItems(mainMenuItems)}
           </List>
+
+          {projectMenuItems.length > 0 && (
+            <>
+              <Divider sx={{ my: 2, borderColor: palette.divider }} />
+              <List
+                subheader={
+                  <ListSubheader
+                    component="div"
+                    sx={{
+                      backgroundColor: 'transparent',
+                      color: palette.text.secondary,
+                      fontWeight: 600,
+                      fontSize: '0.75rem',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em',
+                      px: 2,
+                      py: 1,
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    Current Project
+                  </ListSubheader>
+                }
+                sx={{ width: '100%', backgroundColor: 'transparent' }}
+              >
+                {renderMenuItems(projectMenuItems)}
+              </List>
+            </>
+          )}
 
           {/* Admin Section */}
           {user?.role === 'admin' && (

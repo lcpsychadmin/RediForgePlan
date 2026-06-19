@@ -344,6 +344,162 @@ export interface TaskFilters {
 }
 
 // ============================================
+// VALIDATION, ISSUES, DEFECT TYPES
+// ============================================
+
+export interface ValidationStats {
+  id: string;
+  taskId: string;
+  totalRecords: number;
+  validRecords: number;
+  invalidRecords: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SaveValidationStatsPayload {
+  totalRecords: number;
+  validRecords: number;
+  invalidRecords: number;
+}
+
+export interface IssueType {
+  id: string;
+  taskId: string;
+  issueCode: string;
+  issueDescription?: string;
+  count: number;
+  createdAt: string;
+}
+
+export interface CreateIssueTypePayload {
+  issueCode: string;
+  issueDescription?: string;
+  count: number;
+}
+
+export interface IssueRecord {
+  id: string;
+  taskIssueTypeId: string;
+  recordIdentifier: string;
+  rawData?: Record<string, any> | null;
+  createdAt: string;
+}
+
+export interface CreateIssueRecordPayload {
+  recordIdentifier: string;
+  rawData?: Record<string, any> | null;
+}
+
+export type DefectSeverity = 'low' | 'medium' | 'high' | 'critical';
+export type DefectStatus = 'open' | 'in_progress' | 'resolved' | 'closed';
+
+export interface Defect {
+  id: string;
+  taskId: string;
+  projectObjectId?: string | null;
+  issueTypeId?: string | null;
+  title: string;
+  description?: string | null;
+  severity: DefectSeverity;
+  status: DefectStatus;
+  assignedToUserId?: string | null;
+  assignedToUserEmail?: string | null;
+  createdByUserId: string;
+  createdByUserEmail?: string | null;
+  issueCode?: string | null;
+  issueDescription?: string | null;
+  globalObjectId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  resolvedAt?: string | null;
+}
+
+export interface CreateDefectPayload {
+  projectObjectId?: string | null;
+  issueTypeId?: string | null;
+  title: string;
+  description?: string;
+  severity: DefectSeverity;
+  status?: DefectStatus;
+  assignedToUserId?: string | null;
+}
+
+export interface UpdateDefectPayload {
+  title?: string;
+  description?: string;
+  severity?: DefectSeverity;
+  status?: DefectStatus;
+  assignedToUserId?: string | null;
+  resolvedAt?: string | null;
+}
+
+// ============================================
+// REPORTING TYPES
+// ============================================
+
+export interface ReportingDefectSeverityBreakdown {
+  low: number;
+  medium: number;
+  high: number;
+  critical: number;
+}
+
+export interface ReportingSummary {
+  defects: {
+    total: number;
+    open: number;
+    inProgress: number;
+    resolved: number;
+    closed: number;
+    bySeverity: ReportingDefectSeverityBreakdown;
+  };
+  validation: {
+    preload: {
+      totalRecords: number;
+      validRecords: number;
+      invalidRecords: number;
+      issueTypes: Array<{ issueCode: string; count: number }>;
+    };
+    postload: {
+      totalRecords: number;
+      validRecords: number;
+      invalidRecords: number;
+      issueTypes: Array<{ issueCode: string; count: number }>;
+    };
+  };
+  loadMetrics: {
+    attempted: number;
+    succeeded: number;
+    failed: number;
+    failureRate: number;
+  };
+}
+
+export interface ReportingTrendPoint {
+  date: string;
+  open?: number;
+  resolved?: number;
+  invalidRecords?: number;
+  failed?: number;
+}
+
+export interface ReportingTrends {
+  defectsOverTime: Array<Required<Pick<ReportingTrendPoint, 'date' | 'open' | 'resolved'>>>;
+  validationOverTime: Array<Required<Pick<ReportingTrendPoint, 'date' | 'invalidRecords'>>>;
+  loadFailuresOverTime: Array<Required<Pick<ReportingTrendPoint, 'date' | 'failed'>>>;
+}
+
+export interface ReportingIssueBreakdownItem {
+  taskId: string;
+  issueCode: string;
+  issueDescription?: string;
+  count: number;
+  severity: string;
+  defectsLinked: number;
+}
+
+// ============================================
 // PRIORITY & ANALYTICS TYPES
 // ============================================
 

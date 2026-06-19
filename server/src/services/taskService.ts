@@ -2,6 +2,7 @@
 // Task and task group database operations
 
 import db from '../db.js';
+import automationService from '../automation/automation.service.js';
 
 interface TaskInput {
   projectObjectId?: string;
@@ -221,6 +222,8 @@ export class TaskService {
   }
 
   async updateTask(taskId: string, data: Partial<TaskInput>) {
+    const previousTask = await this.getTaskById(taskId);
+
     const fields: string[] = [];
     const values: any[] = [taskId];
     let paramCount = 2;
@@ -258,7 +261,26 @@ export class TaskService {
     );
 
     if (result.rows.length === 0) return null;
-    return this.getTaskById(taskId);
+    const updatedTask = await this.getTaskById(taskId);
+
+    try {
+      if (
+        updatedTask &&
+        previousTask &&
+        updatedTask.status !== previousTask.status
+      ) {
+        await automationService.evaluateTaskStatus(taskId, updatedTask.status);
+      }
+    } catch (error) {
+      console.error('[automation] evaluateTaskStatus failed', {
+        taskId,
+        previousStatus: previousTask?.status,
+        newStatus: updatedTask?.status,
+        error,
+      });
+    }
+
+    return updatedTask;
   }
 
   async deleteTask(taskId: string) {

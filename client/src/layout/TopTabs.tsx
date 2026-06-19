@@ -24,6 +24,7 @@ const TopTabs: React.FC<TopTabsProps> = ({ projectId }) => {
     { label: 'Inventory', path: `inventory` },
     { label: 'Priorities', path: `priorities` },
     { label: 'Schedule', path: `schedule` },
+    { label: 'Reporting', path: `reporting` },
   ];
 
   const getCurrentTab = () => {

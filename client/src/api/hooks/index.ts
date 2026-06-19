@@ -11,3 +11,8 @@ export * from './useTasks';
 export * from './usePriorities';
 export * from './useSchedule';
 export * from './useAuditLogs';
+export * from './useValidationStats';
+export * from './useIssueTypes';
+export * from './useIssueRecords';
+export * from './useDefects';
+export * from './useReporting';

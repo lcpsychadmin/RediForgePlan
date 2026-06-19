@@ -447,8 +447,9 @@ const ProjectsPage: React.FC = () => {
     queryKey: ['projects-my-tasks', user?.id, user?.email, activeCycleId, programs.length, Object.keys(mockCycles).length, Object.keys(projectsByMockCycle).length],
     queryFn: async () => {
       const normalizeValue = (value?: string | null) => (value || '').trim().toLowerCase();
+      const emailAlias = normalizeValue((user?.email || '').split('@')[0]?.split('+')[0]);
       const tokenSet = new Set(
-        [user?.id, user?.email]
+        [user?.id, user?.email, emailAlias]
           .map((item) => normalizeValue(item))
           .filter(Boolean)
       );

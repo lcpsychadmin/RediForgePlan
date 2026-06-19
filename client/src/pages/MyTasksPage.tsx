@@ -48,8 +48,9 @@ const MyTasksPage: React.FC = () => {
   const { data, isLoading, error } = useQuery({
     queryKey: ['my-tasks', user?.id, user?.email, selectedCycleId],
     queryFn: async () => {
+      const emailAlias = normalizeValue((user?.email || '').split('@')[0]?.split('+')[0]);
       const tokenSet = new Set(
-        [user?.id, user?.email]
+        [user?.id, user?.email, emailAlias]
           .map((item) => normalizeValue(item))
           .filter(Boolean)
       );
