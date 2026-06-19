@@ -2071,7 +2071,7 @@ const ProjectsPage: React.FC = () => {
             width: { xs: 'min(86vw, 320px)', md: '280px' },
             overflowY: 'auto',
             flexShrink: 0,
-            backgroundColor: 'transparent',
+            backgroundColor: { xs: '#111a2d', md: 'transparent' },
             borderRight: '1px solid rgba(255, 255, 255, 0.08)',
             borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
             borderTop: 'none',
@@ -2088,6 +2088,7 @@ const ProjectsPage: React.FC = () => {
             transform: { xs: isHierarchySidebarOpen ? 'translateX(0)' : 'translateX(-100%)', md: 'none' },
             transition: { xs: 'transform 0.22s ease-out', md: 'none' },
             boxShadow: { xs: '8px 0 28px rgba(0,0,0,0.45)', md: 'none' },
+            backdropFilter: { xs: 'none', md: 'none' },
           }}
         >
           {isMobile && (
