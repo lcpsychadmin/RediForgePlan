@@ -2789,16 +2789,17 @@ const ProjectsPage: React.FC = () => {
                                           ))}
                                         </Box>
                                       )}
-                                      {/* Table header */}
-                                      <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 120px 60px 150px 84px 44px 100px 100px 92px', gap: 0, px: 2, py: 0.5, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                                        {['TASK', 'STATUS', '%', 'ASSIGNED TO', 'DUR', 'WKND', 'START DATE', 'END DATE', 'ACTIONS'].map(h => (
-                                          <Typography key={h} variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', letterSpacing: '0.05em', fontWeight: 600, whiteSpace: 'pre-line', lineHeight: 1.05 }}>{h}</Typography>
-                                        ))}
-                                      </Box>
-                                      {tasksForObject.length === 0
-                                        ? <Typography variant="caption" color="text.disabled" sx={{ px: 2, py: 1, display: 'block' }}>No tasks</Typography>
-                                        : tasksForObject.map((task) => (
-                                          <Box key={task.id} sx={{ display: 'grid', gridTemplateColumns: '1fr 120px 60px 150px 84px 44px 100px 100px 92px', gap: 0, px: 2, py: 0.5, alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.03)', '&:hover': { backgroundColor: 'rgba(255,255,255,0.02)' } }}>
+                                      <Box sx={{ width: '100%', overflowX: 'auto' }}>
+                                        {/* Table header */}
+                                        <Box sx={{ minWidth: 930, display: 'grid', gridTemplateColumns: 'minmax(180px,1fr) 120px 60px 150px 84px 44px 100px 100px 92px', gap: 0, px: 2, py: 0.5, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                                          {['TASK', 'STATUS', '%', 'ASSIGNED TO', 'DUR', 'WKND', 'START DATE', 'END DATE', 'ACTIONS'].map(h => (
+                                            <Typography key={h} variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', letterSpacing: '0.05em', fontWeight: 600, whiteSpace: 'pre-line', lineHeight: 1.05 }}>{h}</Typography>
+                                          ))}
+                                        </Box>
+                                        {tasksForObject.length === 0
+                                          ? <Typography variant="caption" color="text.disabled" sx={{ px: 2, py: 1, display: 'block', minWidth: 930 }}>No tasks</Typography>
+                                          : tasksForObject.map((task) => (
+                                          <Box key={task.id} sx={{ minWidth: 930, display: 'grid', gridTemplateColumns: 'minmax(180px,1fr) 120px 60px 150px 84px 44px 100px 100px 92px', gap: 0, px: 2, py: 0.5, alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.03)', '&:hover': { backgroundColor: 'rgba(255,255,255,0.02)' } }}>
                                             {/* Task name */}
                                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
                                               <Box sx={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: getTaskStatusColor(task.status), flexShrink: 0 }} />
@@ -2969,18 +2970,19 @@ const ProjectsPage: React.FC = () => {
                                             </Box>
                                           </Box>
                                         ))}
-                                      {/* Add Task row */}
-                                      <Box sx={{ px: 2, py: 0.5 }}>
-                                        <Button size="small" variant="text" startIcon={<AddIcon sx={{ fontSize: '0.8rem !important' }} />}
-                                          onClick={async () => {
-                                            try {
-                                              const res = await apiClient.post(`/api/tasks/project/${activeProjectId}`, { taskType: 'custom', projectObjectId: objectId, name: 'New Task', durationUnit: 'days' });
-                                              setProjectTasks(prev => [...prev, normalizeTaskDateFields(res.data.data)]);
-                                            } catch (e) { console.error(e); }
-                                          }}
-                                          sx={{ fontSize: '0.72rem', color: '#7C83D0', textTransform: 'none' }}>
-                                          Add Task
-                                        </Button>
+                                        {/* Add Task row */}
+                                        <Box sx={{ px: 2, py: 0.5, minWidth: 930 }}>
+                                          <Button size="small" variant="text" startIcon={<AddIcon sx={{ fontSize: '0.8rem !important' }} />}
+                                            onClick={async () => {
+                                              try {
+                                                const res = await apiClient.post(`/api/tasks/project/${activeProjectId}`, { taskType: 'custom', projectObjectId: objectId, name: 'New Task', durationUnit: 'days' });
+                                                setProjectTasks(prev => [...prev, normalizeTaskDateFields(res.data.data)]);
+                                              } catch (e) { console.error(e); }
+                                            }}
+                                            sx={{ fontSize: '0.72rem', color: '#7C83D0', textTransform: 'none' }}>
+                                            Add Task
+                                          </Button>
+                                        </Box>
                                       </Box>
                                       {/* Object Notes */}
                                       <Box sx={{ px: 2, pb: 1.5 }}>
@@ -3107,16 +3109,17 @@ const ProjectsPage: React.FC = () => {
                                   })()}
                                   {isExpanded && (
                                     <Box sx={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-                                      {/* Table header */}
-                                      <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 120px 60px 150px 84px 44px 100px 100px 92px', gap: 0, px: 2, py: 0.5, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                                        {['TASK', 'STATUS', '%', 'ASSIGNED TO', 'DUR', 'WKND', 'START DATE', 'END DATE', 'ACTIONS'].map(h => (
-                                          <Typography key={h} variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', letterSpacing: '0.05em', fontWeight: 600, whiteSpace: 'pre-line', lineHeight: 1.05 }}>{h}</Typography>
-                                        ))}
-                                      </Box>
+                                      <Box sx={{ width: '100%', overflowX: 'auto' }}>
+                                        {/* Table header */}
+                                        <Box sx={{ minWidth: 930, display: 'grid', gridTemplateColumns: 'minmax(180px,1fr) 120px 60px 150px 84px 44px 100px 100px 92px', gap: 0, px: 2, py: 0.5, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                                          {['TASK', 'STATUS', '%', 'ASSIGNED TO', 'DUR', 'WKND', 'START DATE', 'END DATE', 'ACTIONS'].map(h => (
+                                            <Typography key={h} variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', letterSpacing: '0.05em', fontWeight: 600, whiteSpace: 'pre-line', lineHeight: 1.05 }}>{h}</Typography>
+                                          ))}
+                                        </Box>
                                       {groupTasks.length === 0
-                                        ? <Typography variant="caption" color="text.disabled" sx={{ px: 2, py: 1, display: 'block' }}>No tasks</Typography>
+                                        ? <Typography variant="caption" color="text.disabled" sx={{ px: 2, py: 1, display: 'block', minWidth: 930 }}>No tasks</Typography>
                                         : groupTasks.map((task) => (
-                                          <Box key={task.id} sx={{ display: 'grid', gridTemplateColumns: '1fr 120px 60px 150px 84px 44px 100px 100px 92px', gap: 0, px: 2, py: 0.5, alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.03)', '&:hover': { backgroundColor: 'rgba(255,255,255,0.02)' } }}>
+                                          <Box key={task.id} sx={{ minWidth: 930, display: 'grid', gridTemplateColumns: 'minmax(180px,1fr) 120px 60px 150px 84px 44px 100px 100px 92px', gap: 0, px: 2, py: 0.5, alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.03)', '&:hover': { backgroundColor: 'rgba(255,255,255,0.02)' } }}>
                                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
                                               <Box sx={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: getTaskStatusColor(task.status), flexShrink: 0 }} />
                                               <TextField size="small" value={task.name || ''} onBlur={e => updateTaskInline(task.id, 'name', e.target.value)}
@@ -3283,7 +3286,7 @@ const ProjectsPage: React.FC = () => {
                                           </Box>
                                         ))}
                                       {/* Add Task to group */}
-                                      <Box sx={{ px: 2, py: 0.5 }}>
+                                      <Box sx={{ px: 2, py: 0.5, minWidth: 930 }}>
                                         <Button size="small" variant="text" startIcon={<AddIcon sx={{ fontSize: '0.8rem !important' }} />}
                                           onClick={async () => {
                                             try {
@@ -3294,6 +3297,7 @@ const ProjectsPage: React.FC = () => {
                                           sx={{ fontSize: '0.72rem', color: '#7C83D0', textTransform: 'none' }}>
                                           Add Task
                                         </Button>
+                                      </Box>
                                       </Box>
                                     </Box>
                                   )}
