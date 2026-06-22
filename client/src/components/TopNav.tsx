@@ -8,6 +8,9 @@ import DashboardIcon from '@mui/icons-material/Dashboard';
 import FolderOpenIcon from '@mui/icons-material/FolderOpen';
 import SettingsIcon from '@mui/icons-material/Settings';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
+import ArchitectureIcon from '@mui/icons-material/Architecture';
+import DesignServicesIcon from '@mui/icons-material/DesignServices';
+import ConstructionIcon from '@mui/icons-material/Construction';
 import CompareArrowsIcon from '@mui/icons-material/CompareArrows';
 import GroupIcon from '@mui/icons-material/Group';
 import DownloadIcon from '@mui/icons-material/Download';
@@ -336,7 +339,22 @@ const TopNav: React.FC<TopNavProps> = ({
               sx={{ display: 'flex', gap: 1 }}
             >
               <FolderOpenIcon fontSize="small" />
-              <Typography variant="body2">Projects</Typography>
+              <Typography variant="body2">Execution</Typography>
+            </MenuItem>
+
+            <MenuItem disabled sx={{ display: 'flex', gap: 1, opacity: 0.6 }}>
+              <ArchitectureIcon fontSize="small" />
+              <Typography variant="body2">Planning (Coming Soon)</Typography>
+            </MenuItem>
+
+            <MenuItem disabled sx={{ display: 'flex', gap: 1, opacity: 0.6 }}>
+              <DesignServicesIcon fontSize="small" />
+              <Typography variant="body2">Design (Coming Soon)</Typography>
+            </MenuItem>
+
+            <MenuItem disabled sx={{ display: 'flex', gap: 1, opacity: 0.6 }}>
+              <ConstructionIcon fontSize="small" />
+              <Typography variant="body2">Build (Coming Soon)</Typography>
             </MenuItem>
 
             <MenuItem
