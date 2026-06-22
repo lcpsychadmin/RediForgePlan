@@ -2520,10 +2520,25 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
           {sectionMode === 'planning' && tabValue === 0 && (
             <>
               {!selectedItem ? (
-                <Alert severity="info">Select a program, mock cycle, or project to define planning deliverables.</Alert>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                  <Alert severity="info">Select a program, mock cycle, or project to define planning deliverables.</Alert>
+                  <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    <Button variant="contained" startIcon={<AddIcon />} onClick={() => openCreateDialog('program')}>
+                      Create Program
+                    </Button>
+                  </Box>
+                </Box>
               ) : selectedItem.type === 'program' ? (
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                   <Paper sx={{ p: 2 }}>
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, justifyContent: 'flex-end', mb: 1.25 }}>
+                      <Button size="small" variant="outlined" onClick={() => openEditDialog('program', selectedItem.id)}>
+                        Edit Program
+                      </Button>
+                      <Button size="small" variant="contained" startIcon={<AddIcon />} onClick={() => openCreateDialog('cycle', selectedItem.id)}>
+                        Create Mock Cycle
+                      </Button>
+                    </Box>
                     <Typography variant="h6" sx={{ mb: 0.5 }}>{selectedDetails?.name}</Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                       Program planning focuses on strategy definition, inventory scoping, and migration approach. Execution task planning is intentionally excluded from this phase.
@@ -2570,6 +2585,14 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                 </Box>
               ) : selectedItem.type === 'cycle' ? (
                 <Paper sx={{ p: 2 }}>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, justifyContent: 'flex-end', mb: 1.25 }}>
+                    <Button size="small" variant="outlined" onClick={() => openEditDialog('cycle', selectedItem.id)}>
+                      Edit Mock Cycle
+                    </Button>
+                    <Button size="small" variant="contained" startIcon={<AddIcon />} onClick={() => openCreateDialog('project', undefined, selectedItem.id)}>
+                      Create Project
+                    </Button>
+                  </Box>
                   <Typography variant="h6" sx={{ mb: 0.5 }}>{selectedDetails?.name}</Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
                     This mock cycle is for planning sequence and scope only. No execution tasks are created in Planning.
@@ -2583,6 +2606,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                 </Paper>
               ) : (
                 <Paper sx={{ p: 2 }}>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, justifyContent: 'flex-end', mb: 1.25 }}>
+                    <Button size="small" variant="outlined" onClick={() => openEditDialog('project', selectedItem.id)}>
+                      Edit Project
+                    </Button>
+                  </Box>
                   <Typography variant="h6" sx={{ mb: 0.5 }}>{selectedDetails?.name}</Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
                     Project-level planning deliverable is the detailed data object inventory and migration posture. Execution tasks are handled in Execution.
