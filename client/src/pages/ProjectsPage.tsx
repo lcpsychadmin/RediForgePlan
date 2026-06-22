@@ -122,6 +122,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   const canAccessInventory = sectionMode === 'planning';
   const [planningStrategyDraft, setPlanningStrategyDraft] = useState('');
   const [isSavingPlanningStrategy, setIsSavingPlanningStrategy] = useState(false);
+  const [planningAdditionalGroups, setPlanningAdditionalGroups] = useState<Record<string, string[]>>({});
   
   // State for expanded nodes in tree
   const [expandedPrograms, setExpandedPrograms] = useState<Set<string>>(new Set());
@@ -317,6 +318,25 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   const [editPersonName, setEditPersonName] = useState('');
   const [editPersonRole, setEditPersonRole] = useState('');
   const [editPersonEmail, setEditPersonEmail] = useState('');
+
+  useEffect(() => {
+    if (sectionMode !== 'planning') return;
+    try {
+      const raw = localStorage.getItem('rf-planning-additional-groups');
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') {
+        setPlanningAdditionalGroups(parsed);
+      }
+    } catch {
+      // no-op
+    }
+  }, [sectionMode]);
+
+  useEffect(() => {
+    if (sectionMode !== 'planning') return;
+    localStorage.setItem('rf-planning-additional-groups', JSON.stringify(planningAdditionalGroups));
+  }, [planningAdditionalGroups, sectionMode]);
 
   const openTaskRowMenu = (event: React.MouseEvent<HTMLElement>, task: any) => {
     event.stopPropagation();
@@ -679,6 +699,57 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     const existing = treeOrder.projects[cycleId] || [];
     const ids = mergeOrder(existing, source.map((p: Project) => p.id));
     return ids.map(id => source.find((p: Project) => p.id === id)).filter(Boolean) as Project[];
+  };
+
+  const getProjectsByProgram = (programId: string) => {
+    const cycleList = mockCycles[programId] || [];
+    const byName = new Map<string, Project>();
+    cycleList.forEach((cycle: MockCycle) => {
+      (projectsByMockCycle[cycle.id] || []).forEach((project: Project) => {
+        const key = (project.name || '').trim().toLowerCase();
+        if (key && !byName.has(key)) {
+          byName.set(key, project);
+        }
+      });
+    });
+    return Array.from(byName.values()).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  };
+
+  const getCyclesForProjectInProgram = (programId: string, projectName: string) => {
+    const cycleList = mockCycles[programId] || [];
+    return cycleList.filter((cycle: MockCycle) =>
+      (projectsByMockCycle[cycle.id] || []).some((p: Project) => (p.name || '').trim().toLowerCase() === projectName.trim().toLowerCase())
+    );
+  };
+
+  const getProcessAreasForProjectCycle = (projectId: string) => {
+    const areas = new Set<string>();
+    projectInventoryItems
+      .filter((item: any) => item.projectId === projectId)
+      .forEach((item: any) => {
+        const area = (item.processArea || '').trim();
+        if (area) areas.add(area);
+      });
+    const additional = planningAdditionalGroups[projectId] || [];
+    additional.forEach((groupName) => {
+      const label = (groupName || '').trim();
+      if (label) areas.add(label);
+    });
+    return Array.from(areas).sort((a, b) => a.localeCompare(b));
+  };
+
+  const handleAddAdditionalGroup = (projectId: string) => {
+    const value = window.prompt('Enter Additional Group name');
+    const name = (value || '').trim();
+    if (!name) return;
+    setPlanningAdditionalGroups(prev => {
+      const existing = prev[projectId] || [];
+      if (existing.some(g => g.toLowerCase() === name.toLowerCase())) return prev;
+      return {
+        ...prev,
+        [projectId]: [...existing, name],
+      };
+    });
   };
 
   // Load schedule rows for all projects in the selected cycle.
@@ -2236,10 +2307,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                         )}
                       </Box>
 
-                      {/* Cycles (with tree line) */}
+                      {/* Planning Hierarchy: Program > Project > Mock Cycle > Process Area */}
                       {isProgramExpanded && (
                         <Box sx={{ position: 'relative', ml: 3.5 }}>
-                          {/* Vertical tree line */}
                           <Box sx={{
                             position: 'absolute',
                             left: 8,
@@ -2249,163 +2319,28 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                             backgroundColor: 'rgba(255,255,255,0.12)',
                           }} />
 
-                          {getOrderedCycles(program.id).map((cycle: MockCycle) => {
-                            const isCycleSelected = selectedItem?.type === 'cycle' && selectedItem?.id === cycle.id;
-                            const isCycleExpanded = expandedCycles.has(cycle.id);
-                            const cycleColor = cycle.accentColor || '#64B5F6';
+                          {getProjectsByProgram(program.id).map((project: Project) => {
+                            const projectCycles = getCyclesForProjectInProgram(program.id, project.name || '');
+                            const projectAccent = project.accentColor || '#90caf9';
                             return (
-                              <Box key={cycle.id}>
-                                {/* Cycle Row */}
-                                <Box
-                                  draggable
-                                  onDragStart={(e) => {
-                                    const payload = JSON.stringify({ type: 'cycle', id: cycle.id, programId: program.id });
-                                    e.dataTransfer.setData('text/plain', payload);
-                                    e.dataTransfer.effectAllowed = 'move';
-                                    setTreeDragItem({ type: 'cycle', id: cycle.id, programId: program.id });
-                                  }}
-                                  onDragOver={(e) => {
-                                    e.preventDefault();
-                                    e.dataTransfer.dropEffect = 'move';
-                                  }}
-                                  onDrop={(e) => {
-                                    e.preventDefault();
-                                    const raw = e.dataTransfer.getData('text/plain');
-                                    let parsed: any = null;
-                                    try { parsed = raw ? JSON.parse(raw) : null; } catch { parsed = null; }
-                                    const dragged = parsed?.type === 'cycle'
-                                      ? parsed
-                                      : treeDragItem?.type === 'cycle'
-                                        ? treeDragItem
-                                        : null;
-                                    if (!dragged || dragged.programId !== program.id) return;
-                                    const orderedIds = mergeOrder(treeOrder.cycles[program.id] || [], (mockCycles[program.id] || []).map((c: MockCycle) => c.id));
-                                    setTreeOrder(prev => ({
-                                      ...prev,
-                                      cycles: {
-                                        ...prev.cycles,
-                                        [program.id]: reorderByDrop(orderedIds, dragged.id, cycle.id),
-                                      },
-                                    }));
-                                    setTreeDragItem(null);
-                                  }}
-                                  onDragEnd={() => setTreeDragItem(null)}
-                                  sx={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    py: 0.6,
-                                    pl: 0,
-                                    pr: 0.5,
-                                    cursor: 'pointer',
-                                    position: 'relative',
-                                    backgroundColor: isCycleSelected ? 'rgba(91, 103, 202, 0.15)' : 'transparent',
-                                    borderLeft: '3px solid transparent',
-                                    '&::before': isCycleSelected ? {
-                                      content: '""',
-                                      position: 'absolute',
-                                      left: 0,
-                                      top: '4px',
-                                      bottom: '4px',
-                                      width: '3px',
-                                      backgroundColor: cycleColor,
-                                      borderRadius: '2px',
-                                    } : {},
-                                    '&:hover': { backgroundColor: isCycleSelected ? 'rgba(91, 103, 202, 0.15)' : 'rgba(255,255,255,0.05)' },
-                                  }}
-                                  onClick={() => {
-                                    handleHierarchySelection({ type: 'cycle', id: cycle.id, programId: program.id });
-                                    toggleCycleExpanded(cycle.id);
-                                  }}
-                                >
-                                  {/* Tree connector */}
+                              <Box key={`pgrp-${program.id}-${project.name}`}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', py: 0.55, pl: 0, pr: 0.5 }}>
                                   <Box sx={{ width: 8, flexShrink: 0 }} />
-                                  <DragIndicatorIcon sx={{ fontSize: '0.85rem', opacity: 0.45, mx: 0.15, flexShrink: 0 }} />
-                                  {/* Expand arrow */}
-                                  <Box sx={{ width: 16, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                    {isCycleExpanded
-                                      ? <ExpandMoreIcon sx={{ fontSize: '0.85rem', opacity: 0.6 }} />
-                                      : <ChevronRightIcon sx={{ fontSize: '0.85rem', opacity: 0.6 }} />
-                                    }
-                                  </Box>
-                                  <SyncIcon sx={{ fontSize: '0.95rem', color: cycleColor, flexShrink: 0, mx: 0.5 }} />
-                                  <Typography variant="body2" sx={{ fontWeight: 500, fontSize: '0.8rem', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: isCycleSelected ? cycleColor : 'inherit' }}>
-                                    {cycle.name}
+                                  <FolderOutlinedIcon sx={{ fontSize: '0.95rem', color: projectAccent, flexShrink: 0, mx: 0.5 }} />
+                                  <Typography variant="body2" sx={{ fontWeight: 600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    {project.name}
                                   </Typography>
-                                  {(() => {
-                                    const cycleProjects = projectsByMockCycle[cycle.id] || [];
-                                    const cyclePct = cycleProjects.length > 0
-                                      ? Math.round(cycleProjects.reduce((s: number, p: Project) => s + (p.progressPercentage || 0), 0) / cycleProjects.length)
-                                      : 0;
-                                    return <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 500, mr: 0.5, flexShrink: 0 }}>{cyclePct}%</Typography>;
-                                  })()}
-                                  {canManageHierarchy && (
-                                    <IconButton
-                                      size="small"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setMenuAnchorEl(e.currentTarget);
-                                        setMenuType('cycle');
-                                        setMenuItemId(cycle.id);
-                                      }}
-                                      sx={{ opacity: 0.5, '&:hover': { opacity: 1 } }}
-                                    >
-                                      <MoreVertIcon sx={{ fontSize: '0.9rem' }} />
-                                    </IconButton>
-                                  )}
                                 </Box>
 
-                                {/* Projects (with tree line) */}
-                                {isCycleExpanded && (
-                                  <Box sx={{ position: 'relative', ml: 3 }}>
-                                    {/* Vertical tree line */}
-                                    <Box sx={{
-                                      position: 'absolute',
-                                      left: 8,
-                                      top: 0,
-                                      bottom: 28,
-                                      width: '1px',
-                                      backgroundColor: 'rgba(255,255,255,0.12)',
-                                    }} />
-
-                                    {getOrderedProjects(cycle.id).map((project: Project) => {
-                                      const isProjectSelected = selectedItem?.type === 'project' && selectedItem?.id === project.id;
-                                      const accentColor = project.accentColor || '#90caf9';
-                                      return (
+                                <Box sx={{ ml: 2.75 }}>
+                                  {projectCycles.map((cycle: MockCycle) => {
+                                    const realProject = (projectsByMockCycle[cycle.id] || []).find((p: Project) => (p.name || '').trim().toLowerCase() === (project.name || '').trim().toLowerCase()) || project;
+                                    const isCycleSelected = selectedItem?.type === 'cycle' && selectedItem?.id === cycle.id;
+                                    const cycleColor = cycle.accentColor || '#64B5F6';
+                                    const processAreas = getProcessAreasForProjectCycle(realProject.id);
+                                    return (
+                                      <Box key={`pc-${project.name}-${cycle.id}`}>
                                         <Box
-                                          key={project.id}
-                                          draggable
-                                          onDragStart={(e) => {
-                                            const payload = JSON.stringify({ type: 'project', id: project.id, cycleId: cycle.id });
-                                            e.dataTransfer.setData('text/plain', payload);
-                                            e.dataTransfer.effectAllowed = 'move';
-                                            setTreeDragItem({ type: 'project', id: project.id, cycleId: cycle.id });
-                                          }}
-                                          onDragOver={(e) => {
-                                            e.preventDefault();
-                                            e.dataTransfer.dropEffect = 'move';
-                                          }}
-                                          onDrop={(e) => {
-                                            e.preventDefault();
-                                            const raw = e.dataTransfer.getData('text/plain');
-                                            let parsed: any = null;
-                                            try { parsed = raw ? JSON.parse(raw) : null; } catch { parsed = null; }
-                                            const dragged = parsed?.type === 'project'
-                                              ? parsed
-                                              : treeDragItem?.type === 'project'
-                                                ? treeDragItem
-                                                : null;
-                                            if (!dragged || dragged.cycleId !== cycle.id) return;
-                                            const orderedIds = mergeOrder(treeOrder.projects[cycle.id] || [], (projectsByMockCycle[cycle.id] || []).map((p: Project) => p.id));
-                                            setTreeOrder(prev => ({
-                                              ...prev,
-                                              projects: {
-                                                ...prev.projects,
-                                                [cycle.id]: reorderByDrop(orderedIds, dragged.id, project.id),
-                                              },
-                                            }));
-                                            setTreeDragItem(null);
-                                          }}
-                                          onDragEnd={() => setTreeDragItem(null)}
                                           sx={{
                                             display: 'flex',
                                             alignItems: 'center',
@@ -2413,70 +2348,49 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                             pl: 0,
                                             pr: 0.5,
                                             cursor: 'pointer',
-                                            position: 'relative',
-                                            backgroundColor: isProjectSelected ? `${accentColor}22` : 'transparent',
-                                            borderLeft: '3px solid transparent',
-                                            '&::before': isProjectSelected ? {
-                                              content: '""',
-                                              position: 'absolute',
-                                              left: 0,
-                                              top: '3px',
-                                              bottom: '3px',
-                                              width: '3px',
-                                              backgroundColor: accentColor,
-                                              borderRadius: '2px',
-                                            } : {},
-                                            '&:hover': { backgroundColor: isProjectSelected ? `${accentColor}22` : 'rgba(255,255,255,0.05)' },
+                                            backgroundColor: isCycleSelected ? 'rgba(91, 103, 202, 0.15)' : 'transparent',
+                                            '&:hover': { backgroundColor: isCycleSelected ? 'rgba(91, 103, 202, 0.15)' : 'rgba(255,255,255,0.05)' },
                                           }}
-                                          onClick={() => handleHierarchySelection({ type: 'project', id: project.id, cycleId: cycle.id })}
+                                          onClick={() => handleHierarchySelection({ type: 'project', id: realProject.id, cycleId: cycle.id })}
                                         >
-                                          {/* Tree connector */}
-                                          <Box sx={{ width: 8, flexShrink: 0 }} />
-                                          <DragIndicatorIcon sx={{ fontSize: '0.8rem', opacity: 0.45, mx: 0.15, flexShrink: 0 }} />
-                                          <FolderOutlinedIcon sx={{ fontSize: '0.95rem', color: accentColor, flexShrink: 0, mx: 0.5 }} />
-                                          <Typography variant="caption" sx={{ fontWeight: 500, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: isProjectSelected ? accentColor : 'inherit' }}>
-                                            {project.name}
+                                          <SyncIcon sx={{ fontSize: '0.92rem', color: cycleColor, flexShrink: 0, mx: 0.5 }} />
+                                          <Typography variant="body2" sx={{ fontWeight: 500, fontSize: '0.78rem', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                            {cycle.name}
                                           </Typography>
-                                          <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 500, mr: 0.5, flexShrink: 0 }}>
-                                            {project.progressPercentage || 0}%
+                                          <Typography variant="caption" sx={{ color: 'text.secondary', mr: 0.5 }}>
+                                            {realProject.progressPercentage || 0}%
                                           </Typography>
+                                        </Box>
+
+                                        <Box sx={{ ml: 2.5 }}>
+                                          {processAreas.map((area) => (
+                                            <Box key={`area-${realProject.id}-${cycle.id}-${area}`} sx={{ display: 'flex', alignItems: 'center', py: 0.4, pl: 0.5, pr: 0.5 }}>
+                                              <Typography variant="caption" sx={{ color: 'text.secondary', mr: 0.75 }}>•</Typography>
+                                              <Typography variant="caption" sx={{ fontWeight: 500, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                {area}
+                                              </Typography>
+                                            </Box>
+                                          ))}
                                           {canManageHierarchy && (
-                                            <IconButton
+                                            <Button
                                               size="small"
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                setMenuAnchorEl(e.currentTarget);
-                                                setMenuType('project');
-                                                setMenuItemId(project.id);
-                                              }}
-                                              sx={{ opacity: 0.5, '&:hover': { opacity: 1 } }}
+                                              variant="text"
+                                              startIcon={<AddIcon sx={{ fontSize: '0.8rem !important' }} />}
+                                              onClick={() => handleAddAdditionalGroup(realProject.id)}
+                                              sx={{ fontSize: '0.7rem', height: 24, color: '#7C83D0', textTransform: 'none', pl: 0.5 }}
                                             >
-                                              <MoreVertIcon sx={{ fontSize: '0.9rem' }} />
-                                            </IconButton>
+                                              Add Additional Group
+                                            </Button>
                                           )}
                                         </Box>
-                                      );
-                                    })}
-
-                                    {/* Add Project */}
-                                    {canManageHierarchy && (
-                                      <Button
-                                        size="small"
-                                        variant="text"
-                                        startIcon={<AddIcon sx={{ fontSize: '0.85rem !important' }} />}
-                                        onClick={() => openCreateDialog('project', undefined, cycle.id)}
-                                        sx={{ fontSize: '0.72rem', height: 26, mt: 0.25, color: '#7C83D0', textTransform: 'none', pl: 1, '&:hover': { color: '#5B67CA' } }}
-                                      >
-                                        Add Project
-                                      </Button>
-                                    )}
-                                  </Box>
-                                )}
+                                      </Box>
+                                    );
+                                  })}
+                                </Box>
                               </Box>
                             );
                           })}
 
-                          {/* Add Mock Cycle */}
                           {canManageHierarchy && (
                             <Button
                               size="small"
