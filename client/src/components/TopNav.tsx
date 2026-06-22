@@ -35,13 +35,17 @@ interface TopNavProps {
   onPeopleClick?: () => void;
 }
 
-const subNavItems = [
+const executionSubNavItems = [
   { label: 'Plan', icon: <GridViewIcon sx={{ fontSize: '0.95rem' }} />, tabIndex: 0 },
-  { label: 'Inventory', icon: <TableChartIcon sx={{ fontSize: '0.95rem' }} />, tabIndex: 1 },
   { label: 'Priorities', icon: <WarningAmberIcon sx={{ fontSize: '0.95rem' }} />, tabIndex: 2 },
   { label: 'Schedule', icon: <CalendarMonthIcon sx={{ fontSize: '0.95rem' }} />, tabIndex: 3 },
   { label: 'Defects', icon: <WarningAmberIcon sx={{ fontSize: '0.95rem' }} />, tabIndex: 4 },
   { label: 'My Tasks', icon: <AssignmentTurnedInIcon sx={{ fontSize: '0.95rem' }} />, tabIndex: 5 },
+];
+
+const planningSubNavItems = [
+  { label: 'Plan', icon: <GridViewIcon sx={{ fontSize: '0.95rem' }} />, tabIndex: 0 },
+  { label: 'Inventory', icon: <TableChartIcon sx={{ fontSize: '0.95rem' }} />, tabIndex: 1 },
 ];
 
 const TopNav: React.FC<TopNavProps> = ({ 
@@ -67,7 +71,11 @@ const TopNav: React.FC<TopNavProps> = ({
     const localUnread = notifications.filter(n => !n.isRead).length;
     return localUnread > 0 ? localUnread : unreadCount;
   }, [notifications, unreadCount]);
-  const isProjectsPage = location.pathname === '/projects';
+  const isExecutionPage = location.pathname === '/projects';
+  const isPlanningPage = location.pathname === '/planning';
+  const isWorkspacePage = isExecutionPage || isPlanningPage;
+  const sectionTitle = isPlanningPage ? 'Planning Workspace' : 'Mock/Cutover Execution';
+  const activeSubNavItems = isPlanningPage ? planningSubNavItems : executionSubNavItems;
 
   const loadNotifications = React.useCallback(() => {
     return apiClient.get('/api/comments/notifications/me').then(r => {
@@ -142,14 +150,14 @@ const TopNav: React.FC<TopNavProps> = ({
   return (
     <AppBar position="fixed" sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}>
       <Toolbar sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: { xs: 1, sm: 2 } }}>
-        {isProjectsPage ? (
+        {isWorkspacePage ? (
           isMobile ? (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1, minWidth: 0 }}>
               <IconButton color="inherit" size="small" onClick={onMenuClick}>
                 <MenuIcon />
               </IconButton>
               <Typography variant="subtitle1" sx={{ fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>
-                Mock/Cutover Execution
+                {sectionTitle}
               </Typography>
               <Button
                 variant="contained"
@@ -169,7 +177,7 @@ const TopNav: React.FC<TopNavProps> = ({
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
                 <CompareArrowsIcon sx={{ fontSize: '1.4rem', color: 'secondary.light' }} />
                 <Typography variant="h6" sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>
-                  Mock/Cutover Execution
+                  {sectionTitle}
                 </Typography>
               </Box>
 
@@ -342,9 +350,13 @@ const TopNav: React.FC<TopNavProps> = ({
               <Typography variant="body2">Execution</Typography>
             </MenuItem>
 
-            <MenuItem disabled sx={{ display: 'flex', gap: 1, opacity: 0.6 }}>
+            <MenuItem
+              onClick={() => handleNavigate('/planning')}
+              selected={isActive('/planning')}
+              sx={{ display: 'flex', gap: 1 }}
+            >
               <ArchitectureIcon fontSize="small" />
-              <Typography variant="body2">Planning (Coming Soon)</Typography>
+              <Typography variant="body2">Planning</Typography>
             </MenuItem>
 
             <MenuItem disabled sx={{ display: 'flex', gap: 1, opacity: 0.6 }}>
@@ -393,7 +405,7 @@ const TopNav: React.FC<TopNavProps> = ({
       </Toolbar>
 
       {/* Sub-nav for Projects page */}
-      {isProjectsPage && (
+      {isWorkspacePage && (
         <Box
           sx={{
             display: 'flex',
@@ -410,7 +422,7 @@ const TopNav: React.FC<TopNavProps> = ({
             '&::-webkit-scrollbar': { display: 'none' },
           }}
         >
-          {subNavItems.map((item, idx) => (
+          {activeSubNavItems.map((item, idx) => (
             <Button
               key={idx}
               size="small"

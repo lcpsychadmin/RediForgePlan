@@ -88,7 +88,16 @@ const AppRoutes: React.FC = () => {
         path="/projects"
         element={
           <ProtectedRoute>
-            <ProjectsPage />
+            <ProjectsPage sectionMode="execution" />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/planning"
+        element={
+          <ProtectedRoute>
+            <ProjectsPage sectionMode="planning" />
           </ProtectedRoute>
         }
       />

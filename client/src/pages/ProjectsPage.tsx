@@ -107,13 +107,19 @@ type PlanOverview = {
   timelineEnd: string | null;
 };
 
-const ProjectsPage: React.FC = () => {
+interface ProjectsPageProps {
+  sectionMode?: 'planning' | 'execution';
+}
+
+const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const canManageHierarchy = sectionMode === 'planning';
+  const canAccessInventory = sectionMode === 'planning';
   
   // State for expanded nodes in tree
   const [expandedPrograms, setExpandedPrograms] = useState<Set<string>>(new Set());
@@ -457,7 +463,7 @@ const ProjectsPage: React.FC = () => {
   }, [inventoryProjects, selectedProjectForInventory]);
 
   // Keep inventory and plan project contexts isolated.
-  const activeProjectId = tabValue === 1
+  const activeProjectId = canAccessInventory && tabValue === 1
     ? selectedProjectForInventory
     : (selectedItem?.type === 'project' ? selectedItem.id : null);
   const activeCycleId = selectedItem?.type === 'project'
@@ -1157,10 +1163,16 @@ const ProjectsPage: React.FC = () => {
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
-    if (params.get('tab') === 'my-tasks') {
+    if (sectionMode === 'execution' && params.get('tab') === 'my-tasks') {
       setTabValue(5);
     }
-  }, [location.search]);
+  }, [location.search, sectionMode]);
+
+  useEffect(() => {
+    if (!canAccessInventory && tabValue === 1) {
+      setTabValue(0);
+    }
+  }, [canAccessInventory, tabValue]);
 
   // Ensure Priorities tab has a project context so the panel doesn't appear blank.
   useEffect(() => {
@@ -2413,15 +2425,17 @@ const ProjectsPage: React.FC = () => {
                                     })}
 
                                     {/* Add Project */}
-                                    <Button
-                                      size="small"
-                                      variant="text"
-                                      startIcon={<AddIcon sx={{ fontSize: '0.85rem !important' }} />}
-                                      onClick={() => openCreateDialog('project', undefined, cycle.id)}
-                                      sx={{ fontSize: '0.72rem', height: 26, mt: 0.25, color: '#7C83D0', textTransform: 'none', pl: 1, '&:hover': { color: '#5B67CA' } }}
-                                    >
-                                      Add Project
-                                    </Button>
+                                    {canManageHierarchy && (
+                                      <Button
+                                        size="small"
+                                        variant="text"
+                                        startIcon={<AddIcon sx={{ fontSize: '0.85rem !important' }} />}
+                                        onClick={() => openCreateDialog('project', undefined, cycle.id)}
+                                        sx={{ fontSize: '0.72rem', height: 26, mt: 0.25, color: '#7C83D0', textTransform: 'none', pl: 1, '&:hover': { color: '#5B67CA' } }}
+                                      >
+                                        Add Project
+                                      </Button>
+                                    )}
                                   </Box>
                                 )}
                               </Box>
@@ -2429,15 +2443,17 @@ const ProjectsPage: React.FC = () => {
                           })}
 
                           {/* Add Mock Cycle */}
-                          <Button
-                            size="small"
-                            variant="text"
-                            startIcon={<AddIcon sx={{ fontSize: '0.85rem !important' }} />}
-                            onClick={() => openCreateDialog('cycle', program.id)}
-                            sx={{ fontSize: '0.72rem', height: 26, mt: 0.25, color: '#64B5F6', textTransform: 'none', pl: 1, '&:hover': { color: '#90CAF9' } }}
-                          >
-                            Add Mock Cycle
-                          </Button>
+                          {canManageHierarchy && (
+                            <Button
+                              size="small"
+                              variant="text"
+                              startIcon={<AddIcon sx={{ fontSize: '0.85rem !important' }} />}
+                              onClick={() => openCreateDialog('cycle', program.id)}
+                              sx={{ fontSize: '0.72rem', height: 26, mt: 0.25, color: '#64B5F6', textTransform: 'none', pl: 1, '&:hover': { color: '#90CAF9' } }}
+                            >
+                              Add Mock Cycle
+                            </Button>
+                          )}
                         </Box>
                       )}
                     </Box>
@@ -2448,18 +2464,20 @@ const ProjectsPage: React.FC = () => {
           </Box>
 
           {/* Add Program Button at Bottom */}
-          <Box sx={{ p: 2, borderTop: '1px solid rgba(255,255,255,0.08)' }}>
-            <Button
-              variant="text"
-              size="small"
-              startIcon={<AddIcon />}
-              fullWidth
-              onClick={() => openCreateDialog('program')}
-              sx={{ textTransform: 'none', justifyContent: 'flex-start', color: '#7C83D0', fontWeight: 500, '&:hover': { color: '#5B67CA' } }}
-            >
-              Add Program
-            </Button>
-          </Box>
+          {canManageHierarchy && (
+            <Box sx={{ p: 2, borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+              <Button
+                variant="text"
+                size="small"
+                startIcon={<AddIcon />}
+                fullWidth
+                onClick={() => openCreateDialog('program')}
+                sx={{ textTransform: 'none', justifyContent: 'flex-start', color: '#7C83D0', fontWeight: 500, '&:hover': { color: '#5B67CA' } }}
+              >
+                Add Program
+              </Button>
+            </Box>
+          )}
         </Paper>
 
         {/* Right Content Area - Details */}
@@ -2600,10 +2618,12 @@ const ProjectsPage: React.FC = () => {
 
                           </Box>{/* end left info box */}
                           <Box sx={{ display: 'flex', gap: 1, flexShrink: 0, ml: { xs: 0, md: 2 }, width: { xs: '100%', md: 'auto' }, flexWrap: { xs: 'wrap', md: 'nowrap' } }}>
-                            <Button variant="contained" startIcon={<AddIcon />} onClick={() => setDataObjectDialogOpen(true)}
-                              sx={{ background: `linear-gradient(135deg, ${accentColor} 0%, ${accentColor}99 100%)`, textTransform: 'none', fontWeight: 600, boxShadow: 'none', width: { xs: '100%', sm: 'auto' } }}>
-                              Add Data Object
-                            </Button>
+                            {canAccessInventory && (
+                              <Button variant="contained" startIcon={<AddIcon />} onClick={() => setDataObjectDialogOpen(true)}
+                                sx={{ background: `linear-gradient(135deg, ${accentColor} 0%, ${accentColor}99 100%)`, textTransform: 'none', fontWeight: 600, boxShadow: 'none', width: { xs: '100%', sm: 'auto' } }}>
+                                Add Data Object
+                              </Button>
+                            )}
                             <Button variant="contained" startIcon={<AddIcon />} onClick={() => setTaskGroupDialogOpen(true)}
                               sx={{ background: 'linear-gradient(135deg, #5B67CA 0%, #3B4DB3 100%)', textTransform: 'none', fontWeight: 600, boxShadow: 'none', width: { xs: '100%', sm: 'auto' } }}>
                               Add Task Group
@@ -3435,7 +3455,7 @@ const ProjectsPage: React.FC = () => {
           )}
 
           {/* Inventory Tab Content - Always Shows */}
-          {tabValue === 1 && (
+          {canAccessInventory && tabValue === 1 && (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, p: 2 }}>
               {/* Inventory Sub-Tabs */}
               <Box sx={{ display: 'flex', gap: 1, overflow: 'visible' }}>

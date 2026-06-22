@@ -29,7 +29,7 @@ const Layout: React.FC<LayoutProps> = ({
 }) => {
   const location = useLocation();
   const { user } = useAuth();
-  const isProjectsPage = location.pathname === '/projects';
+  const isWorkspacePage = location.pathname === '/projects' || location.pathname === '/planning';
 
   const now = new Date();
   const dateStr = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -53,12 +53,12 @@ const Layout: React.FC<LayoutProps> = ({
       <Box
         component="main"
         sx={{
-          mt: isProjectsPage ? { xs: '112px', sm: '120px' } : '64px',
+          mt: isWorkspacePage ? { xs: '112px', sm: '120px' } : '64px',
           flex: 1,
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column',
-          p: isProjectsPage ? 0 : 3,
+          p: isWorkspacePage ? 0 : 3,
         }}
       >
         {children}
