@@ -2790,7 +2790,7 @@ const ProjectsPage: React.FC = () => {
                                         </Box>
                                       )}
                                       {/* Table header */}
-                                      <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 120px 60px 150px 108px 68px 100px 100px 100px', gap: 0, px: 2, py: 0.5, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                                      <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 120px 60px 150px 96px 56px 100px 100px 92px', gap: 0, px: 2, py: 0.5, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
                                         {['TASK', 'STATUS', '%', 'ASSIGNED TO', 'DURATION\n(DAYS)', 'INCL\nWKND', 'START DATE', 'END DATE', 'ACTIONS'].map(h => (
                                           <Typography key={h} variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', letterSpacing: '0.05em', fontWeight: 600, whiteSpace: 'pre-line', lineHeight: 1.05 }}>{h}</Typography>
                                         ))}
@@ -2798,7 +2798,7 @@ const ProjectsPage: React.FC = () => {
                                       {tasksForObject.length === 0
                                         ? <Typography variant="caption" color="text.disabled" sx={{ px: 2, py: 1, display: 'block' }}>No tasks</Typography>
                                         : tasksForObject.map((task) => (
-                                          <Box key={task.id} sx={{ display: 'grid', gridTemplateColumns: '1fr 120px 60px 150px 108px 68px 100px 100px 100px', gap: 0, px: 2, py: 0.5, alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.03)', '&:hover': { backgroundColor: 'rgba(255,255,255,0.02)' } }}>
+                                          <Box key={task.id} sx={{ display: 'grid', gridTemplateColumns: '1fr 120px 60px 150px 96px 56px 100px 100px 92px', gap: 0, px: 2, py: 0.5, alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.03)', '&:hover': { backgroundColor: 'rgba(255,255,255,0.02)' } }}>
                                             {/* Task name */}
                                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
                                               <Box sx={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: getTaskStatusColor(task.status), flexShrink: 0 }} />
@@ -2836,7 +2836,7 @@ const ProjectsPage: React.FC = () => {
                                               {people.map(p => <MenuItem key={p.id} value={p.name}>{p.name}</MenuItem>)}
                                             </TextField>
                                             {/* Duration */}
-                                            <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
+                                            <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center', justifyContent: 'flex-start' }}>
                                               <TextField size="small" type="number"
                                                 value={task.duration != null ? Number(task.duration) : ''}
                                                 placeholder="—"
@@ -2874,7 +2874,7 @@ const ProjectsPage: React.FC = () => {
                                                 sx={{ ...taskFieldSx, '& input': { textAlign: 'center', px: 0.5, width: 38 } }} />
                                             </Box>
                                             {/* Include weekends override */}
-                                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', pl: 0.25 }}>
                                               <Checkbox
                                                 size="small"
                                                 checked={getTaskCalendarMode(task) === 'all_days'}
@@ -2965,9 +2965,6 @@ const ProjectsPage: React.FC = () => {
                                               </IconButton>
                                               <IconButton size="small" title="More task actions" onClick={(e) => openTaskRowMenu(e, task)} sx={{ opacity: 0.6, '&:hover': { opacity: 1 } }}>
                                                 <MoreVertIcon sx={{ fontSize: '0.9rem' }} />
-                                              </IconButton>
-                                              <IconButton size="small" onClick={() => openDeleteDialog('taskSingle' as any, task.id, task.name)} sx={{ opacity: 0.6, '&:hover': { opacity: 1 } }}>
-                                                <DeleteIcon sx={{ fontSize: '0.9rem' }} />
                                               </IconButton>
                                             </Box>
                                           </Box>
@@ -3111,7 +3108,7 @@ const ProjectsPage: React.FC = () => {
                                   {isExpanded && (
                                     <Box sx={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
                                       {/* Table header */}
-                                      <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 120px 60px 150px 108px 68px 100px 100px 100px', gap: 0, px: 2, py: 0.5, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                                      <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 120px 60px 150px 96px 56px 100px 100px 92px', gap: 0, px: 2, py: 0.5, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
                                         {['TASK', 'STATUS', '%', 'ASSIGNED TO', 'DURATION\n(DAYS)', 'INCL\nWKND', 'START DATE', 'END DATE', 'ACTIONS'].map(h => (
                                           <Typography key={h} variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', letterSpacing: '0.05em', fontWeight: 600, whiteSpace: 'pre-line', lineHeight: 1.05 }}>{h}</Typography>
                                         ))}
@@ -3119,7 +3116,7 @@ const ProjectsPage: React.FC = () => {
                                       {groupTasks.length === 0
                                         ? <Typography variant="caption" color="text.disabled" sx={{ px: 2, py: 1, display: 'block' }}>No tasks</Typography>
                                         : groupTasks.map((task) => (
-                                          <Box key={task.id} sx={{ display: 'grid', gridTemplateColumns: '1fr 120px 60px 150px 108px 68px 100px 100px 100px', gap: 0, px: 2, py: 0.5, alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.03)', '&:hover': { backgroundColor: 'rgba(255,255,255,0.02)' } }}>
+                                          <Box key={task.id} sx={{ display: 'grid', gridTemplateColumns: '1fr 120px 60px 150px 96px 56px 100px 100px 92px', gap: 0, px: 2, py: 0.5, alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.03)', '&:hover': { backgroundColor: 'rgba(255,255,255,0.02)' } }}>
                                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
                                               <Box sx={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: getTaskStatusColor(task.status), flexShrink: 0 }} />
                                               <TextField size="small" value={task.name || ''} onBlur={e => updateTaskInline(task.id, 'name', e.target.value)}
@@ -3153,7 +3150,7 @@ const ProjectsPage: React.FC = () => {
                                               {people.map(p => <MenuItem key={p.id} value={p.name}>{p.name}</MenuItem>)}
                                             </TextField>
                                             {/* Duration */}
-                                            <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
+                                            <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center', justifyContent: 'flex-start' }}>
                                               <TextField size="small" type="number"
                                                 value={task.duration != null ? Number(task.duration) : ''}
                                                 placeholder="—"
@@ -3191,7 +3188,7 @@ const ProjectsPage: React.FC = () => {
                                                 sx={{ ...taskFieldSx, '& input': { textAlign: 'center', px: 0.5, width: 38 } }} />
                                             </Box>
                                             {/* Include weekends override */}
-                                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', pl: 0.25 }}>
                                               <Checkbox
                                                 size="small"
                                                 checked={getTaskCalendarMode(task) === 'all_days'}
@@ -3279,8 +3276,8 @@ const ProjectsPage: React.FC = () => {
                                               }} sx={{ opacity: (taskDeps[task.id] || []).length > 0 ? 1 : 0.6, color: (taskDeps[task.id] || []).length > 0 ? accentColor : 'inherit', '&:hover': { opacity: 1, color: accentColor } }}>
                                                 <ChevronRightIcon sx={{ fontSize: '0.9rem' }} />
                                               </IconButton>
-                                              <IconButton size="small" onClick={() => openDeleteDialog('taskSingle' as any, task.id, task.name)} sx={{ opacity: 0.6, '&:hover': { opacity: 1 } }}>
-                                                <DeleteIcon sx={{ fontSize: '0.9rem' }} />
+                                              <IconButton size="small" title="More task actions" onClick={(e) => openTaskRowMenu(e, task)} sx={{ opacity: 0.6, '&:hover': { opacity: 1 } }}>
+                                                <MoreVertIcon sx={{ fontSize: '0.9rem' }} />
                                               </IconButton>
                                             </Box>
                                           </Box>
@@ -4253,6 +4250,32 @@ const ProjectsPage: React.FC = () => {
       >
         {taskRowMenuTask ? (
           <>
+            <MenuItem
+              onClick={() => {
+                openTaskDetails(taskRowMenuTask, 0);
+                closeTaskRowMenu();
+              }}
+            >
+              <EditIcon fontSize="small" sx={{ mr: 1 }} /> Task Details
+            </MenuItem>
+            <MenuItem
+              onClick={() => {
+                openTaskDetails(taskRowMenuTask, (taskRowMenuTask.taskType === 'preload_validation' || taskRowMenuTask.taskType === 'postload_validation') ? 2 : 1);
+                closeTaskRowMenu();
+              }}
+            >
+              <WarningAmberIcon fontSize="small" sx={{ mr: 1 }} /> Add Defect
+            </MenuItem>
+            {(taskRowMenuTask.taskType === 'preload_validation' || taskRowMenuTask.taskType === 'postload_validation') && (
+              <MenuItem
+                onClick={() => {
+                  openTaskDetails(taskRowMenuTask, 1);
+                  closeTaskRowMenu();
+                }}
+              >
+                <WarningAmberIcon fontSize="small" sx={{ mr: 1 }} /> {taskRowMenuTask.taskType === 'preload_validation' ? 'Preload Quality' : 'Postload Quality'}
+              </MenuItem>
+            )}
             <MenuItem
               onClick={() => {
                 openDeleteDialog('taskSingle' as any, taskRowMenuTask.id, taskRowMenuTask.name || 'Task');
