@@ -1718,6 +1718,16 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     }
   };
 
+  useEffect(() => {
+    if (sectionMode !== 'planning') return;
+    if (selectedItem?.type === 'program') {
+      const program = programs.find((p: Program) => p.id === selectedItem.id) as Program | undefined;
+      setPlanningStrategyDraft(program?.description || '');
+      return;
+    }
+    setPlanningStrategyDraft('');
+  }, [sectionMode, selectedItem, programs]);
+
   if (isLoading) {
     return (
       <Layout>
@@ -1746,16 +1756,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   };
 
   const selectedDetails = getSelectedItemDetails();
-
-  useEffect(() => {
-    if (sectionMode !== 'planning') return;
-    if (selectedItem?.type === 'program') {
-      const program = selectedDetails as Program | null;
-      setPlanningStrategyDraft(program?.description || '');
-      return;
-    }
-    setPlanningStrategyDraft('');
-  }, [sectionMode, selectedItem, selectedDetails]);
 
   const handleSavePlanningStrategy = async () => {
     if (sectionMode !== 'planning' || selectedItem?.type !== 'program') return;
