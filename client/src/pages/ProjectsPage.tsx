@@ -2790,15 +2790,15 @@ const ProjectsPage: React.FC = () => {
                                         </Box>
                                       )}
                                       {/* Table header */}
-                                      <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 120px 60px 150px 96px 56px 100px 100px 92px', gap: 0, px: 2, py: 0.5, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                                        {['TASK', 'STATUS', '%', 'ASSIGNED TO', 'DURATION\n(DAYS)', 'INCL\nWKND', 'START DATE', 'END DATE', 'ACTIONS'].map(h => (
+                                      <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 120px 60px 150px 84px 44px 100px 100px 92px', gap: 0, px: 2, py: 0.5, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                                        {['TASK', 'STATUS', '%', 'ASSIGNED TO', 'DUR', 'WKND', 'START DATE', 'END DATE', 'ACTIONS'].map(h => (
                                           <Typography key={h} variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', letterSpacing: '0.05em', fontWeight: 600, whiteSpace: 'pre-line', lineHeight: 1.05 }}>{h}</Typography>
                                         ))}
                                       </Box>
                                       {tasksForObject.length === 0
                                         ? <Typography variant="caption" color="text.disabled" sx={{ px: 2, py: 1, display: 'block' }}>No tasks</Typography>
                                         : tasksForObject.map((task) => (
-                                          <Box key={task.id} sx={{ display: 'grid', gridTemplateColumns: '1fr 120px 60px 150px 96px 56px 100px 100px 92px', gap: 0, px: 2, py: 0.5, alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.03)', '&:hover': { backgroundColor: 'rgba(255,255,255,0.02)' } }}>
+                                          <Box key={task.id} sx={{ display: 'grid', gridTemplateColumns: '1fr 120px 60px 150px 84px 44px 100px 100px 92px', gap: 0, px: 2, py: 0.5, alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.03)', '&:hover': { backgroundColor: 'rgba(255,255,255,0.02)' } }}>
                                             {/* Task name */}
                                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
                                               <Box sx={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: getTaskStatusColor(task.status), flexShrink: 0 }} />
@@ -2836,7 +2836,7 @@ const ProjectsPage: React.FC = () => {
                                               {people.map(p => <MenuItem key={p.id} value={p.name}>{p.name}</MenuItem>)}
                                             </TextField>
                                             {/* Duration */}
-                                            <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center', justifyContent: 'flex-start' }}>
+                                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start' }}>
                                               <TextField size="small" type="number"
                                                 value={task.duration != null ? Number(task.duration) : ''}
                                                 placeholder="—"
@@ -2871,10 +2871,10 @@ const ProjectsPage: React.FC = () => {
                                                     .catch(() => {});
                                                 }}
                                                 slotProps={{ htmlInput: { min: 0, step: 1 } }}
-                                                sx={{ ...taskFieldSx, '& input': { textAlign: 'center', px: 0.5, width: 38 } }} />
+                                                sx={{ ...taskFieldSx, '& input': { textAlign: 'center', px: 0.25, width: 32 } }} />
                                             </Box>
                                             {/* Include weekends override */}
-                                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', pl: 0.25 }}>
+                                              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', pl: 0 }}>
                                               <Checkbox
                                                 size="small"
                                                 checked={getTaskCalendarMode(task) === 'all_days'}
@@ -3108,15 +3108,15 @@ const ProjectsPage: React.FC = () => {
                                   {isExpanded && (
                                     <Box sx={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
                                       {/* Table header */}
-                                      <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 120px 60px 150px 96px 56px 100px 100px 92px', gap: 0, px: 2, py: 0.5, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                                        {['TASK', 'STATUS', '%', 'ASSIGNED TO', 'DURATION\n(DAYS)', 'INCL\nWKND', 'START DATE', 'END DATE', 'ACTIONS'].map(h => (
+                                      <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 120px 60px 150px 84px 44px 100px 100px 92px', gap: 0, px: 2, py: 0.5, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                                        {['TASK', 'STATUS', '%', 'ASSIGNED TO', 'DUR', 'WKND', 'START DATE', 'END DATE', 'ACTIONS'].map(h => (
                                           <Typography key={h} variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', letterSpacing: '0.05em', fontWeight: 600, whiteSpace: 'pre-line', lineHeight: 1.05 }}>{h}</Typography>
                                         ))}
                                       </Box>
                                       {groupTasks.length === 0
                                         ? <Typography variant="caption" color="text.disabled" sx={{ px: 2, py: 1, display: 'block' }}>No tasks</Typography>
                                         : groupTasks.map((task) => (
-                                          <Box key={task.id} sx={{ display: 'grid', gridTemplateColumns: '1fr 120px 60px 150px 96px 56px 100px 100px 92px', gap: 0, px: 2, py: 0.5, alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.03)', '&:hover': { backgroundColor: 'rgba(255,255,255,0.02)' } }}>
+                                          <Box key={task.id} sx={{ display: 'grid', gridTemplateColumns: '1fr 120px 60px 150px 84px 44px 100px 100px 92px', gap: 0, px: 2, py: 0.5, alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.03)', '&:hover': { backgroundColor: 'rgba(255,255,255,0.02)' } }}>
                                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
                                               <Box sx={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: getTaskStatusColor(task.status), flexShrink: 0 }} />
                                               <TextField size="small" value={task.name || ''} onBlur={e => updateTaskInline(task.id, 'name', e.target.value)}
@@ -3150,7 +3150,7 @@ const ProjectsPage: React.FC = () => {
                                               {people.map(p => <MenuItem key={p.id} value={p.name}>{p.name}</MenuItem>)}
                                             </TextField>
                                             {/* Duration */}
-                                            <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center', justifyContent: 'flex-start' }}>
+                                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start' }}>
                                               <TextField size="small" type="number"
                                                 value={task.duration != null ? Number(task.duration) : ''}
                                                 placeholder="—"
@@ -3185,10 +3185,10 @@ const ProjectsPage: React.FC = () => {
                                                     .catch(() => {});
                                                 }}
                                                 slotProps={{ htmlInput: { min: 0, step: 1 } }}
-                                                sx={{ ...taskFieldSx, '& input': { textAlign: 'center', px: 0.5, width: 38 } }} />
+                                                sx={{ ...taskFieldSx, '& input': { textAlign: 'center', px: 0.25, width: 32 } }} />
                                             </Box>
                                             {/* Include weekends override */}
-                                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', pl: 0.25 }}>
+                                              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', pl: 0 }}>
                                               <Checkbox
                                                 size="small"
                                                 checked={getTaskCalendarMode(task) === 'all_days'}
