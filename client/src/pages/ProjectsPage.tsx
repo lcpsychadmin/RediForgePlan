@@ -120,6 +120,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const canManageHierarchy = sectionMode === 'planning';
   const canAccessInventory = sectionMode === 'planning';
+  const [planningStrategyDraft, setPlanningStrategyDraft] = useState('');
+  const [isSavingPlanningStrategy, setIsSavingPlanningStrategy] = useState(false);
   
   // State for expanded nodes in tree
   const [expandedPrograms, setExpandedPrograms] = useState<Set<string>>(new Set());
@@ -1745,6 +1747,32 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
 
   const selectedDetails = getSelectedItemDetails();
 
+  useEffect(() => {
+    if (sectionMode !== 'planning') return;
+    if (selectedItem?.type === 'program') {
+      const program = selectedDetails as Program | null;
+      setPlanningStrategyDraft(program?.description || '');
+      return;
+    }
+    setPlanningStrategyDraft('');
+  }, [sectionMode, selectedItem, selectedDetails]);
+
+  const handleSavePlanningStrategy = async () => {
+    if (sectionMode !== 'planning' || selectedItem?.type !== 'program') return;
+    try {
+      setIsSavingPlanningStrategy(true);
+      await apiClient.patch(`/api/programs/${selectedItem.id}`, {
+        description: planningStrategyDraft,
+      });
+      queryClient.invalidateQueries({ queryKey: ['programs'] });
+    } catch (error) {
+      console.error('Failed to save migration strategy:', error);
+      alert('Failed to save migration strategy. Please try again.');
+    } finally {
+      setIsSavingPlanningStrategy(false);
+    }
+  };
+
   const getTaskStatusColor = (status: string) => {
     switch (status) {
       case 'complete': return '#4CAF50';
@@ -2192,18 +2220,20 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                         <Typography variant="body2" sx={{ fontWeight: 600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: isProgramSelected ? programColor : 'inherit' }}>
                           {program.name}
                         </Typography>
-                        <IconButton
-                          size="small"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setMenuAnchorEl(e.currentTarget);
-                            setMenuType('program');
-                            setMenuItemId(program.id);
-                          }}
-                          sx={{ opacity: 0.5, '&:hover': { opacity: 1 } }}
-                        >
-                          <MoreVertIcon sx={{ fontSize: '1rem' }} />
-                        </IconButton>
+                        {canManageHierarchy && (
+                          <IconButton
+                            size="small"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setMenuAnchorEl(e.currentTarget);
+                              setMenuType('program');
+                              setMenuItemId(program.id);
+                            }}
+                            sx={{ opacity: 0.5, '&:hover': { opacity: 1 } }}
+                          >
+                            <MoreVertIcon sx={{ fontSize: '1rem' }} />
+                          </IconButton>
+                        )}
                       </Box>
 
                       {/* Cycles (with tree line) */}
@@ -2308,18 +2338,20 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                       : 0;
                                     return <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 500, mr: 0.5, flexShrink: 0 }}>{cyclePct}%</Typography>;
                                   })()}
-                                  <IconButton
-                                    size="small"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setMenuAnchorEl(e.currentTarget);
-                                      setMenuType('cycle');
-                                      setMenuItemId(cycle.id);
-                                    }}
-                                    sx={{ opacity: 0.5, '&:hover': { opacity: 1 } }}
-                                  >
-                                    <MoreVertIcon sx={{ fontSize: '0.9rem' }} />
-                                  </IconButton>
+                                  {canManageHierarchy && (
+                                    <IconButton
+                                      size="small"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setMenuAnchorEl(e.currentTarget);
+                                        setMenuType('cycle');
+                                        setMenuItemId(cycle.id);
+                                      }}
+                                      sx={{ opacity: 0.5, '&:hover': { opacity: 1 } }}
+                                    >
+                                      <MoreVertIcon sx={{ fontSize: '0.9rem' }} />
+                                    </IconButton>
+                                  )}
                                 </Box>
 
                                 {/* Projects (with tree line) */}
@@ -2408,18 +2440,20 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                           <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 500, mr: 0.5, flexShrink: 0 }}>
                                             {project.progressPercentage || 0}%
                                           </Typography>
-                                          <IconButton
-                                            size="small"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              setMenuAnchorEl(e.currentTarget);
-                                              setMenuType('project');
-                                              setMenuItemId(project.id);
-                                            }}
-                                            sx={{ opacity: 0.5, '&:hover': { opacity: 1 } }}
-                                          >
-                                            <MoreVertIcon sx={{ fontSize: '0.9rem' }} />
-                                          </IconButton>
+                                          {canManageHierarchy && (
+                                            <IconButton
+                                              size="small"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                setMenuAnchorEl(e.currentTarget);
+                                                setMenuType('project');
+                                                setMenuItemId(project.id);
+                                              }}
+                                              sx={{ opacity: 0.5, '&:hover': { opacity: 1 } }}
+                                            >
+                                              <MoreVertIcon sx={{ fontSize: '0.9rem' }} />
+                                            </IconButton>
+                                          )}
                                         </Box>
                                       );
                                     })}
@@ -2482,8 +2516,90 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
 
         {/* Right Content Area - Details */}
         <Box sx={{ flex: 1, overflowY: 'auto', p: { xs: 1.25, sm: 3 }, minWidth: 0 }}>
-          {/* Plan Tab Content */}
-          {tabValue === 0 && (
+          {/* Planning Strategy Tab Content */}
+          {sectionMode === 'planning' && tabValue === 0 && (
+            <>
+              {!selectedItem ? (
+                <Alert severity="info">Select a program, mock cycle, or project to define planning deliverables.</Alert>
+              ) : selectedItem.type === 'program' ? (
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <Paper sx={{ p: 2 }}>
+                    <Typography variant="h6" sx={{ mb: 0.5 }}>{selectedDetails?.name}</Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                      Program planning focuses on strategy definition, inventory scoping, and migration approach. Execution task planning is intentionally excluded from this phase.
+                    </Typography>
+                    <Typography variant="subtitle2" sx={{ mb: 1 }}>Overall Migration Strategy</Typography>
+                    <TextField
+                      multiline
+                      minRows={8}
+                      fullWidth
+                      placeholder="Define strategy scope, wave logic, cutover sequencing, data quality approach, and key dependencies."
+                      value={planningStrategyDraft}
+                      onChange={(e) => setPlanningStrategyDraft(e.target.value)}
+                    />
+                    <Box sx={{ mt: 1.5, display: 'flex', justifyContent: 'flex-end' }}>
+                      <Button
+                        variant="contained"
+                        onClick={handleSavePlanningStrategy}
+                        disabled={isSavingPlanningStrategy}
+                      >
+                        {isSavingPlanningStrategy ? 'Saving...' : 'Save Strategy'}
+                      </Button>
+                    </Box>
+                  </Paper>
+
+                  <Paper sx={{ p: 2 }}>
+                    <Typography variant="subtitle2" sx={{ mb: 1.25 }}>Planning Deliverables</Typography>
+                    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, minmax(170px, 1fr))' }, gap: 1 }}>
+                      <Box sx={{ p: 1.25, border: '1px solid rgba(255,255,255,0.1)', borderRadius: 1 }}>
+                        <Typography variant="caption" color="text.secondary">Mock Cycles</Typography>
+                        <Typography variant="h6">{(mockCycles[selectedItem.id] || []).length}</Typography>
+                      </Box>
+                      <Box sx={{ p: 1.25, border: '1px solid rgba(255,255,255,0.1)', borderRadius: 1 }}>
+                        <Typography variant="caption" color="text.secondary">Process Area Projects</Typography>
+                        <Typography variant="h6">
+                          {(mockCycles[selectedItem.id] || []).reduce((sum: number, cycle: MockCycle) => sum + ((projectsByMockCycle[cycle.id] || []).length), 0)}
+                        </Typography>
+                      </Box>
+                      <Box sx={{ p: 1.25, border: '1px solid rgba(255,255,255,0.1)', borderRadius: 1 }}>
+                        <Typography variant="caption" color="text.secondary">Global Data Objects</Typography>
+                        <Typography variant="h6">{inventoryObjects.length}</Typography>
+                      </Box>
+                    </Box>
+                  </Paper>
+                </Box>
+              ) : selectedItem.type === 'cycle' ? (
+                <Paper sx={{ p: 2 }}>
+                  <Typography variant="h6" sx={{ mb: 0.5 }}>{selectedDetails?.name}</Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+                    This mock cycle is for planning sequence and scope only. No execution tasks are created in Planning.
+                  </Typography>
+                  <Typography variant="body2">
+                    Projects in cycle: {(projectsByMockCycle[selectedItem.id] || []).length}
+                  </Typography>
+                  <Typography variant="body2" sx={{ mt: 0.5 }}>
+                    Next deliverable: detail project-level data object inventory in the Inventory tab.
+                  </Typography>
+                </Paper>
+              ) : (
+                <Paper sx={{ p: 2 }}>
+                  <Typography variant="h6" sx={{ mb: 0.5 }}>{selectedDetails?.name}</Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+                    Project-level planning deliverable is the detailed data object inventory and migration posture. Execution tasks are handled in Execution.
+                  </Typography>
+                  <Typography variant="body2">
+                    Project inventory objects: {projectInventoryItems.length}
+                  </Typography>
+                  <Typography variant="body2" sx={{ mt: 0.5 }}>
+                    Use the Inventory tab to add or refine object-level scope and migration attributes.
+                  </Typography>
+                </Paper>
+              )}
+            </>
+          )}
+
+          {/* Execution Plan Tab Content */}
+          {sectionMode === 'execution' && tabValue === 0 && (
             <>
               {!selectedItem ? (
                 <Alert severity="info">Select an item from the list to view details</Alert>
