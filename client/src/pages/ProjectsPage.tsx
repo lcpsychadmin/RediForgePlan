@@ -367,7 +367,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     setEditingTaskInitialTab(initialTab);
   };
 
-  const handleHierarchySelection = (item: SelectableItem) => {
+  const handleHierarchySelection = (item: SelectableItem, options?: { preserveProcessArea?: boolean }) => {
+    if (!options?.preserveProcessArea) {
+      setSelectedExecutionProcessArea('');
+    }
     setSelectedItem(item);
     // On mobile, keep the tree open while traversing hierarchy levels.
     // Close only once the user selects a concrete project.
@@ -2655,7 +2658,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                                   onClick={(e) => {
                                                     e.stopPropagation();
                                                     setSelectedExecutionProcessArea(area);
-                                                    handleHierarchySelection({ type: 'project', id: realProject.id, cycleId: cycle.id });
+                                                    handleHierarchySelection({ type: 'project', id: realProject.id, cycleId: cycle.id }, { preserveProcessArea: true });
                                                   }}
                                                   sx={{
                                                     display: 'flex',
@@ -2905,13 +2908,13 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                     const progressPct = allPlanTasks.length > 0 ? Math.round(allPlanTasks.reduce((s, t) => s + (t.progressPercentage ?? 0), 0) / allPlanTasks.length) : 0;
                     const allObjectIds = Array.from(new Set(projectTasks.filter(t => t.projectObjectId).map(t => t.projectObjectId)));
                     const normalizedProcessAreaFilter = (selectedExecutionProcessArea || '').trim().toLowerCase();
+                    const showProjectSummaryOnly = !normalizedProcessAreaFilter;
                     const getObjectProcessArea = (objectId: string) => {
                       const inventoryObject = projectInventoryItems.find(obj => obj.id === objectId);
                       return (inventoryObject?.processArea || 'Unassigned Process Area').trim() || 'Unassigned Process Area';
                     };
-                    const sortedObjectIds = [...allObjectIds]
+                    const sortedObjectIds = (showProjectSummaryOnly ? [] : [...allObjectIds])
                       .filter((objectId: string) => {
-                        if (!normalizedProcessAreaFilter) return true;
                         return getObjectProcessArea(objectId).toLowerCase() === normalizedProcessAreaFilter;
                       })
                       .sort((a: string, b: string) => {
@@ -2924,11 +2927,20 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                     });
                     const allGroupIds = projectTaskGroups.map(g => g.id);
                     const getTaskGroupProcessArea = (group: any) => (group?.processArea || '').trim();
-                    const filteredGroupIds = allGroupIds.filter((id: string) => {
-                      if (!normalizedProcessAreaFilter) return true;
+                    const filteredGroupIds = (showProjectSummaryOnly ? [] : allGroupIds).filter((id: string) => {
                       const group = projectTaskGroups.find(g => g.id === id);
                       return getTaskGroupProcessArea(group).toLowerCase() === normalizedProcessAreaFilter;
                     });
+                    const processAreaSummaryRows = Array.from(projectProcessAreas)
+                      .sort((a, b) => a.localeCompare(b))
+                      .map((area) => {
+                        const summary = projectHierarchySummaries[project.id]?.processAreas?.[area];
+                        return {
+                          area,
+                          taskCount: summary?.taskCount ?? 0,
+                          progressPct: summary?.progressPct ?? 0,
+                        };
+                      });
                     const currentPlanRowKeys = [
                       ...sortedObjectIds.map((id: string) => objectRowKey(id)),
                       ...filteredGroupIds.map((id: string) => taskGroupRowKey(id)),
@@ -3089,7 +3101,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                             onChange={(e) => setSelectedExecutionProcessArea(e.target.value)}
                             sx={{ width: { xs: '100%', sm: 170 }, minWidth: { xs: 140, sm: 170 }, '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': { borderColor: accentColor }, '& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: accentColor }, '& .MuiInputLabel-root.Mui-focused': { color: accentColor } }}
                           >
-                            <MenuItem value="">All Process Areas</MenuItem>
+                            <MenuItem value="">Project Summary</MenuItem>
                             {Array.from(new Set(projectInventoryItems
                               .map((item: any) => (item.processArea || '').trim())
                               .filter((area: string) => area.length > 0)))
@@ -3104,7 +3116,23 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                         </Box>
 
                         {/* Objects + Groups */}
-                        {sortedObjectIds.length === 0 && projectTaskGroups.length === 0 ? (
+                        {showProjectSummaryOnly ? (
+                          <Box sx={{ display: 'grid', gap: 1, gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(180px, 1fr))', lg: 'repeat(3, minmax(180px, 1fr))' } }}>
+                            {processAreaSummaryRows.length === 0 ? (
+                              <Alert severity="info" sx={{ gridColumn: '1 / -1' }}>
+                                Project summary is shown at this level. Select a Process Area to view detailed data objects and task groups.
+                              </Alert>
+                            ) : (
+                              processAreaSummaryRows.map((row) => (
+                                <Paper key={`summary-${row.area}`} sx={{ p: 1.25, border: '1px solid rgba(255,255,255,0.08)', backgroundColor: 'rgba(255,255,255,0.03)' }}>
+                                  <Typography variant="caption" sx={{ color: 'text.secondary', letterSpacing: '0.04em' }}>{row.area}</Typography>
+                                  <Typography variant="body2" sx={{ fontWeight: 700, mt: 0.25 }}>{row.taskCount} tasks summary</Typography>
+                                  <Typography variant="caption" sx={{ color: accentColor, fontWeight: 700 }}>{row.progressPct}% complete</Typography>
+                                </Paper>
+                              ))
+                            )}
+                          </Box>
+                        ) : sortedObjectIds.length === 0 && filteredGroupIds.length === 0 ? (
                           <Alert severity="info">No tasks added to plan yet</Alert>
                         ) : (
                           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
