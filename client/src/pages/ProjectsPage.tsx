@@ -5063,7 +5063,17 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
           }}
           sx={{ display: menuType === 'processArea' ? 'none' : 'flex' }}
         >
-          <EditIcon fontSize="small" sx={{ mr: 1 }} /> Task Details / Defects
+          <EditIcon fontSize="small" sx={{ mr: 1 }} /> {
+            menuType === 'program'
+              ? 'Program Settings'
+              : menuType === 'cycle'
+                ? 'Mock Cycle Settings'
+                : menuType === 'project'
+                  ? 'Project Settings'
+                  : menuType === 'taskGroup'
+                    ? 'Task Group Details / Defects'
+                    : 'Task Details / Defects'
+          }
         </MenuItem>
         <MenuItem
           onClick={() => {
