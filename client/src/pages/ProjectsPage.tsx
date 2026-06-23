@@ -128,6 +128,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   // State for expanded nodes in tree
   const [expandedPrograms, setExpandedPrograms] = useState<Set<string>>(new Set());
   const [expandedCycles, setExpandedCycles] = useState<Set<string>>(new Set());
+  const [collapsedProjectGroups, setCollapsedProjectGroups] = useState<Set<string>>(new Set());
   
   // State for selected item
   const [selectedItem, setSelectedItem] = useState<SelectableItem | null>(null);
@@ -213,7 +214,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   const [inventoryObjects, setInventoryObjects] = useState<{ id: string; objectId: string; description: string; processArea: string }[]>([]);
   const [projectInventoryItems, setProjectInventoryItems] = useState<any[]>([]);
   const [projectHierarchySummaries, setProjectHierarchySummaries] = useState<Record<string, {
-    processAreas: Record<string, { objectCount: number; taskGroupCount: number; progressPct: number }>;
+    processAreas: Record<string, { objectCount: number; taskGroupCount: number; taskCount: number; progressPct: number }>;
     projectProgressPct: number;
     projectObjectCount: number;
     projectTaskGroupCount: number;
@@ -520,7 +521,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
           const groups = groupsRes.data?.data || [];
           const tasks = tasksRes.data?.data || [];
 
-          const processAreaSummary: Record<string, { objectCount: number; taskGroupCount: number; progressPct: number }> = {};
+          const processAreaSummary: Record<string, { objectCount: number; taskGroupCount: number; taskCount: number; progressPct: number }> = {};
           const objectAreaMap = new Map<string, string>();
           const groupAreaMap = new Map<string, string>();
 
@@ -528,7 +529,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
             const area = (obj.processArea || '').trim();
             if (!area) return;
             objectAreaMap.set(obj.id, area);
-            if (!processAreaSummary[area]) processAreaSummary[area] = { objectCount: 0, taskGroupCount: 0, progressPct: 0 };
+            if (!processAreaSummary[area]) processAreaSummary[area] = { objectCount: 0, taskGroupCount: 0, taskCount: 0, progressPct: 0 };
             processAreaSummary[area].objectCount += 1;
           });
 
@@ -536,7 +537,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
             const area = (group.processArea || '').trim();
             if (!area) return;
             groupAreaMap.set(group.id, area);
-            if (!processAreaSummary[area]) processAreaSummary[area] = { objectCount: 0, taskGroupCount: 0, progressPct: 0 };
+            if (!processAreaSummary[area]) processAreaSummary[area] = { objectCount: 0, taskGroupCount: 0, taskCount: 0, progressPct: 0 };
             processAreaSummary[area].taskGroupCount += 1;
           });
 
@@ -552,6 +553,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
 
           Object.keys(processAreaSummary).forEach((area) => {
             const values = progressBuckets[area] || [];
+            processAreaSummary[area].taskCount = values.length;
             processAreaSummary[area].progressPct = values.length > 0 ? getProgressAverage(values) : 0;
           });
 
@@ -1539,6 +1541,16 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     setExpandedCycles(newSet);
   };
 
+  const toggleProjectGroupExpanded = (projectGroupKey: string) => {
+    const next = new Set(collapsedProjectGroups);
+    if (next.has(projectGroupKey)) {
+      next.delete(projectGroupKey);
+    } else {
+      next.add(projectGroupKey);
+    }
+    setCollapsedProjectGroups(next);
+  };
+
   const openCreateDialog = (mode: 'program' | 'cycle' | 'project', programId?: string, cycleId?: string) => {
     setDialogMode(mode);
     setContextProgramId(programId || null);
@@ -2479,6 +2491,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
 
                           {getProjectsByProgram(program.id).map((project: Project) => {
                             const projectCycles = getCyclesForProjectInProgram(program.id, project.name || '');
+                            const projectGroupKey = `${program.id}:${(project.name || '').trim().toLowerCase()}`;
+                            const isProjectExpanded = !collapsedProjectGroups.has(projectGroupKey);
                             const projectAccent = project.accentColor || '#90caf9';
                             const firstCycle = projectCycles[0];
                             const firstCycleProject = firstCycle
@@ -2506,6 +2520,16 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                   }}
                                 >
                                   <Box sx={{ width: 8, flexShrink: 0 }} />
+                                  <IconButton
+                                    size="small"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      toggleProjectGroupExpanded(projectGroupKey);
+                                    }}
+                                    sx={{ p: 0.2, mr: 0.15 }}
+                                  >
+                                    <ChevronRightIcon sx={{ fontSize: '0.9rem', color: 'text.secondary', transform: isProjectExpanded ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
+                                  </IconButton>
                                   <FolderOutlinedIcon sx={{ fontSize: '0.95rem', color: projectAccent, flexShrink: 0, mx: 0.5 }} />
                                   <Typography variant="body2" sx={{ fontWeight: 600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                     {project.name}
@@ -2531,6 +2555,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                   </IconButton>
                                 </Box>
 
+                                {isProjectExpanded && (
                                 <Box sx={{ ml: 2.75 }}>
                                   {projectCycles.map((cycle: MockCycle) => {
                                     const realProject = (projectsByMockCycle[cycle.id] || []).find((p: Project) => (p.name || '').trim().toLowerCase() === (project.name || '').trim().toLowerCase()) || project;
@@ -2602,6 +2627,13 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                             const areaTaskGroupCount = activeProjectId === realProject.id
                                               ? activeAreaTaskGroupCount
                                               : (cachedAreaSummary?.taskGroupCount ?? 0);
+                                            const areaTaskCount = activeProjectId === realProject.id
+                                              ? projectTasks.filter((task: any) => {
+                                                  const objectInArea = !!task.projectObjectId && projectInventoryItems.some((item: any) => item.id === task.projectObjectId && ((item.processArea || '').trim().toLowerCase() === normalizedArea));
+                                                  const groupInArea = !!task.taskGroupId && projectTaskGroups.some((group: any) => group.id === task.taskGroupId && ((group.processArea || '').trim().toLowerCase() === normalizedArea));
+                                                  return objectInArea || groupInArea;
+                                                }).length
+                                              : (cachedAreaSummary?.taskCount ?? 0);
                                             const processAreaProgressPct = getProcessAreaProgress(realProject.id, area, cycleProgressPct);
                                             const isProcessAreaSelected =
                                               selectedItem?.type === 'project' &&
@@ -2632,7 +2664,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                                     {area}
                                                   </Typography>
                                                   <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', ml: 0.5, whiteSpace: 'nowrap' }}>
-                                                    {areaObjectCount} obj · {areaTaskGroupCount} grp
+                                                    {areaTaskCount} tasks summary
                                                   </Typography>
                                                   <Typography variant="caption" sx={{ color: isProcessAreaSelected ? cycleColor : 'text.secondary', fontWeight: 700, fontSize: '0.66rem', ml: 0.75, minWidth: 32, textAlign: 'right' }}>
                                                     {processAreaProgressPct}%
@@ -2671,6 +2703,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                     );
                                   })}
                                 </Box>
+                                )}
                               </Box>
                             );
                           })}
