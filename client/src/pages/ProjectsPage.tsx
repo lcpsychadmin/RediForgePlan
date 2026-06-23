@@ -1779,6 +1779,21 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
 
   const handleProjectInventoryInlineChange = async (itemId: string, field: string, value: string) => {
     try {
+      if (field === 'processArea') {
+        const item = projectInventoryItems.find((entry: any) => entry.id === itemId);
+        if (!item?.globalObjectId) {
+          throw new Error('Missing global object id for process area update');
+        }
+
+        await apiClient.put(`/api/global-objects/${item.globalObjectId}`, {
+          processArea: value || null,
+        });
+
+        setProjectInventoryItems(prev => prev.map(entry => entry.id === itemId ? { ...entry, processArea: value } : entry));
+        setInventoryObjects(prev => prev.map(obj => obj.id === item.globalObjectId ? { ...obj, processArea: value } : obj));
+        return;
+      }
+
       await apiClient.patch(`/api/project-objects/${itemId}`, {
         [field]: value || null,
       });
