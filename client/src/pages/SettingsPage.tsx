@@ -176,12 +176,12 @@ const SettingsPage: React.FC = () => {
           Settings
         </Typography>
 
-        <Box sx={{ display: 'flex', gap: 3, height: 'calc(100vh - 200px)' }}>
+        <Box sx={{ display: 'flex', gap: 3, height: 'calc(100vh - 200px)', minHeight: 0 }}>
           {/* Left Sidebar - Picklist List */}
-          <Card sx={{ width: '280px', flexShrink: 0 }}>
+          <Card sx={{ width: '280px', flexShrink: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
             <CardHeader title="Settings Menu" />
             <Divider />
-            <CardContent sx={{ p: 0 }}>
+            <CardContent sx={{ p: 0, overflowY: 'auto' }}>
               <List sx={{ p: 0 }}>
                 <Box sx={{ px: 2, pt: 1.25, pb: 0.5 }}>
                   <Typography variant="subtitle2" color="text.secondary">Picklists</Typography>
@@ -237,7 +237,7 @@ const SettingsPage: React.FC = () => {
           </Card>
 
           {/* Right Panel - Edit Picklist */}
-          <Card sx={{ flex: 1 }}>
+          <Card sx={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
             <CardHeader title={
               isPicklistMode
                 ? `Edit ${picklists[selectedPicklist]?.name || 'Picklist'}`
@@ -246,7 +246,7 @@ const SettingsPage: React.FC = () => {
                   : 'Default Task Templates'
             } />
             <Divider />
-            <CardContent>
+            <CardContent sx={{ overflowY: 'auto' }}>
               {isPicklistMode && (
                 <>
                   <Typography variant="subtitle2" sx={{ mb: 2, color: 'text.secondary' }}>
