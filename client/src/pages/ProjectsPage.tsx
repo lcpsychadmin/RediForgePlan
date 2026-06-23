@@ -5102,6 +5102,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                   <Typography variant="caption" sx={{ display: 'block', fontWeight: 600, color: '#D2DDF8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                     {item.taskGroupName || item.entityLabel || item.objectId || 'Task Group'}
                                   </Typography>
+                                  {item.scheduleEntityType === 'object' && (
+                                    <Typography variant="caption" sx={{ display: 'block', color: '#B9CAE9', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                      {item.description || 'No description'}
+                                    </Typography>
+                                  )}
                                   <Typography variant="caption" sx={{ display: 'block', color: '#9FB0D8' }}>
                                     {(item.projectName || 'Project') + ' / ' + (item.mockCycleDescription || item.mockCycleName || 'Mock Cycle')}
                                   </Typography>
