@@ -76,6 +76,7 @@ interface MockCycle {
   id: string;
   programId: string;
   name: string;
+  description?: string;
   startDate: string;
   endDate: string;
   accentColor?: string;
@@ -1145,63 +1146,132 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         return;
       }
 
+      let activeCycle: MockCycle | null = null;
+      for (const programId in mockCycles) {
+        const cycle = (mockCycles[programId] || []).find((c: MockCycle) => c.id === activeCycleId) || null;
+        if (cycle) {
+          activeCycle = cycle;
+          break;
+        }
+      }
+
+      const mockCycleName = activeCycle?.name || 'Mock Cycle';
+      const mockCycleDescription = (activeCycle as any)?.description || activeCycle?.name || '';
+
       setIsLoadingCycleSchedule(true);
       try {
         const all = await Promise.all(
           cycleProjects.map(async (project: Project, index: number) => {
             try {
-              const [objectsResponse, tasksResponse] = await Promise.all([
+              const [objectsResponse, tasksResponse, groupsResponse] = await Promise.all([
                 apiClient.get(`/api/project-objects/project/${project.id}`),
                 apiClient.get(`/api/tasks/project/${project.id}`),
+                apiClient.get(`/api/tasks/groups/project/${project.id}`),
               ]);
 
               const items = objectsResponse.data?.data || [];
               const tasks = tasksResponse.data?.data || [];
+              const groups = groupsResponse.data?.data || [];
 
               // Map each project object to a load date window (start/end).
               const loadWindowByObjectId: Record<string, { startDate: string | null; endDate: string | null }> = {};
+              const loadWindowByTaskGroupId: Record<string, { startDate: string | null; endDate: string | null }> = {};
               tasks.forEach((task: any) => {
                 const objectId = task.projectObjectId;
-                if (!objectId) return;
+                const taskGroupId = task.taskGroupId;
 
                 const isLoadTask =
                   (task.taskType || '').toLowerCase() === 'load' ||
                   (task.name || '').trim().toLowerCase() === 'load';
 
                 if (!isLoadTask) return;
+                if (!objectId && !taskGroupId) return;
 
                 const startDate = task.startDate || null;
                 const endDate = task.endDate || task.startDate || null;
                 if (!startDate && !endDate) return;
 
-                const existing = loadWindowByObjectId[objectId];
-                if (!existing) {
-                  loadWindowByObjectId[objectId] = { startDate, endDate };
-                  return;
+                if (objectId) {
+                  const existing = loadWindowByObjectId[objectId];
+                  if (!existing) {
+                    loadWindowByObjectId[objectId] = { startDate, endDate };
+                  } else {
+                    const nextStart = startDate && (!existing.startDate || startDate < existing.startDate)
+                      ? startDate
+                      : existing.startDate;
+                    const nextEnd = endDate && (!existing.endDate || endDate > existing.endDate)
+                      ? endDate
+                      : existing.endDate;
+
+                    loadWindowByObjectId[objectId] = {
+                      startDate: nextStart,
+                      endDate: nextEnd,
+                    };
+                  }
                 }
 
-                const nextStart = startDate && (!existing.startDate || startDate < existing.startDate)
-                  ? startDate
-                  : existing.startDate;
-                const nextEnd = endDate && (!existing.endDate || endDate > existing.endDate)
-                  ? endDate
-                  : existing.endDate;
-
-                loadWindowByObjectId[objectId] = {
-                  startDate: nextStart,
-                  endDate: nextEnd,
-                };
+                if (taskGroupId) {
+                  const groupExisting = loadWindowByTaskGroupId[taskGroupId];
+                  if (!groupExisting) {
+                    loadWindowByTaskGroupId[taskGroupId] = { startDate, endDate };
+                  } else {
+                    const groupNextStart = startDate && (!groupExisting.startDate || startDate < groupExisting.startDate)
+                      ? startDate
+                      : groupExisting.startDate;
+                    const groupNextEnd = endDate && (!groupExisting.endDate || endDate > groupExisting.endDate)
+                      ? endDate
+                      : groupExisting.endDate;
+                    loadWindowByTaskGroupId[taskGroupId] = {
+                      startDate: groupNextStart,
+                      endDate: groupNextEnd,
+                    };
+                  }
+                }
               });
 
               const projectColor = getProjectAccentColor(project, index);
-              return items.map((item: any) => ({
-                ...item,
-                projectName: project.name,
-                projectColor,
-                projectId: project.id,
-                loadStartDate: loadWindowByObjectId[item.id]?.startDate || null,
-                loadEndDate: loadWindowByObjectId[item.id]?.endDate || null,
-              }));
+              const objectRows = items.map((item: any) => {
+                const processArea = (item.processArea || '').trim() || 'Unassigned Process Area';
+                const processAreaAccent = getProcessAreaAccent(project.id, processArea, projectColor);
+                return {
+                  ...item,
+                  scheduleEntityType: 'object',
+                  entityLabel: item.objectId || 'Data Object',
+                  processArea,
+                  processAreaAccent,
+                  taskGroupName: 'Data Object',
+                  mockCycleName,
+                  mockCycleDescription,
+                  projectName: project.name,
+                  projectColor,
+                  projectId: project.id,
+                  loadStartDate: loadWindowByObjectId[item.id]?.startDate || null,
+                  loadEndDate: loadWindowByObjectId[item.id]?.endDate || null,
+                };
+              });
+
+              const taskGroupRows = groups.map((group: any) => {
+                const processArea = (group.processArea || '').trim() || 'Unassigned Process Area';
+                const processAreaAccent = getProcessAreaAccent(project.id, processArea, projectColor);
+                return {
+                  id: group.id,
+                  description: group.name || 'Task Group',
+                  scheduleEntityType: 'taskGroup',
+                  entityLabel: group.name || 'Task Group',
+                  processArea,
+                  processAreaAccent,
+                  taskGroupName: group.name || 'Task Group',
+                  mockCycleName,
+                  mockCycleDescription,
+                  projectName: project.name,
+                  projectColor,
+                  projectId: project.id,
+                  loadStartDate: loadWindowByTaskGroupId[group.id]?.startDate || null,
+                  loadEndDate: loadWindowByTaskGroupId[group.id]?.endDate || null,
+                };
+              });
+
+              return [...objectRows, ...taskGroupRows];
             } catch {
               return [];
             }
@@ -4883,7 +4953,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                     <Box>
                       <Typography variant="h5" sx={{ fontWeight: 700 }}>Schedule</Typography>
                       <Typography variant="caption" color="text.secondary">
-                        Weekly calendar view for object load dates. Colors represent assigned projects.
+                        Weekly calendar view for process area and task group load dates. Colors represent process areas.
                       </Typography>
                     </Box>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -4940,12 +5010,19 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                   </Box>
 
                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.25 }}>
-                    {getScopedProjectsForCycle(activeCycleId, selectedCycleProjectId).map((project, idx) => {
-                      const color = getProjectAccentColor(project, idx);
+                    {Array.from(new Map(
+                      cycleScheduleItems
+                        .map((item: any) => {
+                          const area = (item.processArea || '').trim();
+                          if (!area) return null;
+                          return [area, { label: getProcessAreaDisplayName(item.projectId, area), color: item.processAreaAccent || item.projectColor }];
+                        })
+                        .filter(Boolean) as any
+                    ).values()).map((entry: any) => {
                       return (
-                        <Box key={project.id} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                          <Box sx={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: color }} />
-                          <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>{project.name}</Typography>
+                        <Box key={entry.label} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          <Box sx={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: entry.color }} />
+                          <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>{entry.label}</Typography>
                         </Box>
                       );
                     })}
@@ -5014,19 +5091,19 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                     gridColumn: `${startIndex + 1} / ${endIndex + 2}`,
                                     p: 0.75,
                                     borderRadius: 1,
-                                    backgroundColor: toRgba(item.projectColor, 0.28),
-                                    border: `1px solid ${toRgba(item.projectColor, 0.6)}`,
+                                    backgroundColor: toRgba(item.processAreaAccent || item.projectColor, 0.26),
+                                    border: `1px solid ${toRgba(item.processAreaAccent || item.projectColor, 0.62)}`,
                                     minWidth: 0,
                                   }}
                                 >
-                                  <Typography variant="caption" sx={{ display: 'block', fontFamily: 'monospace', fontWeight: 700, color: item.projectColor }}>
-                                    {item.objectId || 'Object'}
+                                  <Typography variant="caption" sx={{ display: 'block', fontFamily: 'monospace', fontWeight: 700, color: item.processAreaAccent || item.projectColor }}>
+                                    {getProcessAreaDisplayName(item.projectId, item.processArea || 'Unassigned Process Area')}
                                   </Typography>
                                   <Typography variant="caption" sx={{ display: 'block', fontWeight: 600, color: '#D2DDF8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                    {item.description || 'Load Object'}
+                                    {item.taskGroupName || item.entityLabel || item.objectId || 'Task Group'}
                                   </Typography>
                                   <Typography variant="caption" sx={{ display: 'block', color: '#9FB0D8' }}>
-                                    {item.projectName}
+                                    {(item.projectName || 'Project') + ' / ' + (item.mockCycleDescription || item.mockCycleName || 'Mock Cycle')}
                                   </Typography>
                                   <Typography variant="caption" sx={{ display: 'block', color: '#9FB0D8' }}>
                                     {(() => {
