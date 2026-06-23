@@ -147,8 +147,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   
   // Context menu states
   const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
-  const [menuType, setMenuType] = useState<'program' | 'cycle' | 'project' | 'task' | 'taskGroup' | null>(null);
+  const [menuType, setMenuType] = useState<'program' | 'cycle' | 'project' | 'processArea' | 'task' | 'taskGroup' | null>(null);
   const [menuItemId, setMenuItemId] = useState<string | null>(null);
+  const [processAreaMenuContext, setProcessAreaMenuContext] = useState<{ projectId: string; cycleId: string; area: string } | null>(null);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [editingTaskGroupId, setEditingTaskGroupId] = useState<string | null>(null);
   
@@ -753,6 +754,32 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
       .map((group: any) => ({ id: group.id, name: group.name || 'Unnamed Group' }))
       .sort((a: any, b: any) => (a.name || '').localeCompare(b.name || ''));
     return { objects, groups };
+  };
+
+  const getProgressAverage = (values: number[]) => {
+    if (values.length === 0) return 0;
+    return Math.round(values.reduce((sum, value) => sum + Math.max(0, Math.min(100, value || 0)), 0) / values.length);
+  };
+
+  const getProcessAreaProgress = (projectId: string, area: string, fallbackPct: number) => {
+    if (activeProjectId !== projectId) return fallbackPct;
+    const normalizedArea = (area || '').trim().toLowerCase();
+    const areaObjectIds = new Set(
+      projectInventoryItems
+        .filter((item: any) => item.projectId === projectId && ((item.processArea || '').trim().toLowerCase() === normalizedArea))
+        .map((item: any) => item.id)
+    );
+    const areaGroupIds = new Set(
+      projectTaskGroups
+        .filter((group: any) => group.projectId === projectId && ((group.processArea || '').trim().toLowerCase() === normalizedArea))
+        .map((group: any) => group.id)
+    );
+    const areaTasks = projectTasks.filter((task: any) =>
+      (task.projectObjectId && areaObjectIds.has(task.projectObjectId)) ||
+      (task.taskGroupId && areaGroupIds.has(task.taskGroupId))
+    );
+    if (areaTasks.length === 0) return fallbackPct;
+    return getProgressAverage(areaTasks.map((task: any) => Number(task.progressPercentage ?? 0)));
   };
 
   const handleAddAdditionalGroup = (projectId: string) => {
@@ -2262,6 +2289,12 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                   const isProgramSelected = selectedItem?.type === 'program' && selectedItem?.id === program.id;
                   const isProgramExpanded = expandedPrograms.has(program.id);
                   const programColor = program.accentColor || '#5B67CA';
+                  const programCycleCount = (mockCycles[program.id] || []).length;
+                  const programProjectProgressValues = (mockCycles[program.id] || []).flatMap((cycle: MockCycle) =>
+                    (projectsByMockCycle[cycle.id] || []).map((project: Project) => Number(project.progressPercentage || 0))
+                  );
+                  const programProjectCount = programProjectProgressValues.length;
+                  const programProgressPct = getProgressAverage(programProjectProgressValues);
                   return (
                     <Box key={program.id}>
                       {/* Program Row */}
@@ -2328,20 +2361,25 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                         <Typography variant="body2" sx={{ fontWeight: 600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: isProgramSelected ? programColor : 'inherit' }}>
                           {program.name}
                         </Typography>
-                        {canManageHierarchy && (
-                          <IconButton
-                            size="small"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setMenuAnchorEl(e.currentTarget);
-                              setMenuType('program');
-                              setMenuItemId(program.id);
-                            }}
-                            sx={{ opacity: 0.5, '&:hover': { opacity: 1 } }}
-                          >
-                            <MoreVertIcon sx={{ fontSize: '1rem' }} />
-                          </IconButton>
-                        )}
+                        <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.66rem', mr: 0.75, whiteSpace: 'nowrap' }}>
+                          {programCycleCount} cyc · {programProjectCount} proj
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: isProgramSelected ? programColor : 'text.secondary', fontWeight: 700, fontSize: '0.68rem', mr: 0.5, minWidth: 34, textAlign: 'right' }}>
+                          {programProgressPct}%
+                        </Typography>
+                        <IconButton
+                          size="small"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setMenuAnchorEl(e.currentTarget);
+                            setMenuType('program');
+                            setMenuItemId(program.id);
+                            setProcessAreaMenuContext(null);
+                          }}
+                          sx={{ opacity: 0.5, '&:hover': { opacity: 1 } }}
+                        >
+                          <MoreVertIcon sx={{ fontSize: '1rem' }} />
+                        </IconButton>
                       </Box>
 
                       {/* Planning Hierarchy: Program > Project > Mock Cycle > Process Area */}
@@ -2359,14 +2397,55 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                           {getProjectsByProgram(program.id).map((project: Project) => {
                             const projectCycles = getCyclesForProjectInProgram(program.id, project.name || '');
                             const projectAccent = project.accentColor || '#90caf9';
+                            const firstCycle = projectCycles[0];
+                            const firstCycleProject = firstCycle
+                              ? (projectsByMockCycle[firstCycle.id] || []).find((p: Project) => (p.name || '').trim().toLowerCase() === (project.name || '').trim().toLowerCase()) || project
+                              : project;
+                            const isProjectSelected = selectedItem?.type === 'project' && selectedItem?.id === firstCycleProject.id;
+                            const projectInstances = projectCycles
+                              .map((cycle: MockCycle) => (projectsByMockCycle[cycle.id] || []).find((p: Project) => (p.name || '').trim().toLowerCase() === (project.name || '').trim().toLowerCase()))
+                              .filter(Boolean) as Project[];
+                            const projectProgressPct = getProgressAverage(projectInstances.map((instance: Project) => Number(instance.progressPercentage || 0)));
                             return (
                               <Box key={`pgrp-${program.id}-${project.name}`}>
-                                <Box sx={{ display: 'flex', alignItems: 'center', py: 0.55, pl: 0, pr: 0.5 }}>
+                                <Box
+                                  onClick={() => handleHierarchySelection({ type: 'project', id: firstCycleProject.id, cycleId: firstCycle?.id || '' })}
+                                  sx={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    py: 0.55,
+                                    pl: 0,
+                                    pr: 0.5,
+                                    cursor: firstCycle ? 'pointer' : 'default',
+                                    borderRadius: 0.75,
+                                    backgroundColor: isProjectSelected ? 'rgba(91, 103, 202, 0.16)' : 'transparent',
+                                    '&:hover': { backgroundColor: isProjectSelected ? 'rgba(91, 103, 202, 0.22)' : 'rgba(255,255,255,0.05)' },
+                                  }}
+                                >
                                   <Box sx={{ width: 8, flexShrink: 0 }} />
                                   <FolderOutlinedIcon sx={{ fontSize: '0.95rem', color: projectAccent, flexShrink: 0, mx: 0.5 }} />
                                   <Typography variant="body2" sx={{ fontWeight: 600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                     {project.name}
                                   </Typography>
+                                  <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.66rem', mr: 0.75, whiteSpace: 'nowrap' }}>
+                                    {projectCycles.length} cyc
+                                  </Typography>
+                                  <Typography variant="caption" sx={{ color: isProjectSelected ? projectAccent : 'text.secondary', fontWeight: 700, fontSize: '0.68rem', mr: 0.5, minWidth: 34, textAlign: 'right' }}>
+                                    {projectProgressPct}%
+                                  </Typography>
+                                  <IconButton
+                                    size="small"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setMenuAnchorEl(e.currentTarget);
+                                      setMenuType('project');
+                                      setMenuItemId(firstCycleProject.id);
+                                      setProcessAreaMenuContext(null);
+                                    }}
+                                    sx={{ opacity: 0.5, '&:hover': { opacity: 1 } }}
+                                  >
+                                    <MoreVertIcon sx={{ fontSize: '1rem' }} />
+                                  </IconButton>
                                 </Box>
 
                                 <Box sx={{ ml: 2.75 }}>
@@ -2375,6 +2454,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                     const isCycleSelected = selectedItem?.type === 'cycle' && selectedItem?.id === cycle.id;
                                     const cycleColor = cycle.accentColor || '#64B5F6';
                                     const processAreas = getProcessAreasForProjectCycle(realProject.id);
+                                    const cycleProgressPct = Number(realProject.progressPercentage || 0);
                                     return (
                                       <Box key={`pc-${project.name}-${cycle.id}`}>
                                         <Box
@@ -2388,15 +2468,31 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                             backgroundColor: isCycleSelected ? 'rgba(91, 103, 202, 0.15)' : 'transparent',
                                             '&:hover': { backgroundColor: isCycleSelected ? 'rgba(91, 103, 202, 0.15)' : 'rgba(255,255,255,0.05)' },
                                           }}
-                                          onClick={() => handleHierarchySelection({ type: 'project', id: realProject.id, cycleId: cycle.id })}
+                                          onClick={() => handleHierarchySelection({ type: 'cycle', id: cycle.id, programId: program.id })}
                                         >
                                           <SyncIcon sx={{ fontSize: '0.92rem', color: cycleColor, flexShrink: 0, mx: 0.5 }} />
                                           <Typography variant="body2" sx={{ fontWeight: 500, fontSize: '0.78rem', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                             {cycle.name}
                                           </Typography>
                                           <Typography variant="caption" sx={{ color: 'text.secondary', mr: 0.5 }}>
-                                            {realProject.progressPercentage || 0}%
+                                            {processAreas.length} areas
                                           </Typography>
+                                          <Typography variant="caption" sx={{ color: isCycleSelected ? cycleColor : 'text.secondary', fontWeight: 700, fontSize: '0.68rem', mr: 0.5, minWidth: 34, textAlign: 'right' }}>
+                                            {cycleProgressPct}%
+                                          </Typography>
+                                          <IconButton
+                                            size="small"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setMenuAnchorEl(e.currentTarget);
+                                              setMenuType('cycle');
+                                              setMenuItemId(cycle.id);
+                                              setProcessAreaMenuContext(null);
+                                            }}
+                                            sx={{ opacity: 0.5, '&:hover': { opacity: 1 } }}
+                                          >
+                                            <MoreVertIcon sx={{ fontSize: '1rem' }} />
+                                          </IconButton>
                                         </Box>
 
                                         <Box sx={{ ml: 2.5 }}>
@@ -2404,6 +2500,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                             const processAreaKey = `${realProject.id}:${cycle.id}:${area}`;
                                             const isProcessAreaExpanded = expandedProcessAreas.has(processAreaKey);
                                             const { objects: areaObjects, groups: areaTaskGroups } = getProcessAreaBranchData(realProject.id, area);
+                                            const processAreaProgressPct = getProcessAreaProgress(realProject.id, area, cycleProgressPct);
                                             const isProcessAreaSelected =
                                               selectedItem?.type === 'project' &&
                                               selectedItem?.id === realProject.id &&
@@ -2439,9 +2536,25 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                                   <Typography variant="caption" sx={{ fontWeight: isProcessAreaSelected ? 700 : 500, color: isProcessAreaSelected ? cycleColor : 'inherit', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                                     {area}
                                                   </Typography>
-                                                  <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', ml: 0.5 }}>
-                                                    {areaObjects.length + areaTaskGroups.length}
+                                                  <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', ml: 0.5, whiteSpace: 'nowrap' }}>
+                                                    {areaObjects.length} obj · {areaTaskGroups.length} grp
                                                   </Typography>
+                                                  <Typography variant="caption" sx={{ color: isProcessAreaSelected ? cycleColor : 'text.secondary', fontWeight: 700, fontSize: '0.66rem', ml: 0.75, minWidth: 32, textAlign: 'right' }}>
+                                                    {processAreaProgressPct}%
+                                                  </Typography>
+                                                  <IconButton
+                                                    size="small"
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      setMenuAnchorEl(e.currentTarget);
+                                                      setMenuType('processArea');
+                                                      setMenuItemId(processAreaKey);
+                                                      setProcessAreaMenuContext({ projectId: realProject.id, cycleId: cycle.id, area });
+                                                    }}
+                                                    sx={{ opacity: 0.5, '&:hover': { opacity: 1 }, ml: 0.2 }}
+                                                  >
+                                                    <MoreVertIcon sx={{ fontSize: '0.95rem' }} />
+                                                  </IconButton>
                                                 </Box>
                                                 {isProcessAreaExpanded && (
                                                   <Box sx={{ ml: 2.1, mb: 0.4 }}>
@@ -4556,6 +4669,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         onClose={() => {
           setMenuAnchorEl(null);
           setMenuType(null);
+          setProcessAreaMenuContext(null);
         }}
       >
         {(menuType === 'task' || menuType === 'taskGroup' || menuType === 'program' || menuType === 'cycle' || menuType === 'project') && (
@@ -4701,7 +4815,46 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         </MenuItem>
         <MenuItem
           onClick={() => {
+            if (menuType !== 'processArea' || !processAreaMenuContext) return;
+            setSelectedExecutionProcessArea(processAreaMenuContext.area);
+            handleHierarchySelection({ type: 'project', id: processAreaMenuContext.projectId, cycleId: processAreaMenuContext.cycleId });
+            setMenuAnchorEl(null);
+            setProcessAreaMenuContext(null);
+          }}
+          sx={{ display: menuType === 'processArea' ? 'flex' : 'none' }}
+        >
+          <ViewListIcon fontSize="small" sx={{ mr: 1 }} /> Focus Process Area
+        </MenuItem>
+        <MenuItem
+          onClick={() => {
+            if (menuType !== 'processArea' || !processAreaMenuContext) return;
+            setSelectedExecutionProcessArea(processAreaMenuContext.area);
+            setSelectedProjectForInventory(processAreaMenuContext.projectId);
+            setInventorySubTab(1);
+            setTabValue(1);
+            handleHierarchySelection({ type: 'project', id: processAreaMenuContext.projectId, cycleId: processAreaMenuContext.cycleId });
+            setMenuAnchorEl(null);
+            setProcessAreaMenuContext(null);
+          }}
+          sx={{ display: menuType === 'processArea' ? 'flex' : 'none' }}
+        >
+          <FolderOutlinedIcon fontSize="small" sx={{ mr: 1 }} /> Manage Area Inventory
+        </MenuItem>
+        <MenuItem
+          onClick={() => {
+            if (menuType !== 'processArea') return;
+            setSelectedExecutionProcessArea('');
+            setMenuAnchorEl(null);
+            setProcessAreaMenuContext(null);
+          }}
+          sx={{ display: menuType === 'processArea' ? 'flex' : 'none' }}
+        >
+          <CloseIcon fontSize="small" sx={{ mr: 1 }} /> Clear Area Filter
+        </MenuItem>
+        <MenuItem
+          onClick={() => {
             if (!menuItemId || !menuType) return;
+            if (menuType === 'processArea') return;
             if (menuType === 'task' || menuType === 'taskGroup') {
               // For tasks and task groups, open the detail modal so defects and validation stats are available.
               if (menuType === 'task') {
@@ -4719,12 +4872,14 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
             }
             setMenuAnchorEl(null);
           }}
+          sx={{ display: menuType === 'processArea' ? 'none' : 'flex' }}
         >
           <EditIcon fontSize="small" sx={{ mr: 1 }} /> Task Details / Defects
         </MenuItem>
         <MenuItem
           onClick={() => {
             if (!menuItemId || !menuType) return;
+            if (menuType === 'processArea') return;
             
             // Get the item name for the dialog
             let itemName = '';
@@ -4756,7 +4911,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
             
             openDeleteDialog(menuType, menuItemId, itemName);
           }}
-          sx={{ color: 'error.main' }}
+          sx={{ color: 'error.main', display: menuType === 'processArea' ? 'none' : 'flex' }}
         >
           <DeleteIcon fontSize="small" sx={{ mr: 1 }} /> Delete
         </MenuItem>
