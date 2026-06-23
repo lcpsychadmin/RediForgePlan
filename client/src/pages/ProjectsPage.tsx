@@ -582,11 +582,17 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   const activeProjectId = canAccessInventory && tabValue === 1
     ? selectedProjectForInventory
     : (selectedItem?.type === 'project' ? selectedItem.id : selectedItem?.type === 'cycle' ? (selectedItem.projectId || null) : null);
+  const selectedCycleProjectId = selectedItem?.type === 'cycle' ? (selectedItem.projectId || null) : null;
   const activeCycleId = selectedItem?.type === 'project'
     ? selectedItem.cycleId
     : selectedItem?.type === 'cycle'
       ? selectedItem.id
       : null;
+  const getScopedProjectsForCycle = (cycleId: string, projectId?: string | null): Project[] => {
+    const projects = (projectsByMockCycle[cycleId] || []) as Project[];
+    if (!projectId) return projects;
+    return projects.filter((project) => project.id === projectId);
+  };
 
   useEffect(() => {
     if (!selectedItem) return;
@@ -610,7 +616,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   })();
 
   const { data: myTasksData, isLoading: isLoadingMyTasks, error: myTasksError } = useQuery({
-    queryKey: ['projects-my-tasks', user?.id, user?.email, activeCycleId, programs.length, Object.keys(mockCycles).length, Object.keys(projectsByMockCycle).length],
+    queryKey: ['projects-my-tasks', user?.id, user?.email, activeCycleId, selectedCycleProjectId, programs.length, Object.keys(mockCycles).length, Object.keys(projectsByMockCycle).length],
     queryFn: async () => {
       const normalizeValue = (value?: string | null) => (value || '').trim().toLowerCase();
       const emailAlias = normalizeValue((user?.email || '').split('@')[0]?.split('+')[0]);
@@ -630,7 +636,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         : cycleScopes;
 
       const projectScopes = filteredCycleScopes.flatMap(({ program, cycle }: any) => {
-        const projects = projectsByMockCycle[cycle.id] || [];
+        const projects = getScopedProjectsForCycle(cycle.id, selectedCycleProjectId);
         return projects.map((project: any) => ({ program, cycle, project }));
       });
 
@@ -889,7 +895,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         return;
       }
 
-      const cycleProjects = projectsByMockCycle[activeCycleId] || [];
+      const cycleProjects = getScopedProjectsForCycle(activeCycleId, selectedCycleProjectId);
       if (cycleProjects.length === 0) {
         setCycleScheduleItems([]);
         return;
@@ -965,7 +971,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     };
 
     loadCycleSchedule();
-  }, [tabValue, activeCycleId, projectsByMockCycle]);
+  }, [tabValue, activeCycleId, selectedCycleProjectId, projectsByMockCycle]);
 
   // Load persisted ordering when project changes.
   useEffect(() => {
@@ -1169,7 +1175,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
       }
 
       const cycleId = selectedItem.id;
-      const projects = projectsByMockCycle[cycleId] || [];
+      const projects = getScopedProjectsForCycle(cycleId, selectedItem.projectId || null);
 
       if (projects.length === 0) {
         setCycleOverview({
@@ -2183,7 +2189,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
 
   const loadCycleTasksForDep = async (currentTaskId: string) => {
     const currentTask = projectTasks.find(t => t.id === currentTaskId);
-    const cycleProjects: any[] = activeCycleId ? (projectsByMockCycle[activeCycleId] || []) : [];
+    const cycleProjects: any[] = activeCycleId ? getScopedProjectsForCycle(activeCycleId, selectedCycleProjectId) : [];
     const allProjects = cycleProjects.length > 0 ? cycleProjects : (activeProjectId ? [{ id: activeProjectId, name: 'Current Project', accentColor: '#00BFA5' }] : []);
     const enriched: any[] = [];
     await Promise.all(allProjects.map(async (proj: any) => {
@@ -2833,7 +2839,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                     This mock cycle is for planning sequence and scope only. No execution tasks are created in Planning.
                   </Typography>
                   <Typography variant="body2">
-                    Projects in cycle: {(projectsByMockCycle[selectedItem.id] || []).length}
+                    Projects in cycle: {getScopedProjectsForCycle(selectedItem.id, selectedItem.projectId || null).length}
                   </Typography>
                   <Typography variant="body2" sx={{ mt: 0.5 }}>
                     Next deliverable: detail project-level data object inventory in the Inventory tab.
@@ -4396,7 +4402,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                   </Box>
 
                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.25 }}>
-                    {((projectsByMockCycle[activeCycleId] || []) as Project[]).map((project, idx) => {
+                    {getScopedProjectsForCycle(activeCycleId, selectedCycleProjectId).map((project, idx) => {
                       const color = getProjectAccentColor(project, idx);
                       return (
                         <Box key={project.id} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
