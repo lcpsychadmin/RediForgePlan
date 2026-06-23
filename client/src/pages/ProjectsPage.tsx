@@ -3017,6 +3017,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                       .filter(Boolean) as any[];
                     const canReorderPlan = orderedPlanRowKeys.length > 1;
                     const canAddDataObjectHere = !showProjectSummaryOnly && !!activeProjectId;
+                    const activePlanGroup = selectedItem?.type === 'processArea' ? selectedItem.area : '';
                     const taskFieldSx = {
                       '& .MuiInputBase-root': { fontSize: '0.72rem', height: 26 },
                       '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': { borderColor: accentColor },
@@ -3122,12 +3123,18 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                           {!showProjectSummaryOnly && (
                             <Box sx={{ display: 'flex', gap: 1, flexShrink: 0, ml: { xs: 0, md: 2 }, width: { xs: '100%', md: 'auto' }, flexWrap: { xs: 'wrap', md: 'nowrap' } }}>
                               {canAddDataObjectHere && (
-                                <Button variant="contained" startIcon={<AddIcon />} onClick={() => setDataObjectDialogOpen(true)}
+                                <Button variant="contained" startIcon={<AddIcon />} onClick={() => {
+                                  if (activePlanGroup) setNewDataObjectProcessArea(activePlanGroup);
+                                  setDataObjectDialogOpen(true);
+                                }}
                                   sx={{ background: `linear-gradient(135deg, ${accentColor} 0%, ${accentColor}99 100%)`, textTransform: 'none', fontWeight: 600, boxShadow: 'none', width: { xs: '100%', sm: 'auto' } }}>
                                   Add Data Object
                                 </Button>
                               )}
-                              <Button variant="contained" startIcon={<AddIcon />} onClick={() => setTaskGroupDialogOpen(true)}
+                              <Button variant="contained" startIcon={<AddIcon />} onClick={() => {
+                                if (activePlanGroup) setNewTaskGroupProcessArea(activePlanGroup);
+                                setTaskGroupDialogOpen(true);
+                              }}
                                 sx={{ background: 'linear-gradient(135deg, #5B67CA 0%, #3B4DB3 100%)', textTransform: 'none', fontWeight: 600, boxShadow: 'none', width: { xs: '100%', sm: 'auto' } }}>
                                 Add Task Group
                               </Button>
@@ -5447,6 +5454,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                 return;
               }
 
+              const targetProcessArea = (selectedItem?.type === 'processArea' ? selectedItem.area : newDataObjectProcessArea).trim();
+
               try {
                 setIsCreatingDataObject(true);
                 
@@ -5457,8 +5466,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                   return;
                 }
 
-                if ((inventoryItem.processArea || '') !== newDataObjectProcessArea) {
-                  await handleProjectInventoryInlineChange(inventoryItem.id, 'processArea', newDataObjectProcessArea);
+                if ((inventoryItem.processArea || '') !== targetProcessArea) {
+                  await handleProjectInventoryInlineChange(inventoryItem.id, 'processArea', targetProcessArea);
                 }
 
                 // Create a task for this object — use default templates
@@ -5468,6 +5477,12 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                 const newTasks = (tasksResponse.data.data || []).map((t: any) => normalizeTaskDateFields(t));
                 const updatedTasks = [...projectTasks, ...newTasks];
                 setProjectTasks(updatedTasks);
+
+                // If defaults endpoint returns no new tasks, reload project tasks to reflect existing assignments.
+                if (newTasks.length === 0) {
+                  const refreshed = await apiClient.get(`/api/tasks/project/${targetProjectId}`);
+                  setProjectTasks((refreshed.data.data || []).map((t: any) => normalizeTaskDateFields(t)));
+                }
 
                 // Load deps for new tasks (server auto-creates sequential deps)
                 const newDepsTs = Date.now();
@@ -5861,11 +5876,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
           </Button>
           <Button
             onClick={async () => {
-              if (selectedItem?.type !== 'project') {
-                alert('Please select a project first');
-                return;
-              }
-
               if (!activeProjectId) {
                 alert('Project ID not found');
                 return;
@@ -5873,10 +5883,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
 
               try {
                 setIsCreatingTaskGroup(true);
+                const resolvedGrouping = (selectedItem?.type === 'processArea' ? selectedItem.area : newTaskGroupProcessArea).trim();
                 
                 const response = await apiClient.post(`/api/tasks/groups/project/${activeProjectId}`, {
                   name: newTaskGroupName,
-                  processArea: newTaskGroupProcessArea || null,
+                  processArea: resolvedGrouping || null,
                 });
 
                 console.log('Task group created successfully:', response.data);
