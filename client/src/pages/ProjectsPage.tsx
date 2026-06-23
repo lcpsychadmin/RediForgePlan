@@ -3090,21 +3090,24 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                         })()}
 
                           </Box>{/* end left info box */}
-                          <Box sx={{ display: 'flex', gap: 1, flexShrink: 0, ml: { xs: 0, md: 2 }, width: { xs: '100%', md: 'auto' }, flexWrap: { xs: 'wrap', md: 'nowrap' } }}>
-                            {canAccessInventory && (
-                              <Button variant="contained" startIcon={<AddIcon />} onClick={() => setDataObjectDialogOpen(true)}
-                                sx={{ background: `linear-gradient(135deg, ${accentColor} 0%, ${accentColor}99 100%)`, textTransform: 'none', fontWeight: 600, boxShadow: 'none', width: { xs: '100%', sm: 'auto' } }}>
-                                Add Data Object
+                          {!showProjectSummaryOnly && (
+                            <Box sx={{ display: 'flex', gap: 1, flexShrink: 0, ml: { xs: 0, md: 2 }, width: { xs: '100%', md: 'auto' }, flexWrap: { xs: 'wrap', md: 'nowrap' } }}>
+                              {canAccessInventory && (
+                                <Button variant="contained" startIcon={<AddIcon />} onClick={() => setDataObjectDialogOpen(true)}
+                                  sx={{ background: `linear-gradient(135deg, ${accentColor} 0%, ${accentColor}99 100%)`, textTransform: 'none', fontWeight: 600, boxShadow: 'none', width: { xs: '100%', sm: 'auto' } }}>
+                                  Add Data Object
+                                </Button>
+                              )}
+                              <Button variant="contained" startIcon={<AddIcon />} onClick={() => setTaskGroupDialogOpen(true)}
+                                sx={{ background: 'linear-gradient(135deg, #5B67CA 0%, #3B4DB3 100%)', textTransform: 'none', fontWeight: 600, boxShadow: 'none', width: { xs: '100%', sm: 'auto' } }}>
+                                Add Task Group
                               </Button>
-                            )}
-                            <Button variant="contained" startIcon={<AddIcon />} onClick={() => setTaskGroupDialogOpen(true)}
-                              sx={{ background: 'linear-gradient(135deg, #5B67CA 0%, #3B4DB3 100%)', textTransform: 'none', fontWeight: 600, boxShadow: 'none', width: { xs: '100%', sm: 'auto' } }}>
-                              Add Task Group
-                            </Button>
-                          </Box>
+                            </Box>
+                          )}
                         </Box>{/* end top section flex row */}
 
                         {/* Filter Row */}
+                        {!showProjectSummaryOnly && (
                         <Box sx={{ display: 'flex', gap: 1.5, mb: 3, alignItems: 'center', flexWrap: 'wrap' }}>
                           <TextField placeholder="Search by name or ID..." size="small" value={planSearchTerm} onChange={(e) => setPlanSearchTerm(e.target.value)}
                             sx={{ width: { xs: '100%', sm: 240 }, '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': { borderColor: accentColor }, '& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: accentColor } }}
@@ -3144,6 +3147,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                             <Button size="small" variant="text" onClick={() => { setPlanSearchTerm(''); setPlanStatusFilter(''); setPlanAssignedFilter(''); setSelectedExecutionProcessArea(''); }} sx={{ textTransform: 'none', color: 'text.secondary' }}>Clear</Button>
                           )}
                         </Box>
+                        )}
 
                         {/* Objects + Groups */}
                         {showProjectSummaryOnly ? (
