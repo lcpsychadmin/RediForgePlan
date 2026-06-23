@@ -1239,7 +1239,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                   entityLabel: item.objectId || 'Data Object',
                   processArea,
                   processAreaAccent,
-                  taskGroupName: 'Data Object',
+                  taskGroupName: '',
                   mockCycleName,
                   mockCycleDescription,
                   projectName: project.name,
@@ -5104,10 +5104,12 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                     {getProcessAreaDisplayName(item.projectId, item.processArea || 'Unassigned Process Area')}
                                   </Typography>
                                   <Typography variant="caption" sx={{ display: 'block', fontWeight: 600, color: '#D2DDF8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                    {item.taskGroupName || item.entityLabel || item.objectId || 'Task Group'}
+                                    {item.scheduleEntityType === 'object'
+                                      ? (item.entityLabel || item.objectId || 'Object')
+                                      : (item.taskGroupName || item.entityLabel || 'Task Group')}
                                   </Typography>
                                   {item.scheduleEntityType === 'object' && (
-                                    <Typography variant="caption" sx={{ display: 'block', color: '#B9CAE9', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    <Typography variant="caption" sx={{ display: 'block', color: '#B9CAE9', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                       {resolvedDescription || 'No description'}
                                     </Typography>
                                   )}
