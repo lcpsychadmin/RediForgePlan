@@ -2580,6 +2580,18 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                     const allPlanTasks = projectTasks.filter(t => t.projectObjectId || t.taskGroupId);
                     const progressPct = allPlanTasks.length > 0 ? Math.round(allPlanTasks.reduce((s, t) => s + (t.progressPercentage ?? 0), 0) / allPlanTasks.length) : 0;
                     const allObjectIds = Array.from(new Set(projectTasks.filter(t => t.projectObjectId).map(t => t.projectObjectId)));
+                    const getObjectProcessArea = (objectId: string) => {
+                      const inventoryObject = projectInventoryItems.find(obj => obj.id === objectId);
+                      return (inventoryObject?.processArea || 'Unassigned Process Area').trim() || 'Unassigned Process Area';
+                    };
+                    const sortedObjectIds = [...allObjectIds].sort((a: string, b: string) => {
+                      const areaA = getObjectProcessArea(a).toLowerCase();
+                      const areaB = getObjectProcessArea(b).toLowerCase();
+                      if (areaA !== areaB) return areaA.localeCompare(areaB);
+                      const objA = (projectInventoryItems.find(obj => obj.id === a)?.objectId || '').toLowerCase();
+                      const objB = (projectInventoryItems.find(obj => obj.id === b)?.objectId || '').toLowerCase();
+                      return objA.localeCompare(objB);
+                    });
                     const allGroupIds = projectTaskGroups.map(g => g.id);
                     const currentPlanRowKeys = [
                       ...allObjectIds.map((id: string) => objectRowKey(id)),
@@ -2729,7 +2741,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                         </Box>
 
                         {/* Objects + Groups */}
-                        {allObjectIds.length === 0 && projectTaskGroups.length === 0 ? (
+                        {sortedObjectIds.length === 0 && projectTaskGroups.length === 0 ? (
                           <Alert severity="info">No tasks added to plan yet</Alert>
                         ) : (
                           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
@@ -2738,7 +2750,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                 Add at least 2 total rows (Objects and/or Task Groups) to reorder.
                               </Typography>
                             )}
-                            {allObjectIds.map((objectId) => {
+                            {sortedObjectIds.map((objectId, objectIndex) => {
                               const rowKey = objectRowKey(objectId || '');
                               const tasksForObject = projectTasks
                                 .filter(t => t.projectObjectId === objectId)
@@ -2760,14 +2772,24 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                               const objectName = inventoryObject?.objectId || 'Unknown Object';
                               const globalObj = inventoryObjects.find(o => o.id === inventoryObject?.globalObjectId || o.objectId === inventoryObject?.objectId);
                               const description = globalObj?.description || inventoryObject?.description || '';
+                              const currentArea = getObjectProcessArea(objectId || '');
+                              const previousArea = objectIndex > 0 ? getObjectProcessArea(sortedObjectIds[objectIndex - 1] || '') : null;
+                              const showAreaHeader = currentArea !== previousArea;
                               const isExpanded = expandedObjects.has(objectId || '');
                               if (planSearchTerm && !objectName.toLowerCase().includes(planSearchTerm.toLowerCase()) && !description.toLowerCase().includes(planSearchTerm.toLowerCase())) return null;
                               if (planStatusFilter && !tasksForObject.some(t => t.status === planStatusFilter)) return null;
                               if (planAssignedFilter && !tasksForObject.some(t => t.draUserId === planAssignedFilter || t.developerUserId === planAssignedFilter)) return null;
                               const overallStatus = tasksForObject.length > 0 && tasksForObject.every(t => t.status === 'complete') ? 'complete' : tasksForObject.some(t => t.status === 'in_progress') ? 'in_progress' : tasksForObject.some(t => t.status === 'blocked') ? 'blocked' : 'not_started';
                               return (
+                                <React.Fragment key={`obj-${objectId}`}>
+                                  {showAreaHeader && (
+                                    <Box sx={{ px: 0.5, pt: objectIndex === 0 ? 0 : 1.25, pb: 0.25 }}>
+                                      <Typography variant="caption" sx={{ color: 'text.disabled', letterSpacing: '0.08em', fontWeight: 700 }}>
+                                        {currentArea}
+                                      </Typography>
+                                    </Box>
+                                  )}
                                 <Box
-                                  key={`obj-${objectId}`}
                                   draggable={canReorderPlan}
                                   onDragStart={(e) => {
                                     if (!canReorderPlan) return;
@@ -3085,8 +3107,16 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                     </Box>
                                   )}
                                 </Box>
+                                </React.Fragment>
                               );
                             })}
+                            {orderedTaskGroups.length > 0 && (
+                              <Box sx={{ px: 0.5, pt: 1.25, pb: 0.25 }}>
+                                <Typography variant="caption" sx={{ color: 'text.disabled', letterSpacing: '0.08em', fontWeight: 700 }}>
+                                  ADDITIONAL GROUPING
+                                </Typography>
+                              </Box>
+                            )}
                             {orderedTaskGroups.map((group) => {
                               const rowKey = taskGroupRowKey(group.id);
                               const isExpanded = expandedTaskGroups.has(group.id);
