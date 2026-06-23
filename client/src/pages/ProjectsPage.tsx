@@ -3239,23 +3239,25 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                               <MenuItem key={p.id} value={p.id}>{p.name || p.email}</MenuItem>
                             ))}
                           </TextField>
-                          <TextField
-                            select
-                            size="small"
-                            label="Process Area"
-                            value={selectedExecutionProcessArea}
-                            onChange={(e) => setSelectedExecutionProcessArea(e.target.value)}
-                            sx={{ width: { xs: '100%', sm: 170 }, minWidth: { xs: 140, sm: 170 }, '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': { borderColor: planAccentColor }, '& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: planAccentColor }, '& .MuiInputLabel-root.Mui-focused': { color: planAccentColor } }}
-                          >
-                            <MenuItem value="">Project Summary</MenuItem>
-                            {Array.from(new Set(projectInventoryItems
-                              .map((item: any) => (item.processArea || '').trim())
-                              .filter((area: string) => area.length > 0)))
-                              .sort((a: string, b: string) => a.localeCompare(b))
-                              .map((area: string) => (
-                                <MenuItem key={area} value={area}>{area}</MenuItem>
-                              ))}
-                          </TextField>
+                          {selectedItem?.type !== 'processArea' && (
+                            <TextField
+                              select
+                              size="small"
+                              label="Process Area"
+                              value={selectedExecutionProcessArea}
+                              onChange={(e) => setSelectedExecutionProcessArea(e.target.value)}
+                              sx={{ width: { xs: '100%', sm: 170 }, minWidth: { xs: 140, sm: 170 }, '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': { borderColor: planAccentColor }, '& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: planAccentColor }, '& .MuiInputLabel-root.Mui-focused': { color: planAccentColor } }}
+                            >
+                              <MenuItem value="">Project Summary</MenuItem>
+                              {Array.from(new Set(projectInventoryItems
+                                .map((item: any) => (item.processArea || '').trim())
+                                .filter((area: string) => area.length > 0)))
+                                .sort((a: string, b: string) => a.localeCompare(b))
+                                .map((area: string) => (
+                                  <MenuItem key={area} value={area}>{area}</MenuItem>
+                                ))}
+                            </TextField>
+                          )}
                           {(planSearchTerm || planStatusFilter || planAssignedFilter || selectedExecutionProcessArea) && (
                             <Button size="small" variant="text" onClick={() => { setPlanSearchTerm(''); setPlanStatusFilter(''); setPlanAssignedFilter(''); setSelectedExecutionProcessArea(''); }} sx={{ textTransform: 'none', color: 'text.secondary' }}>Clear</Button>
                           )}
@@ -3320,7 +3322,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                               const overallStatus = tasksForObject.length > 0 && tasksForObject.every(t => t.status === 'complete') ? 'complete' : tasksForObject.some(t => t.status === 'in_progress') ? 'in_progress' : tasksForObject.some(t => t.status === 'blocked') ? 'blocked' : 'not_started';
                               return (
                                 <React.Fragment key={`obj-${objectId}`}>
-                                  {showAreaHeader && (
+                                  {showAreaHeader && selectedItem?.type !== 'processArea' && (
                                     <Box sx={{ px: 0.5, pt: objectIndex === 0 ? 0 : 1.25, pb: 0.25 }}>
                                       <Typography variant="caption" sx={{ color: planAccentColor, letterSpacing: '0.08em', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
                                         <AccountTreeIcon sx={{ fontSize: '0.8rem' }} />
@@ -3663,7 +3665,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                               if (planAssignedFilter && !groupTasks.some(t => t.draUserId === planAssignedFilter || t.developerUserId === planAssignedFilter)) return null;
                               return (
                                 <React.Fragment key={`group-${group.id}`}>
-                                  {showGroupAreaHeader && (
+                                  {showGroupAreaHeader && selectedItem?.type !== 'processArea' && (
                                     <Box sx={{ px: 0.5, pt: groupIndex === 0 ? 1.25 : 1.25, pb: 0.25 }}>
                                       <Typography variant="caption" sx={{ color: planAccentColor, letterSpacing: '0.08em', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
                                         <LayersIcon sx={{ fontSize: '0.8rem' }} />
