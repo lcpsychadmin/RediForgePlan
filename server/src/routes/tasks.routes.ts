@@ -43,7 +43,7 @@ router.post(
         throw new ApiError(404, 'Project not found', 'NOT_FOUND');
       }
 
-      const { name, description, startDate, endDate } = req.body;
+      const { name, processArea, description, startDate, endDate } = req.body;
 
       if (!name) {
         throw new ApiError(400, 'Task group name is required', 'MISSING_FIELD');
@@ -52,6 +52,7 @@ router.post(
       const group = await taskService.createTaskGroup(
         req.params.projectId,
         name,
+        processArea,
         description,
         startDate,
         endDate

@@ -171,6 +171,7 @@ CREATE TABLE task_groups (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   name VARCHAR(255) NOT NULL,
+  process_area VARCHAR(255),
   description TEXT,
   start_date DATE,
   end_date DATE,
@@ -180,6 +181,7 @@ CREATE TABLE task_groups (
 );
 
 CREATE INDEX idx_task_groups_project_id ON task_groups(project_id);
+CREATE INDEX idx_task_groups_process_area ON task_groups(process_area);
 
 -- =====================================================
 -- TASKS

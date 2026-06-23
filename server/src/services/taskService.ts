@@ -23,6 +23,22 @@ interface TaskInput {
 }
 
 export class TaskService {
+  private taskGroupProcessAreaSupported: boolean | null = null;
+
+  private async supportsTaskGroupProcessArea() {
+    if (this.taskGroupProcessAreaSupported !== null) {
+      return this.taskGroupProcessAreaSupported;
+    }
+    const result = await db.query(
+      `SELECT 1
+       FROM information_schema.columns
+       WHERE table_name = 'task_groups' AND column_name = 'process_area'
+       LIMIT 1`
+    );
+    this.taskGroupProcessAreaSupported = result.rows.length > 0;
+    return this.taskGroupProcessAreaSupported;
+  }
+
   // Timezone-safe date formatter: always returns YYYY-MM-DD string
   private fmtDate(d: any): string | null {
     if (!d) return null;
@@ -34,31 +50,43 @@ export class TaskService {
     return `${y}-${m}-${day}`;
   }
   async getTaskGroupsByProject(projectId: string) {
+    const supportsProcessArea = await this.supportsTaskGroupProcessArea();
     const result = await db.query(
-      'SELECT id, project_id, name, description, start_date, end_date, created_at, updated_at FROM task_groups WHERE project_id = $1 ORDER BY created_at DESC',
+      supportsProcessArea
+        ? 'SELECT id, project_id, name, process_area, description, start_date, end_date, created_at, updated_at FROM task_groups WHERE project_id = $1 ORDER BY created_at DESC'
+        : 'SELECT id, project_id, name, NULL::VARCHAR AS process_area, description, start_date, end_date, created_at, updated_at FROM task_groups WHERE project_id = $1 ORDER BY created_at DESC',
       [projectId]
     );
     return result.rows.map(row => this.formatTaskGroup(row));
   }
 
   async getTaskGroupById(taskGroupId: string) {
+    const supportsProcessArea = await this.supportsTaskGroupProcessArea();
     const result = await db.query(
-      'SELECT id, project_id, name, description, start_date, end_date, created_at, updated_at FROM task_groups WHERE id = $1',
+      supportsProcessArea
+        ? 'SELECT id, project_id, name, process_area, description, start_date, end_date, created_at, updated_at FROM task_groups WHERE id = $1'
+        : 'SELECT id, project_id, name, NULL::VARCHAR AS process_area, description, start_date, end_date, created_at, updated_at FROM task_groups WHERE id = $1',
       [taskGroupId]
     );
     if (result.rows.length === 0) return null;
     return this.formatTaskGroup(result.rows[0]);
   }
 
-  async createTaskGroup(projectId: string, name: string, description: string | undefined, startDate: string | undefined, endDate: string | undefined) {
+  async createTaskGroup(projectId: string, name: string, processArea: string | undefined, description: string | undefined, startDate: string | undefined, endDate: string | undefined) {
+    const supportsProcessArea = await this.supportsTaskGroupProcessArea();
     const result = await db.query(
-      'INSERT INTO task_groups (project_id, name, description, start_date, end_date) VALUES ($1, $2, $3, $4, $5) RETURNING id, project_id, name, description, start_date, end_date, created_at, updated_at',
-      [projectId, name, description || null, startDate || null, endDate || null]
+      supportsProcessArea
+        ? 'INSERT INTO task_groups (project_id, name, process_area, description, start_date, end_date) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, project_id, name, process_area, description, start_date, end_date, created_at, updated_at'
+        : 'INSERT INTO task_groups (project_id, name, description, start_date, end_date) VALUES ($1, $2, $3, $4, $5) RETURNING id, project_id, name, NULL::VARCHAR AS process_area, description, start_date, end_date, created_at, updated_at',
+      supportsProcessArea
+        ? [projectId, name, processArea || null, description || null, startDate || null, endDate || null]
+        : [projectId, name, description || null, startDate || null, endDate || null]
     );
     return this.formatTaskGroup(result.rows[0]);
   }
 
-  async updateTaskGroup(taskGroupId: string, data: { name?: string; description?: string; startDate?: string; endDate?: string }) {
+  async updateTaskGroup(taskGroupId: string, data: { name?: string; processArea?: string; description?: string; startDate?: string; endDate?: string }) {
+    const supportsProcessArea = await this.supportsTaskGroupProcessArea();
     const fields: string[] = [];
     const values: any[] = [taskGroupId];
     let paramCount = 2;
@@ -66,6 +94,11 @@ export class TaskService {
     if (data.name !== undefined) {
       fields.push(`name = $${paramCount}`);
       values.push(data.name);
+      paramCount++;
+    }
+    if (supportsProcessArea && data.processArea !== undefined) {
+      fields.push(`process_area = $${paramCount}`);
+      values.push(data.processArea || null);
       paramCount++;
     }
     if (data.description !== undefined) {
@@ -89,7 +122,9 @@ export class TaskService {
     fields.push(`updated_at = CURRENT_TIMESTAMP`);
 
     const result = await db.query(
-      `UPDATE task_groups SET ${fields.join(', ')} WHERE id = $1 RETURNING id, project_id, name, description, start_date, end_date, created_at, updated_at`,
+      supportsProcessArea
+        ? `UPDATE task_groups SET ${fields.join(', ')} WHERE id = $1 RETURNING id, project_id, name, process_area, description, start_date, end_date, created_at, updated_at`
+        : `UPDATE task_groups SET ${fields.join(', ')} WHERE id = $1 RETURNING id, project_id, name, NULL::VARCHAR AS process_area, description, start_date, end_date, created_at, updated_at`,
       values
     );
 
@@ -402,6 +437,7 @@ export class TaskService {
       id: row.id,
       projectId: row.project_id,
       name: row.name,
+      processArea: row.process_area || '',
       description: row.description,
       startDate: this.fmtDate(row.start_date),
       endDate: this.fmtDate(row.end_date),

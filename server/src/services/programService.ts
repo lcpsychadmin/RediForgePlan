@@ -319,21 +319,39 @@ export class ProgramService {
           }
         }
 
-        const taskGroupsResult = await client.query(
-          `SELECT id, project_id, name, description, start_date, end_date
-           FROM task_groups
-           WHERE project_id = ANY($1)`,
-          [sourceProjectIds]
-        );
+        let taskGroupsResult;
+        let supportsTaskGroupProcessArea = true;
+        try {
+          taskGroupsResult = await client.query(
+            `SELECT id, project_id, name, process_area, description, start_date, end_date
+             FROM task_groups
+             WHERE project_id = ANY($1)`,
+            [sourceProjectIds]
+          );
+        } catch {
+          supportsTaskGroupProcessArea = false;
+          taskGroupsResult = await client.query(
+            `SELECT id, project_id, name, NULL::VARCHAR AS process_area, description, start_date, end_date
+             FROM task_groups
+             WHERE project_id = ANY($1)`,
+            [sourceProjectIds]
+          );
+        }
 
         for (const tg of taskGroupsResult.rows) {
           const newProjectId = projectIdMap.get(tg.project_id);
           if (!newProjectId) continue;
           const inserted = await client.query(
-            `INSERT INTO task_groups (project_id, name, description, start_date, end_date)
-             VALUES ($1, $2, $3, $4, $5)
-             RETURNING id`,
-            [newProjectId, tg.name, tg.description, tg.start_date, tg.end_date]
+            supportsTaskGroupProcessArea
+              ? `INSERT INTO task_groups (project_id, name, process_area, description, start_date, end_date)
+                 VALUES ($1, $2, $3, $4, $5, $6)
+                 RETURNING id`
+              : `INSERT INTO task_groups (project_id, name, description, start_date, end_date)
+                 VALUES ($1, $2, $3, $4, $5)
+                 RETURNING id`,
+            supportsTaskGroupProcessArea
+              ? [newProjectId, tg.name, tg.process_area, tg.description, tg.start_date, tg.end_date]
+              : [newProjectId, tg.name, tg.description, tg.start_date, tg.end_date]
           );
           taskGroupIdMap.set(tg.id, inserted.rows[0].id);
         }

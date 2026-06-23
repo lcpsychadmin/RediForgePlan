@@ -189,6 +189,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   // Task group dialog states
   const [taskGroupDialogOpen, setTaskGroupDialogOpen] = useState(false);
   const [newTaskGroupName, setNewTaskGroupName] = useState('');
+  const [newTaskGroupProcessArea, setNewTaskGroupProcessArea] = useState('');
   const [isCreatingTaskGroup, setIsCreatingTaskGroup] = useState(false);
 
   // Picklist constants
@@ -2593,13 +2594,24 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                       return objA.localeCompare(objB);
                     });
                     const allGroupIds = projectTaskGroups.map(g => g.id);
+                    const getTaskGroupProcessArea = (group: any) => (group?.processArea || '').trim();
                     const currentPlanRowKeys = [
                       ...allObjectIds.map((id: string) => objectRowKey(id)),
                       ...allGroupIds.map((id: string) => taskGroupRowKey(id)),
                     ];
                     const orderedPlanRowKeys = mergeOrder(planRowOrder, currentPlanRowKeys);
                     const rowOrderIndex = new Map(orderedPlanRowKeys.map((k, idx) => [k, idx]));
-                    const orderedTaskGroups = allGroupIds
+                    const sortedTaskGroupIds = [...allGroupIds].sort((a: string, b: string) => {
+                      const groupA = projectTaskGroups.find(g => g.id === a);
+                      const groupB = projectTaskGroups.find(g => g.id === b);
+                      const areaA = getTaskGroupProcessArea(groupA).toLowerCase();
+                      const areaB = getTaskGroupProcessArea(groupB).toLowerCase();
+                      if (areaA !== areaB) return areaA.localeCompare(areaB);
+                      const nameA = (groupA?.name || '').toLowerCase();
+                      const nameB = (groupB?.name || '').toLowerCase();
+                      return nameA.localeCompare(nameB);
+                    });
+                    const orderedTaskGroups = sortedTaskGroupIds
                       .map(id => projectTaskGroups.find(g => g.id === id))
                       .filter(Boolean) as any[];
                     const canReorderPlan = orderedPlanRowKeys.length > 1;
@@ -3110,15 +3122,12 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                 </React.Fragment>
                               );
                             })}
-                            {orderedTaskGroups.length > 0 && (
-                              <Box sx={{ px: 0.5, pt: 1.25, pb: 0.25 }}>
-                                <Typography variant="caption" sx={{ color: 'text.disabled', letterSpacing: '0.08em', fontWeight: 700 }}>
-                                  ADDITIONAL GROUPING
-                                </Typography>
-                              </Box>
-                            )}
-                            {orderedTaskGroups.map((group) => {
+                            {orderedTaskGroups.map((group, groupIndex) => {
                               const rowKey = taskGroupRowKey(group.id);
+                              const groupArea = getTaskGroupProcessArea(group);
+                              const prevGroupArea = groupIndex > 0 ? getTaskGroupProcessArea(orderedTaskGroups[groupIndex - 1]) : null;
+                              const showGroupAreaHeader = groupArea !== prevGroupArea;
+                              const groupAreaHeader = groupArea || 'ADDITIONAL GROUPING';
                               const isExpanded = expandedTaskGroups.has(group.id);
                               const groupTasks = projectTasks.filter(t => t.taskGroupId === group.id);
                               const overallStatus = groupTasks.length > 0 && groupTasks.every(t => t.status === 'complete') ? 'complete' : groupTasks.some(t => t.status === 'in_progress') ? 'in_progress' : groupTasks.some(t => t.status === 'blocked') ? 'blocked' : 'not_started';
@@ -3126,8 +3135,15 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                               if (planStatusFilter && !groupTasks.some(t => t.status === planStatusFilter)) return null;
                               if (planAssignedFilter && !groupTasks.some(t => t.draUserId === planAssignedFilter || t.developerUserId === planAssignedFilter)) return null;
                               return (
+                                <React.Fragment key={`group-${group.id}`}>
+                                  {showGroupAreaHeader && (
+                                    <Box sx={{ px: 0.5, pt: groupIndex === 0 ? 1.25 : 1.25, pb: 0.25 }}>
+                                      <Typography variant="caption" sx={{ color: 'text.disabled', letterSpacing: '0.08em', fontWeight: 700 }}>
+                                        {groupAreaHeader}
+                                      </Typography>
+                                    </Box>
+                                  )}
                                 <Box
-                                  key={`group-${group.id}`}
                                   draggable={canReorderPlan}
                                   onDragStart={(e) => {
                                     if (!canReorderPlan) return;
@@ -3425,6 +3441,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                     </Box>
                                   )}
                                 </Box>
+                                </React.Fragment>
                               );
                             })}
                           </Box>
@@ -5254,11 +5271,31 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
             variant="outlined"
             size="small"
           />
+          <TextField
+            select
+            fullWidth
+            label="Process Area / Grouping"
+            value={newTaskGroupProcessArea}
+            onChange={(e) => setNewTaskGroupProcessArea(e.target.value)}
+            margin="normal"
+            variant="outlined"
+            size="small"
+          >
+            <MenuItem value="">Additional Grouping (No Process Area)</MenuItem>
+            {Array.from(new Set(projectInventoryItems
+              .map((item: any) => (item.processArea || '').trim())
+              .filter((area: string) => area.length > 0)))
+              .sort((a: string, b: string) => a.localeCompare(b))
+              .map((area: string) => (
+                <MenuItem key={area} value={area}>{area}</MenuItem>
+              ))}
+          </TextField>
         </DialogContent>
         <DialogActions sx={{ gap: 1, p: 2, borderTop: '1px solid', borderColor: 'divider' }}>
           <Button onClick={() => {
             setTaskGroupDialogOpen(false);
             setNewTaskGroupName('');
+            setNewTaskGroupProcessArea('');
           }}
           sx={{ textTransform: 'none' }}>
             Cancel
@@ -5280,6 +5317,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                 
                 const response = await apiClient.post(`/api/tasks/groups/project/${activeProjectId}`, {
                   name: newTaskGroupName,
+                  processArea: newTaskGroupProcessArea || null,
                 });
 
                 console.log('Task group created successfully:', response.data);
@@ -5287,6 +5325,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                 setProjectTaskGroups([...projectTaskGroups, newGroup]);
                 setTaskGroupDialogOpen(false);
                 setNewTaskGroupName('');
+                setNewTaskGroupProcessArea('');
               } catch (error) {
                 console.error('Failed to create task group:', error);
                 alert('Failed to create task group');
