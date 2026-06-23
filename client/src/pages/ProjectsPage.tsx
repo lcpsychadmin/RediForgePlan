@@ -154,6 +154,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   const [menuType, setMenuType] = useState<'program' | 'cycle' | 'project' | 'processArea' | 'task' | 'taskGroup' | null>(null);
   const [menuItemId, setMenuItemId] = useState<string | null>(null);
   const [processAreaMenuContext, setProcessAreaMenuContext] = useState<{ projectId: string; cycleId: string; area: string } | null>(null);
+  const [processAreaSettingsDialogOpen, setProcessAreaSettingsDialogOpen] = useState(false);
+  const [editingProcessAreaContext, setEditingProcessAreaContext] = useState<{ projectId: string; area: string } | null>(null);
+  const [editingProcessAreaAccent, setEditingProcessAreaAccent] = useState('#64B5F6');
+  const [processAreaAccentOverrides, setProcessAreaAccentOverrides] = useState<Record<string, Record<string, string>>>({});
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [editingTaskGroupId, setEditingTaskGroupId] = useState<string | null>(null);
   
@@ -353,6 +357,23 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   useEffect(() => {
     localStorage.setItem('rf-planning-additional-groups', JSON.stringify(planningAdditionalGroups));
   }, [planningAdditionalGroups]);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('rf-process-area-accent-overrides');
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') {
+        setProcessAreaAccentOverrides(parsed);
+      }
+    } catch {
+      // no-op
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem('rf-process-area-accent-overrides', JSON.stringify(processAreaAccentOverrides));
+  }, [processAreaAccentOverrides]);
 
   const openTaskRowMenu = (event: React.MouseEvent<HTMLElement>, task: any) => {
     event.stopPropagation();
@@ -868,6 +889,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
       if (label) areas.add(label);
     });
     return Array.from(areas).sort((a, b) => a.localeCompare(b));
+  };
+
+  const getProcessAreaAccent = (projectId: string, area: string, fallback: string) => {
+    return processAreaAccentOverrides[projectId]?.[area] || fallback;
   };
 
   const getProgressAverage = (values: number[]) => {
@@ -2700,6 +2725,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                                 }).length
                                               : (cachedAreaSummary?.taskCount ?? 0);
                                             const processAreaProgressPct = getProcessAreaProgress(realProject.id, area, cycleProgressPct);
+                                            const processAreaAccent = getProcessAreaAccent(realProject.id, area, cycleColor);
                                             const isProcessAreaSelected =
                                               selectedItem?.type === 'processArea' &&
                                               selectedItem?.projectId === realProject.id &&
@@ -2725,13 +2751,13 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                                   }}
                                                 >
                                                   <Typography variant="caption" sx={{ color: 'text.secondary', mr: 0.5 }}>•</Typography>
-                                                  <Typography variant="caption" sx={{ fontWeight: isProcessAreaSelected ? 700 : 500, color: isProcessAreaSelected ? cycleColor : 'inherit', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                  <Typography variant="caption" sx={{ fontWeight: isProcessAreaSelected ? 700 : 500, color: isProcessAreaSelected ? processAreaAccent : 'inherit', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                                     {area}
                                                   </Typography>
                                                   <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', ml: 0.5, whiteSpace: 'nowrap' }}>
                                                     {areaTaskCount} tasks summary
                                                   </Typography>
-                                                  <Typography variant="caption" sx={{ color: isProcessAreaSelected ? cycleColor : 'text.secondary', fontWeight: 700, fontSize: '0.66rem', ml: 0.75, minWidth: 32, textAlign: 'right' }}>
+                                                  <Typography variant="caption" sx={{ color: isProcessAreaSelected ? processAreaAccent : 'text.secondary', fontWeight: 700, fontSize: '0.66rem', ml: 0.75, minWidth: 32, textAlign: 'right' }}>
                                                     {processAreaProgressPct}%
                                                   </Typography>
                                                   <IconButton
@@ -2934,6 +2960,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                     const accentColor = project.accentColor || '#00BFA5';
                     const parentCycleId = selectedItem.type === 'project' ? selectedItem.cycleId : selectedItem.cycleId;
                     const selectedAreaLabel = selectedItem.type === 'processArea' ? selectedItem.area : '';
+                    const selectedAreaAccent = selectedItem.type === 'processArea'
+                      ? getProcessAreaAccent(project.id, selectedItem.area, accentColor)
+                      : accentColor;
                     let parentCycleName = '';
                     let parentProgramName = '';
                     let parentProgramId = '';
@@ -3037,11 +3066,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                           {parentProgramName && <><Typography variant="caption" color="text.disabled">{parentProgramName}</Typography><Typography variant="caption" color="text.disabled">›</Typography></>}
                           {parentCycleName && <><Typography variant="caption" color="text.disabled">{parentCycleName}</Typography><Typography variant="caption" color="text.disabled">›</Typography></>}
                           <Typography variant="caption" sx={{ color: accentColor, fontWeight: 600 }}>{project.name}</Typography>
-                          {selectedAreaLabel && <><Typography variant="caption" color="text.disabled">›</Typography><Typography variant="caption" sx={{ color: accentColor, fontWeight: 700 }}>{selectedAreaLabel}</Typography></>}
+                          {selectedAreaLabel && <><Typography variant="caption" color="text.disabled">›</Typography><Typography variant="caption" sx={{ color: selectedAreaAccent, fontWeight: 700 }}>{selectedAreaLabel}</Typography></>}
                         </Box>
 
                         {/* Title */}
-                        <Typography variant="h4" sx={{ fontWeight: 700, color: accentColor, mb: 0.75, fontSize: { xs: '1.55rem', sm: '2.125rem' } }}>
+                        <Typography variant="h4" sx={{ fontWeight: 700, color: selectedAreaAccent, mb: 0.75, fontSize: { xs: '1.55rem', sm: '2.125rem' } }}>
                           {selectedAreaLabel || project.name}
                         </Typography>
 
@@ -5067,40 +5096,16 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         <MenuItem
           onClick={() => {
             if (menuType !== 'processArea' || !processAreaMenuContext) return;
-            setSelectedExecutionProcessArea(processAreaMenuContext.area);
-            handleHierarchySelection({ type: 'processArea', projectId: processAreaMenuContext.projectId, cycleId: processAreaMenuContext.cycleId, area: processAreaMenuContext.area }, { preserveProcessArea: true });
+            const currentAccent = getProcessAreaAccent(processAreaMenuContext.projectId, processAreaMenuContext.area, '#64B5F6');
+            setEditingProcessAreaContext({ projectId: processAreaMenuContext.projectId, area: processAreaMenuContext.area });
+            setEditingProcessAreaAccent(currentAccent);
+            setProcessAreaSettingsDialogOpen(true);
             setMenuAnchorEl(null);
             setProcessAreaMenuContext(null);
           }}
           sx={{ display: menuType === 'processArea' ? 'flex' : 'none' }}
         >
-          <ViewListIcon fontSize="small" sx={{ mr: 1 }} /> Focus Process Area
-        </MenuItem>
-        <MenuItem
-          onClick={() => {
-            if (menuType !== 'processArea' || !processAreaMenuContext) return;
-            setSelectedExecutionProcessArea(processAreaMenuContext.area);
-            setSelectedProjectForInventory(processAreaMenuContext.projectId);
-            setInventorySubTab(1);
-            setTabValue(1);
-            handleHierarchySelection({ type: 'processArea', projectId: processAreaMenuContext.projectId, cycleId: processAreaMenuContext.cycleId, area: processAreaMenuContext.area }, { preserveProcessArea: true });
-            setMenuAnchorEl(null);
-            setProcessAreaMenuContext(null);
-          }}
-          sx={{ display: menuType === 'processArea' ? 'flex' : 'none' }}
-        >
-          <FolderOutlinedIcon fontSize="small" sx={{ mr: 1 }} /> Manage Area Inventory
-        </MenuItem>
-        <MenuItem
-          onClick={() => {
-            if (menuType !== 'processArea') return;
-            setSelectedExecutionProcessArea('');
-            setMenuAnchorEl(null);
-            setProcessAreaMenuContext(null);
-          }}
-          sx={{ display: menuType === 'processArea' ? 'flex' : 'none' }}
-        >
-          <CloseIcon fontSize="small" sx={{ mr: 1 }} /> Clear Area Filter
+          <EditIcon fontSize="small" sx={{ mr: 1 }} /> Process Area Settings
         </MenuItem>
         <MenuItem
           onClick={() => {
@@ -5916,6 +5921,57 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
             sx={{ textTransform: 'none' }}
           >
             Create
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Process Area Settings Dialog */}
+      <Dialog open={processAreaSettingsDialogOpen} onClose={() => setProcessAreaSettingsDialogOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', pb: 2 }}>
+          Process Area Settings
+        </DialogTitle>
+        <DialogContent sx={{ pt: 2 }}>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+            {editingProcessAreaContext?.area || 'Process Area'}
+          </Typography>
+          <TextField
+            fullWidth
+            type="color"
+            label="Accent Color"
+            value={editingProcessAreaAccent}
+            onChange={(e) => setEditingProcessAreaAccent(e.target.value)}
+            margin="normal"
+            size="small"
+          />
+        </DialogContent>
+        <DialogActions sx={{ gap: 1, p: 2, borderTop: '1px solid', borderColor: 'divider' }}>
+          <Button
+            onClick={() => {
+              setProcessAreaSettingsDialogOpen(false);
+              setEditingProcessAreaContext(null);
+            }}
+            sx={{ textTransform: 'none' }}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={() => {
+              if (!editingProcessAreaContext) return;
+              const { projectId, area } = editingProcessAreaContext;
+              setProcessAreaAccentOverrides((prev) => ({
+                ...prev,
+                [projectId]: {
+                  ...(prev[projectId] || {}),
+                  [area]: editingProcessAreaAccent,
+                },
+              }));
+              setProcessAreaSettingsDialogOpen(false);
+              setEditingProcessAreaContext(null);
+            }}
+            variant="contained"
+            sx={{ textTransform: 'none' }}
+          >
+            Save
           </Button>
         </DialogActions>
       </Dialog>
