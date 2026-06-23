@@ -185,6 +185,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   const [editingProcessAreaIconLevel, setEditingProcessAreaIconLevel] = useState<'processArea' | 'planGroup'>('processArea');
   const [processAreaAccentOverrides, setProcessAreaAccentOverrides] = useState<Record<string, Record<string, string>>>({});
   const [processAreaDescriptions, setProcessAreaDescriptions] = useState<Record<string, Record<string, string>>>({});
+  const [settingsProcessAreaDescriptions, setSettingsProcessAreaDescriptions] = useState<Record<string, string>>({});
   const [hierarchyLevelIcons, setHierarchyLevelIcons] = useState<HierarchyLevelIcons>(DEFAULT_HIERARCHY_LEVEL_ICONS);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [editingTaskGroupId, setEditingTaskGroupId] = useState<string | null>(null);
@@ -423,6 +424,19 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   useEffect(() => {
     localStorage.setItem('rf-process-area-descriptions', JSON.stringify(processAreaDescriptions));
   }, [processAreaDescriptions]);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('rf-settings-process-area-descriptions');
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') {
+        setSettingsProcessAreaDescriptions(parsed);
+      }
+    } catch {
+      // no-op
+    }
+  }, []);
 
   useEffect(() => {
     try {
@@ -981,7 +995,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   };
 
   const getProcessAreaDisplayName = (projectId: string, area: string) => {
-    const description = (processAreaDescriptions[projectId]?.[area] || '').trim();
+    const description = (processAreaDescriptions[projectId]?.[area] || settingsProcessAreaDescriptions[area] || '').trim();
     return description || area;
   };
 

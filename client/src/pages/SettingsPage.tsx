@@ -33,6 +33,8 @@ interface Picklist {
   values: string[];
 }
 
+const SETTINGS_PROCESS_AREA_DESCRIPTIONS_KEY = 'rf-settings-process-area-descriptions';
+
 const SettingsPage: React.FC = () => {
   // Picklists state
   const [picklists, setPicklists] = useState<Record<string, Picklist>>({
@@ -89,9 +91,10 @@ const SettingsPage: React.FC = () => {
     },
   });
 
-  const [selectedPicklist, setSelectedPicklist] = useState<string>('processArea');
+  const [selectedMenuItem, setSelectedMenuItem] = useState<string>('picklist:processArea');
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [newValueInput, setNewValueInput] = useState('');
+  const [processAreaDescriptions, setProcessAreaDescriptions] = useState<Record<string, string>>({});
 
   // Default task templates
   const [templates, setTemplates] = useState<any[]>([]);
@@ -112,9 +115,28 @@ const SettingsPage: React.FC = () => {
     apiClient.get('/api/people/roles').then(res => {
       setRoles(res.data.data || []);
     }).catch(() => {});
+
+    try {
+      const raw = localStorage.getItem(SETTINGS_PROCESS_AREA_DESCRIPTIONS_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') {
+        setProcessAreaDescriptions(parsed);
+      }
+    } catch {
+      // no-op
+    }
   }, []);
 
+  const selectedPicklist = selectedMenuItem.startsWith('picklist:')
+    ? selectedMenuItem.replace('picklist:', '')
+    : null;
+  const isPicklistMode = !!selectedPicklist;
+  const isPeopleRolesMode = selectedMenuItem === 'peopleRoles';
+  const isTaskTemplatesMode = selectedMenuItem === 'taskTemplates';
+
   const handleAddValue = () => {
+    if (!selectedPicklist) return;
     if (newValueInput.trim()) {
       const updated = { ...picklists };
       if (!updated[selectedPicklist].values.includes(newValueInput.trim())) {
@@ -126,13 +148,23 @@ const SettingsPage: React.FC = () => {
   };
 
   const handleRemoveValue = (value: string) => {
+    if (!selectedPicklist) return;
     const updated = { ...picklists };
     updated[selectedPicklist].values = updated[selectedPicklist].values.filter((v) => v !== value);
     setPicklists(updated);
+    if (selectedPicklist === 'processArea') {
+      setProcessAreaDescriptions((prev) => {
+        const next = { ...prev };
+        delete next[value];
+        return next;
+      });
+    }
   };
 
   const handleSaveChanges = () => {
     // TODO: Implement API call to save picklist changes
+    localStorage.setItem(SETTINGS_PROCESS_AREA_DESCRIPTIONS_KEY, JSON.stringify(processAreaDescriptions));
+    localStorage.setItem('rf-settings-process-area-descriptions', JSON.stringify(processAreaDescriptions));
     console.log('Saving picklists:', picklists);
     alert('Picklist changes saved (TODO: implement backend integration)');
   };
@@ -147,94 +179,166 @@ const SettingsPage: React.FC = () => {
         <Box sx={{ display: 'flex', gap: 3, height: 'calc(100vh - 200px)' }}>
           {/* Left Sidebar - Picklist List */}
           <Card sx={{ width: '280px', flexShrink: 0 }}>
-            <CardHeader title="Picklists" />
+            <CardHeader title="Settings Menu" />
             <Divider />
             <CardContent sx={{ p: 0 }}>
               <List sx={{ p: 0 }}>
+                <Box sx={{ px: 2, pt: 1.25, pb: 0.5 }}>
+                  <Typography variant="subtitle2" color="text.secondary">Picklists</Typography>
+                </Box>
                 {Object.entries(picklists).map(([key, picklist]) => (
                   <ListItem
                     key={key}
                     button
-                    selected={selectedPicklist === key}
-                    onClick={() => setSelectedPicklist(key)}
+                    selected={selectedMenuItem === `picklist:${key}`}
+                    onClick={() => setSelectedMenuItem(`picklist:${key}`)}
                     sx={{
-                      backgroundColor: selectedPicklist === key ? 'primary.lighter' : 'transparent',
+                      backgroundColor: selectedMenuItem === `picklist:${key}` ? 'primary.lighter' : 'transparent',
                       '&:hover': { backgroundColor: 'action.hover' },
-                      borderLeft: selectedPicklist === key ? '4px solid' : 'none',
+                      borderLeft: selectedMenuItem === `picklist:${key}` ? '4px solid' : 'none',
                       borderColor: 'primary.main',
                     }}
                   >
                     <ListItemText primary={picklist.name} />
                   </ListItem>
                 ))}
+                <Divider sx={{ my: 0.75 }} />
+                <Box sx={{ px: 2, pt: 0.5, pb: 0.5 }}>
+                  <Typography variant="subtitle2" color="text.secondary">Tasking</Typography>
+                </Box>
+                <ListItem
+                  button
+                  selected={isPeopleRolesMode}
+                  onClick={() => setSelectedMenuItem('peopleRoles')}
+                  sx={{
+                    backgroundColor: isPeopleRolesMode ? 'primary.lighter' : 'transparent',
+                    '&:hover': { backgroundColor: 'action.hover' },
+                    borderLeft: isPeopleRolesMode ? '4px solid' : 'none',
+                    borderColor: 'primary.main',
+                  }}
+                >
+                  <ListItemText primary="People Roles" />
+                </ListItem>
+                <ListItem
+                  button
+                  selected={isTaskTemplatesMode}
+                  onClick={() => setSelectedMenuItem('taskTemplates')}
+                  sx={{
+                    backgroundColor: isTaskTemplatesMode ? 'primary.lighter' : 'transparent',
+                    '&:hover': { backgroundColor: 'action.hover' },
+                    borderLeft: isTaskTemplatesMode ? '4px solid' : 'none',
+                    borderColor: 'primary.main',
+                  }}
+                >
+                  <ListItemText primary="Default Task Templates" />
+                </ListItem>
               </List>
             </CardContent>
           </Card>
 
           {/* Right Panel - Edit Picklist */}
           <Card sx={{ flex: 1 }}>
-            <CardHeader title={`Edit ${picklists[selectedPicklist]?.name || 'Picklist'}`} />
+            <CardHeader title={
+              isPicklistMode
+                ? `Edit ${picklists[selectedPicklist]?.name || 'Picklist'}`
+                : isPeopleRolesMode
+                  ? 'People Roles'
+                  : 'Default Task Templates'
+            } />
             <Divider />
             <CardContent>
-              <Typography variant="subtitle2" sx={{ mb: 2, color: 'text.secondary' }}>
-                Values
-              </Typography>
+              {isPicklistMode && (
+                <>
+                  <Typography variant="subtitle2" sx={{ mb: 2, color: 'text.secondary' }}>
+                    Values
+                  </Typography>
 
-              {/* Add New Value */}
-              <Box sx={{ display: 'flex', gap: 1, mb: 3 }}>
-                <TextField
-                  size="small"
-                  fullWidth
-                  placeholder="Enter new value"
-                  value={newValueInput}
-                  onChange={(e) => setNewValueInput(e.target.value)}
-                  onKeyPress={(e) => {
-                    if (e.key === 'Enter') {
-                      handleAddValue();
-                    }
-                  }}
-                />
-                <Button
-                  variant="contained"
-                  sx={{
-                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                    textTransform: 'none',
-                    fontWeight: 600,
-                  }}
-                  startIcon={<AddIcon />}
-                  onClick={handleAddValue}
-                >
-                  Add
-                </Button>
-              </Box>
+                  {/* Add New Value */}
+                  <Box sx={{ display: 'flex', gap: 1, mb: 3 }}>
+                    <TextField
+                      size="small"
+                      fullWidth
+                      placeholder="Enter new value"
+                      value={newValueInput}
+                      onChange={(e) => setNewValueInput(e.target.value)}
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter') {
+                          handleAddValue();
+                        }
+                      }}
+                    />
+                    <Button
+                      variant="contained"
+                      sx={{
+                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                        textTransform: 'none',
+                        fontWeight: 600,
+                      }}
+                      startIcon={<AddIcon />}
+                      onClick={handleAddValue}
+                    >
+                      Add
+                    </Button>
+                  </Box>
 
-              {/* Values List */}
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 4 }}>
-                {picklists[selectedPicklist]?.values.map((value) => (
-                  <Chip
-                    key={value}
-                    label={value}
-                    onDelete={() => handleRemoveValue(value)}
-                    deleteIcon={<DeleteIcon />}
-                    variant="outlined"
-                    sx={{
-                      backgroundColor: 'background.paper',
-                      borderColor: 'primary.main',
-                      color: 'primary.main',
-                      fontWeight: 500,
-                    }}
-                  />
-                ))}
-              </Box>
+                  {/* Values List */}
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 4 }}>
+                    {picklists[selectedPicklist]?.values.map((value) => (
+                      <Chip
+                        key={value}
+                        label={value}
+                        onDelete={() => handleRemoveValue(value)}
+                        deleteIcon={<DeleteIcon />}
+                        variant="outlined"
+                        sx={{
+                          backgroundColor: 'background.paper',
+                          borderColor: 'primary.main',
+                          color: 'primary.main',
+                          fontWeight: 500,
+                        }}
+                      />
+                    ))}
+                  </Box>
 
-              {picklists[selectedPicklist]?.values.length === 0 && (
-                <Typography color="textSecondary" align="center">
-                  No values in this picklist
-                </Typography>
+                  {selectedPicklist === 'processArea' && (
+                    <Box sx={{ mt: 1, pt: 2, borderTop: '1px solid', borderColor: 'divider' }}>
+                      <Typography variant="subtitle2" sx={{ mb: 0.5 }}>Descriptions</Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+                        Used on the Projects page when provided.
+                      </Typography>
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                        {picklists.processArea.values.map((value) => (
+                          <Box key={`desc-${value}`} sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                            <Box sx={{ width: 100, flexShrink: 0 }}>
+                              <Typography variant="body2" sx={{ fontWeight: 600 }}>{value}</Typography>
+                            </Box>
+                            <TextField
+                              size="small"
+                              fullWidth
+                              placeholder="Optional description"
+                              value={processAreaDescriptions[value] || ''}
+                              onChange={(e) => setProcessAreaDescriptions((prev) => ({
+                                ...prev,
+                                [value]: e.target.value,
+                              }))}
+                            />
+                          </Box>
+                        ))}
+                      </Box>
+                    </Box>
+                  )}
+
+                  {picklists[selectedPicklist]?.values.length === 0 && (
+                    <Typography color="textSecondary" align="center">
+                      No values in this picklist
+                    </Typography>
+                  )}
+                </>
               )}
 
               {/* People Roles Section */}
-              <Box sx={{ mt: 4, pt: 3, borderTop: '1px solid', borderColor: 'divider' }}>
+              {isPeopleRolesMode && (
+              <Box>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                   <Box>
                     <Typography variant="h6" sx={{ fontWeight: 600 }}>People Roles</Typography>
@@ -268,9 +372,11 @@ const SettingsPage: React.FC = () => {
                   </Box>
                 )}
               </Box>
+              )}
 
               {/* Default Task Templates Section */}
-              <Box sx={{ mt: 4, pt: 3, borderTop: '1px solid', borderColor: 'divider' }}>
+              {isTaskTemplatesMode && (
+              <Box>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                   <Box>
                     <Typography variant="h6" sx={{ fontWeight: 600 }}>Default Task Templates</Typography>
@@ -298,22 +404,25 @@ const SettingsPage: React.FC = () => {
                   ))}
                 </Box>
               </Box>
+              )}
 
               {/* Save Button */}
-              <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end', mt: 4, pt: 2, borderTop: '1px solid', borderColor: 'divider' }}>
-                <Button variant="text">Reset</Button>
-                <Button
-                  variant="contained"
-                  sx={{
-                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                    textTransform: 'none',
-                    fontWeight: 600,
-                  }}
-                  onClick={handleSaveChanges}
-                >
-                  Save Changes
-                </Button>
-              </Box>
+              {isPicklistMode && (
+                <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end', mt: 4, pt: 2, borderTop: '1px solid', borderColor: 'divider' }}>
+                  <Button variant="text">Reset</Button>
+                  <Button
+                    variant="contained"
+                    sx={{
+                      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                      textTransform: 'none',
+                      fontWeight: 600,
+                    }}
+                    onClick={handleSaveChanges}
+                  >
+                    Save Changes
+                  </Button>
+                </Box>
+              )}
             </CardContent>
           </Card>
         </Box>
