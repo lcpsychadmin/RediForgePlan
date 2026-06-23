@@ -50,6 +50,8 @@ import { TaskCommentsModal } from '../components/TaskCommentsModal';
 import FolderOutlinedIcon from '@mui/icons-material/FolderOutlined';
 import CorporateFareIcon from '@mui/icons-material/CorporateFare';
 import SyncIcon from '@mui/icons-material/Sync';
+import AccountTreeIcon from '@mui/icons-material/AccountTree';
+import LayersIcon from '@mui/icons-material/Layers';
 import SearchIcon from '@mui/icons-material/Search';
 import EventIcon from '@mui/icons-material/Event';
 import ViewListIcon from '@mui/icons-material/ViewList';
@@ -2604,8 +2606,19 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                     pl: 0,
                                     pr: 0.5,
                                     cursor: firstCycle ? 'pointer' : 'default',
+                                    position: 'relative',
                                     borderRadius: 0.75,
                                     backgroundColor: isProjectSelected ? 'rgba(91, 103, 202, 0.16)' : 'transparent',
+                                    '&::before': isProjectSelected ? {
+                                      content: '""',
+                                      position: 'absolute',
+                                      left: 0,
+                                      top: '4px',
+                                      bottom: '4px',
+                                      width: '3px',
+                                      backgroundColor: projectAccent,
+                                      borderRadius: '2px',
+                                    } : {},
                                     '&:hover': { backgroundColor: isProjectSelected ? 'rgba(91, 103, 202, 0.22)' : 'rgba(255,255,255,0.05)' },
                                   }}
                                 >
@@ -2664,7 +2677,18 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                             pl: 0,
                                             pr: 0.5,
                                             cursor: 'pointer',
+                                            position: 'relative',
                                             backgroundColor: isCycleSelected ? 'rgba(91, 103, 202, 0.15)' : 'transparent',
+                                            '&::before': isCycleSelected ? {
+                                              content: '""',
+                                              position: 'absolute',
+                                              left: 0,
+                                              top: '4px',
+                                              bottom: '4px',
+                                              width: '3px',
+                                              backgroundColor: cycleColor,
+                                              borderRadius: '2px',
+                                            } : {},
                                             '&:hover': { backgroundColor: isCycleSelected ? 'rgba(91, 103, 202, 0.15)' : 'rgba(255,255,255,0.05)' },
                                           }}
                                           onClick={() => handleHierarchySelection({ type: 'cycle', id: cycle.id, programId: program.id, projectId: realProject.id })}
@@ -2730,6 +2754,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                               selectedItem?.type === 'processArea' &&
                                               selectedItem?.projectId === realProject.id &&
                                               selectedItem?.area === area;
+                                            const normalizedExistingArea = normalizedArea;
+                                            const isAdditionalGroup = (planningAdditionalGroups[realProject.id] || []).some(
+                                              (groupName: string) => (groupName || '').trim().toLowerCase() === normalizedExistingArea
+                                            );
                                             return (
                                               <Box key={`area-${realProject.id}-${cycle.id}-${area}`}>
                                                 <Box
@@ -2745,12 +2773,27 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                                     pl: 0.5,
                                                     pr: 0.5,
                                                     cursor: 'pointer',
+                                                    position: 'relative',
                                                     borderRadius: 0.75,
                                                     backgroundColor: isProcessAreaSelected ? 'rgba(91, 103, 202, 0.2)' : 'transparent',
+                                                    '&::before': isProcessAreaSelected ? {
+                                                      content: '""',
+                                                      position: 'absolute',
+                                                      left: 0,
+                                                      top: '3px',
+                                                      bottom: '3px',
+                                                      width: '3px',
+                                                      backgroundColor: processAreaAccent,
+                                                      borderRadius: '2px',
+                                                    } : {},
                                                     '&:hover': { backgroundColor: isProcessAreaSelected ? 'rgba(91, 103, 202, 0.24)' : 'rgba(255,255,255,0.06)' },
                                                   }}
                                                 >
-                                                  <Typography variant="caption" sx={{ color: 'text.secondary', mr: 0.5 }}>•</Typography>
+                                                  {isAdditionalGroup ? (
+                                                    <LayersIcon sx={{ fontSize: '0.82rem', color: isProcessAreaSelected ? processAreaAccent : 'text.secondary', mr: 0.5 }} />
+                                                  ) : (
+                                                    <AccountTreeIcon sx={{ fontSize: '0.82rem', color: isProcessAreaSelected ? processAreaAccent : 'text.secondary', mr: 0.5 }} />
+                                                  )}
                                                   <Typography variant="caption" sx={{ fontWeight: isProcessAreaSelected ? 700 : 500, color: isProcessAreaSelected ? processAreaAccent : 'inherit', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                                     {area}
                                                   </Typography>
@@ -2963,6 +3006,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                     const selectedAreaAccent = selectedItem.type === 'processArea'
                       ? getProcessAreaAccent(project.id, selectedItem.area, accentColor)
                       : accentColor;
+                    const effectiveProcessArea = (selectedAreaLabel || selectedExecutionProcessArea || '').trim();
+                    const planAccentColor = effectiveProcessArea
+                      ? getProcessAreaAccent(project.id, effectiveProcessArea, accentColor)
+                      : accentColor;
                     let parentCycleName = '';
                     let parentProgramName = '';
                     let parentProgramId = '';
@@ -3047,8 +3094,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                     const activePlanGroup = selectedItem?.type === 'processArea' ? selectedItem.area : '';
                     const taskFieldSx = {
                       '& .MuiInputBase-root': { fontSize: '0.72rem', height: 26 },
-                      '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': { borderColor: accentColor },
-                      '& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: accentColor },
+                      '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': { borderColor: planAccentColor },
+                      '& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: planAccentColor },
                       '& input::-webkit-outer-spin-button': { WebkitAppearance: 'none', margin: 0 },
                       '& input::-webkit-inner-spin-button': { WebkitAppearance: 'none', margin: 0 },
                       '& input[type=number]': { MozAppearance: 'textfield' },
@@ -3070,7 +3117,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                         </Box>
 
                         {/* Title */}
-                        <Typography variant="h4" sx={{ fontWeight: 700, color: selectedAreaAccent, mb: 0.75, fontSize: { xs: '1.55rem', sm: '2.125rem' } }}>
+                        <Typography variant="h4" sx={{ fontWeight: 700, color: planAccentColor, mb: 0.75, fontSize: { xs: '1.55rem', sm: '2.125rem' } }}>
                           {selectedAreaLabel || project.name}
                         </Typography>
 
@@ -3083,8 +3130,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
 
                         {/* Progress */}
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
-                          <LinearProgress variant="determinate" value={progressPct} sx={{ width: 160, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.1)', '& .MuiLinearProgress-bar': { backgroundColor: accentColor, borderRadius: 3 } }} />
-                          <Typography variant="body2" sx={{ color: accentColor, fontWeight: 600 }}>{progressPct}%</Typography>
+                          <LinearProgress variant="determinate" value={progressPct} sx={{ width: 160, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.1)', '& .MuiLinearProgress-bar': { backgroundColor: planAccentColor, borderRadius: 3 } }} />
+                          <Typography variant="body2" sx={{ color: planAccentColor, fontWeight: 600 }}>{progressPct}%</Typography>
                         </Box>
 
                         {/* Timeline */}
@@ -3150,11 +3197,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                           {!showProjectSummaryOnly && (
                             <Box sx={{ display: 'flex', gap: 1, flexShrink: 0, ml: { xs: 0, md: 2 }, width: { xs: '100%', md: 'auto' }, flexWrap: { xs: 'wrap', md: 'nowrap' } }}>
                               {canAddDataObjectHere && (
-                                <Button variant="contained" startIcon={<AddIcon />} onClick={() => {
+                                  <Button variant="contained" startIcon={<AddIcon />} onClick={() => {
                                   if (activePlanGroup) setNewDataObjectProcessArea(activePlanGroup);
                                   setDataObjectDialogOpen(true);
                                 }}
-                                  sx={{ background: `linear-gradient(135deg, ${accentColor} 0%, ${accentColor}99 100%)`, textTransform: 'none', fontWeight: 600, boxShadow: 'none', width: { xs: '100%', sm: 'auto' } }}>
+                                  sx={{ background: `linear-gradient(135deg, ${planAccentColor} 0%, ${planAccentColor}99 100%)`, textTransform: 'none', fontWeight: 600, boxShadow: 'none', width: { xs: '100%', sm: 'auto' } }}>
                                   Add Data Object
                                 </Button>
                               )}
@@ -3173,17 +3220,17 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                         {!showProjectSummaryOnly && (
                         <Box sx={{ display: 'flex', gap: 1.5, mb: 3, alignItems: 'center', flexWrap: 'wrap' }}>
                           <TextField placeholder="Search by name or ID..." size="small" value={planSearchTerm} onChange={(e) => setPlanSearchTerm(e.target.value)}
-                            sx={{ width: { xs: '100%', sm: 240 }, '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': { borderColor: accentColor }, '& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: accentColor } }}
+                            sx={{ width: { xs: '100%', sm: 240 }, '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': { borderColor: planAccentColor }, '& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: planAccentColor } }}
                             slotProps={{ input: { startAdornment: <SearchIcon sx={{ mr: 0.5, fontSize: '1rem', color: 'text.secondary' }} /> } }} />
                           <TextField select size="small" label="Status" value={planStatusFilter} onChange={(e) => setPlanStatusFilter(e.target.value)}
-                            sx={{ width: { xs: 'calc(50% - 6px)', sm: 150 }, minWidth: { xs: 140, sm: 150 }, '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': { borderColor: accentColor }, '& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: accentColor }, '& .MuiInputLabel-root.Mui-focused': { color: accentColor } }}>
+                            sx={{ width: { xs: 'calc(50% - 6px)', sm: 150 }, minWidth: { xs: 140, sm: 150 }, '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': { borderColor: planAccentColor }, '& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: planAccentColor }, '& .MuiInputLabel-root.Mui-focused': { color: planAccentColor } }}>
                             <MenuItem value="">All Statuses</MenuItem>
                             <MenuItem value="not_started">Not Started</MenuItem>
                             <MenuItem value="in_progress">In Progress</MenuItem>
                             <MenuItem value="complete">Completed</MenuItem>
                           </TextField>
                           <TextField select size="small" label="Assigned To" value={planAssignedFilter} onChange={(e) => setPlanAssignedFilter(e.target.value)}
-                            sx={{ width: { xs: 'calc(50% - 6px)', sm: 170 }, minWidth: { xs: 140, sm: 170 }, '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': { borderColor: accentColor }, '& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: accentColor }, '& .MuiInputLabel-root.Mui-focused': { color: accentColor } }}>
+                            sx={{ width: { xs: 'calc(50% - 6px)', sm: 170 }, minWidth: { xs: 140, sm: 170 }, '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': { borderColor: planAccentColor }, '& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: planAccentColor }, '& .MuiInputLabel-root.Mui-focused': { color: planAccentColor } }}>
                             <MenuItem value="">All Assignees</MenuItem>
                             {people.map((p: any) => (
                               <MenuItem key={p.id} value={p.id}>{p.name || p.email}</MenuItem>
@@ -3195,7 +3242,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                             label="Process Area"
                             value={selectedExecutionProcessArea}
                             onChange={(e) => setSelectedExecutionProcessArea(e.target.value)}
-                            sx={{ width: { xs: '100%', sm: 170 }, minWidth: { xs: 140, sm: 170 }, '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': { borderColor: accentColor }, '& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: accentColor }, '& .MuiInputLabel-root.Mui-focused': { color: accentColor } }}
+                            sx={{ width: { xs: '100%', sm: 170 }, minWidth: { xs: 140, sm: 170 }, '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': { borderColor: planAccentColor }, '& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: planAccentColor }, '& .MuiInputLabel-root.Mui-focused': { color: planAccentColor } }}
                           >
                             <MenuItem value="">Project Summary</MenuItem>
                             {Array.from(new Set(projectInventoryItems
@@ -3224,7 +3271,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                 <Paper key={`summary-${row.area}`} sx={{ p: 1.25, border: '1px solid rgba(255,255,255,0.08)', backgroundColor: 'rgba(255,255,255,0.03)' }}>
                                   <Typography variant="caption" sx={{ color: 'text.secondary', letterSpacing: '0.04em' }}>{row.area}</Typography>
                                   <Typography variant="body2" sx={{ fontWeight: 700, mt: 0.25 }}>{row.taskCount} tasks summary</Typography>
-                                  <Typography variant="caption" sx={{ color: accentColor, fontWeight: 700 }}>{row.progressPct}% complete</Typography>
+                                  <Typography variant="caption" sx={{ color: planAccentColor, fontWeight: 700 }}>{row.progressPct}% complete</Typography>
                                 </Paper>
                               ))
                             )}
@@ -3272,7 +3319,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                 <React.Fragment key={`obj-${objectId}`}>
                                   {showAreaHeader && (
                                     <Box sx={{ px: 0.5, pt: objectIndex === 0 ? 0 : 1.25, pb: 0.25 }}>
-                                      <Typography variant="caption" sx={{ color: 'text.disabled', letterSpacing: '0.08em', fontWeight: 700 }}>
+                                      <Typography variant="caption" sx={{ color: planAccentColor, letterSpacing: '0.08em', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
+                                        <AccountTreeIcon sx={{ fontSize: '0.8rem' }} />
                                         {currentArea}
                                       </Typography>
                                     </Box>
@@ -3313,12 +3361,12 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                     order: rowOrderIndex.get(rowKey) ?? 0,
                                   }}
                                 >
-                                  <Box sx={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, backgroundColor: accentColor }} />
+                                  <Box sx={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, backgroundColor: planAccentColor }} />
                                   <Box onClick={() => { const next = new Set(expandedObjects); if (isExpanded) next.delete(objectId || ''); else next.add(objectId || ''); setExpandedObjects(next); }}
                                     sx={{ pl: 2.5, pr: 1, py: 1.25, display: 'flex', alignItems: 'center', gap: { xs: 0.8, sm: 1.5 }, cursor: 'pointer', '&:hover': { backgroundColor: 'rgba(255,255,255,0.03)' } }}>
                                     <DragIndicatorIcon sx={{ fontSize: 14, color: 'text.disabled', flexShrink: 0, cursor: canReorderPlan ? 'grab' : 'not-allowed', opacity: canReorderPlan ? 1 : 0.45 }} />
                                     <ChevronRightIcon sx={{ fontSize: 16, color: 'text.secondary', transition: 'transform 0.2s', transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)', flexShrink: 0 }} />
-                                    <Typography sx={{ fontFamily: 'monospace', fontWeight: 700, fontSize: { xs: '0.76rem', sm: '0.82rem' }, color: accentColor, flexShrink: 0, minWidth: { xs: 0, sm: 90 }, maxWidth: { xs: '38vw', sm: 'none' }, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{objectName}</Typography>
+                                    <Typography sx={{ fontFamily: 'monospace', fontWeight: 700, fontSize: { xs: '0.76rem', sm: '0.82rem' }, color: planAccentColor, flexShrink: 0, minWidth: { xs: 0, sm: 90 }, maxWidth: { xs: '38vw', sm: 'none' }, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{objectName}</Typography>
                                     <Typography variant="caption" sx={{ color: 'text.primary', fontWeight: 600, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{description}</Typography>
                                     <Box sx={{ display: { xs: 'none', md: 'flex' }, gap: 0.4, alignItems: 'center', flexShrink: 0 }}>
                                       {tasksForObject.slice(0, 10).map((task, i) => (<Box key={i} sx={{ width: 16, height: 4, borderRadius: 2, backgroundColor: getTaskStatusColor(task.status) }} />))}
@@ -3556,7 +3604,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                             {/* Actions */}
                                             <Box sx={{ display: 'flex', gap: 0.25, alignItems: 'center' }}>
                                               <IconButton size="small" title="Discussion" onClick={() => setCommentModalTask({ id: task.id, name: task.name || 'Task' })}
-                                                sx={{ opacity: (taskCommentCounts[task.id] || 0) > 0 ? 1 : 0.6, color: (taskCommentCounts[task.id] || 0) > 0 ? accentColor : 'inherit', '&:hover': { opacity: 1, color: accentColor } }}>
+                                                sx={{ opacity: (taskCommentCounts[task.id] || 0) > 0 ? 1 : 0.6, color: (taskCommentCounts[task.id] || 0) > 0 ? planAccentColor : 'inherit', '&:hover': { opacity: 1, color: planAccentColor } }}>
                                                 <ChatBubbleOutlineIcon sx={{ fontSize: '0.9rem' }} />
                                               </IconButton>
                                               <IconButton size="small" title="Dependencies" onClick={async () => {
@@ -3564,7 +3612,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                                 setDepDialogTaskId(task.id);
                                                 setDepSearchTerm('');
                                                 await loadCycleTasksForDep(task.id);
-                                              }} sx={{ opacity: (taskDeps[task.id] || []).length > 0 ? 1 : 0.6, color: (taskDeps[task.id] || []).length > 0 ? accentColor : 'inherit', '&:hover': { opacity: 1, color: accentColor } }}>
+                                              }} sx={{ opacity: (taskDeps[task.id] || []).length > 0 ? 1 : 0.6, color: (taskDeps[task.id] || []).length > 0 ? planAccentColor : 'inherit', '&:hover': { opacity: 1, color: planAccentColor } }}>
                                                 <ChevronRightIcon sx={{ fontSize: '0.9rem' }} />
                                               </IconButton>
                                               <IconButton size="small" title="More task actions" onClick={(e) => openTaskRowMenu(e, task)} sx={{ opacity: 0.6, '&:hover': { opacity: 1 } }}>
@@ -3590,7 +3638,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                       {/* Object Notes */}
                                       <Box sx={{ px: 2, pb: 1.5 }}>
                                         <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', letterSpacing: '0.05em', fontWeight: 600, display: 'block', mb: 0.5 }}>OBJECT NOTES</Typography>
-                                        <TextField fullWidth size="small" multiline rows={1} placeholder="Add object-level notes..." sx={{ '& .MuiInputBase-root': { fontSize: '0.75rem' }, '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': { borderColor: accentColor }, '& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: accentColor } }} />
+                                        <TextField fullWidth size="small" multiline rows={1} placeholder="Add object-level notes..." sx={{ '& .MuiInputBase-root': { fontSize: '0.75rem' }, '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': { borderColor: planAccentColor }, '& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: planAccentColor } }} />
                                       </Box>
                                     </Box>
                                   )}
@@ -3614,7 +3662,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                 <React.Fragment key={`group-${group.id}`}>
                                   {showGroupAreaHeader && (
                                     <Box sx={{ px: 0.5, pt: groupIndex === 0 ? 1.25 : 1.25, pb: 0.25 }}>
-                                      <Typography variant="caption" sx={{ color: 'text.disabled', letterSpacing: '0.08em', fontWeight: 700 }}>
+                                      <Typography variant="caption" sx={{ color: planAccentColor, letterSpacing: '0.08em', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
+                                        <LayersIcon sx={{ fontSize: '0.8rem' }} />
                                         {groupAreaHeader}
                                       </Typography>
                                     </Box>
@@ -3655,12 +3704,13 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                     order: rowOrderIndex.get(rowKey) ?? 0,
                                   }}
                                 >
-                                  <Box sx={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, backgroundColor: accentColor }} />
+                                  <Box sx={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, backgroundColor: planAccentColor }} />
                                   <Box onClick={() => { const next = new Set(expandedTaskGroups); if (isExpanded) next.delete(group.id); else next.add(group.id); setExpandedTaskGroups(next); }}
                                     sx={{ pl: 2.5, pr: 1, py: 1.25, display: 'flex', alignItems: 'center', gap: 1.5, cursor: 'pointer', '&:hover': { backgroundColor: 'rgba(255,255,255,0.03)' } }}>
                                     <DragIndicatorIcon sx={{ fontSize: 14, color: 'text.disabled', flexShrink: 0, cursor: canReorderPlan ? 'grab' : 'not-allowed', opacity: canReorderPlan ? 1 : 0.45 }} />
                                     <ChevronRightIcon sx={{ fontSize: 16, color: 'text.secondary', transition: 'transform 0.2s', transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)', flexShrink: 0 }} />
-                                    <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', flex: 1, color: accentColor }}>{group.name}</Typography>
+                                    <LayersIcon sx={{ fontSize: '0.9rem', color: planAccentColor, flexShrink: 0 }} />
+                                    <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', flex: 1, color: planAccentColor }}>{group.name}</Typography>
                                     <Box sx={{ display: 'flex', gap: 0.4, alignItems: 'center', flexShrink: 0 }}>
                                       {groupTasks.slice(0, 10).map((task, i) => (<Box key={i} sx={{ width: 16, height: 4, borderRadius: 2, backgroundColor: getTaskStatusColor(task.status) }} />))}
                                     </Box>
@@ -3883,7 +3933,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                             )}
                                             <Box sx={{ display: 'flex', gap: 0.25, alignItems: 'center' }}>
                                               <IconButton size="small" title="Discussion" onClick={() => setCommentModalTask({ id: task.id, name: task.name || 'Task' })}
-                                                sx={{ opacity: (taskCommentCounts[task.id] || 0) > 0 ? 1 : 0.6, color: (taskCommentCounts[task.id] || 0) > 0 ? accentColor : 'inherit', '&:hover': { opacity: 1, color: accentColor } }}>
+                                                sx={{ opacity: (taskCommentCounts[task.id] || 0) > 0 ? 1 : 0.6, color: (taskCommentCounts[task.id] || 0) > 0 ? planAccentColor : 'inherit', '&:hover': { opacity: 1, color: planAccentColor } }}>
                                                 <ChatBubbleOutlineIcon sx={{ fontSize: '0.9rem' }} />
                                               </IconButton>
                                               <IconButton size="small" onClick={async () => {
@@ -3891,7 +3941,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                                 setDepDialogTaskId(task.id);
                                                 setDepSearchTerm('');
                                                 await loadCycleTasksForDep(task.id);
-                                              }} sx={{ opacity: (taskDeps[task.id] || []).length > 0 ? 1 : 0.6, color: (taskDeps[task.id] || []).length > 0 ? accentColor : 'inherit', '&:hover': { opacity: 1, color: accentColor } }}>
+                                              }} sx={{ opacity: (taskDeps[task.id] || []).length > 0 ? 1 : 0.6, color: (taskDeps[task.id] || []).length > 0 ? planAccentColor : 'inherit', '&:hover': { opacity: 1, color: planAccentColor } }}>
                                                 <ChevronRightIcon sx={{ fontSize: '0.9rem' }} />
                                               </IconButton>
                                               <IconButton size="small" title="More task actions" onClick={(e) => openTaskRowMenu(e, task)} sx={{ opacity: 0.6, '&:hover': { opacity: 1 } }}>
