@@ -1127,8 +1127,12 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   }, [activeProjectId]);
 
   useEffect(() => {
+    if (selectedItem?.type === 'processArea') {
+      setSelectedExecutionProcessArea(selectedItem.area);
+      return;
+    }
     setSelectedExecutionProcessArea('');
-  }, [activeProjectId]);
+  }, [activeProjectId, selectedItem]);
 
   // Load tasks and task groups when project is selected
   useEffect(() => {
