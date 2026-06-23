@@ -2386,14 +2386,38 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                         </Box>
 
                                         <Box sx={{ ml: 2.5 }}>
-                                          {processAreas.map((area) => (
-                                            <Box key={`area-${realProject.id}-${cycle.id}-${area}`} sx={{ display: 'flex', alignItems: 'center', py: 0.4, pl: 0.5, pr: 0.5 }}>
-                                              <Typography variant="caption" sx={{ color: 'text.secondary', mr: 0.75 }}>•</Typography>
-                                              <Typography variant="caption" sx={{ fontWeight: 500, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                {area}
-                                              </Typography>
-                                            </Box>
-                                          ))}
+                                          {processAreas.map((area) => {
+                                            const isProcessAreaSelected =
+                                              selectedItem?.type === 'project' &&
+                                              selectedItem?.id === realProject.id &&
+                                              selectedExecutionProcessArea === area;
+                                            return (
+                                              <Box
+                                                key={`area-${realProject.id}-${cycle.id}-${area}`}
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  setSelectedExecutionProcessArea(area);
+                                                  handleHierarchySelection({ type: 'project', id: realProject.id, cycleId: cycle.id });
+                                                }}
+                                                sx={{
+                                                  display: 'flex',
+                                                  alignItems: 'center',
+                                                  py: 0.4,
+                                                  pl: 0.5,
+                                                  pr: 0.5,
+                                                  cursor: 'pointer',
+                                                  borderRadius: 0.75,
+                                                  backgroundColor: isProcessAreaSelected ? 'rgba(91, 103, 202, 0.2)' : 'transparent',
+                                                  '&:hover': { backgroundColor: isProcessAreaSelected ? 'rgba(91, 103, 202, 0.24)' : 'rgba(255,255,255,0.06)' },
+                                                }}
+                                              >
+                                                <Typography variant="caption" sx={{ color: 'text.secondary', mr: 0.75 }}>•</Typography>
+                                                <Typography variant="caption" sx={{ fontWeight: isProcessAreaSelected ? 700 : 500, color: isProcessAreaSelected ? cycleColor : 'inherit', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                  {area}
+                                                </Typography>
+                                              </Box>
+                                            );
+                                          })}
                                           {canManageHierarchy && (
                                             <Button
                                               size="small"
