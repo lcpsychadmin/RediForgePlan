@@ -113,6 +113,28 @@ type PlanOverview = {
   timelineEnd: string | null;
 };
 
+type HierarchyIconChoice = 'corporateFare' | 'sync' | 'folderOutlined' | 'accountTree' | 'layers' | 'viewList' | 'event';
+type HierarchyLevel = 'program' | 'cycle' | 'project' | 'processArea' | 'planGroup';
+type HierarchyLevelIcons = Record<HierarchyLevel, HierarchyIconChoice>;
+
+const DEFAULT_HIERARCHY_LEVEL_ICONS: HierarchyLevelIcons = {
+  program: 'corporateFare',
+  cycle: 'sync',
+  project: 'folderOutlined',
+  processArea: 'accountTree',
+  planGroup: 'layers',
+};
+
+const HIERARCHY_ICON_OPTIONS: { value: HierarchyIconChoice; label: string }[] = [
+  { value: 'corporateFare', label: 'Corporate / Building' },
+  { value: 'sync', label: 'Cycle / Sync' },
+  { value: 'folderOutlined', label: 'Folder (Outline)' },
+  { value: 'accountTree', label: 'Hierarchy Tree' },
+  { value: 'layers', label: 'Layers' },
+  { value: 'viewList', label: 'List (Outline)' },
+  { value: 'event', label: 'Calendar' },
+];
+
 interface ProjectsPageProps {
   sectionMode?: 'planning' | 'execution';
 }
@@ -160,6 +182,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   const [editingProcessAreaContext, setEditingProcessAreaContext] = useState<{ projectId: string; area: string } | null>(null);
   const [editingProcessAreaAccent, setEditingProcessAreaAccent] = useState('#64B5F6');
   const [processAreaAccentOverrides, setProcessAreaAccentOverrides] = useState<Record<string, Record<string, string>>>({});
+  const [hierarchyIconSettingsOpen, setHierarchyIconSettingsOpen] = useState(false);
+  const [hierarchyLevelIcons, setHierarchyLevelIcons] = useState<HierarchyLevelIcons>(DEFAULT_HIERARCHY_LEVEL_ICONS);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [editingTaskGroupId, setEditingTaskGroupId] = useState<string | null>(null);
   
@@ -376,6 +400,25 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   useEffect(() => {
     localStorage.setItem('rf-process-area-accent-overrides', JSON.stringify(processAreaAccentOverrides));
   }, [processAreaAccentOverrides]);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('rf-hierarchy-level-icons');
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== 'object') return;
+      setHierarchyLevelIcons({
+        ...DEFAULT_HIERARCHY_LEVEL_ICONS,
+        ...parsed,
+      });
+    } catch {
+      // no-op
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem('rf-hierarchy-level-icons', JSON.stringify(hierarchyLevelIcons));
+  }, [hierarchyLevelIcons]);
 
   const openTaskRowMenu = (event: React.MouseEvent<HTMLElement>, task: any) => {
     event.stopPropagation();
@@ -895,6 +938,28 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
 
   const getProcessAreaAccent = (projectId: string, area: string, fallback: string) => {
     return processAreaAccentOverrides[projectId]?.[area] || fallback;
+  };
+
+  const renderHierarchyIcon = (level: HierarchyLevel, color: string, size: string) => {
+    const iconChoice = hierarchyLevelIcons[level];
+    const sx = { fontSize: size, color, flexShrink: 0 };
+    switch (iconChoice) {
+      case 'sync':
+        return <SyncIcon sx={sx} />;
+      case 'folderOutlined':
+        return <FolderOutlinedIcon sx={sx} />;
+      case 'accountTree':
+        return <AccountTreeIcon sx={sx} />;
+      case 'layers':
+        return <LayersIcon sx={sx} />;
+      case 'viewList':
+        return <ViewListIcon sx={sx} />;
+      case 'event':
+        return <EventIcon sx={sx} />;
+      case 'corporateFare':
+      default:
+        return <CorporateFareIcon sx={sx} />;
+    }
   };
 
   const getProgressAverage = (values: number[]) => {
@@ -2555,7 +2620,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                             : <ChevronRightIcon sx={{ fontSize: '1rem', opacity: 0.6 }} />
                           }
                         </Box>
-                        <CorporateFareIcon sx={{ fontSize: '1.1rem', color: programColor, flexShrink: 0, mx: 0.75 }} />
+                        <Box sx={{ mx: 0.75, display: 'inline-flex', alignItems: 'center' }}>
+                          {renderHierarchyIcon('program', programColor, '1.1rem')}
+                        </Box>
                         <Typography variant="body2" sx={{ fontWeight: 600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: isProgramSelected ? programColor : 'inherit' }}>
                           {program.name}
                         </Typography>
@@ -2610,8 +2677,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                               <Box key={`pgrp-${program.id}-${project.name}`}>
                                 <Box
                                   onClick={() => {
-                                    setSelectedExecutionProcessArea('');
-                                    handleHierarchySelection({ type: 'project', id: firstCycleProject.id, cycleId: firstCycle?.id || '' });
+                                    if (firstCycle) {
+                                      setSelectedExecutionProcessArea('');
+                                      handleHierarchySelection({ type: 'project', id: firstCycleProject.id, cycleId: firstCycle?.id || '' });
+                                    }
+                                    toggleProjectGroupExpanded(projectGroupKey);
                                   }}
                                   sx={{
                                     display: 'flex',
@@ -2647,7 +2717,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                   >
                                     <ChevronRightIcon sx={{ fontSize: '0.9rem', color: 'text.secondary', transform: isProjectExpanded ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
                                   </IconButton>
-                                  <FolderOutlinedIcon sx={{ fontSize: '0.95rem', color: projectAccent, flexShrink: 0, mx: 0.5 }} />
+                                  <Box sx={{ mx: 0.5, display: 'inline-flex', alignItems: 'center' }}>
+                                    {renderHierarchyIcon('project', projectAccent, '0.95rem')}
+                                  </Box>
                                   <Typography variant="body2" sx={{ fontWeight: 600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                     {project.name}
                                   </Typography>
@@ -2720,7 +2792,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                           >
                                             <ChevronRightIcon sx={{ fontSize: '0.9rem', color: 'text.secondary', transform: isCycleExpanded ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
                                           </IconButton>
-                                          <SyncIcon sx={{ fontSize: '0.92rem', color: cycleColor, flexShrink: 0, mx: 0.5 }} />
+                                          <Box sx={{ mx: 0.5, display: 'inline-flex', alignItems: 'center' }}>
+                                            {renderHierarchyIcon('cycle', cycleColor, '0.92rem')}
+                                          </Box>
                                           <Typography variant="body2" sx={{ fontWeight: 500, fontSize: '0.78rem', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                             {cycle.name}
                                           </Typography>
@@ -2807,9 +2881,13 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                                   }}
                                                 >
                                                   {isAdditionalGroup ? (
-                                                    <LayersIcon sx={{ fontSize: '0.82rem', color: isProcessAreaSelected ? processAreaAccent : 'text.secondary', mr: 0.5 }} />
+                                                    <Box sx={{ mr: 0.5, display: 'inline-flex', alignItems: 'center' }}>
+                                                      {renderHierarchyIcon('planGroup', processAreaAccent, '0.82rem')}
+                                                    </Box>
                                                   ) : (
-                                                    <AccountTreeIcon sx={{ fontSize: '0.82rem', color: isProcessAreaSelected ? processAreaAccent : 'text.secondary', mr: 0.5 }} />
+                                                    <Box sx={{ mr: 0.5, display: 'inline-flex', alignItems: 'center' }}>
+                                                      {renderHierarchyIcon('processArea', processAreaAccent, '0.82rem')}
+                                                    </Box>
                                                   )}
                                                   <Typography variant="caption" sx={{ fontWeight: isProcessAreaSelected ? 700 : 500, color: isProcessAreaSelected ? processAreaAccent : 'inherit', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                                     {area}
@@ -3339,7 +3417,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                   {showAreaHeader && selectedItem?.type !== 'processArea' && (
                                     <Box sx={{ px: 0.5, pt: objectIndex === 0 ? 0 : 1.25, pb: 0.25 }}>
                                       <Typography variant="caption" sx={{ color: planAccentColor, letterSpacing: '0.08em', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
-                                        <AccountTreeIcon sx={{ fontSize: '0.8rem' }} />
+                                        {renderHierarchyIcon('processArea', planAccentColor, '0.8rem')}
                                         {currentArea}
                                       </Typography>
                                     </Box>
@@ -3682,7 +3760,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                   {showGroupAreaHeader && selectedItem?.type !== 'processArea' && (
                                     <Box sx={{ px: 0.5, pt: groupIndex === 0 ? 1.25 : 1.25, pb: 0.25 }}>
                                       <Typography variant="caption" sx={{ color: planAccentColor, letterSpacing: '0.08em', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
-                                        <LayersIcon sx={{ fontSize: '0.8rem' }} />
+                                        {renderHierarchyIcon('planGroup', planAccentColor, '0.8rem')}
                                         {groupAreaHeader}
                                       </Typography>
                                     </Box>
@@ -3728,7 +3806,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                     sx={{ pl: 2.5, pr: 1, py: 1.25, display: 'flex', alignItems: 'center', gap: 1.5, cursor: 'pointer', '&:hover': { backgroundColor: 'rgba(255,255,255,0.03)' } }}>
                                     <DragIndicatorIcon sx={{ fontSize: 14, color: 'text.disabled', flexShrink: 0, cursor: canReorderPlan ? 'grab' : 'not-allowed', opacity: canReorderPlan ? 1 : 0.45 }} />
                                     <ChevronRightIcon sx={{ fontSize: 16, color: 'text.secondary', transition: 'transform 0.2s', transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)', flexShrink: 0 }} />
-                                    <LayersIcon sx={{ fontSize: '0.9rem', color: planAccentColor, flexShrink: 0 }} />
+                                    {renderHierarchyIcon('planGroup', planAccentColor, '0.9rem')}
                                     <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', flex: 1, color: planAccentColor }}>{group.name}</Typography>
                                     <Box sx={{ display: 'flex', gap: 0.4, alignItems: 'center', flexShrink: 0 }}>
                                       {groupTasks.slice(0, 10).map((task, i) => (<Box key={i} sx={{ width: 16, height: 4, borderRadius: 2, backgroundColor: getTaskStatusColor(task.status) }} />))}
@@ -5178,6 +5256,17 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         </MenuItem>
         <MenuItem
           onClick={() => {
+            if (!(menuType === 'program' || menuType === 'cycle' || menuType === 'project' || menuType === 'processArea')) return;
+            setHierarchyIconSettingsOpen(true);
+            setMenuAnchorEl(null);
+            setProcessAreaMenuContext(null);
+          }}
+          sx={{ display: (menuType === 'program' || menuType === 'cycle' || menuType === 'project' || menuType === 'processArea') ? 'flex' : 'none' }}
+        >
+          <EditIcon fontSize="small" sx={{ mr: 1 }} /> Hierarchy Icon Settings
+        </MenuItem>
+        <MenuItem
+          onClick={() => {
             if (!menuItemId || !menuType) return;
             if (menuType === 'processArea') return;
             if (menuType === 'task' || menuType === 'taskGroup') {
@@ -5814,13 +5903,14 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                           .map(([areaName, areaData]) => {
                           const areaKey = `${projKey}-area-${areaName}`;
                           const areaExpanded = depTreeExpanded[areaKey] === true;
+                          const areaAccent = getProcessAreaAccent(pid, areaName, proj.color);
                           return (
                             <Box key={areaName} sx={{ ml: 2.5, mb: 0.25 }}>
                               {/* Process area row */}
                               <Box onClick={() => setDepTreeExpanded(prev => ({ ...prev, [areaKey]: !areaExpanded }))}
                                 sx={{ display: 'flex', alignItems: 'center', gap: 0.75, py: 0.4, px: 0.75, borderRadius: 1, cursor: 'pointer', '&:hover': { backgroundColor: 'rgba(255,255,255,0.04)' } }}>
                                 <ChevronRightIcon sx={{ fontSize: '0.75rem', color: 'text.disabled', transform: areaExpanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s', flexShrink: 0 }} />
-                                <AccountTreeIcon sx={{ fontSize: '0.75rem', color: 'text.secondary' }} />
+                                {renderHierarchyIcon('processArea', areaAccent, '0.75rem')}
                                 <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, fontSize: '0.7rem', letterSpacing: '0.04em' }}>{areaName}</Typography>
                               </Box>
 
@@ -5834,7 +5924,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                       sx={{ display: 'flex', alignItems: 'center', gap: 0.75, py: 0.4, px: 0.75, borderRadius: 1, cursor: 'pointer', '&:hover': { backgroundColor: 'rgba(255,255,255,0.04)' } }}>
                                       <ChevronRightIcon sx={{ fontSize: '0.75rem', color: 'text.disabled', transform: objExpanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s', flexShrink: 0 }} />
                                       {objData.type === 'taskGroup'
-                                        ? <LayersIcon sx={{ fontSize: '0.75rem', color: 'text.secondary' }} />
+                                        ? renderHierarchyIcon('planGroup', areaAccent, '0.75rem')
                                         : <ViewListIcon sx={{ fontSize: '0.75rem', color: 'text.secondary' }} />
                                       }
                                       <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500, fontSize: '0.72rem' }}>{objData.label}</Typography>
@@ -6033,6 +6123,100 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
             sx={{ textTransform: 'none' }}
           >
             Create
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Hierarchy Icon Settings Dialog */}
+      <Dialog open={hierarchyIconSettingsOpen} onClose={() => setHierarchyIconSettingsOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ background: 'linear-gradient(135deg, #4f7bc9 0%, #2b4f9d 100%)', color: 'white', pb: 2 }}>
+          Hierarchy Icon Settings
+        </DialogTitle>
+        <DialogContent sx={{ pt: 2 }}>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+            Choose which icon each hierarchy level should use.
+          </Typography>
+          <TextField
+            select
+            fullWidth
+            label="Program Icon"
+            value={hierarchyLevelIcons.program}
+            onChange={(e) => setHierarchyLevelIcons((prev) => ({ ...prev, program: e.target.value as HierarchyIconChoice }))}
+            margin="normal"
+            size="small"
+          >
+            {HIERARCHY_ICON_OPTIONS.map((option) => (
+              <MenuItem key={`program-icon-${option.value}`} value={option.value}>{option.label}</MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            select
+            fullWidth
+            label="Mock Cycle Icon"
+            value={hierarchyLevelIcons.cycle}
+            onChange={(e) => setHierarchyLevelIcons((prev) => ({ ...prev, cycle: e.target.value as HierarchyIconChoice }))}
+            margin="normal"
+            size="small"
+          >
+            {HIERARCHY_ICON_OPTIONS.map((option) => (
+              <MenuItem key={`cycle-icon-${option.value}`} value={option.value}>{option.label}</MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            select
+            fullWidth
+            label="Project Icon"
+            value={hierarchyLevelIcons.project}
+            onChange={(e) => setHierarchyLevelIcons((prev) => ({ ...prev, project: e.target.value as HierarchyIconChoice }))}
+            margin="normal"
+            size="small"
+          >
+            {HIERARCHY_ICON_OPTIONS.map((option) => (
+              <MenuItem key={`project-icon-${option.value}`} value={option.value}>{option.label}</MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            select
+            fullWidth
+            label="Process Area Icon"
+            value={hierarchyLevelIcons.processArea}
+            onChange={(e) => setHierarchyLevelIcons((prev) => ({ ...prev, processArea: e.target.value as HierarchyIconChoice }))}
+            margin="normal"
+            size="small"
+          >
+            {HIERARCHY_ICON_OPTIONS.map((option) => (
+              <MenuItem key={`process-area-icon-${option.value}`} value={option.value}>{option.label}</MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            select
+            fullWidth
+            label="Plan Group Icon"
+            value={hierarchyLevelIcons.planGroup}
+            onChange={(e) => setHierarchyLevelIcons((prev) => ({ ...prev, planGroup: e.target.value as HierarchyIconChoice }))}
+            margin="normal"
+            size="small"
+          >
+            {HIERARCHY_ICON_OPTIONS.map((option) => (
+              <MenuItem key={`plan-group-icon-${option.value}`} value={option.value}>{option.label}</MenuItem>
+            ))}
+          </TextField>
+        </DialogContent>
+        <DialogActions sx={{ gap: 1, p: 2, borderTop: '1px solid', borderColor: 'divider' }}>
+          <Button
+            onClick={() => {
+              setHierarchyLevelIcons(DEFAULT_HIERARCHY_LEVEL_ICONS);
+            }}
+            sx={{ textTransform: 'none' }}
+          >
+            Reset Defaults
+          </Button>
+          <Button
+            onClick={() => setHierarchyIconSettingsOpen(false)}
+            variant="contained"
+            sx={{ textTransform: 'none' }}
+          >
+            Done
           </Button>
         </DialogActions>
       </Dialog>
