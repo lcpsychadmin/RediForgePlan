@@ -199,6 +199,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   const [newTaskGroupName, setNewTaskGroupName] = useState('');
   const [newTaskGroupProcessArea, setNewTaskGroupProcessArea] = useState('');
   const [isCreatingTaskGroup, setIsCreatingTaskGroup] = useState(false);
+  const [planGroupDialogOpen, setPlanGroupDialogOpen] = useState(false);
+  const [newPlanGroupName, setNewPlanGroupName] = useState('');
+  const [planGroupTargetProjectId, setPlanGroupTargetProjectId] = useState<string | null>(null);
 
   // Picklist constants
   const processAreaOptions = ['A2R', 'CTRM', 'GTS', 'H2R', 'I2L', 'MDM', 'P2C', 'P2D', 'PSS', 'R2R', 'S2P', 'TM'];
@@ -900,9 +903,22 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   };
 
   const handleAddAdditionalGroup = (projectId: string) => {
-    const value = window.prompt('Enter Plan Group name');
-    const name = (value || '').trim();
-    if (!name) return;
+    setPlanGroupTargetProjectId(projectId);
+    setNewPlanGroupName('');
+    setPlanGroupDialogOpen(true);
+  };
+
+  const handleCreatePlanGroup = () => {
+    const projectId = planGroupTargetProjectId;
+    const name = newPlanGroupName.trim();
+    if (!projectId) {
+      alert('Project context missing for Plan Group.');
+      return;
+    }
+    if (!name) {
+      alert('Plan Group name is required.');
+      return;
+    }
     setPlanningAdditionalGroups(prev => {
       const existing = prev[projectId] || [];
       if (existing.some(g => g.toLowerCase() === name.toLowerCase())) return prev;
@@ -911,6 +927,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         [projectId]: [...existing, name],
       };
     });
+    setPlanGroupDialogOpen(false);
+    setPlanGroupTargetProjectId(null);
+    setNewPlanGroupName('');
   };
 
   // Load schedule rows for all projects in the selected cycle.
@@ -5878,6 +5897,46 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
             sx={{ textTransform: 'none' }}
           >
             {isCreatingTaskGroup ? 'Creating...' : 'Create'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Plan Group Dialog */}
+      <Dialog open={planGroupDialogOpen} onClose={() => setPlanGroupDialogOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', pb: 2 }}>
+          Add Plan Group
+        </DialogTitle>
+        <DialogContent sx={{ pt: 2 }}>
+          <TextField
+            autoFocus
+            fullWidth
+            label="Plan Group Name"
+            value={newPlanGroupName}
+            onChange={(e) => setNewPlanGroupName(e.target.value)}
+            margin="normal"
+            placeholder="e.g., OTC Hypercare"
+            variant="outlined"
+            size="small"
+          />
+        </DialogContent>
+        <DialogActions sx={{ gap: 1, p: 2, borderTop: '1px solid', borderColor: 'divider' }}>
+          <Button
+            onClick={() => {
+              setPlanGroupDialogOpen(false);
+              setPlanGroupTargetProjectId(null);
+              setNewPlanGroupName('');
+            }}
+            sx={{ textTransform: 'none' }}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleCreatePlanGroup}
+            variant="contained"
+            disabled={!newPlanGroupName.trim()}
+            sx={{ textTransform: 'none' }}
+          >
+            Create
           </Button>
         </DialogActions>
       </Dialog>
