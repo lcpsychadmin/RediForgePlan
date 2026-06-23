@@ -128,6 +128,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   // State for expanded nodes in tree
   const [expandedPrograms, setExpandedPrograms] = useState<Set<string>>(new Set());
   const [expandedCycles, setExpandedCycles] = useState<Set<string>>(new Set());
+  const [expandedProcessAreas, setExpandedProcessAreas] = useState<Set<string>>(new Set());
   
   // State for selected item
   const [selectedItem, setSelectedItem] = useState<SelectableItem | null>(null);
@@ -739,6 +740,19 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
       if (label) areas.add(label);
     });
     return Array.from(areas).sort((a, b) => a.localeCompare(b));
+  };
+
+  const getProcessAreaBranchData = (projectId: string, area: string) => {
+    const normalizedArea = (area || '').trim().toLowerCase();
+    const objects = projectInventoryItems
+      .filter((item: any) => item.projectId === projectId && ((item.processArea || '').trim().toLowerCase() === normalizedArea))
+      .map((item: any) => ({ id: item.id, objectId: item.objectId || item.dataObjectId || 'Unknown Object' }))
+      .sort((a: any, b: any) => (a.objectId || '').localeCompare(b.objectId || ''));
+    const groups = projectTaskGroups
+      .filter((group: any) => group.projectId === projectId && ((group.processArea || '').trim().toLowerCase() === normalizedArea))
+      .map((group: any) => ({ id: group.id, name: group.name || 'Unnamed Group' }))
+      .sort((a: any, b: any) => (a.name || '').localeCompare(b.name || ''));
+    return { objects, groups };
   };
 
   const handleAddAdditionalGroup = (projectId: string) => {
@@ -2387,34 +2401,77 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
 
                                         <Box sx={{ ml: 2.5 }}>
                                           {processAreas.map((area) => {
+                                            const processAreaKey = `${realProject.id}:${cycle.id}:${area}`;
+                                            const isProcessAreaExpanded = expandedProcessAreas.has(processAreaKey);
+                                            const { objects: areaObjects, groups: areaTaskGroups } = getProcessAreaBranchData(realProject.id, area);
                                             const isProcessAreaSelected =
                                               selectedItem?.type === 'project' &&
                                               selectedItem?.id === realProject.id &&
                                               selectedExecutionProcessArea === area;
                                             return (
-                                              <Box
-                                                key={`area-${realProject.id}-${cycle.id}-${area}`}
-                                                onClick={(e) => {
-                                                  e.stopPropagation();
-                                                  setSelectedExecutionProcessArea(area);
-                                                  handleHierarchySelection({ type: 'project', id: realProject.id, cycleId: cycle.id });
-                                                }}
-                                                sx={{
-                                                  display: 'flex',
-                                                  alignItems: 'center',
-                                                  py: 0.4,
-                                                  pl: 0.5,
-                                                  pr: 0.5,
-                                                  cursor: 'pointer',
-                                                  borderRadius: 0.75,
-                                                  backgroundColor: isProcessAreaSelected ? 'rgba(91, 103, 202, 0.2)' : 'transparent',
-                                                  '&:hover': { backgroundColor: isProcessAreaSelected ? 'rgba(91, 103, 202, 0.24)' : 'rgba(255,255,255,0.06)' },
-                                                }}
-                                              >
-                                                <Typography variant="caption" sx={{ color: 'text.secondary', mr: 0.75 }}>•</Typography>
-                                                <Typography variant="caption" sx={{ fontWeight: isProcessAreaSelected ? 700 : 500, color: isProcessAreaSelected ? cycleColor : 'inherit', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                  {area}
-                                                </Typography>
+                                              <Box key={`area-${realProject.id}-${cycle.id}-${area}`}>
+                                                <Box
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setSelectedExecutionProcessArea(area);
+                                                    handleHierarchySelection({ type: 'project', id: realProject.id, cycleId: cycle.id });
+                                                    setExpandedProcessAreas(prev => {
+                                                      const next = new Set(prev);
+                                                      if (next.has(processAreaKey)) next.delete(processAreaKey);
+                                                      else next.add(processAreaKey);
+                                                      return next;
+                                                    });
+                                                  }}
+                                                  sx={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    py: 0.4,
+                                                    pl: 0.5,
+                                                    pr: 0.5,
+                                                    cursor: 'pointer',
+                                                    borderRadius: 0.75,
+                                                    backgroundColor: isProcessAreaSelected ? 'rgba(91, 103, 202, 0.2)' : 'transparent',
+                                                    '&:hover': { backgroundColor: isProcessAreaSelected ? 'rgba(91, 103, 202, 0.24)' : 'rgba(255,255,255,0.06)' },
+                                                  }}
+                                                >
+                                                  <ChevronRightIcon sx={{ fontSize: '0.82rem', color: 'text.secondary', mr: 0.35, transform: isProcessAreaExpanded ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
+                                                  <Typography variant="caption" sx={{ color: 'text.secondary', mr: 0.5 }}>•</Typography>
+                                                  <Typography variant="caption" sx={{ fontWeight: isProcessAreaSelected ? 700 : 500, color: isProcessAreaSelected ? cycleColor : 'inherit', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                    {area}
+                                                  </Typography>
+                                                  <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', ml: 0.5 }}>
+                                                    {areaObjects.length + areaTaskGroups.length}
+                                                  </Typography>
+                                                </Box>
+                                                {isProcessAreaExpanded && (
+                                                  <Box sx={{ ml: 2.1, mb: 0.4 }}>
+                                                    <Box sx={{ display: 'flex', alignItems: 'center', py: 0.15 }}>
+                                                      <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.64rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Data Objects</Typography>
+                                                    </Box>
+                                                    {areaObjects.length === 0 ? (
+                                                      <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.68rem', display: 'block', py: 0.15 }}>No objects</Typography>
+                                                    ) : (
+                                                      areaObjects.map((obj: any) => (
+                                                        <Typography key={`obj-branch-${obj.id}`} variant="caption" sx={{ color: 'text.secondary', fontSize: '0.7rem', display: 'block', py: 0.15, pl: 0.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                          • {obj.objectId}
+                                                        </Typography>
+                                                      ))
+                                                    )}
+
+                                                    <Box sx={{ display: 'flex', alignItems: 'center', py: 0.15, mt: 0.2 }}>
+                                                      <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.64rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Task Groups</Typography>
+                                                    </Box>
+                                                    {areaTaskGroups.length === 0 ? (
+                                                      <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.68rem', display: 'block', py: 0.15 }}>No task groups</Typography>
+                                                    ) : (
+                                                      areaTaskGroups.map((group: any) => (
+                                                        <Typography key={`group-branch-${group.id}`} variant="caption" sx={{ color: 'text.secondary', fontSize: '0.7rem', display: 'block', py: 0.15, pl: 0.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                          • {group.name}
+                                                        </Typography>
+                                                      ))
+                                                    )}
+                                                  </Box>
+                                                )}
                                               </Box>
                                             );
                                           })}
