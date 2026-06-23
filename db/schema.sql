@@ -95,6 +95,7 @@ CREATE TABLE projects (
 );
 
 CREATE INDEX idx_projects_mock_cycle_id ON projects(mock_cycle_id);
+ALTER TABLE projects ADD CONSTRAINT projects_mock_cycle_id_unique UNIQUE (mock_cycle_id);
 
 -- =====================================================
 -- GLOBAL OBJECT INVENTORY (Canonical)

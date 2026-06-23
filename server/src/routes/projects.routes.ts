@@ -47,6 +47,11 @@ router.post(
         throw new ApiError(400, 'Project name, startDate, and endDate are required', 'MISSING_FIELD');
       }
 
+      const existingProjects = await projectService.getProjectsByMockCycle(req.params.mockCycleId);
+      if (existingProjects.length > 0) {
+        throw new ApiError(409, 'This mock cycle already has a project assigned', 'CONFLICT');
+      }
+
       const project = await projectService.createProject(
         req.params.mockCycleId,
         name,

@@ -223,7 +223,9 @@ export class ProgramService {
       const projectsResult = await client.query(
         `SELECT id, name, description, start_date, end_date, accent_color, progress_percentage
          FROM projects
-         WHERE mock_cycle_id = $1`,
+         WHERE mock_cycle_id = $1
+         ORDER BY updated_at DESC, created_at DESC
+         LIMIT 1`,
         [sourceMockCycleId]
       );
 
