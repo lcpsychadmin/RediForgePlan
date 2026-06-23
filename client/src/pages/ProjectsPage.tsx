@@ -5393,8 +5393,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
             onChange={(e) => {
               const value = e.target.value;
               setNewDataObjectId(value);
-              const selectedInventoryItem = projectInventoryItems.find((item: any) => item.id === value);
-              setNewDataObjectProcessArea(selectedInventoryItem?.processArea || '');
             }}
             margin="normal"
             helperText="Only objects in this project's inventory are available"
@@ -5411,28 +5409,14 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
               <MenuItem disabled>No objects in project inventory</MenuItem>
             )}
           </TextField>
-          <TextField
-            select
-            fullWidth
-            label="Process Area"
-            value={newDataObjectProcessArea}
-            onChange={(e) => setNewDataObjectProcessArea(e.target.value)}
-            margin="normal"
-            helperText="Set or adjust process area before creating default tasks"
-            variant="outlined"
-            size="small"
-          >
-            <MenuItem value="">Unassigned</MenuItem>
-            {Array.from(new Set([
-              ...processAreaOptions,
-              ...((activeProjectId ? (planningAdditionalGroups[activeProjectId] || []) : []) as string[]),
-              ...projectInventoryItems.map((item: any) => (item.processArea || '').trim()).filter((area: string) => area.length > 0),
-            ]))
-              .sort((a: string, b: string) => a.localeCompare(b))
-              .map((area: string) => (
-              <MenuItem key={area} value={area}>{area}</MenuItem>
-            ))}
-          </TextField>
+          <Box sx={{ mt: 2, p: 1.25, border: '1px solid rgba(255,255,255,0.08)', borderRadius: 1, backgroundColor: 'rgba(255,255,255,0.02)' }}>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.35 }}>
+              Process Area / Plan Group
+            </Typography>
+            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+              {selectedItem?.type === 'processArea' ? selectedItem.area : 'Unassigned'}
+            </Typography>
+          </Box>
         </DialogContent>
         <DialogActions sx={{ gap: 1, p: 2, borderTop: '1px solid', borderColor: 'divider' }}>
           <Button onClick={() => {
@@ -5452,7 +5436,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                 return;
               }
 
-              const targetProcessArea = (selectedItem?.type === 'processArea' ? selectedItem.area : newDataObjectProcessArea).trim();
+              const targetProcessArea = (selectedItem?.type === 'processArea' ? selectedItem.area : '').trim();
 
               try {
                 setIsCreatingDataObject(true);
@@ -5840,28 +5824,14 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
             variant="outlined"
             size="small"
           />
-          <TextField
-            select
-            fullWidth
-            label="Process Area / Grouping"
-            value={newTaskGroupProcessArea}
-            onChange={(e) => setNewTaskGroupProcessArea(e.target.value)}
-            margin="normal"
-            variant="outlined"
-            size="small"
-          >
-            <MenuItem value="">Additional Grouping (No Process Area)</MenuItem>
-            {Array.from(new Set([
-              ...projectInventoryItems
-                .map((item: any) => (item.processArea || '').trim())
-                .filter((area: string) => area.length > 0),
-              ...((activeProjectId ? (planningAdditionalGroups[activeProjectId] || []) : []) as string[]),
-            ]))
-              .sort((a: string, b: string) => a.localeCompare(b))
-              .map((area: string) => (
-                <MenuItem key={area} value={area}>{area}</MenuItem>
-              ))}
-          </TextField>
+          <Box sx={{ mt: 2, p: 1.25, border: '1px solid rgba(255,255,255,0.08)', borderRadius: 1, backgroundColor: 'rgba(255,255,255,0.02)' }}>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.35 }}>
+              Process Area / Plan Group
+            </Typography>
+            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+              {selectedItem?.type === 'processArea' ? selectedItem.area : 'Additional Grouping (Unassigned)'}
+            </Typography>
+          </Box>
         </DialogContent>
         <DialogActions sx={{ gap: 1, p: 2, borderTop: '1px solid', borderColor: 'divider' }}>
           <Button onClick={() => {
@@ -5881,7 +5851,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
 
               try {
                 setIsCreatingTaskGroup(true);
-                const resolvedGrouping = (selectedItem?.type === 'processArea' ? selectedItem.area : newTaskGroupProcessArea).trim();
+                const resolvedGrouping = (selectedItem?.type === 'processArea' ? selectedItem.area : '').trim();
                 
                 const response = await apiClient.post(`/api/tasks/groups/project/${activeProjectId}`, {
                   name: newTaskGroupName,
