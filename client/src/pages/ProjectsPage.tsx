@@ -3931,6 +3931,24 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                         </>
                       ) : selectedItem.type === 'cycle' ? (
                         <>
+                          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1 }}>
+                            <Button
+                              size="small"
+                              variant="contained"
+                              startIcon={<AddIcon />}
+                              onClick={() => {
+                                const targetProjectId = getPrimaryProjectIdForCycle(selectedItem.id);
+                                if (!targetProjectId) {
+                                  alert('No project found for this mock cycle.');
+                                  return;
+                                }
+                                handleAddAdditionalGroup(targetProjectId);
+                              }}
+                              sx={{ textTransform: 'none' }}
+                            >
+                              Add Plan Group
+                            </Button>
+                          </Box>
                           <Typography variant="h6" sx={{ mb: 0.75 }}>{selectedDetails?.name}</Typography>
                           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
                             High-level cycle summary derived from projects, objects, and tasks.
