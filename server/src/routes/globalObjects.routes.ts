@@ -69,11 +69,11 @@ router.get(
   }
 );
 
-// Update global object (admin only)
+// Update global object (analyst or admin)
 router.patch(
   '/:globalObjectId',
   requireAuth,
-  requireRole('admin'),
+  requireRole('analyst', 'admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const object = await globalObjectService.updateGlobalObject(req.params.globalObjectId, req.body);

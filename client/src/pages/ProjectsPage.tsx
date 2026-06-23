@@ -1785,7 +1785,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
           throw new Error('Missing global object id for process area update');
         }
 
-        await apiClient.put(`/api/global-objects/${item.globalObjectId}`, {
+        await apiClient.patch(`/api/global-objects/${item.globalObjectId}`, {
           processArea: value || null,
         });
 
