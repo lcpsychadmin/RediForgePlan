@@ -2691,7 +2691,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                             } : {},
                                             '&:hover': { backgroundColor: isCycleSelected ? 'rgba(91, 103, 202, 0.15)' : 'rgba(255,255,255,0.05)' },
                                           }}
-                                          onClick={() => handleHierarchySelection({ type: 'cycle', id: cycle.id, programId: program.id, projectId: realProject.id })}
+                                          onClick={() => {
+                                            handleHierarchySelection({ type: 'cycle', id: cycle.id, programId: program.id, projectId: realProject.id });
+                                            toggleCycleExpanded(cycle.id);
+                                          }}
                                         >
                                           <IconButton
                                             size="small"
