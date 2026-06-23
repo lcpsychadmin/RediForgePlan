@@ -182,7 +182,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   const [editingProcessAreaContext, setEditingProcessAreaContext] = useState<{ projectId: string; area: string } | null>(null);
   const [editingProcessAreaAccent, setEditingProcessAreaAccent] = useState('#64B5F6');
   const [processAreaAccentOverrides, setProcessAreaAccentOverrides] = useState<Record<string, Record<string, string>>>({});
-  const [hierarchyIconSettingsOpen, setHierarchyIconSettingsOpen] = useState(false);
   const [hierarchyLevelIcons, setHierarchyLevelIcons] = useState<HierarchyLevelIcons>(DEFAULT_HIERARCHY_LEVEL_ICONS);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [editingTaskGroupId, setEditingTaskGroupId] = useState<string | null>(null);
@@ -345,12 +344,14 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     | { type: 'program'; id: string }
     | { type: 'cycle'; id: string; programId: string; projectId?: string }
     | { type: 'project'; id: string; cycleId: string }
+    | { type: 'projectGroup'; key: string; programId: string }
     | null
   >(null);
-  const [treeOrder, setTreeOrder] = useState<{ programs: string[]; cycles: Record<string, string[]>; projects: Record<string, string[]> }>({
+  const [treeOrder, setTreeOrder] = useState<{ programs: string[]; cycles: Record<string, string[]>; projects: Record<string, string[]>; projectGroups: Record<string, string[]> }>({
     programs: [],
     cycles: {},
     projects: {},
+    projectGroups: {},
   });
   const [isHierarchySidebarOpen, setIsHierarchySidebarOpen] = useState(false);
 
@@ -889,22 +890,27 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     return ids.map(id => source.find((p: Project) => p.id === id)).filter(Boolean) as Project[];
   };
 
+  const getProjectGroupOrderKey = (name: string) => (name || '').trim().toLowerCase();
+
   const getProjectsByProgram = (programId: string) => {
-    const cycleList = mockCycles[programId] || [];
+    const cycleList = getOrderedCycles(programId);
     const byName = new Map<string, Project>();
     cycleList.forEach((cycle: MockCycle) => {
       (projectsByMockCycle[cycle.id] || []).forEach((project: Project) => {
-        const key = (project.name || '').trim().toLowerCase();
+        const key = getProjectGroupOrderKey(project.name || '');
         if (key && !byName.has(key)) {
           byName.set(key, project);
         }
       });
     });
-    return Array.from(byName.values()).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    const keys = mergeOrder(treeOrder.projectGroups[programId] || [], Array.from(byName.keys()));
+    return keys
+      .map((key) => byName.get(key))
+      .filter(Boolean) as Project[];
   };
 
   const getCyclesForProjectInProgram = (programId: string, projectName: string) => {
-    const cycleList = mockCycles[programId] || [];
+    const cycleList = getOrderedCycles(programId);
     return cycleList.filter((cycle: MockCycle) =>
       (projectsByMockCycle[cycle.id] || []).some((p: Project) => (p.name || '').trim().toLowerCase() === projectName.trim().toLowerCase())
     );
@@ -961,6 +967,56 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         return <CorporateFareIcon sx={sx} />;
     }
   };
+
+  const renderIconChoice = (choice: HierarchyIconChoice, color: string, size: string) => {
+    const sx = { fontSize: size, color, flexShrink: 0 };
+    switch (choice) {
+      case 'sync':
+        return <SyncIcon sx={sx} />;
+      case 'folderOutlined':
+        return <FolderOutlinedIcon sx={sx} />;
+      case 'accountTree':
+        return <AccountTreeIcon sx={sx} />;
+      case 'layers':
+        return <LayersIcon sx={sx} />;
+      case 'viewList':
+        return <ViewListIcon sx={sx} />;
+      case 'event':
+        return <EventIcon sx={sx} />;
+      case 'corporateFare':
+      default:
+        return <CorporateFareIcon sx={sx} />;
+    }
+  };
+
+  const renderIconPicker = (level: HierarchyLevel, accent: string) => (
+    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 0.75 }}>
+      {HIERARCHY_ICON_OPTIONS.map((option) => {
+        const selected = hierarchyLevelIcons[level] === option.value;
+        return (
+          <IconButton
+            key={`${level}-${option.value}`}
+            size="small"
+            title={option.label}
+            onClick={() => setHierarchyLevelIcons((prev) => ({ ...prev, [level]: option.value }))}
+            sx={{
+              width: 30,
+              height: 30,
+              border: '1px solid',
+              borderColor: selected ? accent : 'rgba(255,255,255,0.2)',
+              backgroundColor: selected ? toRgba(accent, 0.18) : 'rgba(255,255,255,0.04)',
+              borderRadius: 1,
+              '&:hover': {
+                backgroundColor: selected ? toRgba(accent, 0.24) : 'rgba(255,255,255,0.08)',
+              },
+            }}
+          >
+            {renderIconChoice(option.value, selected ? accent : 'rgba(255,255,255,0.78)', '0.95rem')}
+          </IconButton>
+        );
+      })}
+    </Box>
+  );
 
   const getProgressAverage = (values: number[]) => {
     if (values.length === 0) return 0;
@@ -1158,6 +1214,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         programs: Array.isArray(parsed?.programs) ? parsed.programs : [],
         cycles: typeof parsed?.cycles === 'object' && parsed?.cycles ? parsed.cycles : {},
         projects: typeof parsed?.projects === 'object' && parsed?.projects ? parsed.projects : {},
+        projectGroups: typeof parsed?.projectGroups === 'object' && parsed?.projectGroups ? parsed.projectGroups : {},
       });
     } catch {
       // ignore local parse failures
@@ -1178,7 +1235,17 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         const projects = projectsByMockCycle[cycleId] || [];
         nextProjects[cycleId] = mergeOrder(prev.projects[cycleId] || [], projects.map((p: Project) => p.id));
       }
-      return { programs: nextPrograms, cycles: nextCycles, projects: nextProjects };
+      const nextProjectGroups: Record<string, string[]> = { ...prev.projectGroups };
+      for (const programId in mockCycles) {
+        const cycleList = mockCycles[programId] || [];
+        const groups = Array.from(new Set(
+          cycleList.flatMap((cycle: MockCycle) =>
+            (projectsByMockCycle[cycle.id] || []).map((project: Project) => getProjectGroupOrderKey(project.name || ''))
+          ).filter(Boolean)
+        ));
+        nextProjectGroups[programId] = mergeOrder(prev.projectGroups[programId] || [], groups);
+      }
+      return { programs: nextPrograms, cycles: nextCycles, projects: nextProjects, projectGroups: nextProjectGroups };
     });
   }, [programs, mockCycles, projectsByMockCycle]);
 
@@ -2676,6 +2743,44 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                             return (
                               <Box key={`pgrp-${program.id}-${project.name}`}>
                                 <Box
+                                  draggable
+                                  onDragStart={(e) => {
+                                    const groupKey = getProjectGroupOrderKey(project.name || '');
+                                    const payload = JSON.stringify({ type: 'projectGroup', key: groupKey, programId: program.id });
+                                    e.dataTransfer.setData('text/plain', payload);
+                                    e.dataTransfer.effectAllowed = 'move';
+                                    setTreeDragItem({ type: 'projectGroup', key: groupKey, programId: program.id });
+                                  }}
+                                  onDragOver={(e) => {
+                                    e.preventDefault();
+                                    e.dataTransfer.dropEffect = 'move';
+                                  }}
+                                  onDrop={(e) => {
+                                    e.preventDefault();
+                                    const raw = e.dataTransfer.getData('text/plain');
+                                    let parsed: any = null;
+                                    try { parsed = raw ? JSON.parse(raw) : null; } catch { parsed = null; }
+                                    const targetKey = getProjectGroupOrderKey(project.name || '');
+                                    const dragKey = parsed?.type === 'projectGroup' && parsed?.programId === program.id
+                                      ? parsed.key
+                                      : treeDragItem?.type === 'projectGroup' && treeDragItem.programId === program.id
+                                        ? treeDragItem.key
+                                        : null;
+                                    if (!dragKey) return;
+                                    const orderedKeys = mergeOrder(
+                                      treeOrder.projectGroups[program.id] || [],
+                                      getProjectsByProgram(program.id).map((p: Project) => getProjectGroupOrderKey(p.name || ''))
+                                    );
+                                    setTreeOrder(prev => ({
+                                      ...prev,
+                                      projectGroups: {
+                                        ...prev.projectGroups,
+                                        [program.id]: reorderByDrop(orderedKeys, dragKey, targetKey),
+                                      },
+                                    }));
+                                    setTreeDragItem(null);
+                                  }}
+                                  onDragEnd={() => setTreeDragItem(null)}
                                   onClick={() => {
                                     if (firstCycle) {
                                       setSelectedExecutionProcessArea('');
@@ -2756,6 +2861,39 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                     return (
                                       <Box key={`pc-${project.name}-${cycle.id}`}>
                                         <Box
+                                          draggable
+                                          onDragStart={(e) => {
+                                            const payload = JSON.stringify({ type: 'cycle', id: cycle.id, programId: program.id });
+                                            e.dataTransfer.setData('text/plain', payload);
+                                            e.dataTransfer.effectAllowed = 'move';
+                                            setTreeDragItem({ type: 'cycle', id: cycle.id, programId: program.id });
+                                          }}
+                                          onDragOver={(e) => {
+                                            e.preventDefault();
+                                            e.dataTransfer.dropEffect = 'move';
+                                          }}
+                                          onDrop={(e) => {
+                                            e.preventDefault();
+                                            const raw = e.dataTransfer.getData('text/plain');
+                                            let parsed: any = null;
+                                            try { parsed = raw ? JSON.parse(raw) : null; } catch { parsed = null; }
+                                            const dragId = parsed?.type === 'cycle' && parsed?.programId === program.id
+                                              ? parsed.id
+                                              : treeDragItem?.type === 'cycle' && treeDragItem.programId === program.id
+                                                ? treeDragItem.id
+                                                : null;
+                                            if (!dragId) return;
+                                            const orderedIds = mergeOrder((treeOrder.cycles[program.id] || []), (mockCycles[program.id] || []).map((c: MockCycle) => c.id));
+                                            setTreeOrder(prev => ({
+                                              ...prev,
+                                              cycles: {
+                                                ...prev.cycles,
+                                                [program.id]: reorderByDrop(orderedIds, dragId, cycle.id),
+                                              },
+                                            }));
+                                            setTreeDragItem(null);
+                                          }}
+                                          onDragEnd={() => setTreeDragItem(null)}
                                           sx={{
                                             display: 'flex',
                                             alignItems: 'center',
@@ -5256,17 +5394,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         </MenuItem>
         <MenuItem
           onClick={() => {
-            if (!(menuType === 'program' || menuType === 'cycle' || menuType === 'project' || menuType === 'processArea')) return;
-            setHierarchyIconSettingsOpen(true);
-            setMenuAnchorEl(null);
-            setProcessAreaMenuContext(null);
-          }}
-          sx={{ display: (menuType === 'program' || menuType === 'cycle' || menuType === 'project' || menuType === 'processArea') ? 'flex' : 'none' }}
-        >
-          <EditIcon fontSize="small" sx={{ mr: 1 }} /> Hierarchy Icon Settings
-        </MenuItem>
-        <MenuItem
-          onClick={() => {
             if (!menuItemId || !menuType) return;
             if (menuType === 'processArea') return;
             if (menuType === 'task' || menuType === 'taskGroup') {
@@ -5434,6 +5561,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                 />
                 <Typography variant="body2" color="text.secondary">Used for program icon color in the tree</Typography>
               </Box>
+              <Box>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>Program Icon</Typography>
+                {renderIconPicker('program', editAccentColor || '#5B67CA')}
+              </Box>
             </>
           )}
 
@@ -5450,6 +5581,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                   size="small"
                 />
                 <Typography variant="body2" color="text.secondary">Used for mock cycle icon color in the tree</Typography>
+              </Box>
+              <Box>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>Mock Cycle Icon</Typography>
+                {renderIconPicker('cycle', editAccentColor || '#64B5F6')}
               </Box>
               <Box>
                 <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Include Weekends</Typography>
@@ -5508,6 +5643,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                     }}
                   />
                 )}
+              </Box>
+              <Box>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>Project Icon</Typography>
+                {renderIconPicker('project', editAccentColor || '#90caf9')}
               </Box>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                 <Typography variant="body2" sx={{ minWidth: '100px' }}>
@@ -6127,100 +6266,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         </DialogActions>
       </Dialog>
 
-      {/* Hierarchy Icon Settings Dialog */}
-      <Dialog open={hierarchyIconSettingsOpen} onClose={() => setHierarchyIconSettingsOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle sx={{ background: 'linear-gradient(135deg, #4f7bc9 0%, #2b4f9d 100%)', color: 'white', pb: 2 }}>
-          Hierarchy Icon Settings
-        </DialogTitle>
-        <DialogContent sx={{ pt: 2 }}>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-            Choose which icon each hierarchy level should use.
-          </Typography>
-          <TextField
-            select
-            fullWidth
-            label="Program Icon"
-            value={hierarchyLevelIcons.program}
-            onChange={(e) => setHierarchyLevelIcons((prev) => ({ ...prev, program: e.target.value as HierarchyIconChoice }))}
-            margin="normal"
-            size="small"
-          >
-            {HIERARCHY_ICON_OPTIONS.map((option) => (
-              <MenuItem key={`program-icon-${option.value}`} value={option.value}>{option.label}</MenuItem>
-            ))}
-          </TextField>
-          <TextField
-            select
-            fullWidth
-            label="Mock Cycle Icon"
-            value={hierarchyLevelIcons.cycle}
-            onChange={(e) => setHierarchyLevelIcons((prev) => ({ ...prev, cycle: e.target.value as HierarchyIconChoice }))}
-            margin="normal"
-            size="small"
-          >
-            {HIERARCHY_ICON_OPTIONS.map((option) => (
-              <MenuItem key={`cycle-icon-${option.value}`} value={option.value}>{option.label}</MenuItem>
-            ))}
-          </TextField>
-          <TextField
-            select
-            fullWidth
-            label="Project Icon"
-            value={hierarchyLevelIcons.project}
-            onChange={(e) => setHierarchyLevelIcons((prev) => ({ ...prev, project: e.target.value as HierarchyIconChoice }))}
-            margin="normal"
-            size="small"
-          >
-            {HIERARCHY_ICON_OPTIONS.map((option) => (
-              <MenuItem key={`project-icon-${option.value}`} value={option.value}>{option.label}</MenuItem>
-            ))}
-          </TextField>
-          <TextField
-            select
-            fullWidth
-            label="Process Area Icon"
-            value={hierarchyLevelIcons.processArea}
-            onChange={(e) => setHierarchyLevelIcons((prev) => ({ ...prev, processArea: e.target.value as HierarchyIconChoice }))}
-            margin="normal"
-            size="small"
-          >
-            {HIERARCHY_ICON_OPTIONS.map((option) => (
-              <MenuItem key={`process-area-icon-${option.value}`} value={option.value}>{option.label}</MenuItem>
-            ))}
-          </TextField>
-          <TextField
-            select
-            fullWidth
-            label="Plan Group Icon"
-            value={hierarchyLevelIcons.planGroup}
-            onChange={(e) => setHierarchyLevelIcons((prev) => ({ ...prev, planGroup: e.target.value as HierarchyIconChoice }))}
-            margin="normal"
-            size="small"
-          >
-            {HIERARCHY_ICON_OPTIONS.map((option) => (
-              <MenuItem key={`plan-group-icon-${option.value}`} value={option.value}>{option.label}</MenuItem>
-            ))}
-          </TextField>
-        </DialogContent>
-        <DialogActions sx={{ gap: 1, p: 2, borderTop: '1px solid', borderColor: 'divider' }}>
-          <Button
-            onClick={() => {
-              setHierarchyLevelIcons(DEFAULT_HIERARCHY_LEVEL_ICONS);
-            }}
-            sx={{ textTransform: 'none' }}
-          >
-            Reset Defaults
-          </Button>
-          <Button
-            onClick={() => setHierarchyIconSettingsOpen(false)}
-            variant="contained"
-            sx={{ textTransform: 'none' }}
-          >
-            Done
-          </Button>
-        </DialogActions>
-      </Dialog>
-
       {/* Process Area Settings Dialog */}
       <Dialog open={processAreaSettingsDialogOpen} onClose={() => setProcessAreaSettingsDialogOpen(false)} maxWidth="xs" fullWidth>
         <DialogTitle sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', pb: 2 }}>
@@ -6239,6 +6284,14 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
             margin="normal"
             size="small"
           />
+          <Box sx={{ mt: 0.5 }}>
+            <Typography variant="body2" sx={{ fontWeight: 600 }}>Process Area Icon</Typography>
+            {renderIconPicker('processArea', editingProcessAreaAccent || '#64B5F6')}
+          </Box>
+          <Box sx={{ mt: 1 }}>
+            <Typography variant="body2" sx={{ fontWeight: 600 }}>Plan Group Icon</Typography>
+            {renderIconPicker('planGroup', editingProcessAreaAccent || '#64B5F6')}
+          </Box>
         </DialogContent>
         <DialogActions sx={{ gap: 1, p: 2, borderTop: '1px solid', borderColor: 'divider' }}>
           <Button
