@@ -212,6 +212,12 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   const [inventorySubTab, setInventorySubTab] = useState(0);
   const [inventoryObjects, setInventoryObjects] = useState<{ id: string; objectId: string; description: string; processArea: string }[]>([]);
   const [projectInventoryItems, setProjectInventoryItems] = useState<any[]>([]);
+  const [projectHierarchySummaries, setProjectHierarchySummaries] = useState<Record<string, {
+    processAreas: Record<string, { objectCount: number; taskGroupCount: number; progressPct: number }>;
+    projectProgressPct: number;
+    projectObjectCount: number;
+    projectTaskGroupCount: number;
+  }>>({});
   const [inventorySearchTerm, setInventorySearchTerm] = useState('');
   const [planSearchTerm, setPlanSearchTerm] = useState('');
   const [planStatusFilter, setPlanStatusFilter] = useState('');
@@ -488,6 +494,88 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     }
   }, [inventoryProjects, selectedProjectForInventory]);
 
+  useEffect(() => {
+    const loadHierarchySummaries = async () => {
+      const projectIds = Array.from(new Set(
+        Object.values(projectsByMockCycle)
+          .flat()
+          .map((project: any) => project.id)
+          .filter(Boolean)
+      ));
+
+      if (projectIds.length === 0) {
+        setProjectHierarchySummaries({});
+        return;
+      }
+
+      try {
+        const entries = await Promise.all(projectIds.map(async (projectId: string) => {
+          const [objectsRes, groupsRes, tasksRes] = await Promise.all([
+            apiClient.get(`/api/project-objects/project/${projectId}`),
+            apiClient.get(`/api/tasks/groups/project/${projectId}`),
+            apiClient.get(`/api/tasks/project/${projectId}`),
+          ]);
+
+          const objects = objectsRes.data?.data || [];
+          const groups = groupsRes.data?.data || [];
+          const tasks = tasksRes.data?.data || [];
+
+          const processAreaSummary: Record<string, { objectCount: number; taskGroupCount: number; progressPct: number }> = {};
+          const objectAreaMap = new Map<string, string>();
+          const groupAreaMap = new Map<string, string>();
+
+          objects.forEach((obj: any) => {
+            const area = (obj.processArea || '').trim();
+            if (!area) return;
+            objectAreaMap.set(obj.id, area);
+            if (!processAreaSummary[area]) processAreaSummary[area] = { objectCount: 0, taskGroupCount: 0, progressPct: 0 };
+            processAreaSummary[area].objectCount += 1;
+          });
+
+          groups.forEach((group: any) => {
+            const area = (group.processArea || '').trim();
+            if (!area) return;
+            groupAreaMap.set(group.id, area);
+            if (!processAreaSummary[area]) processAreaSummary[area] = { objectCount: 0, taskGroupCount: 0, progressPct: 0 };
+            processAreaSummary[area].taskGroupCount += 1;
+          });
+
+          const progressBuckets: Record<string, number[]> = {};
+          tasks.forEach((task: any) => {
+            const objectArea = task.projectObjectId ? objectAreaMap.get(task.projectObjectId) : null;
+            const groupArea = task.taskGroupId ? groupAreaMap.get(task.taskGroupId) : null;
+            const area = objectArea || groupArea || null;
+            if (!area) return;
+            if (!progressBuckets[area]) progressBuckets[area] = [];
+            progressBuckets[area].push(Number(task.progressPercentage ?? 0));
+          });
+
+          Object.keys(processAreaSummary).forEach((area) => {
+            const values = progressBuckets[area] || [];
+            processAreaSummary[area].progressPct = values.length > 0 ? getProgressAverage(values) : 0;
+          });
+
+          const projectProgressPct = tasks.length > 0
+            ? getProgressAverage(tasks.map((task: any) => Number(task.progressPercentage ?? 0)))
+            : 0;
+
+          return [projectId, {
+            processAreas: processAreaSummary,
+            projectProgressPct,
+            projectObjectCount: objects.length,
+            projectTaskGroupCount: groups.length,
+          }] as const;
+        }));
+
+        setProjectHierarchySummaries(Object.fromEntries(entries));
+      } catch (error) {
+        console.error('Failed to load hierarchy summaries:', error);
+      }
+    };
+
+    loadHierarchySummaries();
+  }, [projectsByMockCycle]);
+
   // Keep inventory and plan project contexts isolated.
   const activeProjectId = canAccessInventory && tabValue === 1
     ? selectedProjectForInventory
@@ -728,6 +816,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
 
   const getProcessAreasForProjectCycle = (projectId: string) => {
     const areas = new Set<string>();
+    const cachedAreas = projectHierarchySummaries[projectId]?.processAreas || {};
+    Object.keys(cachedAreas).forEach((area) => {
+      const label = (area || '').trim();
+      if (label) areas.add(label);
+    });
     projectInventoryItems
       .filter((item: any) => item.projectId === projectId)
       .forEach((item: any) => {
@@ -748,6 +841,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   };
 
   const getProcessAreaProgress = (projectId: string, area: string, fallbackPct: number) => {
+    const cachedProcessAreas = projectHierarchySummaries[projectId]?.processAreas || {};
+    if (cachedProcessAreas[area]) {
+      return cachedProcessAreas[area].progressPct;
+    }
     if (activeProjectId !== projectId) return fallbackPct;
     const normalizedArea = (area || '').trim().toLowerCase();
     const areaObjectIds = new Set(
@@ -2484,8 +2581,15 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                         <Box sx={{ ml: 2.5 }}>
                                           {processAreas.map((area) => {
                                             const normalizedArea = (area || '').trim().toLowerCase();
-                                            const areaObjectCount = projectInventoryItems.filter((item: any) => item.projectId === realProject.id && ((item.processArea || '').trim().toLowerCase() === normalizedArea)).length;
-                                            const areaTaskGroupCount = projectTaskGroups.filter((group: any) => group.projectId === realProject.id && ((group.processArea || '').trim().toLowerCase() === normalizedArea)).length;
+                                            const cachedAreaSummary = projectHierarchySummaries[realProject.id]?.processAreas?.[area];
+                                            const activeAreaObjectCount = projectInventoryItems.filter((item: any) => item.projectId === realProject.id && ((item.processArea || '').trim().toLowerCase() === normalizedArea)).length;
+                                            const activeAreaTaskGroupCount = projectTaskGroups.filter((group: any) => group.projectId === realProject.id && ((group.processArea || '').trim().toLowerCase() === normalizedArea)).length;
+                                            const areaObjectCount = activeProjectId === realProject.id
+                                              ? activeAreaObjectCount
+                                              : (cachedAreaSummary?.objectCount ?? 0);
+                                            const areaTaskGroupCount = activeProjectId === realProject.id
+                                              ? activeAreaTaskGroupCount
+                                              : (cachedAreaSummary?.taskGroupCount ?? 0);
                                             const processAreaProgressPct = getProcessAreaProgress(realProject.id, area, cycleProgressPct);
                                             const isProcessAreaSelected =
                                               selectedItem?.type === 'project' &&
