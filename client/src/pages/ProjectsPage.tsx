@@ -2535,6 +2535,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                   {projectCycles.map((cycle: MockCycle) => {
                                     const realProject = (projectsByMockCycle[cycle.id] || []).find((p: Project) => (p.name || '').trim().toLowerCase() === (project.name || '').trim().toLowerCase()) || project;
                                     const isCycleSelected = selectedItem?.type === 'cycle' && selectedItem?.id === cycle.id;
+                                    const isCycleExpanded = expandedCycles.has(cycle.id);
                                     const cycleColor = cycle.accentColor || '#64B5F6';
                                     const processAreas = getProcessAreasForProjectCycle(realProject.id);
                                     const cycleProgressPct = Number(realProject.progressPercentage || 0);
@@ -2553,6 +2554,16 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                           }}
                                           onClick={() => handleHierarchySelection({ type: 'cycle', id: cycle.id, programId: program.id })}
                                         >
+                                          <IconButton
+                                            size="small"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              toggleCycleExpanded(cycle.id);
+                                            }}
+                                            sx={{ p: 0.2, mr: 0.2 }}
+                                          >
+                                            <ChevronRightIcon sx={{ fontSize: '0.9rem', color: 'text.secondary', transform: isCycleExpanded ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
+                                          </IconButton>
                                           <SyncIcon sx={{ fontSize: '0.92rem', color: cycleColor, flexShrink: 0, mx: 0.5 }} />
                                           <Typography variant="body2" sx={{ fontWeight: 500, fontSize: '0.78rem', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                             {cycle.name}
@@ -2578,6 +2589,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                           </IconButton>
                                         </Box>
 
+                                        {isCycleExpanded && (
                                         <Box sx={{ ml: 2.5 }}>
                                           {processAreas.map((area) => {
                                             const normalizedArea = (area || '').trim().toLowerCase();
@@ -2654,6 +2666,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                             </Button>
                                           )}
                                         </Box>
+                                        )}
                                       </Box>
                                     );
                                   })}
@@ -2824,15 +2837,27 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                     const parentCycleId = (selectedItem as any).cycleId;
                     let parentCycleName = '';
                     let parentProgramName = '';
+                    let parentProgramId = '';
                     for (const progId in mockCycles) {
                       const cycle = (mockCycles[progId] || []).find((c: MockCycle) => c.id === parentCycleId);
                       if (cycle) {
                         parentCycleName = cycle.name;
                         const prog = programs.find((p: Program) => p.id === progId);
                         parentProgramName = prog?.name || '';
+                        parentProgramId = progId;
                         break;
                       }
                     }
+                    const normalizedProjectName = (project.name || '').trim().toLowerCase();
+                    const projectCycleInstances = (parentProgramId ? (mockCycles[parentProgramId] || []) : [])
+                      .map((cycle: MockCycle) => (projectsByMockCycle[cycle.id] || []).find((p: Project) => (p.name || '').trim().toLowerCase() === normalizedProjectName))
+                      .filter(Boolean) as Project[];
+                    const projectProcessAreas = new Set<string>();
+                    projectCycleInstances.forEach((instance: Project) => {
+                      Object.keys(projectHierarchySummaries[instance.id]?.processAreas || {}).forEach((area) => {
+                        if ((area || '').trim()) projectProcessAreas.add(area);
+                      });
+                    });
                     const allPlanTasks = projectTasks.filter(t => t.projectObjectId || t.taskGroupId);
                     const progressPct = allPlanTasks.length > 0 ? Math.round(allPlanTasks.reduce((s, t) => s + (t.progressPercentage ?? 0), 0) / allPlanTasks.length) : 0;
                     const allObjectIds = Array.from(new Set(projectTasks.filter(t => t.projectObjectId).map(t => t.projectObjectId)));
@@ -2909,9 +2934,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
 
                         {/* Stats */}
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
-                          <Typography variant="body2" color="text.secondary">{projectInventoryItems.length} objects</Typography>
+                          <Typography variant="body2" color="text.secondary">{projectCycleInstances.length || 1} cycles</Typography>
                           <Box sx={{ width: 3, height: 3, borderRadius: '50%', backgroundColor: 'text.disabled' }} />
-                          <Typography variant="body2" color="text.secondary">{projectTaskGroups.length} task groups</Typography>
+                          <Typography variant="body2" color="text.secondary">{projectProcessAreas.size} process areas</Typography>
                         </Box>
 
                         {/* Progress */}
