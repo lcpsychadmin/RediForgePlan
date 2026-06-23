@@ -338,7 +338,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   const [editPersonEmail, setEditPersonEmail] = useState('');
 
   useEffect(() => {
-    if (sectionMode !== 'planning') return;
     try {
       const raw = localStorage.getItem('rf-planning-additional-groups');
       if (!raw) return;
@@ -349,12 +348,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     } catch {
       // no-op
     }
-  }, [sectionMode]);
+  }, []);
 
   useEffect(() => {
-    if (sectionMode !== 'planning') return;
     localStorage.setItem('rf-planning-additional-groups', JSON.stringify(planningAdditionalGroups));
-  }, [planningAdditionalGroups, sectionMode]);
+  }, [planningAdditionalGroups]);
 
   const openTaskRowMenu = (event: React.MouseEvent<HTMLElement>, task: any) => {
     event.stopPropagation();
