@@ -93,7 +93,7 @@ interface Project {
   progressPercentage?: number;
 }
 
-type SelectableItem = { type: 'program'; id: string } | { type: 'cycle'; id: string; programId: string } | { type: 'project'; id: string; cycleId: string };
+type SelectableItem = { type: 'program'; id: string } | { type: 'cycle'; id: string; programId: string; projectId?: string } | { type: 'project'; id: string; cycleId: string };
 const HIERARCHY_SELECTION_STORAGE_KEY = 'rf_selected_hierarchy_context';
 
 type PlanOverview = {
@@ -306,7 +306,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   const [taskRowMenuTask, setTaskRowMenuTask] = useState<any | null>(null);
   const [treeDragItem, setTreeDragItem] = useState<
     | { type: 'program'; id: string }
-    | { type: 'cycle'; id: string; programId: string }
+    | { type: 'cycle'; id: string; programId: string; projectId?: string }
     | { type: 'project'; id: string; cycleId: string }
     | null
   >(null);
@@ -581,7 +581,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   // Keep inventory and plan project contexts isolated.
   const activeProjectId = canAccessInventory && tabValue === 1
     ? selectedProjectForInventory
-    : (selectedItem?.type === 'project' ? selectedItem.id : null);
+    : (selectedItem?.type === 'project' ? selectedItem.id : selectedItem?.type === 'cycle' ? (selectedItem.projectId || null) : null);
   const activeCycleId = selectedItem?.type === 'project'
     ? selectedItem.cycleId
     : selectedItem?.type === 'cycle'
@@ -594,7 +594,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     const payload = selectedItem.type === 'project'
       ? { type: 'project', projectId: selectedItem.id, cycleId: selectedItem.cycleId }
       : selectedItem.type === 'cycle'
-        ? { type: 'cycle', cycleId: selectedItem.id, programId: selectedItem.programId }
+        ? { type: 'cycle', cycleId: selectedItem.id, programId: selectedItem.programId, projectId: selectedItem.projectId || null }
         : { type: 'program', programId: selectedItem.id };
 
     localStorage.setItem(HIERARCHY_SELECTION_STORAGE_KEY, JSON.stringify(payload));
@@ -1386,6 +1386,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     if (tabValue !== 2 || activeProjectId) return;
 
     if (selectedItem?.type === 'cycle') {
+      if (selectedItem.projectId) {
+        setSelectedItem({ type: 'project', id: selectedItem.projectId, cycleId: selectedItem.id });
+        return;
+      }
       const selectedCycleProjects = projectsByMockCycle[selectedItem.id] || [];
       if (selectedCycleProjects.length > 0) {
         setSelectedItem({ type: 'project', id: selectedCycleProjects[0].id, cycleId: selectedItem.id });
@@ -2559,7 +2563,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                 <Box sx={{ ml: 2.75 }}>
                                   {projectCycles.map((cycle: MockCycle) => {
                                     const realProject = (projectsByMockCycle[cycle.id] || []).find((p: Project) => (p.name || '').trim().toLowerCase() === (project.name || '').trim().toLowerCase()) || project;
-                                    const isCycleSelected = selectedItem?.type === 'cycle' && selectedItem?.id === cycle.id;
+                                    const isCycleSelected = selectedItem?.type === 'cycle' && selectedItem?.id === cycle.id && selectedItem?.projectId === realProject.id;
                                     const isCycleExpanded = expandedCycles.has(cycle.id);
                                     const cycleColor = cycle.accentColor || '#64B5F6';
                                     const processAreas = getProcessAreasForProjectCycle(realProject.id);
@@ -2577,7 +2581,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                             backgroundColor: isCycleSelected ? 'rgba(91, 103, 202, 0.15)' : 'transparent',
                                             '&:hover': { backgroundColor: isCycleSelected ? 'rgba(91, 103, 202, 0.15)' : 'rgba(255,255,255,0.05)' },
                                           }}
-                                          onClick={() => handleHierarchySelection({ type: 'cycle', id: cycle.id, programId: program.id })}
+                                          onClick={() => handleHierarchySelection({ type: 'cycle', id: cycle.id, programId: program.id, projectId: realProject.id })}
                                         >
                                           <IconButton
                                             size="small"
