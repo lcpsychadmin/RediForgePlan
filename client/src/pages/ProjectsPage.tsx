@@ -874,6 +874,16 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   const objectRowKey = (id: string) => `obj:${id}`;
   const taskGroupRowKey = (id: string) => `grp:${id}`;
 
+  const persistPlanRowOrder = (projectId: string, rows: string[]) => {
+    const objectIds = rows.filter((k: string) => k.startsWith('obj:')).map((k: string) => k.slice(4));
+    const groupIds = rows.filter((k: string) => k.startsWith('grp:')).map((k: string) => k.slice(4));
+    localStorage.setItem(getOrderStorageKey(projectId), JSON.stringify({
+      rows,
+      objects: objectIds,
+      groups: groupIds,
+    }));
+  };
+
   const getOrderedPrograms = () => {
     const ids = mergeOrder(treeOrder.programs, programs.map((p: Program) => p.id));
     return ids.map(id => programs.find((p: Program) => p.id === id)).filter(Boolean) as Program[];
@@ -1200,14 +1210,14 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   // Keep ordering synced with available ids.
   useEffect(() => {
     if (!activeProjectId) return;
-    const objectIds = Array.from(new Set(projectTasks.filter(t => t.projectObjectId).map(t => t.projectObjectId)));
+    const objectIds = projectInventoryItems.map((item: any) => item.id);
     const groupIds = projectTaskGroups.map(g => g.id);
     const currentKeys = [
       ...objectIds.map((id: string) => objectRowKey(id)),
       ...groupIds.map((id: string) => taskGroupRowKey(id)),
     ];
     setPlanRowOrder(prev => mergeOrder(prev, currentKeys));
-  }, [activeProjectId, projectTasks, projectTaskGroups]);
+  }, [activeProjectId, projectInventoryItems, projectTaskGroups]);
 
   // Load persisted tree ordering.
   useEffect(() => {
@@ -2722,9 +2732,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                         <Typography variant="body2" sx={{ fontWeight: 600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: isProgramSelected ? programColor : 'inherit' }}>
                           {program.name}
                         </Typography>
-                        <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.66rem', mr: 0.75, whiteSpace: 'nowrap' }}>
-                          {programCycleCount} cyc · {programProjectCount} proj
-                        </Typography>
                         <Typography variant="caption" sx={{ color: isProgramSelected ? programColor : 'text.secondary', fontWeight: 700, fontSize: '0.68rem', mr: 0.5, minWidth: 34, textAlign: 'right' }}>
                           {programProgressPct}%
                         </Typography>
@@ -2858,9 +2865,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                   <Typography variant="body2" sx={{ fontWeight: 600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                     {project.name}
                                   </Typography>
-                                  <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.66rem', mr: 0.75, whiteSpace: 'nowrap' }}>
-                                    {projectCycles.length} cyc
-                                  </Typography>
                                   <Typography variant="caption" sx={{ color: isProjectSelected ? projectAccent : 'text.secondary', fontWeight: 700, fontSize: '0.68rem', mr: 0.5, minWidth: 34, textAlign: 'right' }}>
                                     {projectProgressPct}%
                                   </Typography>
@@ -2966,9 +2970,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                           </Box>
                                           <Typography variant="body2" sx={{ fontWeight: 500, fontSize: '0.78rem', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                             {cycle.name}
-                                          </Typography>
-                                          <Typography variant="caption" sx={{ color: 'text.secondary', mr: 0.5 }}>
-                                            {processAreas.length} areas
                                           </Typography>
                                           <Typography variant="caption" sx={{ color: isCycleSelected ? cycleColor : 'text.secondary', fontWeight: 700, fontSize: '0.68rem', mr: 0.5, minWidth: 34, textAlign: 'right' }}>
                                             {cycleProgressPct}%
@@ -3094,9 +3095,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                                   )}
                                                   <Typography variant="caption" sx={{ fontWeight: isProcessAreaSelected ? 700 : 500, color: isProcessAreaSelected ? processAreaAccent : 'inherit', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                                     {area}
-                                                  </Typography>
-                                                  <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', ml: 0.5, whiteSpace: 'nowrap' }}>
-                                                    {areaTaskCount} tasks summary
                                                   </Typography>
                                                   <Typography variant="caption" sx={{ color: isProcessAreaSelected ? processAreaAccent : 'text.secondary', fontWeight: 700, fontSize: '0.66rem', ml: 0.75, minWidth: 32, textAlign: 'right' }}>
                                                     {processAreaProgressPct}%
@@ -3325,12 +3323,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                     const projectCycleInstances = (parentProgramId ? (mockCycles[parentProgramId] || []) : [])
                       .map((cycle: MockCycle) => (projectsByMockCycle[cycle.id] || []).find((p: Project) => (p.name || '').trim().toLowerCase() === normalizedProjectName))
                       .filter(Boolean) as Project[];
-                    const projectProcessAreas = new Set<string>();
-                    projectCycleInstances.forEach((instance: Project) => {
-                      Object.keys(projectHierarchySummaries[instance.id]?.processAreas || {}).forEach((area) => {
-                        if ((area || '').trim()) projectProcessAreas.add(area);
-                      });
-                    });
                     const allPlanTasks = projectTasks.filter(t => t.projectObjectId || t.taskGroupId);
                     const progressPct = allPlanTasks.length > 0 ? Math.round(allPlanTasks.reduce((s, t) => s + (t.progressPercentage ?? 0), 0) / allPlanTasks.length) : 0;
                     const allObjectIds = Array.from(new Set(projectTasks.filter(t => t.projectObjectId).map(t => t.projectObjectId)));
@@ -3418,13 +3410,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                         <Typography variant="h4" sx={{ fontWeight: 700, color: planAccentColor, mb: 0.75, fontSize: { xs: '1.55rem', sm: '2.125rem' } }}>
                           {selectedAreaLabel || project.name}
                         </Typography>
-
-                        {/* Stats */}
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
-                          <Typography variant="body2" color="text.secondary">{projectCycleInstances.length || 1} cycles</Typography>
-                          <Box sx={{ width: 3, height: 3, borderRadius: '50%', backgroundColor: 'text.disabled' }} />
-                          <Typography variant="body2" color="text.secondary">{projectProcessAreas.size} process areas</Typography>
-                        </Box>
 
                         {/* Progress */}
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
@@ -3570,7 +3555,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                               processAreaSummaryRows.map((row) => (
                                 <Paper key={`summary-${row.area}`} sx={{ p: 1.25, border: '1px solid rgba(255,255,255,0.08)', backgroundColor: 'rgba(255,255,255,0.03)' }}>
                                   <Typography variant="caption" sx={{ color: 'text.secondary', letterSpacing: '0.04em' }}>{row.area}</Typography>
-                                  <Typography variant="body2" sx={{ fontWeight: 700, mt: 0.25 }}>{row.taskCount} tasks summary</Typography>
                                   <Typography variant="caption" sx={{ color: planAccentColor, fontWeight: 700 }}>{row.progressPct}% complete</Typography>
                                 </Paper>
                               ))
@@ -3647,7 +3631,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                     try { parsed = raw ? JSON.parse(raw) : null; } catch { parsed = null; }
                                     const dragKey = parsed?.type === 'planRow' ? parsed.key : dragItem?.type === 'planRow' ? dragItem.key : null;
                                     if (!dragKey || !objectId) return;
-                                    setPlanRowOrder(prev => reorderByDrop(mergeOrder(prev, orderedPlanRowKeys), dragKey, rowKey));
+                                    setPlanRowOrder(prev => {
+                                      const nextRows = reorderByDrop(mergeOrder(prev, orderedPlanRowKeys), dragKey, rowKey);
+                                      if (activeProjectId) persistPlanRowOrder(activeProjectId, nextRows);
+                                      return nextRows;
+                                    });
                                     setDragItem(null);
                                   }}
                                   onDragEnd={() => setDragItem(null)}
@@ -3990,7 +3978,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                     try { parsed = raw ? JSON.parse(raw) : null; } catch { parsed = null; }
                                     const dragKey = parsed?.type === 'planRow' ? parsed.key : dragItem?.type === 'planRow' ? dragItem.key : null;
                                     if (!dragKey) return;
-                                    setPlanRowOrder(prev => reorderByDrop(mergeOrder(prev, orderedPlanRowKeys), dragKey, rowKey));
+                                    setPlanRowOrder(prev => {
+                                      const nextRows = reorderByDrop(mergeOrder(prev, orderedPlanRowKeys), dragKey, rowKey);
+                                      if (activeProjectId) persistPlanRowOrder(activeProjectId, nextRows);
+                                      return nextRows;
+                                    });
                                     setDragItem(null);
                                   }}
                                   onDragEnd={() => setDragItem(null)}
