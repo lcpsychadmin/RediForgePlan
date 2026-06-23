@@ -5083,6 +5083,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                             const clampedEnd = end > weekEnd ? weekEnd : end;
                             const startIndex = Math.max(0, Math.min(6, Math.floor((clampedStart.getTime() - weekStart.getTime()) / (24 * 60 * 60 * 1000))));
                             const endIndex = Math.max(0, Math.min(6, Math.floor((clampedEnd.getTime() - weekStart.getTime()) / (24 * 60 * 60 * 1000))));
+                            const catalogDescription = item.scheduleEntityType === 'object'
+                              ? (inventoryObjects.find((obj) => obj.id === item.globalObjectId || obj.objectId === item.objectId)?.description || '')
+                              : '';
+                            const resolvedDescription = ((item.description || '').trim() || catalogDescription || '').trim();
 
                             return (
                               <Box key={`sched-${item.id}-${item.projectId}`} sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 0.75 }}>
@@ -5104,7 +5108,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                   </Typography>
                                   {item.scheduleEntityType === 'object' && (
                                     <Typography variant="caption" sx={{ display: 'block', color: '#B9CAE9', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                      {item.description || 'No description'}
+                                      {resolvedDescription || 'No description'}
                                     </Typography>
                                   )}
                                   <Typography variant="caption" sx={{ display: 'block', color: '#9FB0D8' }}>
