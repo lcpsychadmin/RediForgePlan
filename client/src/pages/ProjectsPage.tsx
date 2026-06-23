@@ -177,10 +177,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
   const [menuType, setMenuType] = useState<'program' | 'cycle' | 'project' | 'processArea' | 'task' | 'taskGroup' | null>(null);
   const [menuItemId, setMenuItemId] = useState<string | null>(null);
-  const [processAreaMenuContext, setProcessAreaMenuContext] = useState<{ projectId: string; cycleId: string; area: string } | null>(null);
+  const [processAreaMenuContext, setProcessAreaMenuContext] = useState<{ projectId: string; cycleId: string; area: string; nodeType: 'processArea' | 'planGroup' } | null>(null);
   const [processAreaSettingsDialogOpen, setProcessAreaSettingsDialogOpen] = useState(false);
   const [editingProcessAreaContext, setEditingProcessAreaContext] = useState<{ projectId: string; area: string } | null>(null);
   const [editingProcessAreaAccent, setEditingProcessAreaAccent] = useState('#64B5F6');
+  const [editingProcessAreaIconLevel, setEditingProcessAreaIconLevel] = useState<'processArea' | 'planGroup'>('processArea');
   const [processAreaAccentOverrides, setProcessAreaAccentOverrides] = useState<Record<string, Record<string, string>>>({});
   const [hierarchyLevelIcons, setHierarchyLevelIcons] = useState<HierarchyLevelIcons>(DEFAULT_HIERARCHY_LEVEL_ICONS);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
@@ -345,13 +346,15 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     | { type: 'cycle'; id: string; programId: string; projectId?: string }
     | { type: 'project'; id: string; cycleId: string }
     | { type: 'projectGroup'; key: string; programId: string }
+    | { type: 'processArea'; area: string; projectId: string }
     | null
   >(null);
-  const [treeOrder, setTreeOrder] = useState<{ programs: string[]; cycles: Record<string, string[]>; projects: Record<string, string[]>; projectGroups: Record<string, string[]> }>({
+  const [treeOrder, setTreeOrder] = useState<{ programs: string[]; cycles: Record<string, string[]>; projects: Record<string, string[]>; projectGroups: Record<string, string[]>; processAreas: Record<string, string[]> }>({
     programs: [],
     cycles: {},
     projects: {},
     projectGroups: {},
+    processAreas: {},
   });
   const [isHierarchySidebarOpen, setIsHierarchySidebarOpen] = useState(false);
 
@@ -939,7 +942,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
       const label = (groupName || '').trim();
       if (label) areas.add(label);
     });
-    return Array.from(areas).sort((a, b) => a.localeCompare(b));
+    const allAreas = Array.from(areas);
+    const ordered = mergeOrder(treeOrder.processAreas[projectId] || [], allAreas);
+    return ordered;
   };
 
   const getProcessAreaAccent = (projectId: string, area: string, fallback: string) => {
@@ -1215,6 +1220,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         cycles: typeof parsed?.cycles === 'object' && parsed?.cycles ? parsed.cycles : {},
         projects: typeof parsed?.projects === 'object' && parsed?.projects ? parsed.projects : {},
         projectGroups: typeof parsed?.projectGroups === 'object' && parsed?.projectGroups ? parsed.projectGroups : {},
+        processAreas: typeof parsed?.processAreas === 'object' && parsed?.processAreas ? parsed.processAreas : {},
       });
     } catch {
       // ignore local parse failures
@@ -1245,9 +1251,32 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         ));
         nextProjectGroups[programId] = mergeOrder(prev.projectGroups[programId] || [], groups);
       }
-      return { programs: nextPrograms, cycles: nextCycles, projects: nextProjects, projectGroups: nextProjectGroups };
+      const nextProcessAreas: Record<string, string[]> = { ...prev.processAreas };
+      for (const cycleId in projectsByMockCycle) {
+        const cycleProjects = projectsByMockCycle[cycleId] || [];
+        cycleProjects.forEach((project: Project) => {
+          const areaLabels = new Set<string>();
+          const cachedAreas = projectHierarchySummaries[project.id]?.processAreas || {};
+          Object.keys(cachedAreas).forEach((area) => {
+            const label = (area || '').trim();
+            if (label) areaLabels.add(label);
+          });
+          projectInventoryItems
+            .filter((item: any) => item.projectId === project.id)
+            .forEach((item: any) => {
+              const label = (item.processArea || '').trim();
+              if (label) areaLabels.add(label);
+            });
+          (planningAdditionalGroups[project.id] || []).forEach((groupName) => {
+            const label = (groupName || '').trim();
+            if (label) areaLabels.add(label);
+          });
+          nextProcessAreas[project.id] = mergeOrder(prev.processAreas[project.id] || [], Array.from(areaLabels));
+        });
+      }
+      return { programs: nextPrograms, cycles: nextCycles, projects: nextProjects, projectGroups: nextProjectGroups, processAreas: nextProcessAreas };
     });
-  }, [programs, mockCycles, projectsByMockCycle]);
+  }, [programs, mockCycles, projectsByMockCycle, projectHierarchySummaries, projectInventoryItems, planningAdditionalGroups]);
 
   // Persist tree ordering.
   useEffect(() => {
@@ -2812,6 +2841,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                   }}
                                 >
                                   <Box sx={{ width: 8, flexShrink: 0 }} />
+                                  <DragIndicatorIcon sx={{ fontSize: '0.82rem', opacity: 0.45, mr: 0.2, flexShrink: 0 }} />
                                   <IconButton
                                     size="small"
                                     onClick={(e) => {
@@ -2920,6 +2950,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                             toggleCycleExpanded(cycle.id);
                                           }}
                                         >
+                                          <DragIndicatorIcon sx={{ fontSize: '0.82rem', opacity: 0.45, mr: 0.1, flexShrink: 0 }} />
                                           <IconButton
                                             size="small"
                                             onClick={(e) => {
@@ -2990,6 +3021,39 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                             return (
                                               <Box key={`area-${realProject.id}-${cycle.id}-${area}`}>
                                                 <Box
+                                                  draggable
+                                                  onDragStart={(e) => {
+                                                    const payload = JSON.stringify({ type: 'processArea', area, projectId: realProject.id });
+                                                    e.dataTransfer.setData('text/plain', payload);
+                                                    e.dataTransfer.effectAllowed = 'move';
+                                                    setTreeDragItem({ type: 'processArea', area, projectId: realProject.id });
+                                                  }}
+                                                  onDragOver={(e) => {
+                                                    e.preventDefault();
+                                                    e.dataTransfer.dropEffect = 'move';
+                                                  }}
+                                                  onDrop={(e) => {
+                                                    e.preventDefault();
+                                                    const raw = e.dataTransfer.getData('text/plain');
+                                                    let parsed: any = null;
+                                                    try { parsed = raw ? JSON.parse(raw) : null; } catch { parsed = null; }
+                                                    const dragArea = parsed?.type === 'processArea' && parsed?.projectId === realProject.id
+                                                      ? parsed.area
+                                                      : treeDragItem?.type === 'processArea' && treeDragItem.projectId === realProject.id
+                                                        ? treeDragItem.area
+                                                        : null;
+                                                    if (!dragArea) return;
+                                                    const orderedAreas = mergeOrder(treeOrder.processAreas[realProject.id] || [], getProcessAreasForProjectCycle(realProject.id));
+                                                    setTreeOrder(prev => ({
+                                                      ...prev,
+                                                      processAreas: {
+                                                        ...prev.processAreas,
+                                                        [realProject.id]: reorderByDrop(orderedAreas, dragArea, area),
+                                                      },
+                                                    }));
+                                                    setTreeDragItem(null);
+                                                  }}
+                                                  onDragEnd={() => setTreeDragItem(null)}
                                                   onClick={(e) => {
                                                     e.stopPropagation();
                                                     setSelectedExecutionProcessArea(area);
@@ -3018,6 +3082,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                                     '&:hover': { backgroundColor: isProcessAreaSelected ? 'rgba(91, 103, 202, 0.24)' : 'rgba(255,255,255,0.06)' },
                                                   }}
                                                 >
+                                                  <DragIndicatorIcon sx={{ fontSize: '0.78rem', opacity: 0.45, mr: 0.35, flexShrink: 0 }} />
                                                   {isAdditionalGroup ? (
                                                     <Box sx={{ mr: 0.5, display: 'inline-flex', alignItems: 'center' }}>
                                                       {renderHierarchyIcon('planGroup', processAreaAccent, '0.82rem')}
@@ -3043,7 +3108,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                                       setMenuAnchorEl(e.currentTarget);
                                                       setMenuType('processArea');
                                                       setMenuItemId(area);
-                                                      setProcessAreaMenuContext({ projectId: realProject.id, cycleId: cycle.id, area });
+                                                      setProcessAreaMenuContext({ projectId: realProject.id, cycleId: cycle.id, area, nodeType: isAdditionalGroup ? 'planGroup' : 'processArea' });
                                                     }}
                                                     sx={{ opacity: 0.5, '&:hover': { opacity: 1 }, ml: 0.2 }}
                                                   >
@@ -5384,13 +5449,14 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
             const currentAccent = getProcessAreaAccent(processAreaMenuContext.projectId, processAreaMenuContext.area, '#64B5F6');
             setEditingProcessAreaContext({ projectId: processAreaMenuContext.projectId, area: processAreaMenuContext.area });
             setEditingProcessAreaAccent(currentAccent);
+            setEditingProcessAreaIconLevel(processAreaMenuContext.nodeType);
             setProcessAreaSettingsDialogOpen(true);
             setMenuAnchorEl(null);
             setProcessAreaMenuContext(null);
           }}
           sx={{ display: menuType === 'processArea' ? 'flex' : 'none' }}
         >
-          <EditIcon fontSize="small" sx={{ mr: 1 }} /> Process Area Settings
+          <EditIcon fontSize="small" sx={{ mr: 1 }} /> {processAreaMenuContext?.nodeType === 'planGroup' ? 'Plan Group Settings' : 'Process Area Settings'}
         </MenuItem>
         <MenuItem
           onClick={() => {
@@ -6269,7 +6335,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
       {/* Process Area Settings Dialog */}
       <Dialog open={processAreaSettingsDialogOpen} onClose={() => setProcessAreaSettingsDialogOpen(false)} maxWidth="xs" fullWidth>
         <DialogTitle sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', pb: 2 }}>
-          Process Area Settings
+          {editingProcessAreaIconLevel === 'planGroup' ? 'Plan Group Settings' : 'Process Area Settings'}
         </DialogTitle>
         <DialogContent sx={{ pt: 2 }}>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
@@ -6285,12 +6351,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
             size="small"
           />
           <Box sx={{ mt: 0.5 }}>
-            <Typography variant="body2" sx={{ fontWeight: 600 }}>Process Area Icon</Typography>
-            {renderIconPicker('processArea', editingProcessAreaAccent || '#64B5F6')}
-          </Box>
-          <Box sx={{ mt: 1 }}>
-            <Typography variant="body2" sx={{ fontWeight: 600 }}>Plan Group Icon</Typography>
-            {renderIconPicker('planGroup', editingProcessAreaAccent || '#64B5F6')}
+            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+              {editingProcessAreaIconLevel === 'planGroup' ? 'Plan Group Icon' : 'Process Area Icon'}
+            </Typography>
+            {renderIconPicker(editingProcessAreaIconLevel, editingProcessAreaAccent || '#64B5F6')}
           </Box>
         </DialogContent>
         <DialogActions sx={{ gap: 1, p: 2, borderTop: '1px solid', borderColor: 'divider' }}>
