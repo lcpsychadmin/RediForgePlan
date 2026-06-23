@@ -5368,12 +5368,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
           </Button>
           <Button
             onClick={async () => {
-              if (selectedItem?.type !== 'project') {
-                alert('Please select a project first');
-                return;
-              }
-
-              if (!activeProjectId) {
+              const targetProjectId = activeProjectId;
+              if (!targetProjectId) {
                 alert('Project ID not found');
                 return;
               }
@@ -5394,7 +5390,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
 
                 // Create a task for this object — use default templates
                 const tasksResponse = await apiClient.post(`/api/tasks/defaults/project-object/${inventoryItem.id}`, {
-                  projectId: activeProjectId,
+                  projectId: targetProjectId,
                 });
                 const newTasks = (tasksResponse.data.data || []).map((t: any) => normalizeTaskDateFields(t));
                 const updatedTasks = [...projectTasks, ...newTasks];
