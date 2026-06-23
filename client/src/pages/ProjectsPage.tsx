@@ -93,7 +93,11 @@ interface Project {
   progressPercentage?: number;
 }
 
-type SelectableItem = { type: 'program'; id: string } | { type: 'cycle'; id: string; programId: string; projectId?: string } | { type: 'project'; id: string; cycleId: string };
+type SelectableItem =
+  | { type: 'program'; id: string }
+  | { type: 'cycle'; id: string; programId: string; projectId?: string }
+  | { type: 'project'; id: string; cycleId: string }
+  | { type: 'processArea'; projectId: string; cycleId: string; area: string };
 const HIERARCHY_SELECTION_STORAGE_KEY = 'rf_selected_hierarchy_context';
 
 type PlanOverview = {
@@ -584,10 +588,22 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   // Keep inventory and plan project contexts isolated.
   const activeProjectId = canAccessInventory && tabValue === 1
     ? selectedProjectForInventory
-    : (selectedItem?.type === 'project' ? selectedItem.id : selectedItem?.type === 'cycle' ? (selectedItem.projectId || null) : null);
-  const selectedCycleProjectId = selectedItem?.type === 'cycle' ? (selectedItem.projectId || null) : null;
+    : (selectedItem?.type === 'project'
+      ? selectedItem.id
+      : selectedItem?.type === 'processArea'
+        ? selectedItem.projectId
+        : selectedItem?.type === 'cycle'
+          ? (selectedItem.projectId || null)
+          : null);
+  const selectedCycleProjectId = selectedItem?.type === 'cycle'
+    ? (selectedItem.projectId || null)
+    : selectedItem?.type === 'processArea'
+      ? selectedItem.projectId
+      : null;
   const activeCycleId = selectedItem?.type === 'project'
     ? selectedItem.cycleId
+    : selectedItem?.type === 'processArea'
+      ? selectedItem.cycleId
     : selectedItem?.type === 'cycle'
       ? selectedItem.id
       : null;
@@ -602,6 +618,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
 
     const payload = selectedItem.type === 'project'
       ? { type: 'project', projectId: selectedItem.id, cycleId: selectedItem.cycleId }
+      : selectedItem.type === 'processArea'
+        ? { type: 'processArea', projectId: selectedItem.projectId, cycleId: selectedItem.cycleId, area: selectedItem.area }
       : selectedItem.type === 'cycle'
         ? { type: 'cycle', cycleId: selectedItem.id, programId: selectedItem.programId, projectId: selectedItem.projectId || null }
         : { type: 'program', programId: selectedItem.id };
@@ -1994,6 +2012,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         const project = projectsByMockCycle[cycleId]?.find(p => p.id === selectedItem.id);
         if (project) return project;
       }
+    } else if (selectedItem.type === 'processArea') {
+      for (const cycleId in projectsByMockCycle) {
+        const project = projectsByMockCycle[cycleId]?.find(p => p.id === selectedItem.projectId);
+        if (project) return project;
+      }
     }
     return null;
   };
@@ -2652,17 +2675,16 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                               : (cachedAreaSummary?.taskCount ?? 0);
                                             const processAreaProgressPct = getProcessAreaProgress(realProject.id, area, cycleProgressPct);
                                             const isProcessAreaSelected =
-                                              selectedItem?.type === 'project' &&
-                                              selectedItem?.id === realProject.id &&
-                                              selectedExecutionProcessArea.trim().length > 0 &&
-                                              selectedExecutionProcessArea === area;
+                                              selectedItem?.type === 'processArea' &&
+                                              selectedItem?.projectId === realProject.id &&
+                                              selectedItem?.area === area;
                                             return (
                                               <Box key={`area-${realProject.id}-${cycle.id}-${area}`}>
                                                 <Box
                                                   onClick={(e) => {
                                                     e.stopPropagation();
                                                     setSelectedExecutionProcessArea(area);
-                                                    handleHierarchySelection({ type: 'project', id: realProject.id, cycleId: cycle.id }, { preserveProcessArea: true });
+                                                    handleHierarchySelection({ type: 'processArea', projectId: realProject.id, cycleId: cycle.id, area }, { preserveProcessArea: true });
                                                   }}
                                                   sx={{
                                                     display: 'flex',
@@ -2881,10 +2903,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                 <Alert severity="info">Select an item from the list to view details</Alert>
               ) : selectedDetails ? (
                 <>
-                  {selectedItem.type === 'project' ? (() => {
+                  {selectedItem.type === 'project' || selectedItem.type === 'processArea' ? (() => {
                     const project = selectedDetails as Project;
                     const accentColor = project.accentColor || '#00BFA5';
-                    const parentCycleId = (selectedItem as any).cycleId;
+                    const parentCycleId = selectedItem.type === 'project' ? selectedItem.cycleId : selectedItem.cycleId;
+                    const selectedAreaLabel = selectedItem.type === 'processArea' ? selectedItem.area : '';
                     let parentCycleName = '';
                     let parentProgramName = '';
                     let parentProgramId = '';
@@ -2986,10 +3009,13 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                           {parentProgramName && <><Typography variant="caption" color="text.disabled">{parentProgramName}</Typography><Typography variant="caption" color="text.disabled">›</Typography></>}
                           {parentCycleName && <><Typography variant="caption" color="text.disabled">{parentCycleName}</Typography><Typography variant="caption" color="text.disabled">›</Typography></>}
                           <Typography variant="caption" sx={{ color: accentColor, fontWeight: 600 }}>{project.name}</Typography>
+                          {selectedAreaLabel && <><Typography variant="caption" color="text.disabled">›</Typography><Typography variant="caption" sx={{ color: accentColor, fontWeight: 700 }}>{selectedAreaLabel}</Typography></>}
                         </Box>
 
                         {/* Title */}
-                        <Typography variant="h4" sx={{ fontWeight: 700, color: accentColor, mb: 0.75, fontSize: { xs: '1.55rem', sm: '2.125rem' } }}>{project.name}</Typography>
+                        <Typography variant="h4" sx={{ fontWeight: 700, color: accentColor, mb: 0.75, fontSize: { xs: '1.55rem', sm: '2.125rem' } }}>
+                          {selectedAreaLabel || project.name}
+                        </Typography>
 
                         {/* Stats */}
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
@@ -4971,7 +4997,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
           onClick={() => {
             if (menuType !== 'processArea' || !processAreaMenuContext) return;
             setSelectedExecutionProcessArea(processAreaMenuContext.area);
-            handleHierarchySelection({ type: 'project', id: processAreaMenuContext.projectId, cycleId: processAreaMenuContext.cycleId });
+            handleHierarchySelection({ type: 'processArea', projectId: processAreaMenuContext.projectId, cycleId: processAreaMenuContext.cycleId, area: processAreaMenuContext.area }, { preserveProcessArea: true });
             setMenuAnchorEl(null);
             setProcessAreaMenuContext(null);
           }}
@@ -4986,7 +5012,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
             setSelectedProjectForInventory(processAreaMenuContext.projectId);
             setInventorySubTab(1);
             setTabValue(1);
-            handleHierarchySelection({ type: 'project', id: processAreaMenuContext.projectId, cycleId: processAreaMenuContext.cycleId });
+            handleHierarchySelection({ type: 'processArea', projectId: processAreaMenuContext.projectId, cycleId: processAreaMenuContext.cycleId, area: processAreaMenuContext.area }, { preserveProcessArea: true });
             setMenuAnchorEl(null);
             setProcessAreaMenuContext(null);
           }}
