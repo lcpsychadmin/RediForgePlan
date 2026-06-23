@@ -3350,6 +3350,19 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                       const group = projectTaskGroups.find(g => g.id === id);
                       return getTaskGroupProcessArea(group).toLowerCase() === normalizedProcessAreaFilter;
                     });
+                    const projectProcessAreas = new Set<string>();
+                    Object.keys(projectHierarchySummaries[project.id]?.processAreas || {}).forEach((area) => {
+                      const label = (area || '').trim();
+                      if (label) projectProcessAreas.add(label);
+                    });
+                    projectInventoryItems.forEach((item: any) => {
+                      const label = (item.processArea || '').trim();
+                      if (label) projectProcessAreas.add(label);
+                    });
+                    projectTaskGroups.forEach((group: any) => {
+                      const label = (group.processArea || '').trim();
+                      if (label) projectProcessAreas.add(label);
+                    });
                     const processAreaSummaryRows = Array.from(projectProcessAreas)
                       .sort((a, b) => a.localeCompare(b))
                       .map((area) => {
