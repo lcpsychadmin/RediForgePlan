@@ -123,6 +123,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   const [planningStrategyDraft, setPlanningStrategyDraft] = useState('');
   const [isSavingPlanningStrategy, setIsSavingPlanningStrategy] = useState(false);
   const [planningAdditionalGroups, setPlanningAdditionalGroups] = useState<Record<string, string[]>>({});
+  const [selectedExecutionProcessArea, setSelectedExecutionProcessArea] = useState('');
   
   // State for expanded nodes in tree
   const [expandedPrograms, setExpandedPrograms] = useState<Set<string>>(new Set());
@@ -184,6 +185,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   const [dataObjectDialogOpen, setDataObjectDialogOpen] = useState(false);
   const [newDataObjectName, setNewDataObjectName] = useState('');
   const [newDataObjectId, setNewDataObjectId] = useState('');
+  const [newDataObjectProcessArea, setNewDataObjectProcessArea] = useState('');
   const [isCreatingDataObject, setIsCreatingDataObject] = useState(false);
 
   // Task group dialog states
@@ -935,6 +937,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     const loadProjectInventory = async () => {
       if (!activeProjectId) {
         setProjectInventoryItems([]);
+        setSelectedExecutionProcessArea('');
         return;
       }
 
@@ -968,6 +971,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     };
 
     loadProjectInventory();
+  }, [activeProjectId]);
+
+  useEffect(() => {
+    setSelectedExecutionProcessArea('');
   }, [activeProjectId]);
 
   // Load tasks and task groups when project is selected
@@ -2581,11 +2588,17 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                     const allPlanTasks = projectTasks.filter(t => t.projectObjectId || t.taskGroupId);
                     const progressPct = allPlanTasks.length > 0 ? Math.round(allPlanTasks.reduce((s, t) => s + (t.progressPercentage ?? 0), 0) / allPlanTasks.length) : 0;
                     const allObjectIds = Array.from(new Set(projectTasks.filter(t => t.projectObjectId).map(t => t.projectObjectId)));
+                    const normalizedProcessAreaFilter = (selectedExecutionProcessArea || '').trim().toLowerCase();
                     const getObjectProcessArea = (objectId: string) => {
                       const inventoryObject = projectInventoryItems.find(obj => obj.id === objectId);
                       return (inventoryObject?.processArea || 'Unassigned Process Area').trim() || 'Unassigned Process Area';
                     };
-                    const sortedObjectIds = [...allObjectIds].sort((a: string, b: string) => {
+                    const sortedObjectIds = [...allObjectIds]
+                      .filter((objectId: string) => {
+                        if (!normalizedProcessAreaFilter) return true;
+                        return getObjectProcessArea(objectId).toLowerCase() === normalizedProcessAreaFilter;
+                      })
+                      .sort((a: string, b: string) => {
                       const areaA = getObjectProcessArea(a).toLowerCase();
                       const areaB = getObjectProcessArea(b).toLowerCase();
                       if (areaA !== areaB) return areaA.localeCompare(areaB);
@@ -2595,13 +2608,18 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                     });
                     const allGroupIds = projectTaskGroups.map(g => g.id);
                     const getTaskGroupProcessArea = (group: any) => (group?.processArea || '').trim();
+                    const filteredGroupIds = allGroupIds.filter((id: string) => {
+                      if (!normalizedProcessAreaFilter) return true;
+                      const group = projectTaskGroups.find(g => g.id === id);
+                      return getTaskGroupProcessArea(group).toLowerCase() === normalizedProcessAreaFilter;
+                    });
                     const currentPlanRowKeys = [
-                      ...allObjectIds.map((id: string) => objectRowKey(id)),
-                      ...allGroupIds.map((id: string) => taskGroupRowKey(id)),
+                      ...sortedObjectIds.map((id: string) => objectRowKey(id)),
+                      ...filteredGroupIds.map((id: string) => taskGroupRowKey(id)),
                     ];
                     const orderedPlanRowKeys = mergeOrder(planRowOrder, currentPlanRowKeys);
                     const rowOrderIndex = new Map(orderedPlanRowKeys.map((k, idx) => [k, idx]));
-                    const sortedTaskGroupIds = [...allGroupIds].sort((a: string, b: string) => {
+                    const sortedTaskGroupIds = [...filteredGroupIds].sort((a: string, b: string) => {
                       const groupA = projectTaskGroups.find(g => g.id === a);
                       const groupB = projectTaskGroups.find(g => g.id === b);
                       const areaA = getTaskGroupProcessArea(groupA).toLowerCase();
@@ -2747,8 +2765,25 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                               <MenuItem key={p.id} value={p.id}>{p.name || p.email}</MenuItem>
                             ))}
                           </TextField>
-                          {(planSearchTerm || planStatusFilter || planAssignedFilter) && (
-                            <Button size="small" variant="text" onClick={() => { setPlanSearchTerm(''); setPlanStatusFilter(''); setPlanAssignedFilter(''); }} sx={{ textTransform: 'none', color: 'text.secondary' }}>Clear</Button>
+                          <TextField
+                            select
+                            size="small"
+                            label="Process Area"
+                            value={selectedExecutionProcessArea}
+                            onChange={(e) => setSelectedExecutionProcessArea(e.target.value)}
+                            sx={{ width: { xs: '100%', sm: 170 }, minWidth: { xs: 140, sm: 170 }, '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': { borderColor: accentColor }, '& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: accentColor }, '& .MuiInputLabel-root.Mui-focused': { color: accentColor } }}
+                          >
+                            <MenuItem value="">All Process Areas</MenuItem>
+                            {Array.from(new Set(projectInventoryItems
+                              .map((item: any) => (item.processArea || '').trim())
+                              .filter((area: string) => area.length > 0)))
+                              .sort((a: string, b: string) => a.localeCompare(b))
+                              .map((area: string) => (
+                                <MenuItem key={area} value={area}>{area}</MenuItem>
+                              ))}
+                          </TextField>
+                          {(planSearchTerm || planStatusFilter || planAssignedFilter || selectedExecutionProcessArea) && (
+                            <Button size="small" variant="text" onClick={() => { setPlanSearchTerm(''); setPlanStatusFilter(''); setPlanAssignedFilter(''); setSelectedExecutionProcessArea(''); }} sx={{ textTransform: 'none', color: 'text.secondary' }}>Clear</Button>
                           )}
                         </Box>
 
@@ -4858,7 +4893,12 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
             fullWidth
             label="Select Object from Inventory"
             value={newDataObjectId}
-            onChange={(e) => setNewDataObjectId(e.target.value)}
+            onChange={(e) => {
+              const value = e.target.value;
+              setNewDataObjectId(value);
+              const selectedInventoryItem = projectInventoryItems.find((item: any) => item.id === value);
+              setNewDataObjectProcessArea(selectedInventoryItem?.processArea || '');
+            }}
             margin="normal"
             helperText="Only objects in this project's inventory are available"
             variant="outlined"
@@ -4866,7 +4906,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
           >
             {projectInventoryItems.length > 0 ? (
               projectInventoryItems.map((item) => (
-                <MenuItem key={item.id} value={item.objectId}>
+                <MenuItem key={item.id} value={item.id}>
                   {item.objectId} {item.processArea && `(${item.processArea})`}
                 </MenuItem>
               ))
@@ -4874,12 +4914,29 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
               <MenuItem disabled>No objects in project inventory</MenuItem>
             )}
           </TextField>
+          <TextField
+            select
+            fullWidth
+            label="Process Area"
+            value={newDataObjectProcessArea}
+            onChange={(e) => setNewDataObjectProcessArea(e.target.value)}
+            margin="normal"
+            helperText="Set or adjust process area before creating default tasks"
+            variant="outlined"
+            size="small"
+          >
+            <MenuItem value="">Unassigned</MenuItem>
+            {processAreaOptions.map((area) => (
+              <MenuItem key={area} value={area}>{area}</MenuItem>
+            ))}
+          </TextField>
         </DialogContent>
         <DialogActions sx={{ gap: 1, p: 2, borderTop: '1px solid', borderColor: 'divider' }}>
           <Button onClick={() => {
             setDataObjectDialogOpen(false);
             setNewDataObjectId('');
             setNewDataObjectName('');
+            setNewDataObjectProcessArea('');
           }}
           sx={{ textTransform: 'none' }}>
             Cancel
@@ -4900,10 +4957,14 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                 setIsCreatingDataObject(true);
                 
                 // Find the project object for the selected inventory item
-                const inventoryItem = projectInventoryItems.find(item => item.objectId === newDataObjectId);
+                const inventoryItem = projectInventoryItems.find(item => item.id === newDataObjectId);
                 if (!inventoryItem) {
                   alert('Selected object not found');
                   return;
+                }
+
+                if ((inventoryItem.processArea || '') !== newDataObjectProcessArea) {
+                  await handleProjectInventoryInlineChange(inventoryItem.id, 'processArea', newDataObjectProcessArea);
                 }
 
                 // Create a task for this object — use default templates
@@ -4930,6 +4991,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                 setDataObjectDialogOpen(false);
                 setNewDataObjectId('');
                 setNewDataObjectName('');
+                setNewDataObjectProcessArea('');
               } catch (error) {
                 console.error('Failed to add object to plan:', error);
                 alert('Failed to add object to plan');
