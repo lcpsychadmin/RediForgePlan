@@ -2519,7 +2519,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                             return (
                               <Box key={`pgrp-${program.id}-${project.name}`}>
                                 <Box
-                                  onClick={() => handleHierarchySelection({ type: 'project', id: firstCycleProject.id, cycleId: firstCycle?.id || '' })}
+                                  onClick={() => {
+                                    setSelectedExecutionProcessArea('');
+                                    handleHierarchySelection({ type: 'project', id: firstCycleProject.id, cycleId: firstCycle?.id || '' });
+                                  }}
                                   sx={{
                                     display: 'flex',
                                     alignItems: 'center',
@@ -2651,6 +2654,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                             const isProcessAreaSelected =
                                               selectedItem?.type === 'project' &&
                                               selectedItem?.id === realProject.id &&
+                                              selectedExecutionProcessArea.trim().length > 0 &&
                                               selectedExecutionProcessArea === area;
                                             return (
                                               <Box key={`area-${realProject.id}-${cycle.id}-${area}`}>
