@@ -46,6 +46,7 @@ const executionSubNavItems = [
 const planningSubNavItems = [
   { label: 'Strategy', icon: <GridViewIcon sx={{ fontSize: '0.95rem' }} />, tabIndex: 0 },
   { label: 'Inventory', icon: <TableChartIcon sx={{ fontSize: '0.95rem' }} />, tabIndex: 1 },
+  { label: 'Maintain', icon: <FolderOpenIcon sx={{ fontSize: '0.95rem' }} />, tabIndex: 6 },
 ];
 
 const TopNav: React.FC<TopNavProps> = ({ 

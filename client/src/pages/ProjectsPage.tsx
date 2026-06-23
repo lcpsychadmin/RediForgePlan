@@ -252,6 +252,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
 
   // Inventory states
   const [inventorySubTab, setInventorySubTab] = useState(0);
+  const [maintainSections, setMaintainSections] = useState({
+    programs: true,
+    projects: true,
+    mockCycles: true,
+  });
   const [inventoryObjects, setInventoryObjects] = useState<{ id: string; objectId: string; description: string; processArea: string }[]>([]);
   const [projectInventoryItems, setProjectInventoryItems] = useState<any[]>([]);
   const [projectHierarchySummaries, setProjectHierarchySummaries] = useState<Record<string, {
@@ -712,6 +717,18 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     : selectedItem?.type === 'cycle'
       ? selectedItem.id
       : null;
+  const selectedProgramForMaintain = selectedItem?.type === 'program'
+    ? selectedItem.id
+    : selectedItem?.type === 'cycle'
+      ? selectedItem.programId
+      : null;
+  const selectedCycleForMaintain = selectedItem?.type === 'cycle'
+    ? selectedItem.id
+    : selectedItem?.type === 'project'
+      ? selectedItem.cycleId
+      : selectedItem?.type === 'processArea'
+        ? selectedItem.cycleId
+        : null;
   const getScopedProjectsForCycle = (cycleId: string, projectId?: string | null): Project[] => {
     const projects = (projectsByMockCycle[cycleId] || []) as Project[];
     if (!projectId) return projects;
@@ -2251,6 +2268,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     });
 
     return filtered;
+  };
+
+  const toggleMaintainSection = (section: 'programs' | 'projects' | 'mockCycles') => {
+    setMaintainSections((prev) => ({ ...prev, [section]: !prev[section] }));
   };
 
   // Handle edit inventory item
@@ -4862,6 +4883,223 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                   </CardContent>
                 </Card>
               )}
+            </Box>
+          )}
+
+          {/* Planning Maintain Tab Content */}
+          {sectionMode === 'planning' && tabValue === 6 && (
+            <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <Box
+                sx={{
+                  border: '1px solid rgba(93,121,176,0.35)',
+                  borderRadius: 2,
+                  backgroundColor: 'rgba(18,33,65,0.72)',
+                  p: 2,
+                }}
+              >
+                <Typography variant="h5" sx={{ fontWeight: 700, color: '#DCE6FF', mb: 0.75 }}>
+                  Maintain Planning Hierarchy
+                </Typography>
+                <Typography variant="body2" sx={{ color: '#9FB0D8' }}>
+                  Use these dedicated sections to maintain Programs, Projects, and Mock Cycles.
+                </Typography>
+              </Box>
+
+              <Card sx={{ backgroundColor: 'rgba(9, 19, 47, 0.9)', border: '1px solid rgba(80,115,181,0.35)', borderRadius: 2 }}>
+                <CardHeader
+                  title="Programs"
+                  titleTypographyProps={{ sx: { color: '#DCE6FF', fontWeight: 700, fontSize: '1rem' } }}
+                  action={
+                    <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                      <Chip size="small" label={`${programs.length} total`} variant="outlined" sx={{ color: '#BFD0F3', borderColor: 'rgba(96,127,189,0.45)' }} />
+                      <Button
+                        size="small"
+                        variant="contained"
+                        startIcon={<AddIcon />}
+                        onClick={() => openCreateDialog('program')}
+                        sx={{ textTransform: 'none', fontWeight: 600 }}
+                      >
+                        Add Program
+                      </Button>
+                      <IconButton onClick={() => toggleMaintainSection('programs')} sx={{ color: '#BFD0F3' }}>
+                        {maintainSections.programs ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                      </IconButton>
+                    </Box>
+                  }
+                  sx={{ pb: 1 }}
+                />
+                {maintainSections.programs && (
+                  <CardContent sx={{ pt: 0 }}>
+                    {programs.length === 0 ? (
+                      <Typography variant="body2" sx={{ color: '#8EA3CB' }}>
+                        No programs created yet.
+                      </Typography>
+                    ) : (
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                        {programs.map((program) => (
+                          <Chip
+                            key={program.id}
+                            label={program.name}
+                            onClick={() => setSelectedItem({ type: 'program', id: program.id })}
+                            sx={{
+                              color: '#D6E2FF',
+                              backgroundColor: 'rgba(42,63,108,0.65)',
+                              border: '1px solid rgba(96,127,189,0.45)',
+                              '&:hover': { backgroundColor: 'rgba(49,73,123,0.8)' },
+                            }}
+                          />
+                        ))}
+                      </Box>
+                    )}
+                  </CardContent>
+                )}
+              </Card>
+
+              <Card sx={{ backgroundColor: 'rgba(9, 19, 47, 0.9)', border: '1px solid rgba(80,115,181,0.35)', borderRadius: 2 }}>
+                <CardHeader
+                  title="Projects"
+                  titleTypographyProps={{ sx: { color: '#DCE6FF', fontWeight: 700, fontSize: '1rem' } }}
+                  action={
+                    <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                      <Chip
+                        size="small"
+                        label={`${Object.values(projectsByMockCycle).reduce((sum: number, items: any) => sum + (items?.length || 0), 0)} total`}
+                        variant="outlined"
+                        sx={{ color: '#BFD0F3', borderColor: 'rgba(96,127,189,0.45)' }}
+                      />
+                      <Button
+                        size="small"
+                        variant="contained"
+                        startIcon={<AddIcon />}
+                        onClick={() => selectedCycleForMaintain && openCreateDialog('project', undefined, selectedCycleForMaintain)}
+                        disabled={!selectedCycleForMaintain}
+                        sx={{ textTransform: 'none', fontWeight: 600 }}
+                      >
+                        Add Project
+                      </Button>
+                      <IconButton onClick={() => toggleMaintainSection('projects')} sx={{ color: '#BFD0F3' }}>
+                        {maintainSections.projects ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                      </IconButton>
+                    </Box>
+                  }
+                  sx={{ pb: 1 }}
+                />
+                {maintainSections.projects && (
+                  <CardContent sx={{ pt: 0 }}>
+                    {Object.keys(projectsByMockCycle).length === 0 ? (
+                      <Typography variant="body2" sx={{ color: '#8EA3CB' }}>
+                        No projects created yet.
+                      </Typography>
+                    ) : (
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                        {Object.entries(projectsByMockCycle).map(([cycleId, cycleProjects]) => {
+                          const cycleName = Object.values(mockCycles).flat().find((cycle: any) => cycle.id === cycleId)?.name || 'Mock Cycle';
+                          return (
+                            <Box key={cycleId} sx={{ p: 1.2, borderRadius: 1.2, border: '1px solid rgba(96,127,189,0.35)', backgroundColor: 'rgba(20,35,70,0.7)' }}>
+                              <Typography variant="caption" sx={{ color: '#9FB0D8', display: 'block', mb: 0.6 }}>
+                                {cycleName}
+                              </Typography>
+                              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.8 }}>
+                                {(cycleProjects as Project[]).map((project) => (
+                                  <Chip
+                                    key={project.id}
+                                    label={project.name}
+                                    onClick={() => setSelectedItem({ type: 'project', id: project.id, cycleId })}
+                                    sx={{
+                                      color: '#D6E2FF',
+                                      backgroundColor: 'rgba(37,58,101,0.75)',
+                                      border: '1px solid rgba(96,127,189,0.4)',
+                                      '&:hover': { backgroundColor: 'rgba(45,69,117,0.88)' },
+                                    }}
+                                  />
+                                ))}
+                              </Box>
+                            </Box>
+                          );
+                        })}
+                      </Box>
+                    )}
+                    {!selectedCycleForMaintain && (
+                      <Typography variant="caption" sx={{ color: '#8EA3CB', display: 'block', mt: 1 }}>
+                        Select a Mock Cycle, Project, or Process Area in the tree to enable Add Project.
+                      </Typography>
+                    )}
+                  </CardContent>
+                )}
+              </Card>
+
+              <Card sx={{ backgroundColor: 'rgba(9, 19, 47, 0.9)', border: '1px solid rgba(80,115,181,0.35)', borderRadius: 2 }}>
+                <CardHeader
+                  title="Mock Cycles"
+                  titleTypographyProps={{ sx: { color: '#DCE6FF', fontWeight: 700, fontSize: '1rem' } }}
+                  action={
+                    <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                      <Chip
+                        size="small"
+                        label={`${Object.values(mockCycles).reduce((sum: number, items: any) => sum + (items?.length || 0), 0)} total`}
+                        variant="outlined"
+                        sx={{ color: '#BFD0F3', borderColor: 'rgba(96,127,189,0.45)' }}
+                      />
+                      <Button
+                        size="small"
+                        variant="contained"
+                        startIcon={<AddIcon />}
+                        onClick={() => selectedProgramForMaintain && openCreateDialog('cycle', selectedProgramForMaintain)}
+                        disabled={!selectedProgramForMaintain}
+                        sx={{ textTransform: 'none', fontWeight: 600 }}
+                      >
+                        Add Mock Cycle
+                      </Button>
+                      <IconButton onClick={() => toggleMaintainSection('mockCycles')} sx={{ color: '#BFD0F3' }}>
+                        {maintainSections.mockCycles ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                      </IconButton>
+                    </Box>
+                  }
+                  sx={{ pb: 1 }}
+                />
+                {maintainSections.mockCycles && (
+                  <CardContent sx={{ pt: 0 }}>
+                    {Object.keys(mockCycles).length === 0 ? (
+                      <Typography variant="body2" sx={{ color: '#8EA3CB' }}>
+                        No mock cycles created yet.
+                      </Typography>
+                    ) : (
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                        {Object.entries(mockCycles).map(([programId, cycles]) => {
+                          const programName = programs.find((program) => program.id === programId)?.name || 'Program';
+                          return (
+                            <Box key={programId} sx={{ p: 1.2, borderRadius: 1.2, border: '1px solid rgba(96,127,189,0.35)', backgroundColor: 'rgba(20,35,70,0.7)' }}>
+                              <Typography variant="caption" sx={{ color: '#9FB0D8', display: 'block', mb: 0.6 }}>
+                                {programName}
+                              </Typography>
+                              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.8 }}>
+                                {(cycles as MockCycle[]).map((cycle) => (
+                                  <Chip
+                                    key={cycle.id}
+                                    label={cycle.name}
+                                    onClick={() => setSelectedItem({ type: 'cycle', id: cycle.id, programId })}
+                                    sx={{
+                                      color: '#D6E2FF',
+                                      backgroundColor: 'rgba(37,58,101,0.75)',
+                                      border: '1px solid rgba(96,127,189,0.4)',
+                                      '&:hover': { backgroundColor: 'rgba(45,69,117,0.88)' },
+                                    }}
+                                  />
+                                ))}
+                              </Box>
+                            </Box>
+                          );
+                        })}
+                      </Box>
+                    )}
+                    {!selectedProgramForMaintain && (
+                      <Typography variant="caption" sx={{ color: '#8EA3CB', display: 'block', mt: 1 }}>
+                        Select a Program or Mock Cycle in the tree to enable Add Mock Cycle.
+                      </Typography>
+                    )}
+                  </CardContent>
+                )}
+              </Card>
             </Box>
           )}
 
