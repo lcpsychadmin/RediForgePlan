@@ -2992,6 +2992,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                       .map(id => projectTaskGroups.find(g => g.id === id))
                       .filter(Boolean) as any[];
                     const canReorderPlan = orderedPlanRowKeys.length > 1;
+                    const canAddDataObjectHere = !showProjectSummaryOnly && !!activeProjectId;
                     const taskFieldSx = {
                       '& .MuiInputBase-root': { fontSize: '0.72rem', height: 26 },
                       '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': { borderColor: accentColor },
@@ -3096,7 +3097,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                           </Box>{/* end left info box */}
                           {!showProjectSummaryOnly && (
                             <Box sx={{ display: 'flex', gap: 1, flexShrink: 0, ml: { xs: 0, md: 2 }, width: { xs: '100%', md: 'auto' }, flexWrap: { xs: 'wrap', md: 'nowrap' } }}>
-                              {canAccessInventory && (
+                              {canAddDataObjectHere && (
                                 <Button variant="contained" startIcon={<AddIcon />} onClick={() => setDataObjectDialogOpen(true)}
                                   sx={{ background: `linear-gradient(135deg, ${accentColor} 0%, ${accentColor}99 100%)`, textTransform: 'none', fontWeight: 600, boxShadow: 'none', width: { xs: '100%', sm: 'auto' } }}>
                                   Add Data Object
