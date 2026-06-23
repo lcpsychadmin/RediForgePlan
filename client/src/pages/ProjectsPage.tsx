@@ -134,7 +134,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   // State for expanded nodes in tree
   const [expandedPrograms, setExpandedPrograms] = useState<Set<string>>(new Set());
   const [expandedCycles, setExpandedCycles] = useState<Set<string>>(new Set());
-  const [collapsedProjectGroups, setCollapsedProjectGroups] = useState<Set<string>>(new Set());
+  const [expandedProjectGroups, setExpandedProjectGroups] = useState<Set<string>>(new Set());
   
   // State for selected item
   const [selectedItem, setSelectedItem] = useState<SelectableItem | null>(null);
@@ -1626,13 +1626,13 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   };
 
   const toggleProjectGroupExpanded = (projectGroupKey: string) => {
-    const next = new Set(collapsedProjectGroups);
+    const next = new Set(expandedProjectGroups);
     if (next.has(projectGroupKey)) {
       next.delete(projectGroupKey);
     } else {
       next.add(projectGroupKey);
     }
-    setCollapsedProjectGroups(next);
+    setExpandedProjectGroups(next);
   };
 
   const openCreateDialog = (mode: 'program' | 'cycle' | 'project', programId?: string, cycleId?: string) => {
@@ -2284,11 +2284,19 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         projTasks.forEach(t => {
           const invItem = projInv.find(o => o.id === t.projectObjectId);
           const group = projGroups.find(g => g.id === t.taskGroupId);
+          const taskCycle = activeCycleId
+            ? (mockCycles[proj.programId || ''] || []).find((cycle: any) => cycle.id === activeCycleId)
+            : null;
+          const taskProcessArea = ((invItem?.processArea || group?.processArea || '') as string).trim() || 'Unassigned';
           enriched.push({
             ...t,
             projectId: proj.id,
             projectName: proj.name,
+            programId: proj.programId || null,
+            cycleId: activeCycleId || null,
+            cycleName: taskCycle?.name || 'Current Cycle',
             projectAccentColor: proj.accentColor || '#00BFA5',
+            processArea: taskProcessArea,
             objectLabel: invItem ? (invItem.objectId + (invItem.description ? ' — ' + invItem.description : '')) : null,
             groupLabel: group?.name || null,
           });
@@ -2301,12 +2309,18 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     allProjects.forEach((proj: any) => { expanded[`proj-${proj.id}`] = false; });
     if (currentTask && activeProjectId) {
       expanded[`proj-${activeProjectId}`] = true;
+      const currentTaskArea = (
+        projectInventoryItems.find((item: any) => item.id === currentTask.projectObjectId)?.processArea
+        || projectTaskGroups.find((group: any) => group.id === currentTask.taskGroupId)?.processArea
+        || 'Unassigned'
+      ).trim() || 'Unassigned';
+      expanded[`proj-${activeProjectId}-area-${currentTaskArea}`] = true;
       if (currentTask.projectObjectId) {
-        expanded[`proj-${activeProjectId}-obj-${currentTask.projectObjectId}`] = true;
+        expanded[`proj-${activeProjectId}-area-${currentTaskArea}-obj-${currentTask.projectObjectId}`] = true;
       } else if (currentTask.taskGroupId) {
-        expanded[`proj-${activeProjectId}-grp-${currentTask.taskGroupId}`] = true;
+        expanded[`proj-${activeProjectId}-area-${currentTaskArea}-grp-${currentTask.taskGroupId}`] = true;
       } else {
-        expanded[`proj-${activeProjectId}-ungrouped`] = true;
+        expanded[`proj-${activeProjectId}-area-${currentTaskArea}-ungrouped`] = true;
       }
     } else if (activeProjectId) {
       expanded[`proj-${activeProjectId}`] = true;
@@ -2581,7 +2595,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                           {getProjectsByProgram(program.id).map((project: Project) => {
                             const projectCycles = getCyclesForProjectInProgram(program.id, project.name || '');
                             const projectGroupKey = `${program.id}:${(project.name || '').trim().toLowerCase()}`;
-                            const isProjectExpanded = !collapsedProjectGroups.has(projectGroupKey);
+                            const isProjectExpanded = expandedProjectGroups.has(projectGroupKey);
                             const projectAccent = project.accentColor || '#90caf9';
                             const firstCycle = projectCycles[0];
                             const firstCycleProject = firstCycle
@@ -5740,17 +5754,38 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                 if (cycle) { cycleName = cycle.name; break; }
               }
 
-              // Group by project
-              const projectMap: Record<string, { name: string; color: string; objects: Record<string, { label: string; tasks: any[] }> }> = {};
+              // Group by project -> process area -> object/task group
+              const projectMap: Record<string, {
+                name: string;
+                color: string;
+                areas: Record<string, { nodes: Record<string, { label: string; type: 'object' | 'taskGroup' | 'other'; tasks: any[] }> }>;
+              }> = {};
               cycleTasksForDep
-                .filter(t => t.id !== depDialogTaskId && (!depSearchTerm || (t.name || '').toLowerCase().includes(depSearchTerm) || (t.objectLabel || '').toLowerCase().includes(depSearchTerm) || (t.groupLabel || '').toLowerCase().includes(depSearchTerm)))
+                .filter(t => t.id !== depDialogTaskId && (!depSearchTerm
+                  || (t.name || '').toLowerCase().includes(depSearchTerm)
+                  || (t.objectLabel || '').toLowerCase().includes(depSearchTerm)
+                  || (t.groupLabel || '').toLowerCase().includes(depSearchTerm)
+                  || (t.processArea || '').toLowerCase().includes(depSearchTerm)))
                 .forEach(t => {
                   const pid = t.projectId || activeProjectId || '';
-                  if (!projectMap[pid]) projectMap[pid] = { name: t.projectName || 'Project', color: t.projectAccentColor || '#00BFA5', objects: {} };
+                  if (!projectMap[pid]) {
+                    projectMap[pid] = {
+                      name: t.projectName || 'Project',
+                      color: t.projectAccentColor || '#00BFA5',
+                      areas: {},
+                    };
+                  }
+                  const area = (t.processArea || 'Unassigned').trim() || 'Unassigned';
+                  if (!projectMap[pid].areas[area]) {
+                    projectMap[pid].areas[area] = { nodes: {} };
+                  }
                   const oKey = t.objectLabel ? `obj-${t.projectObjectId}` : t.groupLabel ? `grp-${t.taskGroupId}` : 'ungrouped';
                   const oLabel = t.objectLabel || t.groupLabel || 'Other Tasks';
-                  if (!projectMap[pid].objects[oKey]) projectMap[pid].objects[oKey] = { label: oLabel, tasks: [] };
-                  projectMap[pid].objects[oKey].tasks.push(t);
+                  const nodeType: 'object' | 'taskGroup' | 'other' = t.objectLabel ? 'object' : t.groupLabel ? 'taskGroup' : 'other';
+                  if (!projectMap[pid].areas[area].nodes[oKey]) {
+                    projectMap[pid].areas[area].nodes[oKey] = { label: oLabel, type: nodeType, tasks: [] };
+                  }
+                  projectMap[pid].areas[area].nodes[oKey].tasks.push(t);
                 });
 
               return (
@@ -5774,75 +5809,97 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                           <Typography variant="caption" sx={{ fontWeight: 600, color: proj.color }}>{proj.name}</Typography>
                         </Box>
 
-                        {projExpanded && Object.entries(proj.objects).map(([oKey, objData]) => {
-                          const objExpKey = `${projKey}-${oKey}`;
-                          const objExpanded = depTreeExpanded[objExpKey] === true;
+                        {projExpanded && Object.entries(proj.areas)
+                          .sort(([areaA], [areaB]) => areaA.localeCompare(areaB))
+                          .map(([areaName, areaData]) => {
+                          const areaKey = `${projKey}-area-${areaName}`;
+                          const areaExpanded = depTreeExpanded[areaKey] === true;
                           return (
-                            <Box key={oKey} sx={{ ml: 2.5, mb: 0.25 }}>
-                              {/* Object/Group row */}
-                              <Box onClick={() => setDepTreeExpanded(prev => ({ ...prev, [objExpKey]: !objExpanded }))}
+                            <Box key={areaName} sx={{ ml: 2.5, mb: 0.25 }}>
+                              {/* Process area row */}
+                              <Box onClick={() => setDepTreeExpanded(prev => ({ ...prev, [areaKey]: !areaExpanded }))}
                                 sx={{ display: 'flex', alignItems: 'center', gap: 0.75, py: 0.4, px: 0.75, borderRadius: 1, cursor: 'pointer', '&:hover': { backgroundColor: 'rgba(255,255,255,0.04)' } }}>
-                                <ChevronRightIcon sx={{ fontSize: '0.75rem', color: 'text.disabled', transform: objExpanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s', flexShrink: 0 }} />
-                                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500, fontSize: '0.72rem' }}>{objData.label}</Typography>
+                                <ChevronRightIcon sx={{ fontSize: '0.75rem', color: 'text.disabled', transform: areaExpanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s', flexShrink: 0 }} />
+                                <AccountTreeIcon sx={{ fontSize: '0.75rem', color: 'text.secondary' }} />
+                                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, fontSize: '0.7rem', letterSpacing: '0.04em' }}>{areaName}</Typography>
                               </Box>
 
-                              {objExpanded && objData.tasks.map((t: any) => {
-                                const isDep = (taskDeps[depDialogTaskId || ''] || []).some((d: any) => d.dependsOnTaskId === t.id);
+                              {areaExpanded && Object.entries(areaData.nodes).map(([oKey, objData]) => {
+                                const objExpKey = `${areaKey}-${oKey}`;
+                                const objExpanded = depTreeExpanded[objExpKey] === true;
                                 return (
-                                  <Box key={t.id} sx={{ ml: 2.5, display: 'flex', alignItems: 'center', gap: 1.25, py: 0.5, px: 0.75, borderRadius: 1, cursor: 'pointer', backgroundColor: isDep ? 'rgba(91,103,202,0.14)' : 'transparent', '&:hover': { backgroundColor: isDep ? 'rgba(91,103,202,0.2)' : 'rgba(255,255,255,0.05)' } }}
-                                    onClick={async () => {
-                                      const taskId = depDialogTaskId;
-                                      if (!taskId) return;
-                                      try {
-                                        if (isDep) {
-                                          await apiClient.delete(`/api/tasks/${taskId}/dependencies/${t.id}`);
-                                        } else {
-                                          await apiClient.post(`/api/tasks/${taskId}/dependencies`, { dependsOnTaskId: t.id });
-                                        }
-                                      } catch (depErr) { console.error('Dep toggle failed', depErr); return; }
-
-                                      // Reload fresh deps from server
-                                      const freshDeps = await loadTaskDeps(taskId);
-                                      const affectedTask = projectTasks.find(pt => pt.id === taskId);
-
-                                      // Recalculate startDate/endDate when task has duration + deps
-                                      if (affectedTask?.duration && freshDeps.length > 0) {
-                                        let maxEndDate: string | null = null;
-                                        for (const dep of freshDeps) {
-                                          // dep.endDate comes directly from server (most reliable)
-                                          const depEnd = dep.endDate
-                                                      || projectTasks.find((ct: any) => ct.id === dep.dependsOnTaskId)?.endDate
-                                                      || cycleTasksForDep.find((ct: any) => ct.id === dep.dependsOnTaskId)?.endDate;
-                                          if (depEnd && (!maxEndDate || depEnd > maxEndDate)) maxEndDate = depEnd;
-                                        }
-                                        if (maxEndDate) {
-                                          let newStart: string;
-                                          const ddep = new Date(maxEndDate.substring(0, 10) + 'T00:00:00');
-                                          ddep.setDate(ddep.getDate() + 1);
-                                          const taskMode = getTaskCalendarMode(affectedTask);
-                                          if (taskMode === 'working_days') {
-                                            while (isWeekend(ddep)) ddep.setDate(ddep.getDate() + 1);
-                                          }
-                                          newStart = formatDateOnly(ddep);
-                                          const patchPayload: any = { startDate: newStart };
-                                          const newEnd = calcEndDate(newStart, affectedTask.duration, affectedTask);
-                                          if (newEnd) patchPayload.endDate = newEnd;
-                                          try {
-                                            await apiClient.patch(`/api/tasks/${taskId}`, patchPayload);
-                                            setProjectTasks(prev => prev.map(pt => pt.id === taskId ? { ...pt, ...patchPayload } : pt));
-                                            // Cascade dates downstream to all dependent tasks
-                                            const updatedTasks = projectTasks.map(pt => pt.id === taskId ? { ...pt, ...patchPayload } : pt);
-                                            const updatedDeps = { ...taskDeps, [taskId]: freshDeps };
-                                            await cascadeAllDates(updatedTasks, updatedDeps);
-                                          } catch (e) { /* ignore */ }
-                                        }
+                                  <Box key={oKey} sx={{ ml: 2.5, mb: 0.25 }}>
+                                    {/* Object/Group row */}
+                                    <Box onClick={() => setDepTreeExpanded(prev => ({ ...prev, [objExpKey]: !objExpanded }))}
+                                      sx={{ display: 'flex', alignItems: 'center', gap: 0.75, py: 0.4, px: 0.75, borderRadius: 1, cursor: 'pointer', '&:hover': { backgroundColor: 'rgba(255,255,255,0.04)' } }}>
+                                      <ChevronRightIcon sx={{ fontSize: '0.75rem', color: 'text.disabled', transform: objExpanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s', flexShrink: 0 }} />
+                                      {objData.type === 'taskGroup'
+                                        ? <LayersIcon sx={{ fontSize: '0.75rem', color: 'text.secondary' }} />
+                                        : <ViewListIcon sx={{ fontSize: '0.75rem', color: 'text.secondary' }} />
                                       }
-                                    }}>
-                                    <Box sx={{ width: 14, height: 14, borderRadius: '3px', border: '1.5px solid', borderColor: isDep ? 'primary.main' : 'rgba(255,255,255,0.3)', backgroundColor: isDep ? 'primary.main' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                      {isDep && <Box sx={{ width: 6, height: 6, backgroundColor: 'white', borderRadius: '1px' }} />}
+                                      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500, fontSize: '0.72rem' }}>{objData.label}</Typography>
                                     </Box>
-                                    <Typography variant="body2" sx={{ fontSize: '0.78rem', flex: 1 }}>{t.name || 'Unnamed'}</Typography>
-                                    <Box sx={{ px: 0.75, py: 0.15, borderRadius: 0.5, fontSize: '0.65rem', fontWeight: 600, backgroundColor: `${getTaskStatusColor(t.status)}22`, color: getTaskStatusColor(t.status), flexShrink: 0, whiteSpace: 'nowrap' }}>{(t.status || '').replace(/_/g, ' ')}</Box>
+
+                                    {objExpanded && objData.tasks.map((t: any) => {
+                                      const isDep = (taskDeps[depDialogTaskId || ''] || []).some((d: any) => d.dependsOnTaskId === t.id);
+                                      return (
+                                        <Box key={t.id} sx={{ ml: 2.5, display: 'flex', alignItems: 'center', gap: 1.25, py: 0.5, px: 0.75, borderRadius: 1, cursor: 'pointer', backgroundColor: isDep ? 'rgba(91,103,202,0.14)' : 'transparent', '&:hover': { backgroundColor: isDep ? 'rgba(91,103,202,0.2)' : 'rgba(255,255,255,0.05)' } }}
+                                          onClick={async () => {
+                                            const taskId = depDialogTaskId;
+                                            if (!taskId) return;
+                                            try {
+                                              if (isDep) {
+                                                await apiClient.delete(`/api/tasks/${taskId}/dependencies/${t.id}`);
+                                              } else {
+                                                await apiClient.post(`/api/tasks/${taskId}/dependencies`, { dependsOnTaskId: t.id });
+                                              }
+                                            } catch (depErr) { console.error('Dep toggle failed', depErr); return; }
+
+                                            // Reload fresh deps from server
+                                            const freshDeps = await loadTaskDeps(taskId);
+                                            const affectedTask = projectTasks.find(pt => pt.id === taskId);
+
+                                            // Recalculate startDate/endDate when task has duration + deps
+                                            if (affectedTask?.duration && freshDeps.length > 0) {
+                                              let maxEndDate: string | null = null;
+                                              for (const dep of freshDeps) {
+                                                // dep.endDate comes directly from server (most reliable)
+                                                const depEnd = dep.endDate
+                                                            || projectTasks.find((ct: any) => ct.id === dep.dependsOnTaskId)?.endDate
+                                                            || cycleTasksForDep.find((ct: any) => ct.id === dep.dependsOnTaskId)?.endDate;
+                                                if (depEnd && (!maxEndDate || depEnd > maxEndDate)) maxEndDate = depEnd;
+                                              }
+                                              if (maxEndDate) {
+                                                let newStart: string;
+                                                const ddep = new Date(maxEndDate.substring(0, 10) + 'T00:00:00');
+                                                ddep.setDate(ddep.getDate() + 1);
+                                                const taskMode = getTaskCalendarMode(affectedTask);
+                                                if (taskMode === 'working_days') {
+                                                  while (isWeekend(ddep)) ddep.setDate(ddep.getDate() + 1);
+                                                }
+                                                newStart = formatDateOnly(ddep);
+                                                const patchPayload: any = { startDate: newStart };
+                                                const newEnd = calcEndDate(newStart, affectedTask.duration, affectedTask);
+                                                if (newEnd) patchPayload.endDate = newEnd;
+                                                try {
+                                                  await apiClient.patch(`/api/tasks/${taskId}`, patchPayload);
+                                                  setProjectTasks(prev => prev.map(pt => pt.id === taskId ? { ...pt, ...patchPayload } : pt));
+                                                  // Cascade dates downstream to all dependent tasks
+                                                  const updatedTasks = projectTasks.map(pt => pt.id === taskId ? { ...pt, ...patchPayload } : pt);
+                                                  const updatedDeps = { ...taskDeps, [taskId]: freshDeps };
+                                                  await cascadeAllDates(updatedTasks, updatedDeps);
+                                                } catch (e) { /* ignore */ }
+                                              }
+                                            }
+                                          }}>
+                                          <Box sx={{ width: 14, height: 14, borderRadius: '3px', border: '1.5px solid', borderColor: isDep ? 'primary.main' : 'rgba(255,255,255,0.3)', backgroundColor: isDep ? 'primary.main' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                            {isDep && <Box sx={{ width: 6, height: 6, backgroundColor: 'white', borderRadius: '1px' }} />}
+                                          </Box>
+                                          <Typography variant="body2" sx={{ fontSize: '0.78rem', flex: 1 }}>{t.name || 'Unnamed'}</Typography>
+                                          <Box sx={{ px: 0.75, py: 0.15, borderRadius: 0.5, fontSize: '0.65rem', fontWeight: 600, backgroundColor: `${getTaskStatusColor(t.status)}22`, color: getTaskStatusColor(t.status), flexShrink: 0, whiteSpace: 'nowrap' }}>{(t.status || '').replace(/_/g, ' ')}</Box>
+                                        </Box>
+                                      );
+                                    })}
                                   </Box>
                                 );
                               })}
