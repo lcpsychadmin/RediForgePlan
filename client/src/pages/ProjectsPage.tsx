@@ -843,6 +843,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     );
   };
 
+  const getPrimaryProjectIdForCycle = (cycleId: string) => {
+    const projects = (projectsByMockCycle[cycleId] || []) as Project[];
+    return projects[0]?.id || null;
+  };
+
   const getProcessAreasForProjectCycle = (projectId: string) => {
     const areas = new Set<string>();
     const cachedAreas = projectHierarchySummaries[projectId]?.processAreas || {};
@@ -895,7 +900,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   };
 
   const handleAddAdditionalGroup = (projectId: string) => {
-    const value = window.prompt('Enter Additional Group name');
+    const value = window.prompt('Enter Plan Group name');
     const name = (value || '').trim();
     if (!name) return;
     setPlanningAdditionalGroups(prev => {
@@ -4995,6 +5000,21 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         <MenuItem
           onClick={() => {
             if (menuType !== 'cycle' || !menuItemId) return;
+            const targetProjectId = getPrimaryProjectIdForCycle(menuItemId);
+            if (!targetProjectId) {
+              alert('No project found for this mock cycle.');
+              return;
+            }
+            handleAddAdditionalGroup(targetProjectId);
+            setMenuAnchorEl(null);
+          }}
+          sx={{ display: menuType === 'cycle' ? 'flex' : 'none' }}
+        >
+          <AddIcon fontSize="small" sx={{ mr: 1 }} /> Add Plan Group
+        </MenuItem>
+        <MenuItem
+          onClick={() => {
+            if (menuType !== 'cycle' || !menuItemId) return;
             setMenuAnchorEl(null);
             handleCloneCycle(menuItemId);
           }}
@@ -5361,7 +5381,13 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
             size="small"
           >
             <MenuItem value="">Unassigned</MenuItem>
-            {processAreaOptions.map((area) => (
+            {Array.from(new Set([
+              ...processAreaOptions,
+              ...((activeProjectId ? (planningAdditionalGroups[activeProjectId] || []) : []) as string[]),
+              ...projectInventoryItems.map((item: any) => (item.processArea || '').trim()).filter((area: string) => area.length > 0),
+            ]))
+              .sort((a: string, b: string) => a.localeCompare(b))
+              .map((area: string) => (
               <MenuItem key={area} value={area}>{area}</MenuItem>
             ))}
           </TextField>
@@ -5775,9 +5801,12 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
             size="small"
           >
             <MenuItem value="">Additional Grouping (No Process Area)</MenuItem>
-            {Array.from(new Set(projectInventoryItems
-              .map((item: any) => (item.processArea || '').trim())
-              .filter((area: string) => area.length > 0)))
+            {Array.from(new Set([
+              ...projectInventoryItems
+                .map((item: any) => (item.processArea || '').trim())
+                .filter((area: string) => area.length > 0),
+              ...((activeProjectId ? (planningAdditionalGroups[activeProjectId] || []) : []) as string[]),
+            ]))
               .sort((a: string, b: string) => a.localeCompare(b))
               .map((area: string) => (
                 <MenuItem key={area} value={area}>{area}</MenuItem>
