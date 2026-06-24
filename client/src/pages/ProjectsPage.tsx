@@ -5188,10 +5188,15 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                               setMaintainPendingCycleProjectId(maintainCycleParentProjectId || null);
                               openCreateDialog('cycle', maintainCycleParentProgramId);
                             } else if (maintainFormView === 'project') {
-                              openCreateDialog('project', maintainProjectParentProgramId);
+                              const targetProgramId = maintainProjectParentProgramId || programs[0]?.id || '';
+                              if (!targetProgramId) {
+                                alert('Create a program first before adding a project.');
+                                return;
+                              }
+                              openCreateDialog('project', targetProgramId);
                             }
                           }}
-                          disabled={(maintainFormView === 'cycle' && !maintainCycleParentProjectId) || (maintainFormView === 'project' && !maintainProjectParentProgramId)}
+                          disabled={(maintainFormView === 'cycle' && !maintainCycleParentProjectId) || (maintainFormView === 'project' && programs.length === 0)}
                           sx={{ textTransform: 'none', fontWeight: 700 }}
                         >
                           Add New
