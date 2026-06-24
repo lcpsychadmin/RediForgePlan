@@ -105,7 +105,7 @@ interface Project {
 type SelectableItem =
   | { type: 'program'; id: string }
   | { type: 'cycle'; id: string; programId: string; projectId?: string }
-  | { type: 'project'; id: string; cycleId: string }
+  | { type: 'project'; id: string; cycleId?: string }
   | { type: 'processArea'; projectId: string; cycleId: string; area: string };
 const HIERARCHY_SELECTION_STORAGE_KEY = 'rf_selected_hierarchy_context';
 
@@ -365,7 +365,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   const [treeDragItem, setTreeDragItem] = useState<
     | { type: 'program'; id: string }
     | { type: 'cycle'; id: string; programId: string; projectId?: string }
-    | { type: 'project'; id: string; cycleId: string }
+    | { type: 'project'; id: string; cycleId?: string }
     | { type: 'projectGroup'; key: string; programId: string }
     | { type: 'processArea'; area: string; projectId: string }
     | null
@@ -739,7 +739,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
       ? selectedItem.projectId
       : null;
   const activeCycleId = selectedItem?.type === 'project'
-    ? selectedItem.cycleId
+    ? (selectedItem.cycleId || null)
     : selectedItem?.type === 'processArea'
       ? selectedItem.cycleId
     : selectedItem?.type === 'cycle'
@@ -1107,15 +1107,13 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   const getProjectGroupOrderKey = (name: string) => (name || '').trim().toLowerCase();
 
   const getProjectsByProgram = (programId: string) => {
-    const cycleList = getOrderedCycles(programId);
+    const programProjects = (projectsByProgram[programId] || []) as Project[];
     const byName = new Map<string, Project>();
-    cycleList.forEach((cycle: MockCycle) => {
-      (projectsByMockCycle[cycle.id] || []).forEach((project: Project) => {
-        const key = getProjectGroupOrderKey(project.name || '');
-        if (key && !byName.has(key)) {
-          byName.set(key, project);
-        }
-      });
+    programProjects.forEach((project: Project) => {
+      const key = getProjectGroupOrderKey(project.name || '');
+      if (key && !byName.has(key)) {
+        byName.set(key, project);
+      }
     });
     const keys = mergeOrder(treeOrder.projectGroups[programId] || [], Array.from(byName.keys()));
     return keys
@@ -1527,12 +1525,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         nextProjects[cycleId] = mergeOrder(prev.projects[cycleId] || [], projects.map((p: Project) => p.id));
       }
       const nextProjectGroups: Record<string, string[]> = { ...prev.projectGroups };
-      for (const programId in mockCycles) {
-        const cycleList = mockCycles[programId] || [];
+      for (const programId in projectsByProgram) {
         const groups = Array.from(new Set(
-          cycleList.flatMap((cycle: MockCycle) =>
-            (projectsByMockCycle[cycle.id] || []).map((project: Project) => getProjectGroupOrderKey(project.name || ''))
-          ).filter(Boolean)
+          ((projectsByProgram[programId] || []) as Project[])
+            .map((project: Project) => getProjectGroupOrderKey(project.name || ''))
+            .filter(Boolean)
         ));
         nextProjectGroups[programId] = mergeOrder(prev.projectGroups[programId] || [], groups);
       }
@@ -1561,7 +1558,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
       }
       return { programs: nextPrograms, cycles: nextCycles, projects: nextProjects, projectGroups: nextProjectGroups, processAreas: nextProcessAreas };
     });
-  }, [programs, mockCycles, projectsByMockCycle, projectHierarchySummaries, projectInventoryItems, planningAdditionalGroups]);
+  }, [programs, mockCycles, projectsByMockCycle, projectsByProgram, projectHierarchySummaries, projectInventoryItems, planningAdditionalGroups]);
 
   // Persist tree ordering.
   useEffect(() => {
@@ -2032,7 +2029,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         setSelectedExecutionProcessArea('');
         handleHierarchySelection({ type: 'project', id: selectedProject.id, cycleId: firstCycle.id });
       } else {
-        alert('This project is defined in Maintain, but it has no Mock Cycle yet. Add a Mock Cycle to place it in the tree.');
+        if (targetProgramId) {
+          setExpandedPrograms((prev) => new Set(prev).add(targetProgramId));
+        }
+        setSelectedExecutionProcessArea('');
+        handleHierarchySelection({ type: 'project', id: selectedProject.id });
       }
 
       setCreateDialogOpen(false);
@@ -2596,6 +2597,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     } else if (selectedItem.type === 'project') {
       for (const cycleId in projectsByMockCycle) {
         const project = projectsByMockCycle[cycleId]?.find(p => p.id === selectedItem.id);
+        if (project) return project;
+      }
+      for (const programId in projectsByProgram) {
+        const project = projectsByProgram[programId]?.find((p: Project) => p.id === selectedItem.id);
         if (project) return project;
       }
     } else if (selectedItem.type === 'processArea') {
@@ -3239,9 +3244,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                   }}
                                   onDragEnd={() => setTreeDragItem(null)}
                                   onClick={() => {
+                                    setSelectedExecutionProcessArea('');
                                     if (firstCycle) {
-                                      setSelectedExecutionProcessArea('');
-                                      handleHierarchySelection({ type: 'project', id: firstCycleProject.id, cycleId: firstCycle?.id || '' });
+                                      handleHierarchySelection({ type: 'project', id: firstCycleProject.id, cycleId: firstCycle.id });
+                                    } else {
+                                      handleHierarchySelection({ type: 'project', id: project.id });
                                     }
                                     toggleProjectGroupExpanded(projectGroupKey);
                                   }}
@@ -3251,7 +3258,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                     py: 0.55,
                                     pl: 0,
                                     pr: 0.5,
-                                    cursor: firstCycle ? 'pointer' : 'default',
+                                    cursor: 'pointer',
                                     position: 'relative',
                                     borderRadius: 0.75,
                                     backgroundColor: isProjectSelected ? 'rgba(91, 103, 202, 0.16)' : 'transparent',
