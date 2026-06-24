@@ -13,6 +13,7 @@ import prioritiesRouter from './priorities.routes.js';
 import auditRouter from './audit.routes.js';
 import peopleRouter from './people.routes.js';
 import commentsRouter from './comments.routes.js';
+import hierarchyPreferencesRouter from './hierarchyPreferences.routes.js';
 import validationRouter from '../validation/validation.routes.js';
 import issuesRouter from '../issues/issues.routes.js';
 import defectsRouter from '../defects/defects.routes.js';
@@ -46,5 +47,6 @@ apiRouter.use('/audit', auditRouter);
 apiRouter.use('/people', peopleRouter);
 apiRouter.use('/comments', commentsRouter);
 apiRouter.use('/reporting', reportingRouter);
+apiRouter.use('/hierarchy-preferences', hierarchyPreferencesRouter);
 
 export default apiRouter;

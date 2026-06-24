@@ -411,6 +411,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     processAreas: {},
   });
   const [isHierarchySidebarOpen, setIsHierarchySidebarOpen] = useState(false);
+  const [treeOrderHydrated, setTreeOrderHydrated] = useState(false);
 
   // People sidebar state
   const [peopleSidebarOpen, setPeopleSidebarOpen] = useState(false);
@@ -1682,20 +1683,55 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
 
   // Load persisted tree ordering.
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(getTreeOrderStorageKey());
-      if (!raw) return;
-      const parsed = JSON.parse(raw);
-      setTreeOrder({
-        programs: Array.isArray(parsed?.programs) ? parsed.programs : [],
-        cycles: typeof parsed?.cycles === 'object' && parsed?.cycles ? parsed.cycles : {},
-        projects: typeof parsed?.projects === 'object' && parsed?.projects ? parsed.projects : {},
-        projectGroups: typeof parsed?.projectGroups === 'object' && parsed?.projectGroups ? parsed.projectGroups : {},
-        processAreas: typeof parsed?.processAreas === 'object' && parsed?.processAreas ? parsed.processAreas : {},
-      });
-    } catch {
-      // ignore local parse failures
-    }
+    let cancelled = false;
+
+    const hydrateTreeOrder = async () => {
+      try {
+        const response = await apiClient.get('/api/hierarchy-preferences/tree-order');
+        const parsed = response.data?.data;
+        if (!cancelled && parsed && typeof parsed === 'object') {
+          setTreeOrder({
+            programs: Array.isArray(parsed?.programs) ? parsed.programs : [],
+            cycles: typeof parsed?.cycles === 'object' && parsed?.cycles ? parsed.cycles : {},
+            projects: typeof parsed?.projects === 'object' && parsed?.projects ? parsed.projects : {},
+            projectGroups: typeof parsed?.projectGroups === 'object' && parsed?.projectGroups ? parsed.projectGroups : {},
+            processAreas: typeof parsed?.processAreas === 'object' && parsed?.processAreas ? parsed.processAreas : {},
+          });
+          setTreeOrderHydrated(true);
+          return;
+        }
+      } catch {
+        // Fallback to local storage when no DB preference exists yet.
+      }
+
+      try {
+        const raw = localStorage.getItem(getTreeOrderStorageKey());
+        if (!raw) {
+          if (!cancelled) setTreeOrderHydrated(true);
+          return;
+        }
+        const parsed = JSON.parse(raw);
+        if (!cancelled) {
+          setTreeOrder({
+            programs: Array.isArray(parsed?.programs) ? parsed.programs : [],
+            cycles: typeof parsed?.cycles === 'object' && parsed?.cycles ? parsed.cycles : {},
+            projects: typeof parsed?.projects === 'object' && parsed?.projects ? parsed.projects : {},
+            projectGroups: typeof parsed?.projectGroups === 'object' && parsed?.projectGroups ? parsed.projectGroups : {},
+            processAreas: typeof parsed?.processAreas === 'object' && parsed?.processAreas ? parsed.processAreas : {},
+          });
+        }
+      } catch {
+        // ignore local parse failures
+      } finally {
+        if (!cancelled) setTreeOrderHydrated(true);
+      }
+    };
+
+    hydrateTreeOrder();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Sync tree ordering when data changes.
@@ -1752,7 +1788,16 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   // Persist tree ordering.
   useEffect(() => {
     localStorage.setItem(getTreeOrderStorageKey(), JSON.stringify(treeOrder));
-  }, [treeOrder]);
+    if (!treeOrderHydrated) return;
+
+    const timeout = setTimeout(() => {
+      apiClient.put('/api/hierarchy-preferences/tree-order', { treeOrder }).catch(() => {
+        // Keep local persistence as fallback.
+      });
+    }, 350);
+
+    return () => clearTimeout(timeout);
+  }, [treeOrder, treeOrderHydrated]);
 
   // Persist ordering.
   useEffect(() => {
@@ -6614,6 +6659,35 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
           onClick={() => {
             if (!menuItemId || !menuType) return;
             if (menuType === 'processArea') return;
+
+            if (menuType === 'cycle') {
+              let parentProgramId: string | null = null;
+              for (const progId in mockCycles) {
+                if ((mockCycles[progId] || []).some((c) => c.id === menuItemId)) {
+                  parentProgramId = progId;
+                  break;
+                }
+              }
+              if (parentProgramId) {
+                setTreeOrder((prev) => ({
+                  ...prev,
+                  cycles: {
+                    ...prev.cycles,
+                    [parentProgramId as string]: (prev.cycles[parentProgramId as string] || []).filter((id) => id !== menuItemId),
+                  },
+                }));
+                setExpandedCycles((prev) => {
+                  const next = new Set(prev);
+                  next.delete(menuItemId);
+                  return next;
+                });
+                if (selectedItem?.type === 'cycle' && selectedItem.id === menuItemId) {
+                  setSelectedItem({ type: 'program', id: parentProgramId });
+                }
+              }
+              setMenuAnchorEl(null);
+              return;
+            }
             
             // Get the item name for the dialog
             let itemName = '';
@@ -6647,7 +6721,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
           }}
           sx={{ color: 'error.main', display: menuType === 'processArea' ? 'none' : 'flex' }}
         >
-          <DeleteIcon fontSize="small" sx={{ mr: 1 }} /> Delete
+          <DeleteIcon fontSize="small" sx={{ mr: 1 }} /> {menuType === 'cycle' ? 'Remove from Hierarchy' : 'Delete'}
         </MenuItem>
       </Menu>
 
