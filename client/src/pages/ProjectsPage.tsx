@@ -1305,6 +1305,35 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     setNewPlanGroupName('');
   };
 
+  const handleRemovePlanGroup = (projectId: string, areaName: string) => {
+    const normalizedTarget = (areaName || '').trim().toLowerCase();
+    if (!normalizedTarget) return;
+
+    setPlanningAdditionalGroups((prev) => {
+      const existing = prev[projectId] || [];
+      const next = existing.filter((group) => (group || '').trim().toLowerCase() !== normalizedTarget);
+      return {
+        ...prev,
+        [projectId]: next,
+      };
+    });
+  };
+
+  const handleHideProcessAreaFromTree = (projectId: string, areaName: string) => {
+    const normalizedTarget = (areaName || '').trim().toLowerCase();
+    if (!normalizedTarget) return;
+
+    setTreeOrder((prev) => ({
+      ...prev,
+      processAreas: {
+        ...prev.processAreas,
+        [projectId]: (prev.processAreas[projectId] || []).filter(
+          (entry) => (entry || '').trim().toLowerCase() !== normalizedTarget
+        ),
+      },
+    }));
+  };
+
   // Load schedule rows for all projects in the selected cycle.
   useEffect(() => {
     const loadCycleSchedule = async () => {
@@ -6233,6 +6262,16 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         <MenuItem
           onClick={() => {
             if (menuType !== 'processArea' || !processAreaMenuContext) return;
+            setMenuAnchorEl(null);
+            handleAddAdditionalGroup(processAreaMenuContext.projectId);
+          }}
+          sx={{ display: menuType === 'processArea' ? 'flex' : 'none' }}
+        >
+          <AddIcon fontSize="small" sx={{ mr: 1 }} /> Add Plan Group
+        </MenuItem>
+        <MenuItem
+          onClick={() => {
+            if (menuType !== 'processArea' || !processAreaMenuContext) return;
             const currentAccent = getProcessAreaAccent(processAreaMenuContext.projectId, processAreaMenuContext.area, '#64B5F6');
             const currentDescription = processAreaDescriptions[processAreaMenuContext.projectId]?.[processAreaMenuContext.area] || '';
             setEditingProcessAreaContext({ projectId: processAreaMenuContext.projectId, area: processAreaMenuContext.area });
@@ -6246,6 +6285,22 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
           sx={{ display: menuType === 'processArea' ? 'flex' : 'none' }}
         >
           <EditIcon fontSize="small" sx={{ mr: 1 }} /> {processAreaMenuContext?.nodeType === 'planGroup' ? 'Plan Group Settings' : 'Process Area Settings'}
+        </MenuItem>
+        <MenuItem
+          onClick={() => {
+            if (menuType !== 'processArea' || !processAreaMenuContext) return;
+            const isPlanGroup = processAreaMenuContext.nodeType === 'planGroup';
+            if (isPlanGroup) {
+              handleRemovePlanGroup(processAreaMenuContext.projectId, processAreaMenuContext.area);
+            } else {
+              handleHideProcessAreaFromTree(processAreaMenuContext.projectId, processAreaMenuContext.area);
+            }
+            setMenuAnchorEl(null);
+            setProcessAreaMenuContext(null);
+          }}
+          sx={{ color: 'error.main', display: menuType === 'processArea' ? 'flex' : 'none' }}
+        >
+          <DeleteIcon fontSize="small" sx={{ mr: 1 }} /> {processAreaMenuContext?.nodeType === 'planGroup' ? 'Remove Plan Group' : 'Remove Process Area'}
         </MenuItem>
         <MenuItem
           onClick={() => {
