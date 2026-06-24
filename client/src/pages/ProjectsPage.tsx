@@ -3627,7 +3627,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                               onClick={() => openAttachCycleDialog(program.id)}
                               sx={{ fontSize: '0.72rem', height: 26, color: '#64B5F6', textTransform: 'none', pl: 1, '&:hover': { color: '#90CAF9' } }}
                             >
-                              Add Existing Mock Cycle
+                              Add Mock Cycle
                             </Button>
                           )}
 
@@ -6203,7 +6203,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
               : 'none',
           }}
         >
-          <AddIcon fontSize="small" sx={{ mr: 1 }} /> Add Existing Mock Cycle
+          <AddIcon fontSize="small" sx={{ mr: 1 }} /> Add Mock Cycle
         </MenuItem>
         <MenuItem
           onClick={() => {
