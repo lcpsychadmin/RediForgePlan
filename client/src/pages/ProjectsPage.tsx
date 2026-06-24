@@ -3566,28 +3566,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                             );
                           })}
 
-                          {canManageHierarchy && (
-                            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', mt: 0.25 }}>
-                              <Button
-                                size="small"
-                                variant="text"
-                                startIcon={<AddIcon sx={{ fontSize: '0.85rem !important' }} />}
-                                onClick={() => openCreateDialog('project', program.id)}
-                                sx={{ fontSize: '0.72rem', height: 26, color: '#7C83D0', textTransform: 'none', pl: 1, '&:hover': { color: '#9FA8DA' } }}
-                              >
-                                Add Project
-                              </Button>
-                              <Button
-                                size="small"
-                                variant="text"
-                                startIcon={<AddIcon sx={{ fontSize: '0.85rem !important' }} />}
-                                onClick={() => openCreateDialog('cycle', program.id)}
-                                sx={{ fontSize: '0.72rem', height: 26, color: '#64B5F6', textTransform: 'none', pl: 1, '&:hover': { color: '#90CAF9' } }}
-                              >
-                                Add Mock Cycle
-                              </Button>
-                            </Box>
-                          )}
                         </Box>
                       )}
                     </Box>
