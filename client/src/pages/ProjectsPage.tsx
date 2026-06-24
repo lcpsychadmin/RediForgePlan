@@ -93,7 +93,8 @@ type TaskCalendarOverride = 'inherit' | CalendarMode;
 
 interface Project {
   id: string;
-  mockCycleId: string;
+  programId?: string;
+  mockCycleId?: string | null;
   name: string;
   startDate?: string;
   endDate?: string;
@@ -555,6 +556,25 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     enabled: Object.keys(mockCycles).length > 0,
   });
 
+  const { data: projectsByProgram = {} } = useQuery({
+    queryKey: ['projectsByProgram'],
+    queryFn: async () => {
+      const projects: Record<string, Project[]> = {};
+      await Promise.all(
+        programs.map(async (program: Program) => {
+          try {
+            const response = await apiClient.get(`/api/projects/by-program/${program.id}`);
+            projects[program.id] = response.data.data;
+          } catch {
+            projects[program.id] = [];
+          }
+        })
+      );
+      return projects;
+    },
+    enabled: programs.length > 0,
+  });
+
   // Fetch global objects for inventory dropdown
   useQuery({
     queryKey: ['globalObjects'],
@@ -592,19 +612,16 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   const inventoryProjects = React.useMemo(() => {
     const seen = new Set<string>();
     const unique: Project[] = [];
-    Object.values(mockCycles).flat().forEach((cycle: any) => {
-      const cycleProjects = projectsByMockCycle[cycle.id] || [];
-      cycleProjects.forEach((project: Project) => {
-        const nameKey = (project.name || '').trim().toLowerCase();
-        const dedupeKey = nameKey || project.id;
-        if (!seen.has(dedupeKey)) {
-          seen.add(dedupeKey);
-          unique.push(project);
-        }
-      });
+    Object.values(projectsByProgram).flat().forEach((project: any) => {
+      const nameKey = (project.name || '').trim().toLowerCase();
+      const dedupeKey = `${project.programId || ''}::${nameKey || project.id}`;
+      if (!seen.has(dedupeKey)) {
+        seen.add(dedupeKey);
+        unique.push(project);
+      }
     });
     return unique;
-  }, [mockCycles, projectsByMockCycle]);
+  }, [projectsByProgram]);
 
   useEffect(() => {
     if (inventoryProjects.length === 0) {
@@ -730,8 +747,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     Object.values(mockCycles).flatMap((cycles) => cycles || []) as MockCycle[]
   ), [mockCycles]);
   const allMaintainProjects: Project[] = React.useMemo(() => (
-    Object.values(projectsByMockCycle).flatMap((projects) => projects || []) as Project[]
-  ), [projectsByMockCycle]);
+    Object.values(projectsByProgram).flatMap((projects) => projects || []) as Project[]
+  ), [projectsByProgram]);
   const maintainCycleParentProjectOptions = React.useMemo(() => {
     const byName = new Map<string, Project>();
     allMaintainProjects.forEach((project) => {
@@ -746,7 +763,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   const maintainCycleRows = React.useMemo(() => (
     allMaintainCycles
       .map((cycle) => {
-        const linkedProject = allMaintainProjects.find((project) => project.mockCycleId === cycle.id) || null;
+        const linkedProject = allMaintainProjects.find((project) => project.id === cycle.projectId) || null;
         return {
           ...cycle,
           linkedProjectId: linkedProject?.id || '',
@@ -759,12 +776,14 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   const maintainProjectRows = React.useMemo(() => (
     allMaintainProjects
       .map((project) => {
-        const cycle = allMaintainCycles.find((entry) => entry.id === project.mockCycleId) || null;
-        const programName = cycle ? (programs.find((program) => program.id === cycle.programId)?.name || 'Program') : 'Program';
+        const projectCycles = allMaintainCycles.filter((entry) => entry.projectId === project.id);
+        const firstCycle = projectCycles[0] || null;
+        const resolvedProgramId = project.programId || firstCycle?.programId || '';
+        const programName = programs.find((program) => program.id === resolvedProgramId)?.name || 'Program';
         return {
           ...project,
-          cycleName: cycle?.name || 'Mock Cycle',
-          programId: cycle?.programId || '',
+          cycleName: firstCycle?.name || 'No Mock Cycles',
+          programId: resolvedProgramId,
           programName,
         };
       })
@@ -822,11 +841,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
 
   useEffect(() => {
     if (!maintainCycleParentProject) return;
-    const parentCycle = allMaintainCycles.find((cycle) => cycle.id === maintainCycleParentProject.mockCycleId) || null;
-    if (parentCycle && parentCycle.programId !== maintainCycleParentProgramId) {
-      setMaintainCycleParentProgramId(parentCycle.programId);
+    const parentProgramId = maintainCycleParentProject.programId || '';
+    if (parentProgramId && parentProgramId !== maintainCycleParentProgramId) {
+      setMaintainCycleParentProgramId(parentProgramId);
     }
-  }, [maintainCycleParentProject, allMaintainCycles, maintainCycleParentProgramId]);
+  }, [maintainCycleParentProject, maintainCycleParentProgramId]);
 
   useEffect(() => {
     if (!maintainProjectParentProgramId || !programs.some((program) => program.id === maintainProjectParentProgramId)) {
@@ -1977,28 +1996,23 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         });
         queryClient.invalidateQueries({ queryKey: ['programs'] });
       } else if (dialogMode === 'cycle' && contextProgramId) {
-        const cycleResponse = await apiClient.post(`/api/programs/${contextProgramId}/mock-cycles`, {
+        await apiClient.post(`/api/programs/${contextProgramId}/mock-cycles`, {
           name: newItemName,
           startDate: new Date().toISOString().split('T')[0],
           endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
           scheduleMode: newCycleScheduleMode,
           accentColor: newItemAccentColor || null,
+          projectId: maintainPendingCycleProjectId || undefined,
         });
-        const createdCycleId = cycleResponse.data?.data?.id;
-        if (createdCycleId && maintainPendingCycleProjectId) {
-          await apiClient.patch(`/api/projects/${maintainPendingCycleProjectId}`, { mockCycleId: createdCycleId });
-          queryClient.invalidateQueries({ queryKey: ['projectsByMockCycle'] });
-        }
         queryClient.invalidateQueries({ queryKey: ['mockCycles'] });
         setExpandedPrograms(new Set(expandedPrograms).add(contextProgramId));
-      } else if (dialogMode === 'project' && contextCycleId) {
-        await apiClient.post(`/api/projects/by-cycle/${contextCycleId}`, {
+      } else if (dialogMode === 'project' && contextProgramId) {
+        await apiClient.post(`/api/projects/by-program/${contextProgramId}`, {
           name: newItemName,
           startDate: new Date().toISOString().split('T')[0],
           endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
         });
-        queryClient.invalidateQueries({ queryKey: ['projectsByMockCycle'] });
-        setExpandedCycles(new Set(expandedCycles).add(contextCycleId));
+        queryClient.invalidateQueries({ queryKey: ['projectsByProgram'] });
       }
       setNewItemName('');
       setNewItemDesc('');
@@ -2128,12 +2142,14 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         queryClient.invalidateQueries({ queryKey: ['programs'] }),
         queryClient.invalidateQueries({ queryKey: ['mockCycles'] }),
         queryClient.invalidateQueries({ queryKey: ['projectsByMockCycle'] }),
+        queryClient.invalidateQueries({ queryKey: ['projectsByProgram'] }),
       ]);
 
       await Promise.all([
         queryClient.refetchQueries({ queryKey: ['programs'], type: 'active' }),
         queryClient.refetchQueries({ queryKey: ['mockCycles'], type: 'active' }),
         queryClient.refetchQueries({ queryKey: ['projectsByMockCycle'], type: 'active' }),
+        queryClient.refetchQueries({ queryKey: ['projectsByProgram'], type: 'active' }),
       ]);
       
       // Reload tasks if we deleted a task or task group
@@ -2217,7 +2233,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         setEditAccentColor(program.accentColor || '');
       }
     } else if (type === 'cycle') {
-      const linkedProject = allMaintainProjects.find((project) => project.mockCycleId === itemId) || null;
+      const linkedCycle = allMaintainCycles.find((cycle) => cycle.id === itemId) || null;
+      const linkedProject = allMaintainProjects.find((project) => project.id === linkedCycle?.projectId) || null;
       setEditCycleParentProjectId(linkedProject?.id || maintainCycleParentProjectOptions[0]?.id || '');
       for (const progId in mockCycles) {
         const cycle = mockCycles[progId]?.find(c => c.id === itemId);
@@ -2232,18 +2249,14 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         }
       }
     } else if (type === 'project') {
-      for (const cycleId in projectsByMockCycle) {
-        const project = projectsByMockCycle[cycleId]?.find(p => p.id === itemId);
-        if (project) {
-          const parentCycle = allMaintainCycles.find((cycle) => cycle.id === cycleId) || null;
-          setEditItemName(project.name);
-          setEditItemDesc('');
-          setEditStartDate(project.startDate || '');
-          setEditEndDate(project.endDate || '');
-          setEditAccentColor(project.accentColor || '');
-          setEditProjectParentProgramId(parentCycle?.programId || '');
-          break;
-        }
+      const project = allMaintainProjects.find((p) => p.id === itemId) || null;
+      if (project) {
+        setEditItemName(project.name);
+        setEditItemDesc('');
+        setEditStartDate(project.startDate || '');
+        setEditEndDate(project.endDate || '');
+        setEditAccentColor(project.accentColor || '');
+        setEditProjectParentProgramId(project.programId || '');
       }
     }
 
@@ -2274,19 +2287,12 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         });
         await apiClient.patch(`/api/projects/${editCycleParentProjectId}`, { mockCycleId: editItemId });
       } else if (editItemType === 'project') {
-        const cyclesInProgram = allMaintainCycles.filter((cycle) => cycle.programId === editProjectParentProgramId);
-        const targetCycle = cyclesInProgram[0];
-        if (!targetCycle) {
-          alert('Selected program has no mock cycle yet. Add a mock cycle first.');
-          return;
-        }
-
         await apiClient.patch(`/api/projects/${editItemId}`, {
           name: editItemName,
           startDate: editStartDate,
           endDate: editEndDate,
           accentColor: editAccentColor,
-          mockCycleId: targetCycle.id,
+          programId: editProjectParentProgramId,
         });
       }
 
@@ -2294,6 +2300,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
       queryClient.invalidateQueries({ queryKey: ['programs'] });
       queryClient.invalidateQueries({ queryKey: ['mockCycles'] });
       queryClient.invalidateQueries({ queryKey: ['projectsByMockCycle'] });
+      queryClient.invalidateQueries({ queryKey: ['projectsByProgram'] });
 
       setEditDialogOpen(false);
     } catch (error) {
@@ -2344,6 +2351,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
 
       queryClient.invalidateQueries({ queryKey: ['mockCycles'] });
       queryClient.invalidateQueries({ queryKey: ['projectsByMockCycle'] });
+      queryClient.invalidateQueries({ queryKey: ['projectsByProgram'] });
 
       setExpandedPrograms(prev => new Set(prev).add(cloneCycleSourceProgramId as string));
       if (cloned?.id) {
@@ -2635,7 +2643,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
               }, 0) / allPct.length)
             : 0;
           apiClient.patch(`/api/projects/${activeProjectId}`, { progressPercentage: avg })
-            .then(() => queryClient.invalidateQueries({ queryKey: ['projectsByMockCycle'] }))
+            .then(() => {
+              queryClient.invalidateQueries({ queryKey: ['projectsByMockCycle'] });
+              queryClient.invalidateQueries({ queryKey: ['projectsByProgram'] });
+            })
             .catch(() => {});
         }
         return updatedTasks;
@@ -2728,7 +2739,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
       const allPct = projectTasks.filter(t => t.projectObjectId || t.taskGroupId);
       const avg = allPct.length > 0 ? Math.round(allPct.reduce((s, t) => s + (t.progressPercentage ?? 0), 0) / allPct.length) : 0;
       apiClient.patch(`/api/projects/${activeProjectId}`, { progressPercentage: avg })
-        .then(() => queryClient.invalidateQueries({ queryKey: ['projectsByMockCycle'] })).catch(() => {});
+        .then(() => {
+          queryClient.invalidateQueries({ queryKey: ['projectsByMockCycle'] });
+          queryClient.invalidateQueries({ queryKey: ['projectsByProgram'] });
+        }).catch(() => {});
     }
   };
 
@@ -3599,7 +3613,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                     <Button size="small" variant="outlined" onClick={() => openEditDialog('cycle', selectedItem.id)}>
                       Edit Mock Cycle
                     </Button>
-                    <Button size="small" variant="contained" startIcon={<AddIcon />} onClick={() => openCreateDialog('project', undefined, selectedItem.id)}>
+                    <Button size="small" variant="contained" startIcon={<AddIcon />} onClick={() => openCreateDialog('project', selectedItem.programId)}>
                       Create Project
                     </Button>
                   </Box>
@@ -5156,8 +5170,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                             value={maintainProjectParentProgramId}
                             onChange={(e) => {
                               setMaintainProjectParentProgramId(e.target.value);
-                              const nextCycles = allMaintainCycles.filter((cycle) => cycle.programId === e.target.value);
-                              setMaintainProjectParentCycleId(nextCycles[0]?.id || '');
                             }}
                             sx={{ minWidth: 220 }}
                           >
@@ -5176,16 +5188,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                               setMaintainPendingCycleProjectId(maintainCycleParentProjectId || null);
                               openCreateDialog('cycle', maintainCycleParentProgramId);
                             } else if (maintainFormView === 'project') {
-                              const cycles = allMaintainCycles.filter((cycle) => cycle.programId === maintainProjectParentProgramId);
-                              const targetCycleId = cycles[0]?.id || '';
-                              if (!targetCycleId) {
-                                alert('Selected program has no mock cycle yet. Add a mock cycle first.');
-                                return;
-                              }
-                              openCreateDialog('project', undefined, targetCycleId);
+                              openCreateDialog('project', maintainProjectParentProgramId);
                             }
                           }}
-                          disabled={(maintainFormView === 'cycle' && !maintainCycleParentProjectId) || (maintainFormView === 'project' && !maintainProjectParentCycleId)}
+                          disabled={(maintainFormView === 'cycle' && !maintainCycleParentProjectId) || (maintainFormView === 'project' && !maintainProjectParentProgramId)}
                           sx={{ textTransform: 'none', fontWeight: 700 }}
                         >
                           Add New

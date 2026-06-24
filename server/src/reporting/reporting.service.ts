@@ -40,18 +40,18 @@ class ReportingService {
 
   async getMockCycleSummary(mockCycleId: string): Promise<ReportingSummary> {
     return this.getSummaryByScope(
-      'p.mock_cycle_id = $1',
+      'mc.id = $1',
       [mockCycleId],
-      'p.mock_cycle_id = $1',
+      'mc.id = $1',
       [mockCycleId]
     );
   }
 
   async getProgramSummary(programId: string): Promise<ReportingSummary> {
     return this.getSummaryByScope(
-      'mc.program_id = $1',
+      'p.program_id = $1',
       [programId],
-      'mc.program_id = $1',
+      'p.program_id = $1',
       [programId]
     );
   }
@@ -176,7 +176,7 @@ class ReportingService {
        FROM defects d
        JOIN tasks t ON t.id = d.task_id
        JOIN projects p ON p.id = t.project_id
-       JOIN mock_cycles mc ON mc.id = p.mock_cycle_id
+       LEFT JOIN mock_cycles mc ON mc.project_id = p.id
        WHERE ${scopeClause}`,
       params
     );
@@ -205,7 +205,7 @@ class ReportingService {
          COALESCE(SUM(vs.invalid_records), 0) AS invalid_records
        FROM tasks t
        JOIN projects p ON p.id = t.project_id
-       JOIN mock_cycles mc ON mc.id = p.mock_cycle_id
+       LEFT JOIN mock_cycles mc ON mc.project_id = p.id
        LEFT JOIN task_validation_stats vs ON vs.task_id = t.id
        WHERE ${scopeClause}
          AND t.task_type = $${params.length + 1}`,
@@ -218,7 +218,7 @@ class ReportingService {
        FROM task_issue_types it
        JOIN tasks t ON t.id = it.task_id
        JOIN projects p ON p.id = t.project_id
-       JOIN mock_cycles mc ON mc.id = p.mock_cycle_id
+       LEFT JOIN mock_cycles mc ON mc.project_id = p.id
        WHERE ${scopeClause}
          AND t.task_type = $${params.length + 1}
        GROUP BY it.issue_code
@@ -247,7 +247,7 @@ class ReportingService {
          COUNT(*) FILTER (WHERE t.status = 'blocked') AS failed
        FROM tasks t
        JOIN projects p ON p.id = t.project_id
-       JOIN mock_cycles mc ON mc.id = p.mock_cycle_id
+       LEFT JOIN mock_cycles mc ON mc.project_id = p.id
        WHERE ${scopeClause}
          AND t.task_type = $${params.length + 1}`,
       [...params, 'load']

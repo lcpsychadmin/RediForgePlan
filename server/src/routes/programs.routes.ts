@@ -113,7 +113,7 @@ router.get(
   }
 );
 
-// Create mock cycle (admin only)
+// Create mock cycle under an existing project (admin only)
 router.post(
   '/:programId/mock-cycles',
   requireAuth,
@@ -125,14 +125,32 @@ router.post(
         throw new ApiError(404, 'Program not found', 'NOT_FOUND');
       }
 
-      const { name, startDate, endDate, scheduleMode, accentColor } = req.body;
+      const { name, startDate, endDate, scheduleMode, accentColor, projectId } = req.body;
 
       if (!name || !startDate || !endDate) {
         throw new ApiError(400, 'Mock cycle name, startDate, and endDate are required', 'MISSING_FIELD');
       }
+      let targetProjectId: string | null = projectId || null;
+
+      if (!targetProjectId) {
+        const projects = await projectService.getProjectsByProgram(req.params.programId);
+        targetProjectId = projects[0]?.id || null;
+      }
+
+      if (!targetProjectId) {
+        throw new ApiError(400, 'No project exists in this program. Create a project first.', 'MISSING_FIELD');
+      }
+
+      const project = await projectService.getProjectById(targetProjectId);
+      if (!project) {
+        throw new ApiError(404, 'Project not found', 'NOT_FOUND');
+      }
+      if (project.programId !== req.params.programId) {
+        throw new ApiError(400, 'Project does not belong to this program', 'INVALID_FIELD');
+      }
 
       const cycle = await programService.createMockCycle(
-        req.params.programId,
+        targetProjectId,
         name,
         startDate,
         endDate,

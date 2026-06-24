@@ -65,24 +65,9 @@ CREATE TABLE programs (
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE mock_cycles (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  program_id UUID NOT NULL REFERENCES programs(id) ON DELETE CASCADE,
-  name VARCHAR(255) NOT NULL,
-  start_date DATE NOT NULL,
-  end_date DATE NOT NULL,
-  accent_color VARCHAR(7),
-  schedule_mode VARCHAR(20) NOT NULL DEFAULT 'all_days' CHECK (schedule_mode IN ('all_days', 'working_days')),
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT valid_date_range CHECK (start_date <= end_date)
-);
-
-CREATE INDEX idx_mock_cycles_program_id ON mock_cycles(program_id);
-
 CREATE TABLE projects (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  mock_cycle_id UUID NOT NULL REFERENCES mock_cycles(id) ON DELETE CASCADE,
+  program_id UUID NOT NULL REFERENCES programs(id) ON DELETE CASCADE,
   name VARCHAR(255) NOT NULL,
   description TEXT,
   start_date DATE NOT NULL,
@@ -94,8 +79,22 @@ CREATE TABLE projects (
   CONSTRAINT valid_date_range CHECK (start_date <= end_date)
 );
 
-CREATE INDEX idx_projects_mock_cycle_id ON projects(mock_cycle_id);
-ALTER TABLE projects ADD CONSTRAINT projects_mock_cycle_id_unique UNIQUE (mock_cycle_id);
+CREATE INDEX idx_projects_program_id ON projects(program_id);
+
+CREATE TABLE mock_cycles (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  name VARCHAR(255) NOT NULL,
+  start_date DATE NOT NULL,
+  end_date DATE NOT NULL,
+  accent_color VARCHAR(7),
+  schedule_mode VARCHAR(20) NOT NULL DEFAULT 'all_days' CHECK (schedule_mode IN ('all_days', 'working_days')),
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT valid_date_range CHECK (start_date <= end_date)
+);
+
+CREATE INDEX idx_mock_cycles_project_id ON mock_cycles(project_id);
 
 -- =====================================================
 -- GLOBAL OBJECT INVENTORY (Canonical)

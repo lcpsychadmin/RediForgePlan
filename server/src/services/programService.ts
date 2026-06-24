@@ -9,7 +9,7 @@ export class ProgramService {
     const result = await db.query(
       'SELECT id, name, description, accent_color, created_at, updated_at FROM programs ORDER BY created_at DESC'
     );
-    return result.rows.map(row => this.formatProgram(row));
+    return result.rows.map((row) => this.formatProgram(row));
   }
 
   async getProgramById(programId: string) {
@@ -52,7 +52,7 @@ export class ProgramService {
 
     if (fields.length === 0) return this.getProgramById(programId);
 
-    fields.push(`updated_at = CURRENT_TIMESTAMP`);
+    fields.push('updated_at = CURRENT_TIMESTAMP');
 
     const result = await db.query(
       `UPDATE programs SET ${fields.join(', ')} WHERE id = $1 RETURNING id, name, description, accent_color, created_at, updated_at`,
@@ -64,33 +64,7 @@ export class ProgramService {
   }
 
   async deleteProgram(programId: string) {
-    // Cascade delete: first get all mock cycles for this program
-    const cyclesResult = await db.query(
-      'SELECT id FROM mock_cycles WHERE program_id = $1',
-      [programId]
-    );
-
-    // Delete all projects in those mock cycles
-    const cycleIds = cyclesResult.rows.map(r => r.id);
-    if (cycleIds.length > 0) {
-      await db.query(
-        'DELETE FROM projects WHERE mock_cycle_id = ANY($1)',
-        [cycleIds]
-      );
-    }
-
-    // Delete all mock cycles for this program
-    await db.query(
-      'DELETE FROM mock_cycles WHERE program_id = $1',
-      [programId]
-    );
-
-    // Finally delete the program
-    const result = await db.query(
-      'DELETE FROM programs WHERE id = $1 RETURNING id',
-      [programId]
-    );
-
+    const result = await db.query('DELETE FROM programs WHERE id = $1 RETURNING id', [programId]);
     return result.rows.length > 0;
   }
 
@@ -100,8 +74,8 @@ export class ProgramService {
         COUNT(DISTINCT mc.id) as mock_cycle_count,
         COUNT(DISTINCT p.id) as project_count
       FROM programs pr
-      LEFT JOIN mock_cycles mc ON pr.id = mc.program_id
-      LEFT JOIN projects p ON mc.id = p.mock_cycle_id
+      LEFT JOIN projects p ON pr.id = p.program_id
+      LEFT JOIN mock_cycles mc ON p.id = mc.project_id
       WHERE pr.id = $1`,
       [programId]
     );
@@ -112,30 +86,62 @@ export class ProgramService {
   // Mock Cycles
   async getMockCyclesByProgram(programId: string) {
     const result = await db.query(
-      'SELECT id, program_id, name, start_date, end_date, accent_color, schedule_mode, created_at, updated_at FROM mock_cycles WHERE program_id = $1 ORDER BY start_date DESC',
+      `SELECT mc.id, p.program_id, mc.project_id, mc.name, mc.start_date, mc.end_date, mc.accent_color, mc.schedule_mode, mc.created_at, mc.updated_at
+       FROM mock_cycles mc
+       JOIN projects p ON p.id = mc.project_id
+       WHERE p.program_id = $1
+       ORDER BY mc.start_date DESC`,
       [programId]
     );
-    return result.rows.map(row => this.formatMockCycle(row));
+    return result.rows.map((row) => this.formatMockCycle(row));
+  }
+
+  async getMockCyclesByProject(projectId: string) {
+    const result = await db.query(
+      `SELECT mc.id, p.program_id, mc.project_id, mc.name, mc.start_date, mc.end_date, mc.accent_color, mc.schedule_mode, mc.created_at, mc.updated_at
+       FROM mock_cycles mc
+       JOIN projects p ON p.id = mc.project_id
+       WHERE mc.project_id = $1
+       ORDER BY mc.start_date DESC`,
+      [projectId]
+    );
+    return result.rows.map((row) => this.formatMockCycle(row));
   }
 
   async getMockCycleById(mockCycleId: string) {
     const result = await db.query(
-      'SELECT id, program_id, name, start_date, end_date, accent_color, schedule_mode, created_at, updated_at FROM mock_cycles WHERE id = $1',
+      `SELECT mc.id, p.program_id, mc.project_id, mc.name, mc.start_date, mc.end_date, mc.accent_color, mc.schedule_mode, mc.created_at, mc.updated_at
+       FROM mock_cycles mc
+       JOIN projects p ON p.id = mc.project_id
+       WHERE mc.id = $1`,
       [mockCycleId]
     );
     if (result.rows.length === 0) return null;
     return this.formatMockCycle(result.rows[0]);
   }
 
-  async createMockCycle(programId: string, name: string, startDate: string, endDate: string, scheduleMode: string = 'all_days', accentColor?: string) {
+  async createMockCycle(
+    projectId: string,
+    name: string,
+    startDate: string,
+    endDate: string,
+    scheduleMode: string = 'all_days',
+    accentColor?: string
+  ) {
     const result = await db.query(
-      'INSERT INTO mock_cycles (program_id, name, start_date, end_date, schedule_mode, accent_color) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, program_id, name, start_date, end_date, accent_color, schedule_mode, created_at, updated_at',
-      [programId, name, startDate, endDate, scheduleMode, accentColor || null]
+      `INSERT INTO mock_cycles (project_id, name, start_date, end_date, schedule_mode, accent_color)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id, project_id, name, start_date, end_date, accent_color, schedule_mode, created_at, updated_at`,
+      [projectId, name, startDate, endDate, scheduleMode, accentColor || null]
     );
-    return this.formatMockCycle(result.rows[0]);
+
+    return this.getMockCycleById(result.rows[0].id);
   }
 
-  async updateMockCycle(mockCycleId: string, data: { name?: string; startDate?: string; endDate?: string; scheduleMode?: string; accentColor?: string }) {
+  async updateMockCycle(
+    mockCycleId: string,
+    data: { name?: string; startDate?: string; endDate?: string; scheduleMode?: string; accentColor?: string }
+  ) {
     const fields: string[] = [];
     const values: any[] = [mockCycleId];
     let paramCount = 2;
@@ -168,72 +174,44 @@ export class ProgramService {
 
     if (fields.length === 0) return this.getMockCycleById(mockCycleId);
 
-    fields.push(`updated_at = CURRENT_TIMESTAMP`);
+    fields.push('updated_at = CURRENT_TIMESTAMP');
 
     const result = await db.query(
-      `UPDATE mock_cycles SET ${fields.join(', ')} WHERE id = $1 RETURNING id, program_id, name, start_date, end_date, accent_color, schedule_mode, created_at, updated_at`,
+      `UPDATE mock_cycles
+       SET ${fields.join(', ')}
+       WHERE id = $1
+       RETURNING id`,
       values
     );
 
     if (result.rows.length === 0) return null;
-    return this.formatMockCycle(result.rows[0]);
+    return this.getMockCycleById(mockCycleId);
+  }
+
+  async reassignMockCycleToProject(mockCycleId: string, projectId: string) {
+    const result = await db.query(
+      `UPDATE mock_cycles mc
+       SET project_id = $2,
+           updated_at = CURRENT_TIMESTAMP
+       FROM projects p
+       WHERE mc.id = $1
+         AND p.id = $2
+         AND p.program_id = (
+           SELECT p2.program_id
+           FROM projects p2
+           JOIN mock_cycles mc2 ON mc2.project_id = p2.id
+           WHERE mc2.id = $1
+         )
+       RETURNING mc.id`,
+      [mockCycleId, projectId]
+    );
+
+    return result.rows.length > 0;
   }
 
   async deleteMockCycle(mockCycleId: string) {
-    const client = await db.connect();
-    try {
-      console.log(`[deleteMockCycle] Starting delete for cycle: ${mockCycleId}`);
-      await client.query('BEGIN');
-      console.log(`[deleteMockCycle] Transaction started`);
-
-      const sourceCycleResult = await client.query(
-        `SELECT id, program_id, name, start_date, end_date, schedule_mode, accent_color
-         FROM mock_cycles
-         WHERE id = $1
-         FOR UPDATE`,
-        [mockCycleId]
-      );
-      console.log(`[deleteMockCycle] Cycle lookup completed: ${sourceCycleResult.rowCount} rows`);
-
-      if (sourceCycleResult.rows.length === 0) {
-        console.log(`[deleteMockCycle] Cycle not found: ${mockCycleId}`);
-        await client.query('ROLLBACK');
-        return false;
-      }
-
-      const sourceCycle = sourceCycleResult.rows[0];
-      console.log(`[deleteMockCycle] Found cycle: ${sourceCycle.name} (program: ${sourceCycle.program_id})`);
-
-      console.log(`[deleteMockCycle] About to delete mock cycle: ${mockCycleId}`);
-      const deleteResult = await client.query(
-        'DELETE FROM mock_cycles WHERE id = $1 RETURNING id',
-        [mockCycleId]
-      );
-
-      console.log(`[deleteMockCycle] Delete query returned ${deleteResult.rowCount} rows`);
-      if (deleteResult.rows.length > 0) {
-        console.log(`[deleteMockCycle] Successfully deleted cycle: ${deleteResult.rows[0].id}`);
-      } else {
-        console.log(`[deleteMockCycle] Delete returned no rows`);
-      }
-
-      console.log(`[deleteMockCycle] About to commit transaction`);
-      await client.query('COMMIT');
-      console.log(`[deleteMockCycle] Transaction committed successfully`);
-      return deleteResult.rows.length > 0;
-    } catch (error) {
-      console.error(`[deleteMockCycle] ERROR occurred, rolling back:`, error instanceof Error ? error.message : String(error));
-      try {
-        await client.query('ROLLBACK');
-        console.log(`[deleteMockCycle] Rollback completed`);
-      } catch (rollbackError) {
-        console.error(`[deleteMockCycle] Rollback failed:`, rollbackError);
-      }
-      throw error;
-    } finally {
-      client.release();
-      console.log(`[deleteMockCycle] Client released`);
-    }
+    const result = await db.query('DELETE FROM mock_cycles WHERE id = $1 RETURNING id', [mockCycleId]);
+    return result.rows.length > 0;
   }
 
   async cloneMockCycle(sourceMockCycleId: string, data?: { name?: string }) {
@@ -242,7 +220,19 @@ export class ProgramService {
       await client.query('BEGIN');
 
       const sourceCycleResult = await client.query(
-        'SELECT id, program_id, name, start_date, end_date, accent_color, schedule_mode, created_at, updated_at FROM mock_cycles WHERE id = $1',
+        `SELECT mc.id,
+                mc.project_id,
+                p.program_id,
+                mc.name,
+                mc.start_date,
+                mc.end_date,
+                mc.accent_color,
+                mc.schedule_mode,
+                mc.created_at,
+                mc.updated_at
+         FROM mock_cycles mc
+         JOIN projects p ON p.id = mc.project_id
+         WHERE mc.id = $1`,
         [sourceMockCycleId]
       );
       if (sourceCycleResult.rows.length === 0) {
@@ -254,18 +244,27 @@ export class ProgramService {
       const newCycleName = (data?.name || `${sourceCycle.name} Copy`).trim();
 
       const newCycleResult = await client.query(
-        `INSERT INTO mock_cycles (program_id, name, start_date, end_date, schedule_mode, accent_color)
+        `INSERT INTO mock_cycles (project_id, name, start_date, end_date, schedule_mode, accent_color)
          VALUES ($1, $2, $3, $4, $5, $6)
-         RETURNING id, program_id, name, start_date, end_date, accent_color, schedule_mode, created_at, updated_at`,
-        [sourceCycle.program_id, newCycleName, sourceCycle.start_date, sourceCycle.end_date, sourceCycle.schedule_mode || 'all_days', sourceCycle.accent_color || null]
+         RETURNING id`,
+        [
+          sourceCycle.project_id,
+          newCycleName,
+          sourceCycle.start_date,
+          sourceCycle.end_date,
+          sourceCycle.schedule_mode || 'all_days',
+          sourceCycle.accent_color || null,
+        ]
       );
-      const newCycle = newCycleResult.rows[0];
+
+      const newCycleId = newCycleResult.rows[0].id;
 
       const projectsResult = await client.query(
-        `SELECT id, name, description, start_date, end_date, accent_color, progress_percentage
-         FROM projects
-         WHERE mock_cycle_id = $1
-         ORDER BY updated_at DESC, created_at DESC
+        `SELECT p.id, p.name, p.description, p.start_date, p.end_date, p.accent_color, p.progress_percentage
+         FROM projects p
+         JOIN mock_cycles mc ON mc.project_id = p.id
+         WHERE mc.id = $1
+         ORDER BY p.updated_at DESC, p.created_at DESC
          LIMIT 1`,
         [sourceMockCycleId]
       );
@@ -273,17 +272,23 @@ export class ProgramService {
       const projectIdMap = new Map<string, string>();
       for (const p of projectsResult.rows) {
         const insertedProject = await client.query(
-          `INSERT INTO projects (mock_cycle_id, name, description, start_date, end_date, accent_color, progress_percentage)
+          `INSERT INTO projects (program_id, name, description, start_date, end_date, accent_color, progress_percentage)
            VALUES ($1, $2, $3, $4, $5, $6, $7)
            RETURNING id`,
-          [newCycle.id, p.name, p.description, p.start_date, p.end_date, p.accent_color, p.progress_percentage || 0]
+          [sourceCycle.program_id, p.name, p.description, p.start_date, p.end_date, p.accent_color, p.progress_percentage || 0]
         );
         projectIdMap.set(p.id, insertedProject.rows[0].id);
       }
 
-      const sourceProjectIds = Array.from(projectIdMap.keys());
-      const newProjectIds = Array.from(projectIdMap.values());
+      if (projectIdMap.size > 0) {
+        const newProjectId = Array.from(projectIdMap.values())[0];
+        await client.query(
+          `UPDATE mock_cycles SET project_id = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
+          [newCycleId, newProjectId]
+        );
+      }
 
+      const sourceProjectIds = Array.from(projectIdMap.keys());
       const projectObjectIdMap = new Map<string, string>();
       const taskGroupIdMap = new Map<string, string>();
       const taskIdMap = new Map<string, string>();
@@ -493,7 +498,7 @@ export class ProgramService {
       }
 
       await client.query('COMMIT');
-      return this.formatMockCycle(newCycle);
+      return this.getMockCycleById(newCycleId);
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;
@@ -505,14 +510,13 @@ export class ProgramService {
   async getMockCycleStats(mockCycleId: string) {
     const result = await db.query(
       `SELECT
-        COUNT(DISTINCT p.id) as project_count
+        1::int as project_count
       FROM mock_cycles mc
-      LEFT JOIN projects p ON mc.id = p.mock_cycle_id
       WHERE mc.id = $1`,
       [mockCycleId]
     );
 
-    return result.rows[0];
+    return result.rows[0] || { project_count: 0 };
   }
 
   // Formatters
@@ -533,6 +537,7 @@ export class ProgramService {
     return {
       id: row.id,
       programId: row.program_id,
+      projectId: row.project_id,
       name: normalizedName,
       startDate: row.start_date,
       endDate: row.end_date,

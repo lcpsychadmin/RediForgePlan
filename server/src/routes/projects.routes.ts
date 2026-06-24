@@ -10,7 +10,26 @@ import { formatListResponse, formatSingleResponse } from '../utils/responseForma
 
 const router = Router();
 
-// Get projects by mock cycle
+// Get projects by program
+router.get(
+  '/by-program/:programId',
+  requireAuth,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const program = await programService.getProgramById(req.params.programId);
+      if (!program) {
+        throw new ApiError(404, 'Program not found', 'NOT_FOUND');
+      }
+
+      const projects = await projectService.getProjectsByProgram(req.params.programId);
+      res.json(formatListResponse(projects, projects.length));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// Backward-compatible: get project owning this cycle
 router.get(
   '/by-cycle/:mockCycleId',
   requireAuth,
@@ -31,6 +50,40 @@ router.get(
 
 // Create project (admin only)
 router.post(
+  '/by-program/:programId',
+  requireAuth,
+  requireRole('admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const program = await programService.getProgramById(req.params.programId);
+      if (!program) {
+        throw new ApiError(404, 'Program not found', 'NOT_FOUND');
+      }
+
+      const { name, description, startDate, endDate, accentColor } = req.body;
+
+      if (!name || !startDate || !endDate) {
+        throw new ApiError(400, 'Project name, startDate, and endDate are required', 'MISSING_FIELD');
+      }
+
+      const project = await projectService.createProject(
+        req.params.programId,
+        name,
+        description,
+        startDate,
+        endDate,
+        accentColor
+      );
+
+      res.status(201).json(formatSingleResponse(project));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// Backward-compatible: create project and assign cycle to it
+router.post(
   '/by-cycle/:mockCycleId',
   requireAuth,
   requireRole('admin'),
@@ -42,25 +95,54 @@ router.post(
       }
 
       const { name, description, startDate, endDate } = req.body;
-
       if (!name || !startDate || !endDate) {
         throw new ApiError(400, 'Project name, startDate, and endDate are required', 'MISSING_FIELD');
       }
 
-      const existingProjects = await projectService.getProjectsByMockCycle(req.params.mockCycleId);
-      if (existingProjects.length > 0) {
-        throw new ApiError(409, 'This mock cycle already has a project assigned', 'CONFLICT');
-      }
-
       const project = await projectService.createProject(
-        req.params.mockCycleId,
+        cycle.programId,
         name,
         description,
         startDate,
         endDate
       );
 
+      await programService.reassignMockCycleToProject(req.params.mockCycleId, project.id);
+
       res.status(201).json(formatSingleResponse(project));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// Create mock cycle under a project (admin only)
+router.post(
+  '/:projectId/mock-cycles',
+  requireAuth,
+  requireRole('admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const project = await projectService.getProjectById(req.params.projectId);
+      if (!project) {
+        throw new ApiError(404, 'Project not found', 'NOT_FOUND');
+      }
+
+      const { name, startDate, endDate, scheduleMode, accentColor } = req.body;
+      if (!name || !startDate || !endDate) {
+        throw new ApiError(400, 'Mock cycle name, startDate, and endDate are required', 'MISSING_FIELD');
+      }
+
+      const cycle = await programService.createMockCycle(
+        req.params.projectId,
+        name,
+        startDate,
+        endDate,
+        scheduleMode || 'all_days',
+        accentColor
+      );
+
+      res.status(201).json(formatSingleResponse(cycle));
     } catch (error) {
       next(error);
     }
@@ -92,7 +174,20 @@ router.patch(
   requireRole('admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const project = await projectService.updateProject(req.params.projectId, req.body);
+      const { mockCycleId, ...projectPatch } = req.body || {};
+
+      if (mockCycleId !== undefined) {
+        if (typeof mockCycleId !== 'string' || !mockCycleId) {
+          throw new ApiError(400, 'mockCycleId must be a non-empty string', 'INVALID_FIELD');
+        }
+
+        const reassigned = await programService.reassignMockCycleToProject(mockCycleId, req.params.projectId);
+        if (!reassigned) {
+          throw new ApiError(404, 'Mock cycle not found', 'NOT_FOUND');
+        }
+      }
+
+      const project = await projectService.updateProject(req.params.projectId, projectPatch);
 
       if (!project) {
         throw new ApiError(404, 'Project not found', 'NOT_FOUND');

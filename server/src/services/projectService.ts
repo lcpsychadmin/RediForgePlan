@@ -4,32 +4,114 @@
 import db from '../db.js';
 
 export class ProjectService {
+  async getProjectsByProgram(programId: string) {
+    const result = await db.query(
+      `SELECT p.id,
+              p.program_id,
+              mc_primary.id AS mock_cycle_id,
+              p.name,
+              p.description,
+              p.start_date,
+              p.end_date,
+              p.accent_color,
+              p.progress_percentage,
+              p.created_at,
+              p.updated_at
+       FROM projects p
+       LEFT JOIN LATERAL (
+         SELECT id
+         FROM mock_cycles
+         WHERE project_id = p.id
+         ORDER BY updated_at DESC, created_at DESC
+         LIMIT 1
+       ) mc_primary ON true
+       WHERE p.program_id = $1
+       ORDER BY p.start_date DESC`,
+      [programId]
+    );
+    return result.rows.map((row) => this.formatProject(row));
+  }
+
   async getProjectsByMockCycle(mockCycleId: string) {
     const result = await db.query(
-      'SELECT id, mock_cycle_id, name, description, start_date, end_date, accent_color, progress_percentage, created_at, updated_at FROM projects WHERE mock_cycle_id = $1 ORDER BY start_date DESC',
+      `SELECT p.id,
+              p.program_id,
+              mc.id AS mock_cycle_id,
+              p.name,
+              p.description,
+              p.start_date,
+              p.end_date,
+              p.accent_color,
+              p.progress_percentage,
+              p.created_at,
+              p.updated_at
+       FROM projects p
+       JOIN mock_cycles mc ON mc.project_id = p.id
+       WHERE mc.id = $1
+       ORDER BY p.start_date DESC`,
       [mockCycleId]
     );
-    return result.rows.map(row => this.formatProject(row));
+    return result.rows.map((row) => this.formatProject(row));
   }
 
   async getProjectById(projectId: string) {
     const result = await db.query(
-      'SELECT id, mock_cycle_id, name, description, start_date, end_date, accent_color, progress_percentage, created_at, updated_at FROM projects WHERE id = $1',
+      `SELECT p.id,
+              p.program_id,
+              mc_primary.id AS mock_cycle_id,
+              p.name,
+              p.description,
+              p.start_date,
+              p.end_date,
+              p.accent_color,
+              p.progress_percentage,
+              p.created_at,
+              p.updated_at
+       FROM projects p
+       LEFT JOIN LATERAL (
+         SELECT id
+         FROM mock_cycles
+         WHERE project_id = p.id
+         ORDER BY updated_at DESC, created_at DESC
+         LIMIT 1
+       ) mc_primary ON true
+       WHERE p.id = $1`,
       [projectId]
     );
     if (result.rows.length === 0) return null;
     return this.formatProject(result.rows[0]);
   }
 
-  async createProject(mockCycleId: string, name: string, description: string | undefined, startDate: string, endDate: string, accentColor?: string, progressPercentage?: number) {
+  async createProject(
+    programId: string,
+    name: string,
+    description: string | undefined,
+    startDate: string,
+    endDate: string,
+    accentColor?: string,
+    progressPercentage?: number
+  ) {
     const result = await db.query(
-      'INSERT INTO projects (mock_cycle_id, name, description, start_date, end_date, accent_color, progress_percentage) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, mock_cycle_id, name, description, start_date, end_date, accent_color, progress_percentage, created_at, updated_at',
-      [mockCycleId, name, description || null, startDate, endDate, accentColor || null, progressPercentage || 0]
+      `INSERT INTO projects (program_id, name, description, start_date, end_date, accent_color, progress_percentage)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING id, program_id, NULL::uuid AS mock_cycle_id, name, description, start_date, end_date, accent_color, progress_percentage, created_at, updated_at`,
+      [programId, name, description || null, startDate, endDate, accentColor || null, progressPercentage || 0]
     );
     return this.formatProject(result.rows[0]);
   }
 
-  async updateProject(projectId: string, data: { name?: string; description?: string; startDate?: string; endDate?: string; accentColor?: string; progressPercentage?: number; mockCycleId?: string }) {
+  async updateProject(
+    projectId: string,
+    data: {
+      name?: string;
+      description?: string;
+      startDate?: string;
+      endDate?: string;
+      accentColor?: string;
+      progressPercentage?: number;
+      programId?: string;
+    }
+  ) {
     const fields: string[] = [];
     const values: any[] = [];
     let paramCount = 1;
@@ -64,83 +146,44 @@ export class ProjectService {
       values.push(data.endDate);
       paramCount++;
     }
-
-    if (fields.length === 0 && data.mockCycleId === undefined) return this.getProjectById(projectId);
-
-    const client = await db.connect();
-    try {
-      await client.query('BEGIN');
-
-      const currentProjectResult = await client.query(
-        'SELECT id, mock_cycle_id FROM projects WHERE id = $1 FOR UPDATE',
-        [projectId]
-      );
-      if (currentProjectResult.rows.length === 0) {
-        await client.query('ROLLBACK');
-        return null;
-      }
-
-      const currentCycleId = currentProjectResult.rows[0].mock_cycle_id as string;
-
-      if (data.mockCycleId !== undefined && data.mockCycleId !== currentCycleId) {
-        const targetCycleOwnerResult = await client.query(
-          'SELECT id FROM projects WHERE mock_cycle_id = $1 FOR UPDATE',
-          [data.mockCycleId]
-        );
-
-        const targetCycleOwnerId = targetCycleOwnerResult.rows[0]?.id as string | undefined;
-
-        if (targetCycleOwnerId && targetCycleOwnerId !== projectId) {
-          // Swap cycle assignments in one statement to satisfy unique(mock_cycle_id).
-          await client.query(
-            `UPDATE projects
-             SET mock_cycle_id = CASE
-               WHEN id = $1 THEN $2::uuid
-               WHEN id = $3 THEN $4::uuid
-             END,
-             updated_at = CURRENT_TIMESTAMP
-             WHERE id IN ($1, $3)`,
-            [projectId, data.mockCycleId, targetCycleOwnerId, currentCycleId]
-          );
-        } else {
-          await client.query(
-            'UPDATE projects SET mock_cycle_id = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $1',
-            [projectId, data.mockCycleId]
-          );
-        }
-      }
-
-      if (fields.length > 0) {
-        const fieldAssignments = [...fields, 'updated_at = CURRENT_TIMESTAMP'];
-        await client.query(
-          `UPDATE projects SET ${fieldAssignments.join(', ')} WHERE id = $${paramCount}`,
-          [...values, projectId]
-        );
-      }
-
-      const result = await client.query(
-        'SELECT id, mock_cycle_id, name, description, start_date, end_date, accent_color, progress_percentage, created_at, updated_at FROM projects WHERE id = $1',
-        [projectId]
-      );
-
-      await client.query('COMMIT');
-      return this.formatProject(result.rows[0]);
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
+    if (data.programId !== undefined) {
+      fields.push(`program_id = $${paramCount}`);
+      values.push(data.programId);
+      paramCount++;
     }
+
+    if (fields.length === 0) return this.getProjectById(projectId);
+
+    const fieldAssignments = [...fields, 'updated_at = CURRENT_TIMESTAMP'];
+    const result = await db.query(
+      `UPDATE projects
+       SET ${fieldAssignments.join(', ')}
+       WHERE id = $${paramCount}
+       RETURNING id, program_id, NULL::uuid AS mock_cycle_id, name, description, start_date, end_date, accent_color, progress_percentage, created_at, updated_at`,
+      [...values, projectId]
+    );
+
+    if (result.rows.length === 0) return null;
+
+    return this.getProjectById(projectId);
   }
 
   async deleteProject(projectId: string) {
-    // Check for dependencies
+    const cycleCount = await db.query(
+      'SELECT COUNT(*) FROM mock_cycles WHERE project_id = $1',
+      [projectId]
+    );
+
+    if (parseInt(cycleCount.rows[0].count, 10) > 0) {
+      throw new Error('Cannot delete project with existing mock cycles');
+    }
+
     const objectCount = await db.query(
       'SELECT COUNT(*) FROM project_objects WHERE project_id = $1',
       [projectId]
     );
 
-    if (parseInt(objectCount.rows[0].count) > 0) {
+    if (parseInt(objectCount.rows[0].count, 10) > 0) {
       throw new Error('Cannot delete project with existing project objects');
     }
 
@@ -149,7 +192,7 @@ export class ProjectService {
       [projectId]
     );
 
-    if (parseInt(groupCount.rows[0].count) > 0) {
+    if (parseInt(groupCount.rows[0].count, 10) > 0) {
       throw new Error('Cannot delete project with existing task groups');
     }
 
@@ -158,14 +201,11 @@ export class ProjectService {
       [projectId]
     );
 
-    if (parseInt(taskCount.rows[0].count) > 0) {
+    if (parseInt(taskCount.rows[0].count, 10) > 0) {
       throw new Error('Cannot delete project with existing tasks');
     }
 
-    const result = await db.query(
-      'DELETE FROM projects WHERE id = $1 RETURNING id',
-      [projectId]
-    );
+    const result = await db.query('DELETE FROM projects WHERE id = $1 RETURNING id', [projectId]);
 
     return result.rows.length > 0;
   }
@@ -176,11 +216,13 @@ export class ProjectService {
         COUNT(DISTINCT po.id) as object_count,
         COUNT(DISTINCT tg.id) as task_group_count,
         COUNT(DISTINCT t.id) as task_count,
+        COUNT(DISTINCT mc.id) as mock_cycle_count,
         COUNT(DISTINCT CASE WHEN t.status = 'complete' THEN t.id END) as completed_tasks
       FROM projects p
       LEFT JOIN project_objects po ON p.id = po.project_id
       LEFT JOIN task_groups tg ON p.id = tg.project_id
       LEFT JOIN tasks t ON p.id = t.project_id
+      LEFT JOIN mock_cycles mc ON p.id = mc.project_id
       WHERE p.id = $1`,
       [projectId]
     );
@@ -191,6 +233,7 @@ export class ProjectService {
   private formatProject(row: any) {
     return {
       id: row.id,
+      programId: row.program_id,
       mockCycleId: row.mock_cycle_id,
       name: row.name,
       description: row.description,
