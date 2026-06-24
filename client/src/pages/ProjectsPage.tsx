@@ -158,6 +158,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   const [planningStrategyDraft, setPlanningStrategyDraft] = useState('');
   const [isSavingPlanningStrategy, setIsSavingPlanningStrategy] = useState(false);
   const [planningAdditionalGroups, setPlanningAdditionalGroups] = useState<Record<string, string[]>>({});
+  const [planningAdditionalProcessAreas, setPlanningAdditionalProcessAreas] = useState<Record<string, string[]>>({});
+  const [hiddenProcessAreas, setHiddenProcessAreas] = useState<Record<string, string[]>>({});
   const [selectedExecutionProcessArea, setSelectedExecutionProcessArea] = useState('');
   
   // State for expanded nodes in tree
@@ -247,6 +249,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   const [planGroupDialogOpen, setPlanGroupDialogOpen] = useState(false);
   const [newPlanGroupName, setNewPlanGroupName] = useState('');
   const [planGroupTargetProjectId, setPlanGroupTargetProjectId] = useState<string | null>(null);
+  const [processAreaDialogOpen, setProcessAreaDialogOpen] = useState(false);
+  const [newProcessAreaName, setNewProcessAreaName] = useState('');
+  const [processAreaTargetProjectId, setProcessAreaTargetProjectId] = useState<string | null>(null);
 
   // Picklist constants
   const processAreaOptions = ['A2R', 'CTRM', 'GTS', 'H2R', 'I2L', 'MDM', 'P2C', 'P2D', 'PSS', 'R2R', 'S2P', 'TM'];
@@ -410,6 +415,40 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   useEffect(() => {
     localStorage.setItem('rf-planning-additional-groups', JSON.stringify(planningAdditionalGroups));
   }, [planningAdditionalGroups]);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('rf-planning-additional-process-areas');
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') {
+        setPlanningAdditionalProcessAreas(parsed);
+      }
+    } catch {
+      // no-op
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem('rf-planning-additional-process-areas', JSON.stringify(planningAdditionalProcessAreas));
+  }, [planningAdditionalProcessAreas]);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('rf-hidden-process-areas');
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') {
+        setHiddenProcessAreas(parsed);
+      }
+    } catch {
+      // no-op
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem('rf-hidden-process-areas', JSON.stringify(hiddenProcessAreas));
+  }, [hiddenProcessAreas]);
 
   useEffect(() => {
     try {
@@ -1159,7 +1198,14 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
       const label = (groupName || '').trim();
       if (label) areas.add(label);
     });
-    const allAreas = Array.from(areas);
+    const additionalProcessAreaNodes = planningAdditionalProcessAreas[projectId] || [];
+    additionalProcessAreaNodes.forEach((areaName) => {
+      const label = (areaName || '').trim();
+      if (label) areas.add(label);
+    });
+
+    const hiddenAreaSet = new Set((hiddenProcessAreas[projectId] || []).map((area) => (area || '').trim().toLowerCase()));
+    const allAreas = Array.from(areas).filter((area) => !hiddenAreaSet.has((area || '').trim().toLowerCase()));
     const ordered = mergeOrder(treeOrder.processAreas[projectId] || [], allAreas);
     return ordered;
   };
@@ -1281,6 +1327,12 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     setPlanGroupDialogOpen(true);
   };
 
+  const handleAddProcessArea = (projectId: string) => {
+    setProcessAreaTargetProjectId(projectId);
+    setNewProcessAreaName('');
+    setProcessAreaDialogOpen(true);
+  };
+
   const handleCreatePlanGroup = () => {
     const projectId = planGroupTargetProjectId;
     const name = newPlanGroupName.trim();
@@ -1319,9 +1371,66 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     });
   };
 
+  const handleCreateProcessArea = () => {
+    const projectId = processAreaTargetProjectId;
+    const name = newProcessAreaName.trim();
+    if (!projectId) {
+      alert('Project context missing for Process Area.');
+      return;
+    }
+    if (!name) {
+      alert('Process Area name is required.');
+      return;
+    }
+
+    setPlanningAdditionalProcessAreas((prev) => {
+      const existing = prev[projectId] || [];
+      if (existing.some((entry) => (entry || '').trim().toLowerCase() === name.toLowerCase())) return prev;
+      return {
+        ...prev,
+        [projectId]: [...existing, name],
+      };
+    });
+
+    setHiddenProcessAreas((prev) => {
+      const existing = prev[projectId] || [];
+      const next = existing.filter((entry) => (entry || '').trim().toLowerCase() !== name.toLowerCase());
+      return {
+        ...prev,
+        [projectId]: next,
+      };
+    });
+
+    setTreeOrder((prev) => ({
+      ...prev,
+      processAreas: {
+        ...prev.processAreas,
+        [projectId]: mergeOrder(prev.processAreas[projectId] || [], [name]),
+      },
+    }));
+
+    setProcessAreaDialogOpen(false);
+    setProcessAreaTargetProjectId(null);
+    setNewProcessAreaName('');
+  };
+
   const handleHideProcessAreaFromTree = (projectId: string, areaName: string) => {
     const normalizedTarget = (areaName || '').trim().toLowerCase();
     if (!normalizedTarget) return;
+
+    setHiddenProcessAreas((prev) => {
+      const existing = prev[projectId] || [];
+      if (existing.some((entry) => (entry || '').trim().toLowerCase() === normalizedTarget)) return prev;
+      return {
+        ...prev,
+        [projectId]: [...existing, areaName],
+      };
+    });
+
+    setPlanningAdditionalProcessAreas((prev) => ({
+      ...prev,
+      [projectId]: (prev[projectId] || []).filter((entry) => (entry || '').trim().toLowerCase() !== normalizedTarget),
+    }));
 
     setTreeOrder((prev) => ({
       ...prev,
@@ -6252,6 +6361,21 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         <MenuItem
           onClick={() => {
             if (menuType !== 'cycle' || !menuItemId) return;
+            const targetProjectId = getPrimaryProjectIdForCycle(menuItemId);
+            if (!targetProjectId) {
+              alert('No project found for this mock cycle.');
+              return;
+            }
+            setMenuAnchorEl(null);
+            handleAddProcessArea(targetProjectId);
+          }}
+          sx={{ display: menuType === 'cycle' ? 'flex' : 'none' }}
+        >
+          <AddIcon fontSize="small" sx={{ mr: 1 }} /> Add Process Area
+        </MenuItem>
+        <MenuItem
+          onClick={() => {
+            if (menuType !== 'cycle' || !menuItemId) return;
             setMenuAnchorEl(null);
             handleCloneCycle(menuItemId);
           }}
@@ -6268,6 +6392,16 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
           sx={{ display: menuType === 'processArea' ? 'flex' : 'none' }}
         >
           <AddIcon fontSize="small" sx={{ mr: 1 }} /> Add Plan Group
+        </MenuItem>
+        <MenuItem
+          onClick={() => {
+            if (menuType !== 'processArea' || !processAreaMenuContext) return;
+            setMenuAnchorEl(null);
+            handleAddProcessArea(processAreaMenuContext.projectId);
+          }}
+          sx={{ display: menuType === 'processArea' ? 'flex' : 'none' }}
+        >
+          <AddIcon fontSize="small" sx={{ mr: 1 }} /> Add Process Area
         </MenuItem>
         <MenuItem
           onClick={() => {
@@ -7194,6 +7328,46 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
             sx={{ textTransform: 'none' }}
           >
             Create
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Process Area Dialog */}
+      <Dialog open={processAreaDialogOpen} onClose={() => setProcessAreaDialogOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', pb: 2 }}>
+          Add Process Area
+        </DialogTitle>
+        <DialogContent sx={{ pt: 2 }}>
+          <TextField
+            autoFocus
+            fullWidth
+            label="Process Area Name"
+            value={newProcessAreaName}
+            onChange={(e) => setNewProcessAreaName(e.target.value)}
+            margin="normal"
+            placeholder="e.g., Environment Readiness"
+            variant="outlined"
+            size="small"
+          />
+        </DialogContent>
+        <DialogActions sx={{ gap: 1, p: 2, borderTop: '1px solid', borderColor: 'divider' }}>
+          <Button
+            onClick={() => {
+              setProcessAreaDialogOpen(false);
+              setProcessAreaTargetProjectId(null);
+              setNewProcessAreaName('');
+            }}
+            sx={{ textTransform: 'none' }}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleCreateProcessArea}
+            variant="contained"
+            disabled={!newProcessAreaName.trim()}
+            sx={{ textTransform: 'none' }}
+          >
+            Add
           </Button>
         </DialogActions>
       </Dialog>
