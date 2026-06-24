@@ -29,6 +29,12 @@ import {
   Badge,
   Checkbox,
   Chip,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
   useMediaQuery,
   useTheme,
 } from '@mui/material';
@@ -253,22 +259,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   // Inventory states
   const [inventorySubTab, setInventorySubTab] = useState(0);
   const [maintainFormView, setMaintainFormView] = useState<'program' | 'cycle' | 'project'>('program');
-  const [isSubmittingMaintainForm, setIsSubmittingMaintainForm] = useState(false);
-  const [maintainProgramName, setMaintainProgramName] = useState('');
-  const [maintainProgramDescription, setMaintainProgramDescription] = useState('');
-  const [maintainProgramAccent, setMaintainProgramAccent] = useState('');
   const [maintainCycleParentProgramId, setMaintainCycleParentProgramId] = useState('');
-  const [maintainCycleName, setMaintainCycleName] = useState('');
-  const [maintainCycleStartDate, setMaintainCycleStartDate] = useState(() => new Date().toISOString().split('T')[0]);
-  const [maintainCycleEndDate, setMaintainCycleEndDate] = useState(() => new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
-  const [maintainCycleScheduleMode, setMaintainCycleScheduleMode] = useState<CalendarMode>('all_days');
-  const [maintainCycleAccent, setMaintainCycleAccent] = useState('');
+  const [maintainCycleFilterProgramId, setMaintainCycleFilterProgramId] = useState<'all' | string>('all');
   const [maintainProjectParentProgramId, setMaintainProjectParentProgramId] = useState('');
   const [maintainProjectParentCycleId, setMaintainProjectParentCycleId] = useState('');
-  const [maintainProjectName, setMaintainProjectName] = useState('');
-  const [maintainProjectStartDate, setMaintainProjectStartDate] = useState(() => new Date().toISOString().split('T')[0]);
-  const [maintainProjectEndDate, setMaintainProjectEndDate] = useState(() => new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
-  const [maintainProjectAccent, setMaintainProjectAccent] = useState('');
+  const [maintainProjectFilterCycleId, setMaintainProjectFilterCycleId] = useState<'all' | string>('all');
   const [inventoryObjects, setInventoryObjects] = useState<{ id: string; objectId: string; description: string; processArea: string }[]>([]);
   const [projectInventoryItems, setProjectInventoryItems] = useState<any[]>([]);
   const [projectHierarchySummaries, setProjectHierarchySummaries] = useState<Record<string, {
@@ -735,6 +730,34 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   const allMaintainProjects: Project[] = React.useMemo(() => (
     Object.values(projectsByMockCycle).flatMap((projects) => projects || []) as Project[]
   ), [projectsByMockCycle]);
+  const maintainCycleRows = React.useMemo(() => (
+    allMaintainCycles
+      .map((cycle) => ({
+        ...cycle,
+        programName: programs.find((program) => program.id === cycle.programId)?.name || 'Program',
+      }))
+      .sort((a, b) => a.programName.localeCompare(b.programName) || a.name.localeCompare(b.name))
+  ), [allMaintainCycles, programs]);
+  const maintainProjectRows = React.useMemo(() => (
+    allMaintainProjects
+      .map((project) => {
+        const cycle = allMaintainCycles.find((entry) => entry.id === project.mockCycleId) || null;
+        const programName = cycle ? (programs.find((program) => program.id === cycle.programId)?.name || 'Program') : 'Program';
+        return {
+          ...project,
+          cycleName: cycle?.name || 'Mock Cycle',
+          programId: cycle?.programId || '',
+          programName,
+        };
+      })
+      .sort((a, b) => a.programName.localeCompare(b.programName) || a.cycleName.localeCompare(b.cycleName) || a.name.localeCompare(b.name))
+  ), [allMaintainProjects, allMaintainCycles, programs]);
+  const visibleMaintainCycleRows = maintainCycleFilterProgramId === 'all'
+    ? maintainCycleRows
+    : maintainCycleRows.filter((row) => row.programId === maintainCycleFilterProgramId);
+  const visibleMaintainProjectRows = maintainProjectFilterCycleId === 'all'
+    ? maintainProjectRows
+    : maintainProjectRows.filter((row) => row.mockCycleId === maintainProjectFilterCycleId);
   const cyclesForMaintainProjectProgram = maintainProjectParentProgramId
     ? allMaintainCycles.filter((cycle) => cycle.programId === maintainProjectParentProgramId)
     : [];
@@ -742,110 +765,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     const projects = (projectsByMockCycle[cycleId] || []) as Project[];
     if (!projectId) return projects;
     return projects.filter((project) => project.id === projectId);
-  };
-
-  const handleMaintainCreateProgram = async () => {
-    if (!maintainProgramName.trim()) {
-      alert('Program name is required.');
-      return;
-    }
-
-    setIsSubmittingMaintainForm(true);
-    try {
-      const response = await apiClient.post('/api/programs', {
-        name: maintainProgramName.trim(),
-        description: maintainProgramDescription.trim() || null,
-        accentColor: maintainProgramAccent.trim() || null,
-      });
-      const created = response.data?.data;
-      queryClient.invalidateQueries({ queryKey: ['programs'] });
-      setMaintainProgramName('');
-      setMaintainProgramDescription('');
-      setMaintainProgramAccent('');
-      if (created?.id) {
-        setMaintainCycleParentProgramId(created.id);
-        setMaintainProjectParentProgramId(created.id);
-        setSelectedItem({ type: 'program', id: created.id });
-      }
-      alert('Program created successfully.');
-    } catch (error: any) {
-      console.error('Failed to create program:', error);
-      alert(error?.response?.data?.message || 'Failed to create program.');
-    } finally {
-      setIsSubmittingMaintainForm(false);
-    }
-  };
-
-  const handleMaintainCreateCycle = async () => {
-    if (!maintainCycleParentProgramId) {
-      alert('Select a parent program.');
-      return;
-    }
-    if (!maintainCycleName.trim()) {
-      alert('Mock cycle name is required.');
-      return;
-    }
-
-    setIsSubmittingMaintainForm(true);
-    try {
-      const response = await apiClient.post(`/api/programs/${maintainCycleParentProgramId}/mock-cycles`, {
-        name: maintainCycleName.trim(),
-        startDate: maintainCycleStartDate,
-        endDate: maintainCycleEndDate,
-        scheduleMode: maintainCycleScheduleMode,
-        accentColor: maintainCycleAccent.trim() || null,
-      });
-      const created = response.data?.data;
-      queryClient.invalidateQueries({ queryKey: ['mockCycles'] });
-      setMaintainCycleName('');
-      setMaintainCycleScheduleMode('all_days');
-      setMaintainCycleAccent('');
-      if (created?.id) {
-        setMaintainProjectParentProgramId(maintainCycleParentProgramId);
-        setMaintainProjectParentCycleId(created.id);
-        setSelectedItem({ type: 'cycle', id: created.id, programId: maintainCycleParentProgramId });
-      }
-      alert('Mock cycle created successfully.');
-    } catch (error: any) {
-      console.error('Failed to create mock cycle:', error);
-      alert(error?.response?.data?.message || 'Failed to create mock cycle.');
-    } finally {
-      setIsSubmittingMaintainForm(false);
-    }
-  };
-
-  const handleMaintainCreateProject = async () => {
-    if (!maintainProjectParentCycleId) {
-      alert('Select a parent mock cycle.');
-      return;
-    }
-    if (!maintainProjectName.trim()) {
-      alert('Project name is required.');
-      return;
-    }
-
-    setIsSubmittingMaintainForm(true);
-    try {
-      const response = await apiClient.post(`/api/projects/by-cycle/${maintainProjectParentCycleId}`, {
-        name: maintainProjectName.trim(),
-        startDate: maintainProjectStartDate,
-        endDate: maintainProjectEndDate,
-        accentColor: maintainProjectAccent.trim() || null,
-      });
-      const created = response.data?.data;
-      queryClient.invalidateQueries({ queryKey: ['projectsByMockCycle'] });
-      setMaintainProjectName('');
-      setMaintainProjectAccent('');
-      if (created?.id) {
-        setSelectedItem({ type: 'project', id: created.id, cycleId: maintainProjectParentCycleId });
-      }
-      alert('Project created successfully.');
-    } catch (error: any) {
-      console.error('Failed to create project:', error);
-      alert(error?.response?.data?.message || 'Failed to create project.');
-    } finally {
-      setIsSubmittingMaintainForm(false);
-    }
   };
 
   useEffect(() => {
@@ -882,6 +801,20 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
       setMaintainProjectParentCycleId(validCycles[0]?.id || '');
     }
   }, [allMaintainCycles, maintainProjectParentProgramId, maintainProjectParentCycleId]);
+
+  useEffect(() => {
+    if (maintainCycleFilterProgramId === 'all') return;
+    if (!programs.some((program) => program.id === maintainCycleFilterProgramId)) {
+      setMaintainCycleFilterProgramId('all');
+    }
+  }, [programs, maintainCycleFilterProgramId]);
+
+  useEffect(() => {
+    if (maintainProjectFilterCycleId === 'all') return;
+    if (!allMaintainCycles.some((cycle) => cycle.id === maintainProjectFilterCycleId)) {
+      setMaintainProjectFilterCycleId('all');
+    }
+  }, [allMaintainCycles, maintainProjectFilterCycleId]);
   const activeCycleScheduleMode: CalendarMode = (() => {
     if (!activeCycleId) return 'all_days';
     for (const programId in mockCycles) {
@@ -5061,7 +4994,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                   Maintain Planning Hierarchy
                 </Typography>
                 <Typography variant="body2" sx={{ color: '#9FB0D8' }}>
-                  Use the left links to open separate forms for each hierarchy level.
+                  View existing records, edit or delete them, and add new records via modal dialogs.
                 </Typography>
               </Box>
 
@@ -5070,193 +5003,208 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
               ) : (
                 <Card sx={{ backgroundColor: 'rgba(9, 19, 47, 0.9)', border: '1px solid rgba(80,115,181,0.35)', borderRadius: 2 }}>
                   <CardHeader
-                    title={maintainFormView === 'program' ? 'Program Form' : maintainFormView === 'cycle' ? 'Mock Cycle Form' : 'Project Form'}
-                    titleTypographyProps={{ sx: { color: '#DCE6FF', fontWeight: 700, fontSize: '1rem' } }}
-                  />
-                  <CardContent sx={{ display: 'grid', gap: 1.25 }}>
-                    {maintainFormView === 'program' && (
-                      <>
-                        <TextField
-                          label="Program Name"
-                          value={maintainProgramName}
-                          onChange={(e) => setMaintainProgramName(e.target.value)}
-                          size="small"
-                          fullWidth
-                        />
-                        <TextField
-                          label="Program Description"
-                          value={maintainProgramDescription}
-                          onChange={(e) => setMaintainProgramDescription(e.target.value)}
-                          size="small"
-                          fullWidth
-                          multiline
-                          minRows={2}
-                        />
-                        <TextField
-                          label="Accent Color (hex)"
-                          value={maintainProgramAccent}
-                          onChange={(e) => setMaintainProgramAccent(e.target.value)}
-                          size="small"
-                          fullWidth
-                          placeholder="#5B67CA"
-                        />
-                        <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-                          <Button
-                            variant="contained"
-                            onClick={handleMaintainCreateProgram}
-                            disabled={isSubmittingMaintainForm || !maintainProgramName.trim()}
-                            sx={{ textTransform: 'none', fontWeight: 700 }}
+                    title={maintainFormView === 'program' ? 'Programs' : maintainFormView === 'cycle' ? 'Mock Cycles' : 'Projects'}
+                    titleTypographyProps={{ sx: { color: '#E8F0FF', fontWeight: 800, fontSize: '1.02rem' } }}
+                    action={
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        {maintainFormView === 'cycle' && (
+                          <TextField
+                            select
+                            size="small"
+                            label="Parent Program"
+                            value={maintainCycleParentProgramId}
+                            onChange={(e) => setMaintainCycleParentProgramId(e.target.value)}
+                            sx={{ minWidth: 200 }}
                           >
-                            Create Program
-                          </Button>
-                        </Box>
-                      </>
+                            {programs.map((program) => (
+                              <MenuItem key={program.id} value={program.id}>{program.name}</MenuItem>
+                            ))}
+                          </TextField>
+                        )}
+                        {maintainFormView === 'project' && (
+                          <>
+                            <TextField
+                              select
+                              size="small"
+                              label="Parent Program"
+                              value={maintainProjectParentProgramId}
+                              onChange={(e) => {
+                                setMaintainProjectParentProgramId(e.target.value);
+                                const nextCycles = allMaintainCycles.filter((cycle) => cycle.programId === e.target.value);
+                                setMaintainProjectParentCycleId(nextCycles[0]?.id || '');
+                              }}
+                              sx={{ minWidth: 200 }}
+                            >
+                              {programs.map((program) => (
+                                <MenuItem key={program.id} value={program.id}>{program.name}</MenuItem>
+                              ))}
+                            </TextField>
+                            <TextField
+                              select
+                              size="small"
+                              label="Parent Mock Cycle"
+                              value={maintainProjectParentCycleId}
+                              onChange={(e) => setMaintainProjectParentCycleId(e.target.value)}
+                              sx={{ minWidth: 220 }}
+                            >
+                              {cyclesForMaintainProjectProgram.map((cycle) => (
+                                <MenuItem key={cycle.id} value={cycle.id}>{cycle.name}</MenuItem>
+                              ))}
+                            </TextField>
+                          </>
+                        )}
+                        <Button
+                          variant="contained"
+                          startIcon={<AddIcon />}
+                          onClick={() => {
+                            if (maintainFormView === 'program') {
+                              openCreateDialog('program');
+                            } else if (maintainFormView === 'cycle') {
+                              openCreateDialog('cycle', maintainCycleParentProgramId);
+                            } else if (maintainFormView === 'project') {
+                              openCreateDialog('project', undefined, maintainProjectParentCycleId);
+                            }
+                          }}
+                          disabled={(maintainFormView === 'cycle' && !maintainCycleParentProgramId) || (maintainFormView === 'project' && !maintainProjectParentCycleId)}
+                          sx={{ textTransform: 'none', fontWeight: 700 }}
+                        >
+                          Add New
+                        </Button>
+                      </Box>
+                    }
+                  />
+                  <CardContent sx={{ pt: 0 }}>
+                    {maintainFormView === 'program' && (
+                      <TableContainer sx={{ border: '1px solid rgba(109,146,214,0.45)', borderRadius: 2, backgroundColor: 'rgba(8, 16, 40, 0.92)' }}>
+                        <Table size="small">
+                          <TableHead>
+                            <TableRow sx={{ backgroundColor: 'rgba(66, 109, 188, 0.26)' }}>
+                              <TableCell sx={{ color: '#E6EFFF', fontWeight: 700 }}>Program</TableCell>
+                              <TableCell sx={{ color: '#E6EFFF', fontWeight: 700 }}>Description</TableCell>
+                              <TableCell sx={{ color: '#E6EFFF', fontWeight: 700 }}>Accent</TableCell>
+                              <TableCell sx={{ color: '#E6EFFF', fontWeight: 700, width: 130 }}>Actions</TableCell>
+                            </TableRow>
+                          </TableHead>
+                          <TableBody>
+                            {programs.length === 0 ? (
+                              <TableRow>
+                                <TableCell colSpan={4} sx={{ color: '#9FB0D8' }}>No programs found.</TableCell>
+                              </TableRow>
+                            ) : programs.map((program, idx) => (
+                              <TableRow key={program.id} sx={{ backgroundColor: idx % 2 === 0 ? 'rgba(20,33,66,0.88)' : 'rgba(12,25,52,0.88)' }}>
+                                <TableCell sx={{ color: '#DCE7FF', fontWeight: 700 }}>{program.name}</TableCell>
+                                <TableCell sx={{ color: '#BFD0F3' }}>{program.description || '—'}</TableCell>
+                                <TableCell sx={{ color: '#BFD0F3' }}>{program.accentColor || '—'}</TableCell>
+                                <TableCell>
+                                  <IconButton size="small" onClick={() => openEditDialog('program', program.id)} sx={{ color: '#8FB7FF' }}><EditIcon sx={{ fontSize: '1rem' }} /></IconButton>
+                                  <IconButton size="small" onClick={() => openDeleteDialog('program', program.id, program.name)} sx={{ color: '#FF9AA8' }}><DeleteIcon sx={{ fontSize: '1rem' }} /></IconButton>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
                     )}
 
                     {maintainFormView === 'cycle' && (
                       <>
-                        <TextField
-                          select
-                          label="Parent Program"
-                          value={maintainCycleParentProgramId}
-                          onChange={(e) => setMaintainCycleParentProgramId(e.target.value)}
-                          size="small"
-                          fullWidth
-                        >
-                          {programs.map((program) => (
-                            <MenuItem key={program.id} value={program.id}>{program.name}</MenuItem>
-                          ))}
-                        </TextField>
-                        <TextField
-                          label="Mock Cycle Name"
-                          value={maintainCycleName}
-                          onChange={(e) => setMaintainCycleName(e.target.value)}
-                          size="small"
-                          fullWidth
-                        />
-                        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1 }}>
+                        <Box sx={{ mb: 1.2, display: 'flex', justifyContent: 'flex-end' }}>
                           <TextField
-                            type="date"
-                            label="Start Date"
-                            value={maintainCycleStartDate}
-                            onChange={(e) => setMaintainCycleStartDate(e.target.value)}
+                            select
                             size="small"
-                            InputLabelProps={{ shrink: true }}
-                          />
-                          <TextField
-                            type="date"
-                            label="End Date"
-                            value={maintainCycleEndDate}
-                            onChange={(e) => setMaintainCycleEndDate(e.target.value)}
-                            size="small"
-                            InputLabelProps={{ shrink: true }}
-                          />
-                        </Box>
-                        <TextField
-                          select
-                          label="Schedule Mode"
-                          value={maintainCycleScheduleMode}
-                          onChange={(e) => setMaintainCycleScheduleMode(e.target.value as CalendarMode)}
-                          size="small"
-                          fullWidth
-                        >
-                          <MenuItem value="all_days">All Days</MenuItem>
-                          <MenuItem value="working_days">Working Days</MenuItem>
-                        </TextField>
-                        <TextField
-                          label="Accent Color (hex)"
-                          value={maintainCycleAccent}
-                          onChange={(e) => setMaintainCycleAccent(e.target.value)}
-                          size="small"
-                          fullWidth
-                          placeholder="#64B5F6"
-                        />
-                        <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-                          <Button
-                            variant="contained"
-                            onClick={handleMaintainCreateCycle}
-                            disabled={isSubmittingMaintainForm || !maintainCycleParentProgramId || !maintainCycleName.trim()}
-                            sx={{ textTransform: 'none', fontWeight: 700 }}
+                            label="Show Program"
+                            value={maintainCycleFilterProgramId}
+                            onChange={(e) => setMaintainCycleFilterProgramId(e.target.value as 'all' | string)}
+                            sx={{ minWidth: 220 }}
                           >
-                            Create Mock Cycle
-                          </Button>
+                            <MenuItem value="all">All Programs</MenuItem>
+                            {programs.map((program) => (
+                              <MenuItem key={program.id} value={program.id}>{program.name}</MenuItem>
+                            ))}
+                          </TextField>
                         </Box>
+                        <TableContainer sx={{ border: '1px solid rgba(109,146,214,0.45)', borderRadius: 2, backgroundColor: 'rgba(8, 16, 40, 0.92)' }}>
+                          <Table size="small">
+                            <TableHead>
+                              <TableRow sx={{ backgroundColor: 'rgba(66, 109, 188, 0.26)' }}>
+                                <TableCell sx={{ color: '#E6EFFF', fontWeight: 700 }}>Mock Cycle</TableCell>
+                                <TableCell sx={{ color: '#E6EFFF', fontWeight: 700 }}>Program</TableCell>
+                                <TableCell sx={{ color: '#E6EFFF', fontWeight: 700 }}>Date Range</TableCell>
+                                <TableCell sx={{ color: '#E6EFFF', fontWeight: 700 }}>Mode</TableCell>
+                                <TableCell sx={{ color: '#E6EFFF', fontWeight: 700, width: 130 }}>Actions</TableCell>
+                              </TableRow>
+                            </TableHead>
+                            <TableBody>
+                              {visibleMaintainCycleRows.length === 0 ? (
+                                <TableRow>
+                                  <TableCell colSpan={5} sx={{ color: '#9FB0D8' }}>No mock cycles found.</TableCell>
+                                </TableRow>
+                              ) : visibleMaintainCycleRows.map((cycle, idx) => (
+                                <TableRow key={cycle.id} sx={{ backgroundColor: idx % 2 === 0 ? 'rgba(20,33,66,0.88)' : 'rgba(12,25,52,0.88)' }}>
+                                  <TableCell sx={{ color: '#DCE7FF', fontWeight: 700 }}>{cycle.name}</TableCell>
+                                  <TableCell sx={{ color: '#BFD0F3' }}>{cycle.programName}</TableCell>
+                                  <TableCell sx={{ color: '#BFD0F3' }}>{cycle.startDate} to {cycle.endDate}</TableCell>
+                                  <TableCell sx={{ color: '#BFD0F3' }}>{cycle.scheduleMode === 'working_days' ? 'Working Days' : 'All Days'}</TableCell>
+                                  <TableCell>
+                                    <IconButton size="small" onClick={() => openEditDialog('cycle', cycle.id)} sx={{ color: '#8FB7FF' }}><EditIcon sx={{ fontSize: '1rem' }} /></IconButton>
+                                    <IconButton size="small" onClick={() => openDeleteDialog('cycle', cycle.id, cycle.name)} sx={{ color: '#FF9AA8' }}><DeleteIcon sx={{ fontSize: '1rem' }} /></IconButton>
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </TableContainer>
                       </>
                     )}
 
                     {maintainFormView === 'project' && (
                       <>
-                        <TextField
-                          select
-                          label="Parent Program"
-                          value={maintainProjectParentProgramId}
-                          onChange={(e) => {
-                            setMaintainProjectParentProgramId(e.target.value);
-                            const nextCycles = allMaintainCycles.filter((cycle) => cycle.programId === e.target.value);
-                            setMaintainProjectParentCycleId(nextCycles[0]?.id || '');
-                          }}
-                          size="small"
-                          fullWidth
-                        >
-                          {programs.map((program) => (
-                            <MenuItem key={program.id} value={program.id}>{program.name}</MenuItem>
-                          ))}
-                        </TextField>
-                        <TextField
-                          select
-                          label="Parent Mock Cycle"
-                          value={maintainProjectParentCycleId}
-                          onChange={(e) => setMaintainProjectParentCycleId(e.target.value)}
-                          size="small"
-                          fullWidth
-                        >
-                          {cyclesForMaintainProjectProgram.map((cycle) => (
-                            <MenuItem key={cycle.id} value={cycle.id}>{cycle.name}</MenuItem>
-                          ))}
-                        </TextField>
-                        <TextField
-                          label="Project Name"
-                          value={maintainProjectName}
-                          onChange={(e) => setMaintainProjectName(e.target.value)}
-                          size="small"
-                          fullWidth
-                        />
-                        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1 }}>
+                        <Box sx={{ mb: 1.2, display: 'flex', justifyContent: 'flex-end' }}>
                           <TextField
-                            type="date"
-                            label="Start Date"
-                            value={maintainProjectStartDate}
-                            onChange={(e) => setMaintainProjectStartDate(e.target.value)}
+                            select
                             size="small"
-                            InputLabelProps={{ shrink: true }}
-                          />
-                          <TextField
-                            type="date"
-                            label="End Date"
-                            value={maintainProjectEndDate}
-                            onChange={(e) => setMaintainProjectEndDate(e.target.value)}
-                            size="small"
-                            InputLabelProps={{ shrink: true }}
-                          />
-                        </Box>
-                        <TextField
-                          label="Accent Color (hex)"
-                          value={maintainProjectAccent}
-                          onChange={(e) => setMaintainProjectAccent(e.target.value)}
-                          size="small"
-                          fullWidth
-                          placeholder="#00BFA5"
-                        />
-                        <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-                          <Button
-                            variant="contained"
-                            onClick={handleMaintainCreateProject}
-                            disabled={isSubmittingMaintainForm || !maintainProjectParentCycleId || !maintainProjectName.trim()}
-                            sx={{ textTransform: 'none', fontWeight: 700 }}
+                            label="Show Mock Cycle"
+                            value={maintainProjectFilterCycleId}
+                            onChange={(e) => setMaintainProjectFilterCycleId(e.target.value as 'all' | string)}
+                            sx={{ minWidth: 240 }}
                           >
-                            Create Project
-                          </Button>
+                            <MenuItem value="all">All Mock Cycles</MenuItem>
+                            {allMaintainCycles.map((cycle) => (
+                              <MenuItem key={cycle.id} value={cycle.id}>{cycle.name}</MenuItem>
+                            ))}
+                          </TextField>
                         </Box>
+                        <TableContainer sx={{ border: '1px solid rgba(109,146,214,0.45)', borderRadius: 2, backgroundColor: 'rgba(8, 16, 40, 0.92)' }}>
+                          <Table size="small">
+                            <TableHead>
+                              <TableRow sx={{ backgroundColor: 'rgba(66, 109, 188, 0.26)' }}>
+                                <TableCell sx={{ color: '#E6EFFF', fontWeight: 700 }}>Project</TableCell>
+                                <TableCell sx={{ color: '#E6EFFF', fontWeight: 700 }}>Mock Cycle</TableCell>
+                                <TableCell sx={{ color: '#E6EFFF', fontWeight: 700 }}>Program</TableCell>
+                                <TableCell sx={{ color: '#E6EFFF', fontWeight: 700 }}>Date Range</TableCell>
+                                <TableCell sx={{ color: '#E6EFFF', fontWeight: 700, width: 130 }}>Actions</TableCell>
+                              </TableRow>
+                            </TableHead>
+                            <TableBody>
+                              {visibleMaintainProjectRows.length === 0 ? (
+                                <TableRow>
+                                  <TableCell colSpan={5} sx={{ color: '#9FB0D8' }}>No projects found.</TableCell>
+                                </TableRow>
+                              ) : visibleMaintainProjectRows.map((project, idx) => (
+                                <TableRow key={project.id} sx={{ backgroundColor: idx % 2 === 0 ? 'rgba(20,33,66,0.88)' : 'rgba(12,25,52,0.88)' }}>
+                                  <TableCell sx={{ color: '#DCE7FF', fontWeight: 700 }}>{project.name}</TableCell>
+                                  <TableCell sx={{ color: '#BFD0F3' }}>{project.cycleName}</TableCell>
+                                  <TableCell sx={{ color: '#BFD0F3' }}>{project.programName}</TableCell>
+                                  <TableCell sx={{ color: '#BFD0F3' }}>{project.startDate || '—'} to {project.endDate || '—'}</TableCell>
+                                  <TableCell>
+                                    <IconButton size="small" onClick={() => openEditDialog('project', project.id)} sx={{ color: '#8FB7FF' }}><EditIcon sx={{ fontSize: '1rem' }} /></IconButton>
+                                    <IconButton size="small" onClick={() => openDeleteDialog('project', project.id, project.name)} sx={{ color: '#FF9AA8' }}><DeleteIcon sx={{ fontSize: '1rem' }} /></IconButton>
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </TableContainer>
                       </>
                     )}
                   </CardContent>
