@@ -762,9 +762,17 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   const visibleMaintainCycleRows = maintainCycleFilterProgramId === 'all'
     ? maintainCycleRows
     : maintainCycleRows.filter((row) => row.programId === maintainCycleFilterProgramId);
-  const visibleMaintainProjectRows = maintainProjectFilterCycleId === 'all'
-    ? maintainProjectRows
-    : maintainProjectRows.filter((row) => row.mockCycleId === maintainProjectFilterCycleId);
+  const visibleMaintainProjectRows = React.useMemo(() => {
+    const scopedRows = maintainProjectRows.filter((row) => row.programId === maintainProjectParentProgramId);
+    const byName = new Map<string, typeof scopedRows[number]>();
+    scopedRows.forEach((row) => {
+      const key = `${row.programId}::${(row.name || '').trim().toLowerCase()}`;
+      if (!byName.has(key)) {
+        byName.set(key, row);
+      }
+    });
+    return Array.from(byName.values());
+  }, [maintainProjectRows, maintainProjectParentProgramId]);
   const cyclesForMaintainProjectProgram = maintainProjectParentProgramId
     ? allMaintainCycles.filter((cycle) => cycle.programId === maintainProjectParentProgramId)
     : [];
@@ -5218,11 +5226,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                               </TableRow>
                             </TableHead>
                             <TableBody>
-                              {maintainProjectRows.length === 0 ? (
+                              {visibleMaintainProjectRows.length === 0 ? (
                                 <TableRow>
                                   <TableCell colSpan={4} sx={{ color: '#9FB0D8' }}>No projects found.</TableCell>
                                 </TableRow>
-                              ) : maintainProjectRows.map((project, idx) => (
+                              ) : visibleMaintainProjectRows.map((project, idx) => (
                                 <TableRow key={project.id} sx={{ backgroundColor: idx % 2 === 0 ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.02)' }}>
                                   <TableCell sx={{ color: '#DCE7FF', fontWeight: 700 }}>{project.name}</TableCell>
                                   <TableCell sx={{ color: '#BFD0F3' }}>{project.programName}</TableCell>
