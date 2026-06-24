@@ -31,8 +31,8 @@ export class ProjectService {
 
   async updateProject(projectId: string, data: { name?: string; description?: string; startDate?: string; endDate?: string; accentColor?: string; progressPercentage?: number; mockCycleId?: string }) {
     const fields: string[] = [];
-    const values: any[] = [projectId];
-    let paramCount = 2;
+    const values: any[] = [];
+    let paramCount = 1;
 
     if (data.name !== undefined) {
       fields.push(`name = $${paramCount}`);
@@ -64,23 +64,73 @@ export class ProjectService {
       values.push(data.endDate);
       paramCount++;
     }
-    if (data.mockCycleId !== undefined) {
-      fields.push(`mock_cycle_id = $${paramCount}`);
-      values.push(data.mockCycleId);
-      paramCount++;
+
+    if (fields.length === 0 && data.mockCycleId === undefined) return this.getProjectById(projectId);
+
+    const client = await db.connect();
+    try {
+      await client.query('BEGIN');
+
+      const currentProjectResult = await client.query(
+        'SELECT id, mock_cycle_id FROM projects WHERE id = $1 FOR UPDATE',
+        [projectId]
+      );
+      if (currentProjectResult.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return null;
+      }
+
+      const currentCycleId = currentProjectResult.rows[0].mock_cycle_id as string;
+
+      if (data.mockCycleId !== undefined && data.mockCycleId !== currentCycleId) {
+        const targetCycleOwnerResult = await client.query(
+          'SELECT id FROM projects WHERE mock_cycle_id = $1 FOR UPDATE',
+          [data.mockCycleId]
+        );
+
+        const targetCycleOwnerId = targetCycleOwnerResult.rows[0]?.id as string | undefined;
+
+        if (targetCycleOwnerId && targetCycleOwnerId !== projectId) {
+          // Swap cycle assignments in one statement to satisfy unique(mock_cycle_id).
+          await client.query(
+            `UPDATE projects
+             SET mock_cycle_id = CASE
+               WHEN id = $1 THEN $2
+               WHEN id = $3 THEN $4
+             END,
+             updated_at = CURRENT_TIMESTAMP
+             WHERE id IN ($1, $3)`,
+            [projectId, data.mockCycleId, targetCycleOwnerId, currentCycleId]
+          );
+        } else {
+          await client.query(
+            'UPDATE projects SET mock_cycle_id = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $1',
+            [projectId, data.mockCycleId]
+          );
+        }
+      }
+
+      if (fields.length > 0) {
+        const fieldAssignments = [...fields, 'updated_at = CURRENT_TIMESTAMP'];
+        await client.query(
+          `UPDATE projects SET ${fieldAssignments.join(', ')} WHERE id = $${paramCount}`,
+          [...values, projectId]
+        );
+      }
+
+      const result = await client.query(
+        'SELECT id, mock_cycle_id, name, description, start_date, end_date, accent_color, progress_percentage, created_at, updated_at FROM projects WHERE id = $1',
+        [projectId]
+      );
+
+      await client.query('COMMIT');
+      return this.formatProject(result.rows[0]);
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
     }
-
-    if (fields.length === 0) return this.getProjectById(projectId);
-
-    fields.push(`updated_at = CURRENT_TIMESTAMP`);
-
-    const result = await db.query(
-      `UPDATE projects SET ${fields.join(', ')} WHERE id = $1 RETURNING id, mock_cycle_id, name, description, start_date, end_date, accent_color, progress_percentage, created_at, updated_at`,
-      values
-    );
-
-    if (result.rows.length === 0) return null;
-    return this.formatProject(result.rows[0]);
   }
 
   async deleteProject(projectId: string) {
