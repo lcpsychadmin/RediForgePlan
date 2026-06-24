@@ -3591,7 +3591,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                             );
                           })}
 
-                          {canManageHierarchy && visibleProgramCycles.length === 0 && (
+                          {visibleProgramCycles.length === 0 && (
                             <Button
                               size="small"
                               variant="text"
@@ -6106,13 +6106,13 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         )}
         <MenuItem
           onClick={() => {
-            if (!canManageHierarchy || menuType !== 'program' || !menuItemId) return;
+            if (menuType !== 'program' || !menuItemId) return;
             setMenuAnchorEl(null);
             setAttachNewCycleToTree(true);
             openCreateDialog('cycle', menuItemId);
           }}
           sx={{
-            display: canManageHierarchy && menuType === 'program' && !!menuItemId && getOrderedCycles(menuItemId).length === 0
+            display: menuType === 'program' && !!menuItemId && getOrderedCycles(menuItemId).length === 0
               ? 'flex'
               : 'none',
           }}
