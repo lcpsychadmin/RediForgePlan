@@ -233,17 +233,24 @@ export class ProgramService {
              RETURNING id`,
             [
               sourceCycle.program_id,
-              sourceCycle.name,
+              `${sourceCycle.name} (Replacement)`,
               sourceCycle.start_date,
               sourceCycle.end_date,
               sourceCycle.schedule_mode || 'all_days',
               sourceCycle.accent_color || null,
             ]
           );
+          if (createdCycleResult.rows.length === 0) {
+            throw new Error('Failed to create replacement cycle');
+          }
           targetCycleId = createdCycleResult.rows[0].id;
           console.log(`[deleteMockCycle] Created new target cycle: ${targetCycleId}`);
         } else {
           console.log(`[deleteMockCycle] Using existing target cycle: ${targetCycleId}`);
+        }
+
+        if (!targetCycleId) {
+          throw new Error('Target cycle ID is undefined after creation/retrieval');
         }
 
         // Remove execution/planning descendants under projects linked to this cycle.
@@ -267,6 +274,9 @@ export class ProgramService {
           'UPDATE projects SET mock_cycle_id = $2, updated_at = CURRENT_TIMESTAMP WHERE mock_cycle_id = $1',
           [mockCycleId, targetCycleId]
         );
+        if (!updateResult) {
+          throw new Error('Update query failed - no result');
+        }
         console.log(`[deleteMockCycle] Updated ${updateResult.rowCount} projects`);
       }
 
