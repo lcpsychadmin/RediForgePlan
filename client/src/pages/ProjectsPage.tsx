@@ -23,7 +23,6 @@ import {
   Divider,
   Paper,
   MenuItem,
-  Slider,
   Breadcrumbs,
   Link,
   Badge,
@@ -215,7 +214,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   const [editEndDate, setEditEndDate] = useState('');
   const [editCycleScheduleMode, setEditCycleScheduleMode] = useState<CalendarMode>('all_days');
   const [editAccentColor, setEditAccentColor] = useState('');
-  const [editProgressPercentage, setEditProgressPercentage] = useState(0);
   const [editCycleParentProjectId, setEditCycleParentProjectId] = useState('');
   const [editProjectParentProgramId, setEditProjectParentProgramId] = useState('');
   const [isEditing, setIsEditing] = useState(false);
@@ -2193,7 +2191,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
           setEditStartDate(project.startDate || '');
           setEditEndDate(project.endDate || '');
           setEditAccentColor(project.accentColor || '');
-          setEditProgressPercentage(project.progressPercentage || 0);
           setEditProjectParentProgramId(parentCycle?.programId || '');
           break;
         }
@@ -2224,12 +2221,19 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
           await apiClient.patch(`/api/projects/${editCycleParentProjectId}`, { mockCycleId: editItemId });
         }
       } else if (editItemType === 'project') {
+        const cyclesInProgram = allMaintainCycles.filter((cycle) => cycle.programId === editProjectParentProgramId);
+        const targetCycle = cyclesInProgram[0];
+        if (!targetCycle) {
+          alert('Selected program has no mock cycle yet. Add a mock cycle first.');
+          return;
+        }
+
         await apiClient.patch(`/api/projects/${editItemId}`, {
           name: editItemName,
           startDate: editStartDate,
           endDate: editEndDate,
           accentColor: editAccentColor,
-          progressPercentage: editProgressPercentage,
+          mockCycleId: targetCycle.id,
         });
       }
 
@@ -6145,13 +6149,18 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
           {editItemType === 'project' && (
             <>
               <TextField
+                select
                 label="Program"
-                value={programs.find((program) => program.id === editProjectParentProgramId)?.name || 'Unassigned'}
+                value={editProjectParentProgramId}
+                onChange={(e) => setEditProjectParentProgramId(e.target.value)}
                 fullWidth
                 variant="outlined"
                 size="small"
-                InputProps={{ readOnly: true }}
-              />
+              >
+                {programs.map((program) => (
+                  <MenuItem key={program.id} value={program.id}>{program.name}</MenuItem>
+                ))}
+              </TextField>
               <TextField
                 label="Start Date"
                 type="date"
@@ -6197,19 +6206,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
               <Box>
                 <Typography variant="body2" sx={{ fontWeight: 600 }}>Project Icon</Typography>
                 {renderIconPicker('project', editAccentColor || '#90caf9')}
-              </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <Typography variant="body2" sx={{ minWidth: '100px' }}>
-                  Progress: {editProgressPercentage}%
-                </Typography>
-                <Slider
-                  value={editProgressPercentage}
-                  onChange={(e, newValue) => setEditProgressPercentage(newValue as number)}
-                  min={0}
-                  max={100}
-                  step={1}
-                  sx={{ flex: 1 }}
-                />
               </Box>
             </>
           )}
