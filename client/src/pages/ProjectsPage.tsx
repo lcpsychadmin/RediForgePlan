@@ -5075,36 +5075,22 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                           </TextField>
                         )}
                         {maintainFormView === 'project' && (
-                          <>
-                            <TextField
-                              select
-                              size="small"
-                              label="Parent Program"
-                              value={maintainProjectParentProgramId}
-                              onChange={(e) => {
-                                setMaintainProjectParentProgramId(e.target.value);
-                                const nextCycles = allMaintainCycles.filter((cycle) => cycle.programId === e.target.value);
-                                setMaintainProjectParentCycleId(nextCycles[0]?.id || '');
-                              }}
-                              sx={{ minWidth: 200 }}
-                            >
-                              {programs.map((program) => (
-                                <MenuItem key={program.id} value={program.id}>{program.name}</MenuItem>
-                              ))}
-                            </TextField>
-                            <TextField
-                              select
-                              size="small"
-                              label="Parent Mock Cycle"
-                              value={maintainProjectParentCycleId}
-                              onChange={(e) => setMaintainProjectParentCycleId(e.target.value)}
-                              sx={{ minWidth: 220 }}
-                            >
-                              {cyclesForMaintainProjectProgram.map((cycle) => (
-                                <MenuItem key={cycle.id} value={cycle.id}>{cycle.name}</MenuItem>
-                              ))}
-                            </TextField>
-                          </>
+                          <TextField
+                            select
+                            size="small"
+                            label="Parent Program"
+                            value={maintainProjectParentProgramId}
+                            onChange={(e) => {
+                              setMaintainProjectParentProgramId(e.target.value);
+                              const nextCycles = allMaintainCycles.filter((cycle) => cycle.programId === e.target.value);
+                              setMaintainProjectParentCycleId(nextCycles[0]?.id || '');
+                            }}
+                            sx={{ minWidth: 220 }}
+                          >
+                            {programs.map((program) => (
+                              <MenuItem key={program.id} value={program.id}>{program.name}</MenuItem>
+                            ))}
+                          </TextField>
                         )}
                         <Button
                           variant="contained"
@@ -5116,7 +5102,13 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                               setMaintainPendingCycleProjectId(maintainCycleParentProjectId || null);
                               openCreateDialog('cycle', maintainCycleParentProgramId);
                             } else if (maintainFormView === 'project') {
-                              openCreateDialog('project', undefined, maintainProjectParentCycleId);
+                              const cycles = allMaintainCycles.filter((cycle) => cycle.programId === maintainProjectParentProgramId);
+                              const targetCycleId = cycles[0]?.id || '';
+                              if (!targetCycleId) {
+                                alert('Selected program has no mock cycle yet. Add a mock cycle first.');
+                                return;
+                              }
+                              openCreateDialog('project', undefined, targetCycleId);
                             }
                           }}
                           disabled={(maintainFormView === 'cycle' && !maintainCycleParentProjectId) || (maintainFormView === 'project' && !maintainProjectParentCycleId)}
@@ -5215,41 +5207,24 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
 
                     {maintainFormView === 'project' && (
                       <>
-                        <Box sx={{ mb: 1.2, display: 'flex', justifyContent: 'flex-end' }}>
-                          <TextField
-                            select
-                            size="small"
-                            label="Show Mock Cycle"
-                            value={maintainProjectFilterCycleId}
-                            onChange={(e) => setMaintainProjectFilterCycleId(e.target.value as 'all' | string)}
-                            sx={{ minWidth: 240 }}
-                          >
-                            <MenuItem value="all">All Mock Cycles</MenuItem>
-                            {allMaintainCycles.map((cycle) => (
-                              <MenuItem key={cycle.id} value={cycle.id}>{cycle.name}</MenuItem>
-                            ))}
-                          </TextField>
-                        </Box>
                         <TableContainer sx={{ border: '1px solid rgba(255,255,255,0.18)', borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.07)' }}>
                           <Table size="small">
                             <TableHead>
                               <TableRow sx={{ backgroundColor: 'rgba(255,255,255,0.14)' }}>
                                 <TableCell sx={{ color: '#E6EFFF', fontWeight: 700 }}>Project</TableCell>
-                                <TableCell sx={{ color: '#E6EFFF', fontWeight: 700 }}>Mock Cycle</TableCell>
                                 <TableCell sx={{ color: '#E6EFFF', fontWeight: 700 }}>Program</TableCell>
                                 <TableCell sx={{ color: '#E6EFFF', fontWeight: 700 }}>Date Range</TableCell>
                                 <TableCell sx={{ color: '#E6EFFF', fontWeight: 700, width: 130 }}>Actions</TableCell>
                               </TableRow>
                             </TableHead>
                             <TableBody>
-                              {visibleMaintainProjectRows.length === 0 ? (
+                              {maintainProjectRows.length === 0 ? (
                                 <TableRow>
-                                  <TableCell colSpan={5} sx={{ color: '#9FB0D8' }}>No projects found.</TableCell>
+                                  <TableCell colSpan={4} sx={{ color: '#9FB0D8' }}>No projects found.</TableCell>
                                 </TableRow>
-                              ) : visibleMaintainProjectRows.map((project, idx) => (
+                              ) : maintainProjectRows.map((project, idx) => (
                                 <TableRow key={project.id} sx={{ backgroundColor: idx % 2 === 0 ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.02)' }}>
                                   <TableCell sx={{ color: '#DCE7FF', fontWeight: 700 }}>{project.name}</TableCell>
-                                  <TableCell sx={{ color: '#BFD0F3' }}>{project.cycleName}</TableCell>
                                   <TableCell sx={{ color: '#BFD0F3' }}>{project.programName}</TableCell>
                                   <TableCell sx={{ color: '#BFD0F3' }}>{toDateInputValue(project.startDate) || '—'} to {toDateInputValue(project.endDate) || '—'}</TableCell>
                                   <TableCell>
