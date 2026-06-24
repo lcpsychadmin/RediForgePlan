@@ -2102,6 +2102,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
 
     try {
       setIsDeleting(true);
+      const deletedItemId = deleteItemId;
+      const deletedItemType = deleteItemType;
       if (deleteItemType === 'program') {
         await apiClient.delete(`/api/programs/${deleteItemId}`);
       } else if (deleteItemType === 'cycle') {
@@ -2121,10 +2123,18 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         await apiClient.delete(`/api/tasks/groups/${deleteItemId}`);
       }
       
-      // Invalidate queries
-      queryClient.invalidateQueries({ queryKey: ['programs'] });
-      queryClient.invalidateQueries({ queryKey: ['mockCycles'] });
-      queryClient.invalidateQueries({ queryKey: ['projectsByMockCycle'] });
+      // Refresh hierarchy queries immediately so deleted items disappear without stale selection errors.
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['programs'] }),
+        queryClient.invalidateQueries({ queryKey: ['mockCycles'] }),
+        queryClient.invalidateQueries({ queryKey: ['projectsByMockCycle'] }),
+      ]);
+
+      await Promise.all([
+        queryClient.refetchQueries({ queryKey: ['programs'], type: 'active' }),
+        queryClient.refetchQueries({ queryKey: ['mockCycles'], type: 'active' }),
+        queryClient.refetchQueries({ queryKey: ['projectsByMockCycle'], type: 'active' }),
+      ]);
       
       // Reload tasks if we deleted a task or task group
       if (activeProjectId && (deleteItemType === 'task' || deleteItemType === 'taskGroup')) {
@@ -2147,8 +2157,37 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         setTaskDeps(freshDepsMap);
       }
       
-      // Clear selection if we deleted the selected item
-      if (selectedItem?.id === deleteItemId) {
+      // Clear selection if it now points to a deleted hierarchy node or its deleted parent.
+      const shouldClearSelection = (() => {
+        if (!selectedItem) return false;
+        if (selectedItem.id === deletedItemId) return true;
+
+        if (deletedItemType === 'program') {
+          return (
+            (selectedItem as any).programId === deletedItemId ||
+            ((selectedItem.type === 'cycle' || selectedItem.type === 'project' || selectedItem.type === 'processArea') &&
+              (selectedItem as any).programId === deletedItemId)
+          );
+        }
+
+        if (deletedItemType === 'cycle') {
+          return (
+            (selectedItem as any).cycleId === deletedItemId ||
+            (selectedItem.type === 'cycle' && selectedItem.id === deletedItemId)
+          );
+        }
+
+        if (deletedItemType === 'project') {
+          return (
+            (selectedItem.type === 'project' && selectedItem.id === deletedItemId) ||
+            (selectedItem.type === 'processArea' && selectedItem.projectId === deletedItemId)
+          );
+        }
+
+        return false;
+      })();
+
+      if (shouldClearSelection) {
         setSelectedItem(null);
       }
       
