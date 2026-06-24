@@ -222,8 +222,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   const [isEditing, setIsEditing] = useState(false);
   const [cloneCycleDialogOpen, setCloneCycleDialogOpen] = useState(false);
   const [cloneCycleSourceId, setCloneCycleSourceId] = useState<string | null>(null);
-  const [cloneCycleSourceProgramId, setCloneCycleSourceProgramId] = useState<string | null>(null);
-  const [cloneCycleName, setCloneCycleName] = useState('');
+  const [cloneCycleTargetId, setCloneCycleTargetId] = useState<string | null>(null);
   const [isCloningCycle, setIsCloningCycle] = useState(false);
   const [cycleOverview, setCycleOverview] = useState<PlanOverview | null>(null);
   const [isLoadingCycleOverview, setIsLoadingCycleOverview] = useState(false);
@@ -2373,54 +2372,63 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
 
   const handleCloneCycle = (cycleId: string) => {
     const sourceCycle = allMaintainCycles.find((cycle) => cycle.id === cycleId) || null;
-    const sourceProgramId = sourceCycle?.programId || null;
 
-    if (!sourceCycle || !sourceProgramId) {
+    if (!sourceCycle) {
       alert('Unable to locate source mock cycle.');
       return;
     }
 
+    if (allMaintainCycles.length < 2) {
+      alert('At least two mock cycles must exist in Maintain to copy between cycles.');
+      return;
+    }
+
+    const defaultTarget = maintainCycleRows.find((cycle: any) => cycle.id !== cycleId) || null;
+
     setCloneCycleSourceId(cycleId);
-    setCloneCycleSourceProgramId(sourceProgramId);
-    setCloneCycleName(`${sourceCycle.name} Copy`);
+    setCloneCycleTargetId(defaultTarget?.id || null);
     setCloneCycleDialogOpen(true);
   };
 
   const handleCloneCycleConfirm = async () => {
-    if (!cloneCycleSourceId || !cloneCycleSourceProgramId) return;
+    if (!cloneCycleSourceId || !cloneCycleTargetId) return;
 
     const selectedSourceCycle = allMaintainCycles.find((cycle) => cycle.id === cloneCycleSourceId) || null;
+    const selectedTargetCycle = allMaintainCycles.find((cycle) => cycle.id === cloneCycleTargetId) || null;
     if (!selectedSourceCycle) {
       alert('Select a valid mock cycle from Maintain to copy.');
       return;
     }
-
-    const name = cloneCycleName.trim();
-    if (!name) {
-      alert('A name is required to copy a mock cycle.');
+    if (!selectedTargetCycle) {
+      alert('Select a valid destination mock cycle from Maintain.');
+      return;
+    }
+    if (selectedSourceCycle.id === selectedTargetCycle.id) {
+      alert('Source and destination mock cycles must be different.');
       return;
     }
 
     try {
       setIsCloningCycle(true);
-      const res = await apiClient.post(`/api/mock-cycles/${cloneCycleSourceId}/clone`, { name });
-      const cloned = res?.data?.data;
+      const res = await apiClient.post(`/api/mock-cycles/${cloneCycleSourceId}/copy-to`, {
+        targetMockCycleId: cloneCycleTargetId,
+      });
+      const copiedToCycle = res?.data?.data;
 
       queryClient.invalidateQueries({ queryKey: ['mockCycles'] });
       queryClient.invalidateQueries({ queryKey: ['projectsByMockCycle'] });
       queryClient.invalidateQueries({ queryKey: ['projectsByProgram'] });
 
-      setExpandedPrograms(prev => new Set(prev).add(cloneCycleSourceProgramId as string));
-      if (cloned?.id) {
-        setSelectedItem({ type: 'cycle', id: cloned.id, programId: cloneCycleSourceProgramId });
+      setExpandedPrograms(prev => new Set(prev).add(selectedTargetCycle.programId));
+      if (copiedToCycle?.id) {
+        setSelectedItem({ type: 'cycle', id: copiedToCycle.id, programId: selectedTargetCycle.programId });
       }
       setTabValue(0);
       setCloneCycleDialogOpen(false);
       setCloneCycleSourceId(null);
-      setCloneCycleSourceProgramId(null);
-      setCloneCycleName('');
+      setCloneCycleTargetId(null);
     } catch (error) {
-      console.error('Failed to copy mock cycle:', error);
+      console.error('Failed to copy mock cycle to destination:', error);
       alert('Failed to copy mock cycle. Please try again.');
     } finally {
       setIsCloningCycle(false);
@@ -5808,20 +5816,19 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         </DialogTitle>
         <DialogContent sx={{ pt: 2, px: 3 }}>
           <Typography variant="body2" sx={{ mt: 2, mb: 2, color: 'text.secondary' }}>
-            This will create a new mock cycle and copy projects, inventory, dependencies, tasks, and schedule data.
+            This will copy projects, inventory, dependencies, tasks, and schedule data from one existing mock cycle to another.
           </Typography>
           <TextField
             select
             fullWidth
-            label="Source Mock Cycle"
+            label="Copy From Mock Cycle"
             value={cloneCycleSourceId || ''}
             onChange={(e) => {
               const nextCycleId = e.target.value;
-              const nextCycle = allMaintainCycles.find((cycle) => cycle.id === nextCycleId) || null;
               setCloneCycleSourceId(nextCycleId || null);
-              setCloneCycleSourceProgramId(nextCycle?.programId || null);
-              if (nextCycle) {
-                setCloneCycleName(`${nextCycle.name} Copy`);
+              if (nextCycleId && cloneCycleTargetId === nextCycleId) {
+                const nextTarget = maintainCycleRows.find((cycle: any) => cycle.id !== nextCycleId) || null;
+                setCloneCycleTargetId(nextTarget?.id || null);
               }
             }}
             variant="outlined"
@@ -5835,24 +5842,39 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
             ))}
           </TextField>
           <TextField
-            autoFocus={!cloneCycleSourceId}
+            select
             fullWidth
-            label="New Mock Cycle Name"
-            value={cloneCycleName}
-            onChange={(e) => setCloneCycleName(e.target.value)}
-            placeholder="Enter name"
+            label="Copy To Mock Cycle"
+            value={cloneCycleTargetId || ''}
+            onChange={(e) => setCloneCycleTargetId(e.target.value || null)}
             variant="outlined"
             size="small"
-          />
+          >
+            {maintainCycleRows
+              .filter((cycle: any) => cycle.id !== cloneCycleSourceId)
+              .map((cycle: any) => (
+                <MenuItem key={cycle.id} value={cycle.id}>
+                  {`${cycle.programName} / ${cycle.name}`}
+                </MenuItem>
+              ))}
+          </TextField>
         </DialogContent>
         <DialogActions sx={{ gap: 1, p: 2, borderTop: '1px solid', borderColor: 'divider' }}>
-          <Button onClick={() => setCloneCycleDialogOpen(false)} disabled={isCloningCycle} sx={{ textTransform: 'none' }}>
+          <Button
+            onClick={() => {
+              setCloneCycleDialogOpen(false);
+              setCloneCycleSourceId(null);
+              setCloneCycleTargetId(null);
+            }}
+            disabled={isCloningCycle}
+            sx={{ textTransform: 'none' }}
+          >
             Cancel
           </Button>
           <Button
             onClick={handleCloneCycleConfirm}
             variant="contained"
-            disabled={isCloningCycle || !cloneCycleSourceId || !cloneCycleName.trim()}
+            disabled={isCloningCycle || !cloneCycleSourceId || !cloneCycleTargetId || cloneCycleSourceId === cloneCycleTargetId}
             sx={{ textTransform: 'none' }}
           >
             {isCloningCycle ? 'Copying...' : 'Copy'}

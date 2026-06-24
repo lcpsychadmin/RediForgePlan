@@ -29,6 +29,31 @@ router.post(
   }
 );
 
+// Copy mock cycle data into an existing destination mock cycle (admin only)
+router.post(
+  '/:mockCycleId/copy-to',
+  requireAuth,
+  requireRole('admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const targetMockCycleId = req.body?.targetMockCycleId;
+      if (!targetMockCycleId || typeof targetMockCycleId !== 'string') {
+        throw new ApiError(400, 'targetMockCycleId is required', 'BAD_REQUEST');
+      }
+
+      const copiedCycle = await programService.copyMockCycleToExisting(req.params.mockCycleId, targetMockCycleId);
+
+      if (!copiedCycle) {
+        throw new ApiError(404, 'Mock cycle not found', 'NOT_FOUND');
+      }
+
+      res.json(formatSingleResponse(copiedCycle));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 // Get mock cycle by ID
 router.get('/:mockCycleId', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
