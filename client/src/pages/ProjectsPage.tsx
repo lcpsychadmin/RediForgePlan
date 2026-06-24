@@ -411,7 +411,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     processAreas: {},
   });
   const [isHierarchySidebarOpen, setIsHierarchySidebarOpen] = useState(false);
-  const [treeOrderHydrated, setTreeOrderHydrated] = useState(false);
+  const [hierarchyStateHydrated, setHierarchyStateHydrated] = useState(false);
 
   // People sidebar state
   const [peopleSidebarOpen, setPeopleSidebarOpen] = useState(false);
@@ -1685,19 +1685,34 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   useEffect(() => {
     let cancelled = false;
 
-    const hydrateTreeOrder = async () => {
+    const applyTreeOrder = (parsed: any) => {
+      setTreeOrder({
+        programs: Array.isArray(parsed?.programs) ? parsed.programs : [],
+        cycles: typeof parsed?.cycles === 'object' && parsed?.cycles ? parsed.cycles : {},
+        projects: typeof parsed?.projects === 'object' && parsed?.projects ? parsed.projects : {},
+        projectGroups: typeof parsed?.projectGroups === 'object' && parsed?.projectGroups ? parsed.projectGroups : {},
+        processAreas: typeof parsed?.processAreas === 'object' && parsed?.processAreas ? parsed.processAreas : {},
+      });
+    };
+
+    const hydrateHierarchyState = async () => {
       try {
-        const response = await apiClient.get('/api/hierarchy-preferences/tree-order');
+        const response = await apiClient.get('/api/hierarchy-preferences/state');
         const parsed = response.data?.data;
         if (!cancelled && parsed && typeof parsed === 'object') {
-          setTreeOrder({
-            programs: Array.isArray(parsed?.programs) ? parsed.programs : [],
-            cycles: typeof parsed?.cycles === 'object' && parsed?.cycles ? parsed.cycles : {},
-            projects: typeof parsed?.projects === 'object' && parsed?.projects ? parsed.projects : {},
-            projectGroups: typeof parsed?.projectGroups === 'object' && parsed?.projectGroups ? parsed.projectGroups : {},
-            processAreas: typeof parsed?.processAreas === 'object' && parsed?.processAreas ? parsed.processAreas : {},
-          });
-          setTreeOrderHydrated(true);
+          if (parsed?.treeOrder) applyTreeOrder(parsed.treeOrder);
+          if (parsed?.planningAdditionalGroups && typeof parsed.planningAdditionalGroups === 'object') setPlanningAdditionalGroups(parsed.planningAdditionalGroups);
+          if (parsed?.planningAdditionalProcessAreas && typeof parsed.planningAdditionalProcessAreas === 'object') setPlanningAdditionalProcessAreas(parsed.planningAdditionalProcessAreas);
+          if (parsed?.hiddenProcessAreas && typeof parsed.hiddenProcessAreas === 'object') setHiddenProcessAreas(parsed.hiddenProcessAreas);
+          if (parsed?.processAreaAccentOverrides && typeof parsed.processAreaAccentOverrides === 'object') setProcessAreaAccentOverrides(parsed.processAreaAccentOverrides);
+          if (parsed?.processAreaDescriptions && typeof parsed.processAreaDescriptions === 'object') setProcessAreaDescriptions(parsed.processAreaDescriptions);
+          if (parsed?.hierarchyLevelIcons && typeof parsed.hierarchyLevelIcons === 'object') {
+            setHierarchyLevelIcons({
+              ...DEFAULT_HIERARCHY_LEVEL_ICONS,
+              ...parsed.hierarchyLevelIcons,
+            });
+          }
+          setHierarchyStateHydrated(true);
           return;
         }
       } catch {
@@ -1707,27 +1722,21 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
       try {
         const raw = localStorage.getItem(getTreeOrderStorageKey());
         if (!raw) {
-          if (!cancelled) setTreeOrderHydrated(true);
+          if (!cancelled) setHierarchyStateHydrated(true);
           return;
         }
         const parsed = JSON.parse(raw);
         if (!cancelled) {
-          setTreeOrder({
-            programs: Array.isArray(parsed?.programs) ? parsed.programs : [],
-            cycles: typeof parsed?.cycles === 'object' && parsed?.cycles ? parsed.cycles : {},
-            projects: typeof parsed?.projects === 'object' && parsed?.projects ? parsed.projects : {},
-            projectGroups: typeof parsed?.projectGroups === 'object' && parsed?.projectGroups ? parsed.projectGroups : {},
-            processAreas: typeof parsed?.processAreas === 'object' && parsed?.processAreas ? parsed.processAreas : {},
-          });
+          applyTreeOrder(parsed);
         }
       } catch {
         // ignore local parse failures
       } finally {
-        if (!cancelled) setTreeOrderHydrated(true);
+        if (!cancelled) setHierarchyStateHydrated(true);
       }
     };
 
-    hydrateTreeOrder();
+    hydrateHierarchyState();
 
     return () => {
       cancelled = true;
@@ -1788,16 +1797,33 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   // Persist tree ordering.
   useEffect(() => {
     localStorage.setItem(getTreeOrderStorageKey(), JSON.stringify(treeOrder));
-    if (!treeOrderHydrated) return;
+    if (!hierarchyStateHydrated) return;
 
     const timeout = setTimeout(() => {
-      apiClient.put('/api/hierarchy-preferences/tree-order', { treeOrder }).catch(() => {
+      apiClient.put('/api/hierarchy-preferences/state', {
+        treeOrder,
+        planningAdditionalGroups,
+        planningAdditionalProcessAreas,
+        hiddenProcessAreas,
+        processAreaAccentOverrides,
+        processAreaDescriptions,
+        hierarchyLevelIcons,
+      }).catch(() => {
         // Keep local persistence as fallback.
       });
     }, 350);
 
     return () => clearTimeout(timeout);
-  }, [treeOrder, treeOrderHydrated]);
+  }, [
+    treeOrder,
+    planningAdditionalGroups,
+    planningAdditionalProcessAreas,
+    hiddenProcessAreas,
+    processAreaAccentOverrides,
+    processAreaDescriptions,
+    hierarchyLevelIcons,
+    hierarchyStateHydrated,
+  ]);
 
   // Persist ordering.
   useEffect(() => {

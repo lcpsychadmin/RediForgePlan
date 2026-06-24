@@ -55,6 +55,7 @@ CREATE INDEX idx_sessions_expires_at ON sessions(expires_at);
 CREATE TABLE user_hierarchy_preferences (
   user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
   tree_order JSONB,
+  hierarchy_state JSONB,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
