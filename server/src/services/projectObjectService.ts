@@ -50,7 +50,7 @@ export class ProjectObjectService {
     let query = supportsSubObjects
       ? `
         SELECT po.id, po.project_id, po.global_object_id, po.parent_project_object_id, po.sub_object_suffix, po.sub_object_description,
-          COALESCE(parent_go.object_id || po.sub_object_suffix, go.object_id) AS object_id,
+          COALESCE(parent_go.object_id || '-' || po.sub_object_suffix, go.object_id) AS object_id,
           parent_go.object_id AS parent_object_id,
           COALESCE(go.process_area, parent_go.process_area) AS process_area,
           po.complexity, po.deployment_disposition,
@@ -117,8 +117,8 @@ export class ProjectObjectService {
     const supportsSubObjects = await this.supportsSubObjects();
     const result = await db.query(
       supportsSubObjects
-        ? `SELECT po.id, po.project_id, po.global_object_id, po.parent_project_object_id, po.sub_object_suffix, po.sub_object_description,
-              COALESCE(parent_go.object_id || po.sub_object_suffix, go.object_id) AS object_id,
+          ? `SELECT po.id, po.project_id, po.global_object_id, po.parent_project_object_id, po.sub_object_suffix, po.sub_object_description,
+            COALESCE(parent_go.object_id || '-' || po.sub_object_suffix, go.object_id) AS object_id,
               parent_go.object_id AS parent_object_id,
               COALESCE(go.process_area, parent_go.process_area) AS process_area,
               po.complexity, po.deployment_disposition,
@@ -151,7 +151,7 @@ export class ProjectObjectService {
     const supportsSubObjects = await this.supportsSubObjects();
     let globalObjectId = data.globalObjectId;
     let parentProjectObjectId = data.parentProjectObjectId || null;
-    let subObjectSuffix = (data.subObjectSuffix || '').trim() || null;
+    let subObjectSuffix = (data.subObjectSuffix || '').trim().replace(/^[-\s]+/, '') || null;
     let subObjectDescription = (data.subObjectDescription || '').trim() || null;
 
     if (!globalObjectId && !parentProjectObjectId) {
@@ -285,6 +285,10 @@ export class ProjectObjectService {
     const fields: string[] = [];
     const values: any[] = [projectObjectId];
     let paramCount = 2;
+
+    if (supportsSubObjects && data.subObjectSuffix !== undefined && data.subObjectSuffix !== null) {
+      data.subObjectSuffix = (data.subObjectSuffix as string).trim().replace(/^[-\s]+/, '');
+    }
 
     const fieldMap: { [key: string]: string } = {
       complexity: 'complexity',

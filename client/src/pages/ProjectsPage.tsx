@@ -2809,6 +2809,17 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     setProjectInventoryDialogOpen(true);
   };
 
+  const startSubObjectCreateFromParent = (parentItem: any) => {
+    setEditingInventoryItemId(null);
+    setProjectInventoryItem({
+      ...getEmptyProjectInventoryItem(),
+      isSubObject: true,
+      parentProjectObjectId: parentItem.id,
+      dataObjectId: parentItem.objectId || parentItem.dataObjectId || '',
+      processArea: parentItem.processArea || '',
+    });
+  };
+
   // Handle delete inventory item
   const handleDeleteInventoryItem = (item: any) => {
     setDeletingInventoryItemId(item.id);
@@ -7764,6 +7775,17 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                 checked={!!projectInventoryItem.isSubObject}
                 onChange={(e) => {
                   const checked = e.target.checked;
+                  if (checked && editingInventoryItemId) {
+                    const editingItem = projectInventoryItems.find((entry: any) => entry.id === editingInventoryItemId);
+                    if (editingItem) {
+                      if (editingItem.parentProjectObjectId) {
+                        alert('Sub-objects cannot contain nested sub-objects. Select a parent data object.');
+                        return;
+                      }
+                      startSubObjectCreateFromParent(editingItem);
+                      return;
+                    }
+                  }
                   const parentOptions = getParentInventoryObjects();
                   const nextParent = checked ? (projectInventoryItem.parentProjectObjectId || parentOptions[0]?.id || '') : '';
                   const parentItem = parentOptions.find((entry: any) => entry.id === nextParent) || null;
@@ -7775,7 +7797,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                     processArea: checked ? (parentItem?.processArea || projectInventoryItem.processArea) : projectInventoryItem.processArea,
                   });
                 }}
-                disabled={editingInventoryItemId !== null}
               />
               <Typography variant="body2" sx={{ fontWeight: 600 }}>
                 Create as sub-object
@@ -8102,7 +8123,15 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                     alert('Sub-object description is required.');
                     return;
                   }
+                  const normalizedSuffix = projectInventoryItem.subObjectSuffix.trim().replace(/^[-\s]+/, '');
+                  if (!normalizedSuffix) {
+                    alert('Sub-object ID suffix is required.');
+                    return;
+                  }
                 }
+
+                const addingSubObject = !editingInventoryItemId && projectInventoryItem.isSubObject;
+                const parentIdForAdditionalSubObjects = projectInventoryItem.parentProjectObjectId;
 
                 if (editingInventoryItemId) {
                   // Update existing item
@@ -8196,9 +8225,20 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                   };
                   setProjectInventoryItems([...projectInventoryItems, newItem]);
                 }
-                
-                setProjectInventoryDialogOpen(false);
-                setProjectInventoryItem(getEmptyProjectInventoryItem());
+
+                if (addingSubObject && parentIdForAdditionalSubObjects) {
+                  const parentItem = projectInventoryItems.find((entry: any) => entry.id === parentIdForAdditionalSubObjects);
+                  setProjectInventoryItem({
+                    ...getEmptyProjectInventoryItem(),
+                    isSubObject: true,
+                    parentProjectObjectId: parentIdForAdditionalSubObjects,
+                    dataObjectId: parentItem?.objectId || parentItem?.dataObjectId || '',
+                    processArea: parentItem?.processArea || '',
+                  });
+                } else {
+                  setProjectInventoryDialogOpen(false);
+                  setProjectInventoryItem(getEmptyProjectInventoryItem());
+                }
               } catch (error) {
                 console.error('Failed to save item:', error);
                 const errorMessage = (error as any)?.response?.data?.message || 'Failed to save item. Please try again.';
