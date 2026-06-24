@@ -268,6 +268,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   const [maintainProjectParentCycleId, setMaintainProjectParentCycleId] = useState('');
   const [maintainProjectFilterCycleId, setMaintainProjectFilterCycleId] = useState<'all' | string>('all');
   const [maintainPendingCycleProjectId, setMaintainPendingCycleProjectId] = useState<string | null>(null);
+  const [attachNewCycleToTree, setAttachNewCycleToTree] = useState(false);
   const [inventoryObjects, setInventoryObjects] = useState<{ id: string; objectId: string; description: string; processArea: string }[]>([]);
   const [projectInventoryItems, setProjectInventoryItems] = useState<any[]>([]);
   const [projectHierarchySummaries, setProjectHierarchySummaries] = useState<Record<string, {
@@ -1092,7 +1093,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   const getOrderedCycles = (programId: string) => {
     const source = mockCycles[programId] || [];
     const existing = treeOrder.cycles[programId] || [];
-    const ids = mergeOrder(existing, source.map((c: MockCycle) => c.id));
+    const sourceIds = new Set(source.map((c: MockCycle) => c.id));
+    const ids = existing.filter((id: string) => sourceIds.has(id));
     return ids.map(id => source.find((c: MockCycle) => c.id === id)).filter(Boolean) as MockCycle[];
   };
 
@@ -1516,7 +1518,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
       const nextCycles: Record<string, string[]> = { ...prev.cycles };
       for (const programId in mockCycles) {
         const cycles = mockCycles[programId] || [];
-        nextCycles[programId] = mergeOrder(prev.cycles[programId] || [], cycles.map((c: MockCycle) => c.id));
+        const cycleIds = new Set(cycles.map((c: MockCycle) => c.id));
+        nextCycles[programId] = (prev.cycles[programId] || []).filter((id: string) => cycleIds.has(id));
       }
       const nextProjects: Record<string, string[]> = { ...prev.projects };
       for (const cycleId in projectsByMockCycle) {
@@ -2052,7 +2055,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         });
         queryClient.invalidateQueries({ queryKey: ['programs'] });
       } else if (dialogMode === 'cycle' && contextProgramId) {
-        await apiClient.post(`/api/programs/${contextProgramId}/mock-cycles`, {
+        const cycleResponse = await apiClient.post(`/api/programs/${contextProgramId}/mock-cycles`, {
           name: newItemName,
           startDate: new Date().toISOString().split('T')[0],
           endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
@@ -2060,8 +2063,19 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
           accentColor: newItemAccentColor || null,
           projectId: maintainPendingCycleProjectId || undefined,
         });
+        const createdCycleId = cycleResponse?.data?.data?.id as string | undefined;
         queryClient.invalidateQueries({ queryKey: ['mockCycles'] });
         setExpandedPrograms(new Set(expandedPrograms).add(contextProgramId));
+        if (attachNewCycleToTree && createdCycleId) {
+          setTreeOrder((prev) => ({
+            ...prev,
+            cycles: {
+              ...prev.cycles,
+              [contextProgramId]: mergeOrder(prev.cycles[contextProgramId] || [], [createdCycleId]),
+            },
+          }));
+          setSelectedItem({ type: 'cycle', id: createdCycleId, programId: contextProgramId });
+        }
       } else if (dialogMode === 'project' && contextProgramId) {
         await apiClient.post(`/api/projects/by-program/${contextProgramId}`, {
           name: newItemName,
@@ -2078,6 +2092,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
       setContextCycleId(null);
       setSelectedExistingProjectOptionId('');
       setMaintainPendingCycleProjectId(null);
+      setAttachNewCycleToTree(false);
     } catch (error) {
       console.error('Failed to create:', error);
       alert('Failed to create. Please try again.');
@@ -2085,6 +2100,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
       setIsCreating(false);
       setSelectedExistingProjectOptionId('');
       setMaintainPendingCycleProjectId(null);
+      setAttachNewCycleToTree(false);
     }
   };
 
@@ -2127,6 +2143,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     setNewItemAccentColor('');
     setSelectedExistingProjectOptionId('');
     setNewCycleScheduleMode('all_days');
+    if (mode !== 'cycle') {
+      setAttachNewCycleToTree(false);
+    }
     setCreateDialogOpen(true);
   };
 
@@ -3088,6 +3107,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                 {getOrderedPrograms().map((program: Program) => {
                   const isProgramSelected = selectedItem?.type === 'program' && selectedItem?.id === program.id;
                   const isProgramExpanded = expandedPrograms.has(program.id);
+                  const visibleProgramCycles = getOrderedCycles(program.id);
                   const programColor = program.accentColor || '#5B67CA';
                   const programCycleCount = (mockCycles[program.id] || []).length;
                   const programProjectProgressValues = (mockCycles[program.id] || []).flatMap((cycle: MockCycle) =>
@@ -3570,6 +3590,21 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                               </Box>
                             );
                           })}
+
+                          {canManageHierarchy && visibleProgramCycles.length === 0 && (
+                            <Button
+                              size="small"
+                              variant="text"
+                              startIcon={<AddIcon sx={{ fontSize: '0.85rem !important' }} />}
+                              onClick={() => {
+                                setAttachNewCycleToTree(true);
+                                openCreateDialog('cycle', program.id);
+                              }}
+                              sx={{ fontSize: '0.72rem', height: 26, color: '#64B5F6', textTransform: 'none', pl: 1, '&:hover': { color: '#90CAF9' } }}
+                            >
+                              Add Mock Cycle
+                            </Button>
+                          )}
 
                         </Box>
                       )}
