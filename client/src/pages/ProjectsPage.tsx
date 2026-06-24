@@ -2372,17 +2372,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   };
 
   const handleCloneCycle = (cycleId: string) => {
-    let sourceCycle: MockCycle | null = null;
-    let sourceProgramId: string | null = null;
-
-    for (const progId in mockCycles) {
-      const cycle = mockCycles[progId]?.find(c => c.id === cycleId);
-      if (cycle) {
-        sourceCycle = cycle;
-        sourceProgramId = progId;
-        break;
-      }
-    }
+    const sourceCycle = allMaintainCycles.find((cycle) => cycle.id === cycleId) || null;
+    const sourceProgramId = sourceCycle?.programId || null;
 
     if (!sourceCycle || !sourceProgramId) {
       alert('Unable to locate source mock cycle.');
@@ -2397,6 +2388,12 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
 
   const handleCloneCycleConfirm = async () => {
     if (!cloneCycleSourceId || !cloneCycleSourceProgramId) return;
+
+    const selectedSourceCycle = allMaintainCycles.find((cycle) => cycle.id === cloneCycleSourceId) || null;
+    if (!selectedSourceCycle) {
+      alert('Select a valid mock cycle from Maintain to copy.');
+      return;
+    }
 
     const name = cloneCycleName.trim();
     if (!name) {
@@ -5814,7 +5811,31 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
             This will create a new mock cycle and copy projects, inventory, dependencies, tasks, and schedule data.
           </Typography>
           <TextField
-            autoFocus
+            select
+            fullWidth
+            label="Source Mock Cycle"
+            value={cloneCycleSourceId || ''}
+            onChange={(e) => {
+              const nextCycleId = e.target.value;
+              const nextCycle = allMaintainCycles.find((cycle) => cycle.id === nextCycleId) || null;
+              setCloneCycleSourceId(nextCycleId || null);
+              setCloneCycleSourceProgramId(nextCycle?.programId || null);
+              if (nextCycle) {
+                setCloneCycleName(`${nextCycle.name} Copy`);
+              }
+            }}
+            variant="outlined"
+            size="small"
+            sx={{ mb: 2 }}
+          >
+            {maintainCycleRows.map((cycle: any) => (
+              <MenuItem key={cycle.id} value={cycle.id}>
+                {`${cycle.programName} / ${cycle.name}`}
+              </MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            autoFocus={!cloneCycleSourceId}
             fullWidth
             label="New Mock Cycle Name"
             value={cloneCycleName}
@@ -5831,7 +5852,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
           <Button
             onClick={handleCloneCycleConfirm}
             variant="contained"
-            disabled={isCloningCycle || !cloneCycleName.trim()}
+            disabled={isCloningCycle || !cloneCycleSourceId || !cloneCycleName.trim()}
             sx={{ textTransform: 'none' }}
           >
             {isCloningCycle ? 'Copying...' : 'Copy'}
