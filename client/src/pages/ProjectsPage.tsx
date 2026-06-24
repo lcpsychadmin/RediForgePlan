@@ -259,11 +259,13 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   // Inventory states
   const [inventorySubTab, setInventorySubTab] = useState(0);
   const [maintainFormView, setMaintainFormView] = useState<'program' | 'cycle' | 'project'>('program');
+  const [maintainCycleParentProjectId, setMaintainCycleParentProjectId] = useState('');
   const [maintainCycleParentProgramId, setMaintainCycleParentProgramId] = useState('');
   const [maintainCycleFilterProgramId, setMaintainCycleFilterProgramId] = useState<'all' | string>('all');
   const [maintainProjectParentProgramId, setMaintainProjectParentProgramId] = useState('');
   const [maintainProjectParentCycleId, setMaintainProjectParentCycleId] = useState('');
   const [maintainProjectFilterCycleId, setMaintainProjectFilterCycleId] = useState<'all' | string>('all');
+  const [maintainPendingCycleProjectId, setMaintainPendingCycleProjectId] = useState<string | null>(null);
   const [inventoryObjects, setInventoryObjects] = useState<{ id: string; objectId: string; description: string; processArea: string }[]>([]);
   const [projectInventoryItems, setProjectInventoryItems] = useState<any[]>([]);
   const [projectHierarchySummaries, setProjectHierarchySummaries] = useState<Record<string, {
@@ -732,12 +734,17 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   ), [projectsByMockCycle]);
   const maintainCycleRows = React.useMemo(() => (
     allMaintainCycles
-      .map((cycle) => ({
-        ...cycle,
-        programName: programs.find((program) => program.id === cycle.programId)?.name || 'Program',
-      }))
+      .map((cycle) => {
+        const linkedProject = allMaintainProjects.find((project) => project.mockCycleId === cycle.id) || null;
+        return {
+          ...cycle,
+          linkedProjectId: linkedProject?.id || '',
+          linkedProjectName: linkedProject?.name || 'Unassigned Project',
+          programName: programs.find((program) => program.id === cycle.programId)?.name || 'Program',
+        };
+      })
       .sort((a, b) => a.programName.localeCompare(b.programName) || a.name.localeCompare(b.name))
-  ), [allMaintainCycles, programs]);
+  ), [allMaintainCycles, allMaintainProjects, programs]);
   const maintainProjectRows = React.useMemo(() => (
     allMaintainProjects
       .map((project) => {
@@ -761,6 +768,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   const cyclesForMaintainProjectProgram = maintainProjectParentProgramId
     ? allMaintainCycles.filter((cycle) => cycle.programId === maintainProjectParentProgramId)
     : [];
+  const maintainCycleParentProject = allMaintainProjects.find((project) => project.id === maintainCycleParentProjectId) || null;
   const getScopedProjectsForCycle = (cycleId: string, projectId?: string | null): Project[] => {
     const projects = (projectsByMockCycle[cycleId] || []) as Project[];
     if (!projectId) return projects;
@@ -786,6 +794,20 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
       setMaintainCycleParentProgramId(programs[0]?.id || '');
     }
   }, [programs, maintainCycleParentProgramId]);
+
+  useEffect(() => {
+    if (!maintainCycleParentProjectId || !allMaintainProjects.some((project) => project.id === maintainCycleParentProjectId)) {
+      setMaintainCycleParentProjectId(allMaintainProjects[0]?.id || '');
+    }
+  }, [allMaintainProjects, maintainCycleParentProjectId]);
+
+  useEffect(() => {
+    if (!maintainCycleParentProject) return;
+    const parentCycle = allMaintainCycles.find((cycle) => cycle.id === maintainCycleParentProject.mockCycleId) || null;
+    if (parentCycle && parentCycle.programId !== maintainCycleParentProgramId) {
+      setMaintainCycleParentProgramId(parentCycle.programId);
+    }
+  }, [maintainCycleParentProject, allMaintainCycles, maintainCycleParentProgramId]);
 
   useEffect(() => {
     if (!maintainProjectParentProgramId || !programs.some((program) => program.id === maintainProjectParentProgramId)) {
@@ -1936,13 +1958,18 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         });
         queryClient.invalidateQueries({ queryKey: ['programs'] });
       } else if (dialogMode === 'cycle' && contextProgramId) {
-        await apiClient.post(`/api/programs/${contextProgramId}/mock-cycles`, {
+        const cycleResponse = await apiClient.post(`/api/programs/${contextProgramId}/mock-cycles`, {
           name: newItemName,
           startDate: new Date().toISOString().split('T')[0],
           endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
           scheduleMode: newCycleScheduleMode,
           accentColor: newItemAccentColor || null,
         });
+        const createdCycleId = cycleResponse.data?.data?.id;
+        if (createdCycleId && maintainPendingCycleProjectId) {
+          await apiClient.patch(`/api/projects/${maintainPendingCycleProjectId}`, { mockCycleId: createdCycleId });
+          queryClient.invalidateQueries({ queryKey: ['projectsByMockCycle'] });
+        }
         queryClient.invalidateQueries({ queryKey: ['mockCycles'] });
         setExpandedPrograms(new Set(expandedPrograms).add(contextProgramId));
       } else if (dialogMode === 'project' && contextCycleId) {
@@ -1960,11 +1987,13 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
       setCreateDialogOpen(false);
       setContextProgramId(null);
       setContextCycleId(null);
+      setMaintainPendingCycleProjectId(null);
     } catch (error) {
       console.error('Failed to create:', error);
       alert('Failed to create. Please try again.');
     } finally {
       setIsCreating(false);
+      setMaintainPendingCycleProjectId(null);
     }
   };
 
@@ -2848,21 +2877,45 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
               <Button
                 variant={maintainFormView === 'program' ? 'contained' : 'text'}
                 onClick={() => setMaintainFormView('program')}
-                sx={{ textTransform: 'none', justifyContent: 'flex-start', fontWeight: 700 }}
+                sx={{
+                  textTransform: 'none',
+                  justifyContent: 'flex-start',
+                  fontWeight: 700,
+                  borderRadius: 1.6,
+                  color: maintainFormView === 'program' ? '#0D1933' : 'rgba(230,238,255,0.88)',
+                  backgroundColor: maintainFormView === 'program' ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.06)',
+                  '&:hover': { backgroundColor: maintainFormView === 'program' ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.12)' },
+                }}
               >
                 Program Form
               </Button>
               <Button
                 variant={maintainFormView === 'cycle' ? 'contained' : 'text'}
                 onClick={() => setMaintainFormView('cycle')}
-                sx={{ textTransform: 'none', justifyContent: 'flex-start', fontWeight: 700 }}
+                sx={{
+                  textTransform: 'none',
+                  justifyContent: 'flex-start',
+                  fontWeight: 700,
+                  borderRadius: 1.6,
+                  color: maintainFormView === 'cycle' ? '#0D1933' : 'rgba(230,238,255,0.88)',
+                  backgroundColor: maintainFormView === 'cycle' ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.06)',
+                  '&:hover': { backgroundColor: maintainFormView === 'cycle' ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.12)' },
+                }}
               >
                 Mock Cycle Form
               </Button>
               <Button
                 variant={maintainFormView === 'project' ? 'contained' : 'text'}
                 onClick={() => setMaintainFormView('project')}
-                sx={{ textTransform: 'none', justifyContent: 'flex-start', fontWeight: 700 }}
+                sx={{
+                  textTransform: 'none',
+                  justifyContent: 'flex-start',
+                  fontWeight: 700,
+                  borderRadius: 1.6,
+                  color: maintainFormView === 'project' ? '#0D1933' : 'rgba(230,238,255,0.88)',
+                  backgroundColor: maintainFormView === 'project' ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.06)',
+                  '&:hover': { backgroundColor: maintainFormView === 'project' ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.12)' },
+                }}
               >
                 Project Form
               </Button>
@@ -4984,9 +5037,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
             <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
               <Box
                 sx={{
-                  border: '1px solid rgba(93,121,176,0.35)',
+                  border: '1px solid rgba(255,255,255,0.2)',
                   borderRadius: 2,
-                  backgroundColor: 'rgba(18,33,65,0.72)',
+                  backgroundColor: 'rgba(255,255,255,0.06)',
                   p: 2,
                 }}
               >
@@ -5001,7 +5054,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
               {!canManageHierarchy ? (
                 <Alert severity="info">You have read-only access. Admin role is required to submit hierarchy forms.</Alert>
               ) : (
-                <Card sx={{ backgroundColor: 'rgba(9, 19, 47, 0.9)', border: '1px solid rgba(80,115,181,0.35)', borderRadius: 2 }}>
+                <Card sx={{ backgroundColor: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.18)', borderRadius: 2 }}>
                   <CardHeader
                     title={maintainFormView === 'program' ? 'Programs' : maintainFormView === 'cycle' ? 'Mock Cycles' : 'Projects'}
                     titleTypographyProps={{ sx: { color: '#E8F0FF', fontWeight: 800, fontSize: '1.02rem' } }}
@@ -5011,13 +5064,13 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                           <TextField
                             select
                             size="small"
-                            label="Parent Program"
-                            value={maintainCycleParentProgramId}
-                            onChange={(e) => setMaintainCycleParentProgramId(e.target.value)}
+                            label="Parent Project"
+                            value={maintainCycleParentProjectId}
+                            onChange={(e) => setMaintainCycleParentProjectId(e.target.value)}
                             sx={{ minWidth: 200 }}
                           >
-                            {programs.map((program) => (
-                              <MenuItem key={program.id} value={program.id}>{program.name}</MenuItem>
+                            {allMaintainProjects.map((project) => (
+                              <MenuItem key={project.id} value={project.id}>{project.name}</MenuItem>
                             ))}
                           </TextField>
                         )}
@@ -5060,12 +5113,13 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                             if (maintainFormView === 'program') {
                               openCreateDialog('program');
                             } else if (maintainFormView === 'cycle') {
+                              setMaintainPendingCycleProjectId(maintainCycleParentProjectId || null);
                               openCreateDialog('cycle', maintainCycleParentProgramId);
                             } else if (maintainFormView === 'project') {
                               openCreateDialog('project', undefined, maintainProjectParentCycleId);
                             }
                           }}
-                          disabled={(maintainFormView === 'cycle' && !maintainCycleParentProgramId) || (maintainFormView === 'project' && !maintainProjectParentCycleId)}
+                          disabled={(maintainFormView === 'cycle' && !maintainCycleParentProjectId) || (maintainFormView === 'project' && !maintainProjectParentCycleId)}
                           sx={{ textTransform: 'none', fontWeight: 700 }}
                         >
                           Add New
@@ -5075,10 +5129,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                   />
                   <CardContent sx={{ pt: 0 }}>
                     {maintainFormView === 'program' && (
-                      <TableContainer sx={{ border: '1px solid rgba(109,146,214,0.45)', borderRadius: 2, backgroundColor: 'rgba(8, 16, 40, 0.92)' }}>
+                      <TableContainer sx={{ border: '1px solid rgba(255,255,255,0.18)', borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.07)' }}>
                         <Table size="small">
                           <TableHead>
-                            <TableRow sx={{ backgroundColor: 'rgba(66, 109, 188, 0.26)' }}>
+                            <TableRow sx={{ backgroundColor: 'rgba(255,255,255,0.14)' }}>
                               <TableCell sx={{ color: '#E6EFFF', fontWeight: 700 }}>Program</TableCell>
                               <TableCell sx={{ color: '#E6EFFF', fontWeight: 700 }}>Description</TableCell>
                               <TableCell sx={{ color: '#E6EFFF', fontWeight: 700 }}>Accent</TableCell>
@@ -5091,7 +5145,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                 <TableCell colSpan={4} sx={{ color: '#9FB0D8' }}>No programs found.</TableCell>
                               </TableRow>
                             ) : programs.map((program, idx) => (
-                              <TableRow key={program.id} sx={{ backgroundColor: idx % 2 === 0 ? 'rgba(20,33,66,0.88)' : 'rgba(12,25,52,0.88)' }}>
+                              <TableRow key={program.id} sx={{ backgroundColor: idx % 2 === 0 ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.02)' }}>
                                 <TableCell sx={{ color: '#DCE7FF', fontWeight: 700 }}>{program.name}</TableCell>
                                 <TableCell sx={{ color: '#BFD0F3' }}>{program.description || '—'}</TableCell>
                                 <TableCell sx={{ color: '#BFD0F3' }}>{program.accentColor || '—'}</TableCell>
@@ -5123,11 +5177,12 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                             ))}
                           </TextField>
                         </Box>
-                        <TableContainer sx={{ border: '1px solid rgba(109,146,214,0.45)', borderRadius: 2, backgroundColor: 'rgba(8, 16, 40, 0.92)' }}>
+                        <TableContainer sx={{ border: '1px solid rgba(255,255,255,0.18)', borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.07)' }}>
                           <Table size="small">
                             <TableHead>
-                              <TableRow sx={{ backgroundColor: 'rgba(66, 109, 188, 0.26)' }}>
+                              <TableRow sx={{ backgroundColor: 'rgba(255,255,255,0.14)' }}>
                                 <TableCell sx={{ color: '#E6EFFF', fontWeight: 700 }}>Mock Cycle</TableCell>
+                                <TableCell sx={{ color: '#E6EFFF', fontWeight: 700 }}>Project</TableCell>
                                 <TableCell sx={{ color: '#E6EFFF', fontWeight: 700 }}>Program</TableCell>
                                 <TableCell sx={{ color: '#E6EFFF', fontWeight: 700 }}>Date Range</TableCell>
                                 <TableCell sx={{ color: '#E6EFFF', fontWeight: 700 }}>Mode</TableCell>
@@ -5137,13 +5192,14 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                             <TableBody>
                               {visibleMaintainCycleRows.length === 0 ? (
                                 <TableRow>
-                                  <TableCell colSpan={5} sx={{ color: '#9FB0D8' }}>No mock cycles found.</TableCell>
+                                  <TableCell colSpan={6} sx={{ color: '#9FB0D8' }}>No mock cycles found.</TableCell>
                                 </TableRow>
                               ) : visibleMaintainCycleRows.map((cycle, idx) => (
-                                <TableRow key={cycle.id} sx={{ backgroundColor: idx % 2 === 0 ? 'rgba(20,33,66,0.88)' : 'rgba(12,25,52,0.88)' }}>
+                                <TableRow key={cycle.id} sx={{ backgroundColor: idx % 2 === 0 ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.02)' }}>
                                   <TableCell sx={{ color: '#DCE7FF', fontWeight: 700 }}>{cycle.name}</TableCell>
+                                  <TableCell sx={{ color: '#BFD0F3' }}>{cycle.linkedProjectName}</TableCell>
                                   <TableCell sx={{ color: '#BFD0F3' }}>{cycle.programName}</TableCell>
-                                  <TableCell sx={{ color: '#BFD0F3' }}>{cycle.startDate} to {cycle.endDate}</TableCell>
+                                  <TableCell sx={{ color: '#BFD0F3' }}>{toDateInputValue(cycle.startDate)} to {toDateInputValue(cycle.endDate)}</TableCell>
                                   <TableCell sx={{ color: '#BFD0F3' }}>{cycle.scheduleMode === 'working_days' ? 'Working Days' : 'All Days'}</TableCell>
                                   <TableCell>
                                     <IconButton size="small" onClick={() => openEditDialog('cycle', cycle.id)} sx={{ color: '#8FB7FF' }}><EditIcon sx={{ fontSize: '1rem' }} /></IconButton>
@@ -5174,10 +5230,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                             ))}
                           </TextField>
                         </Box>
-                        <TableContainer sx={{ border: '1px solid rgba(109,146,214,0.45)', borderRadius: 2, backgroundColor: 'rgba(8, 16, 40, 0.92)' }}>
+                        <TableContainer sx={{ border: '1px solid rgba(255,255,255,0.18)', borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.07)' }}>
                           <Table size="small">
                             <TableHead>
-                              <TableRow sx={{ backgroundColor: 'rgba(66, 109, 188, 0.26)' }}>
+                              <TableRow sx={{ backgroundColor: 'rgba(255,255,255,0.14)' }}>
                                 <TableCell sx={{ color: '#E6EFFF', fontWeight: 700 }}>Project</TableCell>
                                 <TableCell sx={{ color: '#E6EFFF', fontWeight: 700 }}>Mock Cycle</TableCell>
                                 <TableCell sx={{ color: '#E6EFFF', fontWeight: 700 }}>Program</TableCell>
@@ -5191,11 +5247,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                   <TableCell colSpan={5} sx={{ color: '#9FB0D8' }}>No projects found.</TableCell>
                                 </TableRow>
                               ) : visibleMaintainProjectRows.map((project, idx) => (
-                                <TableRow key={project.id} sx={{ backgroundColor: idx % 2 === 0 ? 'rgba(20,33,66,0.88)' : 'rgba(12,25,52,0.88)' }}>
+                                <TableRow key={project.id} sx={{ backgroundColor: idx % 2 === 0 ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.02)' }}>
                                   <TableCell sx={{ color: '#DCE7FF', fontWeight: 700 }}>{project.name}</TableCell>
                                   <TableCell sx={{ color: '#BFD0F3' }}>{project.cycleName}</TableCell>
                                   <TableCell sx={{ color: '#BFD0F3' }}>{project.programName}</TableCell>
-                                  <TableCell sx={{ color: '#BFD0F3' }}>{project.startDate || '—'} to {project.endDate || '—'}</TableCell>
+                                  <TableCell sx={{ color: '#BFD0F3' }}>{toDateInputValue(project.startDate) || '—'} to {toDateInputValue(project.endDate) || '—'}</TableCell>
                                   <TableCell>
                                     <IconButton size="small" onClick={() => openEditDialog('project', project.id)} sx={{ color: '#8FB7FF' }}><EditIcon sx={{ fontSize: '1rem' }} /></IconButton>
                                     <IconButton size="small" onClick={() => openDeleteDialog('project', project.id, project.name)} sx={{ color: '#FF9AA8' }}><DeleteIcon sx={{ fontSize: '1rem' }} /></IconButton>
@@ -5211,11 +5267,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                 </Card>
               )}
 
-              <Card sx={{ backgroundColor: 'rgba(9, 19, 47, 0.9)', border: '1px solid rgba(80,115,181,0.35)', borderRadius: 2 }}>
+              <Card sx={{ backgroundColor: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.18)', borderRadius: 2 }}>
                 <CardContent sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5 }}>
-                  <Chip size="small" label={`Programs: ${programs.length}`} variant="outlined" sx={{ color: '#BFD0F3', borderColor: 'rgba(96,127,189,0.45)' }} />
-                  <Chip size="small" label={`Mock Cycles: ${allMaintainCycles.length}`} variant="outlined" sx={{ color: '#BFD0F3', borderColor: 'rgba(96,127,189,0.45)' }} />
-                  <Chip size="small" label={`Projects: ${allMaintainProjects.length}`} variant="outlined" sx={{ color: '#BFD0F3', borderColor: 'rgba(96,127,189,0.45)' }} />
+                  <Chip size="small" label={`Programs: ${programs.length}`} variant="outlined" sx={{ color: '#E7EEFF', borderColor: 'rgba(255,255,255,0.28)' }} />
+                  <Chip size="small" label={`Mock Cycles: ${allMaintainCycles.length}`} variant="outlined" sx={{ color: '#E7EEFF', borderColor: 'rgba(255,255,255,0.28)' }} />
+                  <Chip size="small" label={`Projects: ${allMaintainProjects.length}`} variant="outlined" sx={{ color: '#E7EEFF', borderColor: 'rgba(255,255,255,0.28)' }} />
                 </CardContent>
               </Card>
             </Box>
