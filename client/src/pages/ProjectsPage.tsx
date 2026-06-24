@@ -216,6 +216,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   const [editCycleScheduleMode, setEditCycleScheduleMode] = useState<CalendarMode>('all_days');
   const [editAccentColor, setEditAccentColor] = useState('');
   const [editProgressPercentage, setEditProgressPercentage] = useState(0);
+  const [editCycleParentProjectId, setEditCycleParentProjectId] = useState('');
+  const [editProjectParentProgramId, setEditProjectParentProgramId] = useState('');
+  const [editProjectParentCycleId, setEditProjectParentCycleId] = useState('');
   const [isEditing, setIsEditing] = useState(false);
   const [cloneCycleDialogOpen, setCloneCycleDialogOpen] = useState(false);
   const [cloneCycleSourceId, setCloneCycleSourceId] = useState<string | null>(null);
@@ -2167,6 +2170,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         setEditAccentColor(program.accentColor || '');
       }
     } else if (type === 'cycle') {
+      const linkedProject = allMaintainProjects.find((project) => project.mockCycleId === itemId) || null;
+      setEditCycleParentProjectId(linkedProject?.id || '');
       for (const progId in mockCycles) {
         const cycle = mockCycles[progId]?.find(c => c.id === itemId);
         if (cycle) {
@@ -2183,12 +2188,15 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
       for (const cycleId in projectsByMockCycle) {
         const project = projectsByMockCycle[cycleId]?.find(p => p.id === itemId);
         if (project) {
+          const parentCycle = allMaintainCycles.find((cycle) => cycle.id === cycleId) || null;
           setEditItemName(project.name);
           setEditItemDesc('');
           setEditStartDate(project.startDate || '');
           setEditEndDate(project.endDate || '');
           setEditAccentColor(project.accentColor || '');
           setEditProgressPercentage(project.progressPercentage || 0);
+          setEditProjectParentCycleId(cycleId);
+          setEditProjectParentProgramId(parentCycle?.programId || '');
           break;
         }
       }
@@ -2214,6 +2222,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
           scheduleMode: editCycleScheduleMode,
           accentColor: editAccentColor || null,
         });
+        if (editCycleParentProjectId) {
+          await apiClient.patch(`/api/projects/${editCycleParentProjectId}`, { mockCycleId: editItemId });
+        }
       } else if (editItemType === 'project') {
         await apiClient.patch(`/api/projects/${editItemId}`, {
           name: editItemName,
@@ -2221,6 +2232,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
           endDate: editEndDate,
           accentColor: editAccentColor,
           progressPercentage: editProgressPercentage,
+          mockCycleId: editProjectParentCycleId,
         });
       }
 
@@ -2898,21 +2910,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                 Program Form
               </Button>
               <Button
-                variant={maintainFormView === 'cycle' ? 'contained' : 'text'}
-                onClick={() => setMaintainFormView('cycle')}
-                sx={{
-                  textTransform: 'none',
-                  justifyContent: 'flex-start',
-                  fontWeight: 700,
-                  borderRadius: 1.6,
-                  color: maintainFormView === 'cycle' ? '#0D1933' : 'rgba(230,238,255,0.88)',
-                  backgroundColor: maintainFormView === 'cycle' ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.06)',
-                  '&:hover': { backgroundColor: maintainFormView === 'cycle' ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.12)' },
-                }}
-              >
-                Mock Cycle Form
-              </Button>
-              <Button
                 variant={maintainFormView === 'project' ? 'contained' : 'text'}
                 onClick={() => setMaintainFormView('project')}
                 sx={{
@@ -2926,6 +2923,21 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                 }}
               >
                 Project Form
+              </Button>
+              <Button
+                variant={maintainFormView === 'cycle' ? 'contained' : 'text'}
+                onClick={() => setMaintainFormView('cycle')}
+                sx={{
+                  textTransform: 'none',
+                  justifyContent: 'flex-start',
+                  fontWeight: 700,
+                  borderRadius: 1.6,
+                  color: maintainFormView === 'cycle' ? '#0D1933' : 'rgba(230,238,255,0.88)',
+                  backgroundColor: maintainFormView === 'cycle' ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.06)',
+                  '&:hover': { backgroundColor: maintainFormView === 'cycle' ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.12)' },
+                }}
+              >
+                Mock Cycle Form
               </Button>
             </Box>
           )}
@@ -6089,6 +6101,20 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
 
           {editItemType === 'cycle' && (
             <>
+              <TextField
+                select
+                label="Parent Project"
+                value={editCycleParentProjectId}
+                onChange={(e) => setEditCycleParentProjectId(e.target.value)}
+                fullWidth
+                variant="outlined"
+                size="small"
+              >
+                <MenuItem value="">Unassigned</MenuItem>
+                {allMaintainProjects.map((project) => (
+                  <MenuItem key={project.id} value={project.id}>{project.name}</MenuItem>
+                ))}
+              </TextField>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                 <TextField
                   label="Accent Color"
@@ -6121,6 +6147,39 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
 
           {editItemType === 'project' && (
             <>
+              <TextField
+                select
+                label="Parent Program"
+                value={editProjectParentProgramId}
+                onChange={(e) => {
+                  const nextProgramId = e.target.value;
+                  setEditProjectParentProgramId(nextProgramId);
+                  const nextCycles = allMaintainCycles.filter((cycle) => cycle.programId === nextProgramId);
+                  setEditProjectParentCycleId(nextCycles[0]?.id || '');
+                }}
+                fullWidth
+                variant="outlined"
+                size="small"
+              >
+                {programs.map((program) => (
+                  <MenuItem key={program.id} value={program.id}>{program.name}</MenuItem>
+                ))}
+              </TextField>
+              <TextField
+                select
+                label="Parent Mock Cycle"
+                value={editProjectParentCycleId}
+                onChange={(e) => setEditProjectParentCycleId(e.target.value)}
+                fullWidth
+                variant="outlined"
+                size="small"
+              >
+                {allMaintainCycles
+                  .filter((cycle) => cycle.programId === editProjectParentProgramId)
+                  .map((cycle) => (
+                    <MenuItem key={cycle.id} value={cycle.id}>{cycle.name}</MenuItem>
+                  ))}
+              </TextField>
               <TextField
                 label="Start Date"
                 type="date"
@@ -6191,7 +6250,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
             onClick={handleEditConfirm}
             variant="contained"
             color="primary"
-            disabled={isEditing}
+            disabled={isEditing || (editItemType === 'project' && !editProjectParentCycleId)}
             sx={{ textTransform: 'none' }}
           >
             {isEditing ? 'Saving...' : 'Save'}
