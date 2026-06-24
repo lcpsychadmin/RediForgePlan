@@ -54,16 +54,25 @@ router.post(
         throw new ApiError(404, 'Project not found', 'NOT_FOUND');
       }
 
-      const { globalObjectId, ...data } = req.body;
+      const { globalObjectId, parentProjectObjectId, subObjectSuffix, subObjectDescription, ...data } = req.body;
 
-      if (!globalObjectId) {
-        throw new ApiError(400, 'Global object ID is required', 'MISSING_FIELD');
+      if (!globalObjectId && !parentProjectObjectId) {
+        throw new ApiError(400, 'Either global object ID or parent project object ID is required', 'MISSING_FIELD');
       }
 
-      const object = await projectObjectService.createProjectObject(req.params.projectId, {
-        globalObjectId,
-        ...data,
-      });
+      let object;
+      try {
+        object = await projectObjectService.createProjectObject(req.params.projectId, {
+          globalObjectId,
+          parentProjectObjectId,
+          subObjectSuffix,
+          subObjectDescription,
+          ...data,
+        });
+      } catch (error: any) {
+        const message = error?.message || 'Unable to create project object';
+        throw new ApiError(400, message, 'VALIDATION_ERROR');
+      }
 
       res.status(201).json(formatSingleResponse(object));
     } catch (error) {

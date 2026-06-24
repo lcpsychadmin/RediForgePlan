@@ -120,6 +120,9 @@ CREATE TABLE project_objects (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   global_object_id UUID NOT NULL REFERENCES global_objects(id) ON DELETE RESTRICT,
+  parent_project_object_id UUID REFERENCES project_objects(id) ON DELETE CASCADE,
+  sub_object_suffix VARCHAR(50),
+  sub_object_description TEXT,
   complexity VARCHAR(50),
   deployment_disposition VARCHAR(255),
   build_type VARCHAR(255),
@@ -146,6 +149,8 @@ CREATE INDEX idx_project_objects_global_object_id ON project_objects(global_obje
 CREATE INDEX idx_project_objects_composite ON project_objects(project_id, global_object_id);
 CREATE INDEX idx_project_objects_dra_user_id ON project_objects(dra_user_id);
 CREATE INDEX idx_project_objects_developer_user_id ON project_objects(developer_user_id);
+CREATE INDEX idx_project_objects_parent_project_object_id ON project_objects(parent_project_object_id);
+CREATE UNIQUE INDEX idx_project_objects_sub_object_unique ON project_objects(project_id, parent_project_object_id, sub_object_suffix) WHERE parent_project_object_id IS NOT NULL;
 
 -- =====================================================
 -- DEPENDENCIES

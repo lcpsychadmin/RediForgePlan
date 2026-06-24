@@ -4,7 +4,10 @@
 import db from '../db.js';
 
 interface ProjectObjectInput {
-  globalObjectId: string;
+  globalObjectId?: string;
+  parentProjectObjectId?: string;
+  subObjectSuffix?: string;
+  subObjectDescription?: string;
   complexity?: string;
   deploymentDisposition?: string;
   buildType?: string;
@@ -24,13 +27,51 @@ interface ProjectObjectInput {
 }
 
 export class ProjectObjectService {
+  private subObjectColumnsSupported: boolean | null = null;
+
+  private async supportsSubObjects() {
+    if (this.subObjectColumnsSupported !== null) {
+      return this.subObjectColumnsSupported;
+    }
+
+    const result = await db.query(
+      `SELECT 1
+       FROM information_schema.columns
+       WHERE table_name = 'project_objects'
+         AND column_name = 'parent_project_object_id'
+       LIMIT 1`
+    );
+    this.subObjectColumnsSupported = result.rows.length > 0;
+    return this.subObjectColumnsSupported;
+  }
+
   async getProjectObjectsByProject(projectId: string, filters?: { status?: string; draUserId?: string; developerUserId?: string; processArea?: string }) {
-    let query = `
-      SELECT po.id, po.project_id, po.global_object_id, po.complexity, po.deployment_disposition,
+    const supportsSubObjects = await this.supportsSubObjects();
+    let query = supportsSubObjects
+      ? `
+        SELECT po.id, po.project_id, po.global_object_id, po.parent_project_object_id, po.sub_object_suffix, po.sub_object_description,
+          COALESCE(parent_go.object_id || po.sub_object_suffix, go.object_id) AS object_id,
+          parent_go.object_id AS parent_object_id,
+          COALESCE(go.process_area, parent_go.process_area) AS process_area,
+          po.complexity, po.deployment_disposition,
              po.build_type, po.object_type, po.cutover_phase, po.ddm_approach, po.risk_security_type,
              po.migration_type, po.factor_type, po.load_method, po.start_date, po.end_date, po.status,
              po.dra_user_id, po.developer_user_id, po.notes, po.created_at, po.updated_at,
-             go.object_id, go.process_area
+          parent_po.created_at AS parent_created_at
+      FROM project_objects po
+        LEFT JOIN global_objects go ON po.global_object_id = go.id
+        LEFT JOIN project_objects parent_po ON po.parent_project_object_id = parent_po.id
+        LEFT JOIN global_objects parent_go ON parent_po.global_object_id = parent_go.id
+      WHERE po.project_id = $1
+    `
+      : `
+      SELECT po.id, po.project_id, po.global_object_id,
+             go.object_id,
+             go.process_area,
+             po.complexity, po.deployment_disposition,
+             po.build_type, po.object_type, po.cutover_phase, po.ddm_approach, po.risk_security_type,
+             po.migration_type, po.factor_type, po.load_method, po.start_date, po.end_date, po.status,
+             po.dra_user_id, po.developer_user_id, po.notes, po.created_at, po.updated_at
       FROM project_objects po
       JOIN global_objects go ON po.global_object_id = go.id
       WHERE po.project_id = $1
@@ -54,27 +95,52 @@ export class ProjectObjectService {
       paramCount++;
     }
     if (filters?.processArea) {
-      query += ` AND go.process_area = $${paramCount}`;
+      query += supportsSubObjects
+        ? ` AND COALESCE(go.process_area, parent_go.process_area) = $${paramCount}`
+        : ` AND go.process_area = $${paramCount}`;
       params.push(filters.processArea);
       paramCount++;
     }
 
-    query += ' ORDER BY po.created_at DESC';
+    query += supportsSubObjects
+      ? ` ORDER BY
+      CASE WHEN po.parent_project_object_id IS NULL THEN 0 ELSE 1 END,
+      COALESCE(parent_po.created_at, po.created_at) DESC,
+      po.created_at DESC`
+      : ' ORDER BY po.created_at DESC';
 
     const result = await db.query(query, params);
     return result.rows.map(row => this.formatProjectObject(row));
   }
 
   async getProjectObjectById(projectObjectId: string) {
+    const supportsSubObjects = await this.supportsSubObjects();
     const result = await db.query(
-      `SELECT po.id, po.project_id, po.global_object_id, po.complexity, po.deployment_disposition,
+      supportsSubObjects
+        ? `SELECT po.id, po.project_id, po.global_object_id, po.parent_project_object_id, po.sub_object_suffix, po.sub_object_description,
+              COALESCE(parent_go.object_id || po.sub_object_suffix, go.object_id) AS object_id,
+              parent_go.object_id AS parent_object_id,
+              COALESCE(go.process_area, parent_go.process_area) AS process_area,
+              po.complexity, po.deployment_disposition,
               po.build_type, po.object_type, po.cutover_phase, po.ddm_approach, po.risk_security_type,
               po.migration_type, po.factor_type, po.load_method, po.start_date, po.end_date, po.status,
               po.dra_user_id, po.developer_user_id, po.notes, po.created_at, po.updated_at,
-              go.object_id, go.process_area
+              parent_po.created_at AS parent_created_at
        FROM project_objects po
-       JOIN global_objects go ON po.global_object_id = go.id
-       WHERE po.id = $1`,
+       LEFT JOIN global_objects go ON po.global_object_id = go.id
+       LEFT JOIN project_objects parent_po ON po.parent_project_object_id = parent_po.id
+       LEFT JOIN global_objects parent_go ON parent_po.global_object_id = parent_go.id
+      WHERE po.id = $1`
+       : `SELECT po.id, po.project_id, po.global_object_id,
+        go.object_id,
+        go.process_area,
+        po.complexity, po.deployment_disposition,
+        po.build_type, po.object_type, po.cutover_phase, po.ddm_approach, po.risk_security_type,
+        po.migration_type, po.factor_type, po.load_method, po.start_date, po.end_date, po.status,
+        po.dra_user_id, po.developer_user_id, po.notes, po.created_at, po.updated_at
+      FROM project_objects po
+      JOIN global_objects go ON po.global_object_id = go.id
+      WHERE po.id = $1`,
       [projectObjectId]
     );
     if (result.rows.length === 0) return null;
@@ -82,19 +148,115 @@ export class ProjectObjectService {
   }
 
   async createProjectObject(projectId: string, data: ProjectObjectInput) {
-    const result = await db.query(
+    const supportsSubObjects = await this.supportsSubObjects();
+    let globalObjectId = data.globalObjectId;
+    let parentProjectObjectId = data.parentProjectObjectId || null;
+    let subObjectSuffix = (data.subObjectSuffix || '').trim() || null;
+    let subObjectDescription = (data.subObjectDescription || '').trim() || null;
+
+    if (!globalObjectId && !parentProjectObjectId) {
+      throw new Error('Global object ID is required');
+    }
+
+    if (!supportsSubObjects && parentProjectObjectId) {
+      throw new Error('Sub-object support is not available until database migration 014 is applied');
+    }
+
+    if (parentProjectObjectId) {
+      if (!subObjectSuffix) {
+        throw new Error('Sub-object ID suffix is required when creating a sub-object');
+      }
+      if (!subObjectDescription) {
+        throw new Error('Sub-object description is required when creating a sub-object');
+      }
+
+      const parentResult = await db.query(
+        `SELECT id, project_id, global_object_id, parent_project_object_id
+         FROM project_objects
+         WHERE id = $1`,
+        [parentProjectObjectId]
+      );
+
+      if (parentResult.rows.length === 0) {
+        throw new Error('Parent project object not found');
+      }
+
+      const parentRow = parentResult.rows[0];
+      if (parentRow.project_id !== projectId) {
+        throw new Error('Sub-objects must use a parent object from the same project');
+      }
+      if (parentRow.parent_project_object_id) {
+        throw new Error('Sub-objects can only be attached to a top-level parent object');
+      }
+
+      globalObjectId = parentRow.global_object_id;
+
+      const duplicateResult = await db.query(
+        `SELECT 1
+         FROM project_objects
+         WHERE project_id = $1
+           AND parent_project_object_id = $2
+           AND LOWER(COALESCE(sub_object_suffix, '')) = LOWER($3)
+         LIMIT 1`,
+        [projectId, parentProjectObjectId, subObjectSuffix]
+      );
+
+      if (duplicateResult.rows.length > 0) {
+        throw new Error('Sub-object suffix must be unique for this parent object');
+      }
+    } else {
+      parentProjectObjectId = null;
+      subObjectSuffix = null;
+      subObjectDescription = null;
+    }
+
+    const result = supportsSubObjects
+      ? await db.query(
       `INSERT INTO project_objects (
-        project_id, global_object_id, complexity, deployment_disposition, build_type, object_type,
+        project_id, global_object_id, parent_project_object_id, sub_object_suffix, sub_object_description,
+        complexity, deployment_disposition, build_type, object_type,
         cutover_phase, ddm_approach, risk_security_type, migration_type, factor_type, load_method,
         start_date, end_date, status, dra_user_id, developer_user_id, notes
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
        RETURNING id, project_id, global_object_id, complexity, deployment_disposition, build_type,
                  object_type, cutover_phase, ddm_approach, risk_security_type, migration_type,
                  factor_type, load_method, start_date, end_date, status, dra_user_id,
                  developer_user_id, notes, created_at, updated_at`,
       [
         projectId,
-        data.globalObjectId,
+        globalObjectId,
+        parentProjectObjectId,
+        subObjectSuffix,
+        subObjectDescription,
+        data.complexity || null,
+        data.deploymentDisposition || null,
+        data.buildType || null,
+        data.objectType || null,
+        data.cutoverPhase || null,
+        data.ddmApproach || null,
+        data.riskSecurityType || null,
+        data.migrationType || null,
+        data.factorType || null,
+        data.loadMethod || null,
+        data.startDate || null,
+        data.endDate || null,
+        data.status || null,
+        data.draUserId || null,
+        data.developerUserId || null,
+        data.notes || null,
+      ]
+    )
+      : await db.query(
+      `INSERT INTO project_objects (
+        project_id, global_object_id,
+        complexity, deployment_disposition, build_type, object_type,
+        cutover_phase, ddm_approach, risk_security_type, migration_type, factor_type, load_method,
+        start_date, end_date, status, dra_user_id, developer_user_id, notes
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+       RETURNING id`,
+      [
+        projectId,
+        globalObjectId,
         data.complexity || null,
         data.deploymentDisposition || null,
         data.buildType || null,
@@ -119,6 +281,7 @@ export class ProjectObjectService {
   }
 
   async updateProjectObject(projectObjectId: string, data: Partial<ProjectObjectInput>) {
+    const supportsSubObjects = await this.supportsSubObjects();
     const fields: string[] = [];
     const values: any[] = [projectObjectId];
     let paramCount = 2;
@@ -134,6 +297,12 @@ export class ProjectObjectService {
       migrationType: 'migration_type',
       factorType: 'factor_type',
       loadMethod: 'load_method',
+      ...(supportsSubObjects
+        ? {
+            subObjectSuffix: 'sub_object_suffix',
+            subObjectDescription: 'sub_object_description',
+          }
+        : {}),
       startDate: 'start_date',
       endDate: 'end_date',
       status: 'status',
@@ -198,6 +367,11 @@ export class ProjectObjectService {
       id: row.id,
       projectId: row.project_id,
       globalObjectId: row.global_object_id,
+      parentProjectObjectId: row.parent_project_object_id || null,
+      parentObjectId: row.parent_object_id || null,
+      subObjectSuffix: row.sub_object_suffix || null,
+      subObjectDescription: row.sub_object_description || null,
+      isSubObject: !!row.parent_project_object_id,
       objectId: row.object_id,
       processArea: row.process_area,
       complexity: row.complexity,
