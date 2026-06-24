@@ -6035,9 +6035,14 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                 </Typography>
               )}
               {deleteItemType === 'cycle' && (
-                <Typography variant="body2">
-                  • All {deleteChildrenCount} Project(s) will be permanently deleted
-                </Typography>
+                <>
+                  <Typography variant="body2" sx={{ mb: 0.5 }}>
+                    • Linked project assignment will be retained
+                  </Typography>
+                  <Typography variant="body2">
+                    • Process areas, plan groups, objects, task groups, and tasks under this mock cycle will be deleted
+                  </Typography>
+                </>
               )}
             </Alert>
           )}

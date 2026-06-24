@@ -180,19 +180,98 @@ export class ProgramService {
   }
 
   async deleteMockCycle(mockCycleId: string) {
-    // Cascade delete: first delete all projects in this mock cycle
-    await db.query(
-      'DELETE FROM projects WHERE mock_cycle_id = $1',
-      [mockCycleId]
-    );
+    const client = await db.connect();
+    try {
+      await client.query('BEGIN');
 
-    // Then delete the mock cycle
-    const result = await db.query(
-      'DELETE FROM mock_cycles WHERE id = $1 RETURNING id',
-      [mockCycleId]
-    );
+      const sourceCycleResult = await client.query(
+        `SELECT id, program_id, name, start_date, end_date, schedule_mode, accent_color
+         FROM mock_cycles
+         WHERE id = $1
+         FOR UPDATE`,
+        [mockCycleId]
+      );
 
-    return result.rows.length > 0;
+      if (sourceCycleResult.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return false;
+      }
+
+      const sourceCycle = sourceCycleResult.rows[0];
+
+      const sourceProjectsResult = await client.query(
+        'SELECT id FROM projects WHERE mock_cycle_id = $1 FOR UPDATE',
+        [mockCycleId]
+      );
+      const sourceProjectIds = sourceProjectsResult.rows.map((row: any) => row.id);
+
+      if (sourceProjectIds.length > 0) {
+        const availableTargetResult = await client.query(
+          `SELECT mc.id
+           FROM mock_cycles mc
+           LEFT JOIN projects p ON p.mock_cycle_id = mc.id
+           WHERE mc.program_id = $1
+             AND mc.id <> $2
+           GROUP BY mc.id
+           HAVING COUNT(p.id) = 0
+           ORDER BY mc.created_at DESC
+           LIMIT 1`,
+          [sourceCycle.program_id, mockCycleId]
+        );
+
+        let targetCycleId = availableTargetResult.rows[0]?.id as string | undefined;
+
+        if (!targetCycleId) {
+          const createdCycleResult = await client.query(
+            `INSERT INTO mock_cycles (program_id, name, start_date, end_date, schedule_mode, accent_color)
+             VALUES ($1, $2, $3, $4, $5, $6)
+             RETURNING id`,
+            [
+              sourceCycle.program_id,
+              sourceCycle.name,
+              sourceCycle.start_date,
+              sourceCycle.end_date,
+              sourceCycle.schedule_mode || 'all_days',
+              sourceCycle.accent_color || null,
+            ]
+          );
+          targetCycleId = createdCycleResult.rows[0].id;
+        }
+
+        // Remove execution/planning descendants under projects linked to this cycle.
+        await client.query(
+          'DELETE FROM schedule_items WHERE project_id = ANY($1::uuid[])',
+          [sourceProjectIds]
+        );
+        await client.query(
+          `DELETE FROM task_dependencies
+           WHERE task_id IN (SELECT id FROM tasks WHERE project_id = ANY($1::uuid[]))
+              OR depends_on_task_id IN (SELECT id FROM tasks WHERE project_id = ANY($1::uuid[]))`,
+          [sourceProjectIds]
+        );
+        await client.query('DELETE FROM tasks WHERE project_id = ANY($1::uuid[])', [sourceProjectIds]);
+        await client.query('DELETE FROM task_groups WHERE project_id = ANY($1::uuid[])', [sourceProjectIds]);
+        await client.query('DELETE FROM project_objects WHERE project_id = ANY($1::uuid[])', [sourceProjectIds]);
+
+        await client.query(
+          'UPDATE projects SET mock_cycle_id = $2, updated_at = CURRENT_TIMESTAMP WHERE mock_cycle_id = $1',
+          [mockCycleId, targetCycleId]
+        );
+      }
+
+      const result = await client.query(
+        'DELETE FROM mock_cycles WHERE id = $1 RETURNING id',
+        [mockCycleId]
+      );
+
+      await client.query('COMMIT');
+      return result.rows.length > 0;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async cloneMockCycle(sourceMockCycleId: string, data?: { name?: string }) {
