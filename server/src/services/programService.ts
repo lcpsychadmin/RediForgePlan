@@ -623,10 +623,12 @@ export class ProgramService {
   }
 
   private formatMockCycle(row: any) {
+    const normalizedName = this.normalizeReplacementName(row.name);
+
     return {
       id: row.id,
       programId: row.program_id,
-      name: row.name,
+      name: normalizedName,
       startDate: row.start_date,
       endDate: row.end_date,
       accentColor: row.accent_color,
@@ -634,6 +636,18 @@ export class ProgramService {
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };
+  }
+
+  private normalizeReplacementName(name: string) {
+    if (!name) return name;
+
+    const replacementSuffixPattern = /\s*\(Replacement\)+\s*$/i;
+    if (!replacementSuffixPattern.test(name)) {
+      return name;
+    }
+
+    const baseName = name.replace(replacementSuffixPattern, '').trim();
+    return baseName ? `${baseName} (Replacement)` : 'Replacement';
   }
 }
 
