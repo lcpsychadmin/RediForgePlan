@@ -223,6 +223,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   const [cloneCycleDialogOpen, setCloneCycleDialogOpen] = useState(false);
   const [cloneCycleSourceId, setCloneCycleSourceId] = useState<string | null>(null);
   const [cloneCycleTargetId, setCloneCycleTargetId] = useState<string | null>(null);
+  const [attachCycleDialogOpen, setAttachCycleDialogOpen] = useState(false);
+  const [attachCycleProgramId, setAttachCycleProgramId] = useState<string | null>(null);
+  const [attachCycleId, setAttachCycleId] = useState('');
   const [isCloningCycle, setIsCloningCycle] = useState(false);
   const [cycleOverview, setCycleOverview] = useState<PlanOverview | null>(null);
   const [isLoadingCycleOverview, setIsLoadingCycleOverview] = useState(false);
@@ -268,7 +271,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   const [maintainProjectParentCycleId, setMaintainProjectParentCycleId] = useState('');
   const [maintainProjectFilterCycleId, setMaintainProjectFilterCycleId] = useState<'all' | string>('all');
   const [maintainPendingCycleProjectId, setMaintainPendingCycleProjectId] = useState<string | null>(null);
-  const [attachNewCycleToTree, setAttachNewCycleToTree] = useState(false);
   const [inventoryObjects, setInventoryObjects] = useState<{ id: string; objectId: string; description: string; processArea: string }[]>([]);
   const [projectInventoryItems, setProjectInventoryItems] = useState<any[]>([]);
   const [projectHierarchySummaries, setProjectHierarchySummaries] = useState<Record<string, {
@@ -1096,6 +1098,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     const sourceIds = new Set(source.map((c: MockCycle) => c.id));
     const ids = existing.filter((id: string) => sourceIds.has(id));
     return ids.map(id => source.find((c: MockCycle) => c.id === id)).filter(Boolean) as MockCycle[];
+  };
+
+  const getAttachableCyclesForProgram = (programId: string) => {
+    const visibleIds = new Set(treeOrder.cycles[programId] || []);
+    return (mockCycles[programId] || []).filter((cycle: MockCycle) => !visibleIds.has(cycle.id));
   };
 
   const getOrderedProjects = (cycleId: string) => {
@@ -2055,7 +2062,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         });
         queryClient.invalidateQueries({ queryKey: ['programs'] });
       } else if (dialogMode === 'cycle' && contextProgramId) {
-        const cycleResponse = await apiClient.post(`/api/programs/${contextProgramId}/mock-cycles`, {
+        await apiClient.post(`/api/programs/${contextProgramId}/mock-cycles`, {
           name: newItemName,
           startDate: new Date().toISOString().split('T')[0],
           endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
@@ -2063,19 +2070,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
           accentColor: newItemAccentColor || null,
           projectId: maintainPendingCycleProjectId || undefined,
         });
-        const createdCycleId = cycleResponse?.data?.data?.id as string | undefined;
         queryClient.invalidateQueries({ queryKey: ['mockCycles'] });
         setExpandedPrograms(new Set(expandedPrograms).add(contextProgramId));
-        if (attachNewCycleToTree && createdCycleId) {
-          setTreeOrder((prev) => ({
-            ...prev,
-            cycles: {
-              ...prev.cycles,
-              [contextProgramId]: mergeOrder(prev.cycles[contextProgramId] || [], [createdCycleId]),
-            },
-          }));
-          setSelectedItem({ type: 'cycle', id: createdCycleId, programId: contextProgramId });
-        }
       } else if (dialogMode === 'project' && contextProgramId) {
         await apiClient.post(`/api/projects/by-program/${contextProgramId}`, {
           name: newItemName,
@@ -2092,7 +2088,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
       setContextCycleId(null);
       setSelectedExistingProjectOptionId('');
       setMaintainPendingCycleProjectId(null);
-      setAttachNewCycleToTree(false);
     } catch (error) {
       console.error('Failed to create:', error);
       alert('Failed to create. Please try again.');
@@ -2100,7 +2095,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
       setIsCreating(false);
       setSelectedExistingProjectOptionId('');
       setMaintainPendingCycleProjectId(null);
-      setAttachNewCycleToTree(false);
     }
   };
 
@@ -2143,10 +2137,44 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     setNewItemAccentColor('');
     setSelectedExistingProjectOptionId('');
     setNewCycleScheduleMode('all_days');
-    if (mode !== 'cycle') {
-      setAttachNewCycleToTree(false);
-    }
     setCreateDialogOpen(true);
+  };
+
+  const openAttachCycleDialog = (programId: string) => {
+    const attachableCycles = getAttachableCyclesForProgram(programId);
+    if (attachableCycles.length === 0) {
+      alert('No maintained mock cycles are available to add for this program.');
+      return;
+    }
+    setAttachCycleProgramId(programId);
+    setAttachCycleId(attachableCycles[0].id);
+    setAttachCycleDialogOpen(true);
+  };
+
+  const handleAttachCycleConfirm = () => {
+    if (!attachCycleProgramId || !attachCycleId) return;
+
+    const cycle = (mockCycles[attachCycleProgramId] || []).find((entry: MockCycle) => entry.id === attachCycleId) || null;
+    if (!cycle) {
+      alert('Selected mock cycle is no longer available.');
+      return;
+    }
+
+    setTreeOrder((prev) => ({
+      ...prev,
+      cycles: {
+        ...prev.cycles,
+        [attachCycleProgramId]: mergeOrder(prev.cycles[attachCycleProgramId] || [], [attachCycleId]),
+      },
+    }));
+    setExpandedPrograms((prev) => new Set(prev).add(attachCycleProgramId));
+    setExpandedCycles((prev) => new Set(prev).add(attachCycleId));
+    setSelectedItem({ type: 'cycle', id: attachCycleId, programId: attachCycleProgramId, projectId: cycle.projectId });
+    setTabValue(0);
+
+    setAttachCycleDialogOpen(false);
+    setAttachCycleProgramId(null);
+    setAttachCycleId('');
   };
 
   const getChildrenCount = (type: 'program' | 'cycle' | 'project', itemId: string): number => {
@@ -3596,13 +3624,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                               size="small"
                               variant="text"
                               startIcon={<AddIcon sx={{ fontSize: '0.85rem !important' }} />}
-                              onClick={() => {
-                                setAttachNewCycleToTree(true);
-                                openCreateDialog('cycle', program.id);
-                              }}
+                              onClick={() => openAttachCycleDialog(program.id)}
                               sx={{ fontSize: '0.72rem', height: 26, color: '#64B5F6', textTransform: 'none', pl: 1, '&:hover': { color: '#90CAF9' } }}
                             >
-                              Add Mock Cycle
+                              Add Existing Mock Cycle
                             </Button>
                           )}
 
@@ -5838,6 +5863,68 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         </DialogActions>
       </Dialog>
 
+      {/* Add Existing Mock Cycle Dialog */}
+      <Dialog
+        open={attachCycleDialogOpen}
+        onClose={() => {
+          setAttachCycleDialogOpen(false);
+          setAttachCycleProgramId(null);
+          setAttachCycleId('');
+        }}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: 2 } }}
+      >
+        <DialogTitle sx={{
+          background: theme => `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark || theme.palette.primary.main} 100%)`,
+          color: 'white',
+          fontWeight: 600,
+          fontSize: '1.1rem',
+          pb: 2,
+        }}>
+          Add Existing Mock Cycle
+        </DialogTitle>
+        <DialogContent sx={{ pt: 2, px: 3 }}>
+          <Typography variant="body2" sx={{ mt: 2, mb: 2, color: 'text.secondary' }}>
+            Select a mock cycle already maintained for this program to show in the hierarchy tree.
+          </Typography>
+          <TextField
+            select
+            fullWidth
+            autoFocus
+            label="Maintained Mock Cycle"
+            value={attachCycleId}
+            onChange={(e) => setAttachCycleId(e.target.value)}
+            variant="outlined"
+            size="small"
+          >
+            {(attachCycleProgramId ? getAttachableCyclesForProgram(attachCycleProgramId) : []).map((cycle: MockCycle) => (
+              <MenuItem key={cycle.id} value={cycle.id}>{cycle.name}</MenuItem>
+            ))}
+          </TextField>
+        </DialogContent>
+        <DialogActions sx={{ gap: 1, p: 2, borderTop: '1px solid', borderColor: 'divider' }}>
+          <Button
+            onClick={() => {
+              setAttachCycleDialogOpen(false);
+              setAttachCycleProgramId(null);
+              setAttachCycleId('');
+            }}
+            sx={{ textTransform: 'none' }}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleAttachCycleConfirm}
+            variant="contained"
+            disabled={!attachCycleId}
+            sx={{ textTransform: 'none' }}
+          >
+            Add
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       {/* Copy Mock Cycle Dialog */}
       <Dialog open={cloneCycleDialogOpen} onClose={() => !isCloningCycle && setCloneCycleDialogOpen(false)} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 2 } }}>
         <DialogTitle sx={{
@@ -6108,8 +6195,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
           onClick={() => {
             if (menuType !== 'program' || !menuItemId) return;
             setMenuAnchorEl(null);
-            setAttachNewCycleToTree(true);
-            openCreateDialog('cycle', menuItemId);
+            openAttachCycleDialog(menuItemId);
           }}
           sx={{
             display: menuType === 'program' && !!menuItemId && getOrderedCycles(menuItemId).length === 0
@@ -6117,7 +6203,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
               : 'none',
           }}
         >
-          <AddIcon fontSize="small" sx={{ mr: 1 }} /> Add Mock Cycle
+          <AddIcon fontSize="small" sx={{ mr: 1 }} /> Add Existing Mock Cycle
         </MenuItem>
         <MenuItem
           onClick={() => {
