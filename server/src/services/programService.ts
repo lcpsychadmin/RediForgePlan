@@ -239,7 +239,7 @@ export class ProgramService {
              RETURNING id`,
             [
               sourceCycle.program_id,
-              `${replacementBaseName} (Replacement)`,
+              replacementBaseName,
               sourceCycle.start_date,
               sourceCycle.end_date,
               sourceCycle.schedule_mode || 'all_days',
@@ -647,7 +647,7 @@ export class ProgramService {
     }
 
     const baseName = name.replace(replacementSuffixPattern, '').trim();
-    return baseName ? `${baseName} (Replacement)` : 'Replacement';
+    return baseName || name;
   }
 }
 
