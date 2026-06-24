@@ -2907,7 +2907,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
           {isPlanningMaintainTab && (
             <Box sx={{ flex: 1, overflowY: 'auto', p: 1.25, display: 'flex', flexDirection: 'column', gap: 1.25 }}>
               <Typography variant="caption" sx={{ color: '#9FB0D8', fontWeight: 700, letterSpacing: '0.3px' }}>
-                Maintain Forms
+                Maintain Program Hierarchy
               </Typography>
               <Button
                 variant={maintainFormView === 'program' ? 'contained' : 'text'}
@@ -2922,7 +2922,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                   '&:hover': { backgroundColor: maintainFormView === 'program' ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.12)' },
                 }}
               >
-                Program Form
+                Program
               </Button>
               <Button
                 variant={maintainFormView === 'project' ? 'contained' : 'text'}
@@ -2937,7 +2937,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                   '&:hover': { backgroundColor: maintainFormView === 'project' ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.12)' },
                 }}
               >
-                Project Form
+                Project
               </Button>
               <Button
                 variant={maintainFormView === 'cycle' ? 'contained' : 'text'}
@@ -2952,7 +2952,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                   '&:hover': { backgroundColor: maintainFormView === 'cycle' ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.12)' },
                 }}
               >
-                Mock Cycle Form
+                Mock Cycle
               </Button>
             </Box>
           )}

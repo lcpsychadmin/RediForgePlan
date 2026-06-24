@@ -95,8 +95,8 @@ export class ProjectService {
           await client.query(
             `UPDATE projects
              SET mock_cycle_id = CASE
-               WHEN id = $1 THEN $2
-               WHEN id = $3 THEN $4
+               WHEN id = $1 THEN $2::uuid
+               WHEN id = $3 THEN $4::uuid
              END,
              updated_at = CURRENT_TIMESTAMP
              WHERE id IN ($1, $3)`,
