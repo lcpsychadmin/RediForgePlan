@@ -74,9 +74,15 @@ router.delete(
   requireRole('admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      await programService.deleteMockCycle(req.params.mockCycleId);
+      console.log(`[DELETE /mock-cycles/:mockCycleId] Received delete request for: ${req.params.mockCycleId}`);
+      const success = await programService.deleteMockCycle(req.params.mockCycleId);
+      console.log(`[DELETE /mock-cycles/:mockCycleId] Delete returned: ${success}`);
+      if (!success) {
+        throw new ApiError(404, 'Mock cycle not found', 'NOT_FOUND');
+      }
       res.json({ success: true });
     } catch (error) {
+      console.error(`[DELETE /mock-cycles/:mockCycleId] Error:`, error);
       next(error);
     }
   }
