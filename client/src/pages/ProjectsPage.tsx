@@ -175,6 +175,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   const [newItemName, setNewItemName] = useState('');
   const [newItemDesc, setNewItemDesc] = useState('');
   const [newItemAccentColor, setNewItemAccentColor] = useState('');
+  const [selectedExistingProjectOptionId, setSelectedExistingProjectOptionId] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [newCycleScheduleMode, setNewCycleScheduleMode] = useState<CalendarMode>('all_days');
   const [contextProgramId, setContextProgramId] = useState<string | null>(null);
@@ -803,6 +804,18 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     });
     return Array.from(byName.values());
   }, [maintainProjectRows, maintainProjectParentProgramId]);
+  const treeProjectOptionsForProgram = React.useMemo(() => {
+    if (!contextProgramId) return [] as Project[];
+    const scoped = maintainProjectRows.filter((row: any) => row.programId === contextProgramId);
+    const byName = new Map<string, Project>();
+    scoped.forEach((row: any) => {
+      const key = `${row.programId}::${(row.name || '').trim().toLowerCase()}`;
+      if (!byName.has(key)) {
+        byName.set(key, row as Project);
+      }
+    });
+    return Array.from(byName.values()).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  }, [contextProgramId, maintainProjectRows]);
   const cyclesForMaintainProjectProgram = maintainProjectParentProgramId
     ? allMaintainCycles.filter((cycle) => cycle.programId === maintainProjectParentProgramId)
     : [];
@@ -861,6 +874,15 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
       setMaintainProjectParentCycleId(validCycles[0]?.id || '');
     }
   }, [allMaintainCycles, maintainProjectParentProgramId, maintainProjectParentCycleId]);
+
+  useEffect(() => {
+    const isTreeProjectSelectionMode = dialogMode === 'project' && !isPlanningMaintainTab;
+    if (!createDialogOpen || !isTreeProjectSelectionMode) return;
+    const currentStillValid = treeProjectOptionsForProgram.some((project) => project.id === selectedExistingProjectOptionId);
+    if (!currentStillValid) {
+      setSelectedExistingProjectOptionId(treeProjectOptionsForProgram[0]?.id || '');
+    }
+  }, [createDialogOpen, dialogMode, isPlanningMaintainTab, treeProjectOptionsForProgram, selectedExistingProjectOptionId]);
 
   useEffect(() => {
     if (maintainCycleFilterProgramId === 'all') return;
@@ -1981,8 +2003,41 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   }, [activeProjectId, projectTasks, location.search]);
 
   const handleCreateItem = async () => {
-    if (!newItemName.trim()) {
+    const isTreeProjectSelectionMode = dialogMode === 'project' && !isPlanningMaintainTab;
+
+    if (!isTreeProjectSelectionMode && !newItemName.trim()) {
       alert('Name is required');
+      return;
+    }
+
+    if (isTreeProjectSelectionMode) {
+      if (!selectedExistingProjectOptionId) {
+        alert('Select a maintained project option first.');
+        return;
+      }
+
+      const selectedProject = treeProjectOptionsForProgram.find((project) => project.id === selectedExistingProjectOptionId) || null;
+      if (!selectedProject) {
+        alert('Selected project option is no longer available.');
+        return;
+      }
+
+      const targetProgramId = contextProgramId || selectedProject.programId || '';
+      const existingCycles = targetProgramId ? getCyclesForProjectInProgram(targetProgramId, selectedProject.name || '') : [];
+      if (existingCycles.length > 0) {
+        const firstCycle = existingCycles[0];
+        setExpandedPrograms((prev) => new Set(prev).add(targetProgramId));
+        setExpandedCycles((prev) => new Set(prev).add(firstCycle.id));
+        setSelectedExecutionProcessArea('');
+        handleHierarchySelection({ type: 'project', id: selectedProject.id, cycleId: firstCycle.id });
+      } else {
+        alert('This project is defined in Maintain, but it has no Mock Cycle yet. Add a Mock Cycle to place it in the tree.');
+      }
+
+      setCreateDialogOpen(false);
+      setContextProgramId(null);
+      setContextCycleId(null);
+      setSelectedExistingProjectOptionId('');
       return;
     }
 
@@ -2020,12 +2075,14 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
       setCreateDialogOpen(false);
       setContextProgramId(null);
       setContextCycleId(null);
+      setSelectedExistingProjectOptionId('');
       setMaintainPendingCycleProjectId(null);
     } catch (error) {
       console.error('Failed to create:', error);
       alert('Failed to create. Please try again.');
     } finally {
       setIsCreating(false);
+      setSelectedExistingProjectOptionId('');
       setMaintainPendingCycleProjectId(null);
     }
   };
@@ -2067,6 +2124,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     setNewItemName('');
     setNewItemDesc('');
     setNewItemAccentColor('');
+    setSelectedExistingProjectOptionId('');
     setNewCycleScheduleMode('all_days');
     setCreateDialogOpen(true);
   };
@@ -5655,17 +5713,40 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
           {dialogMode === 'project' && 'Create New Project'}
         </DialogTitle>
         <DialogContent sx={{ pt: 2, maxHeight: '70vh', overflowY: 'auto', px: 3 }}>
-          <TextField
-            autoFocus
-            fullWidth
-            label="Name"
-            value={newItemName}
-            onChange={(e) => setNewItemName(e.target.value)}
-            placeholder="Enter name"
-            variant="outlined"
-            size="small"
-            sx={{ mb: 2, mt: 3 }}
-          />
+          {dialogMode === 'project' && !isPlanningMaintainTab ? (
+            <>
+              <TextField
+                select
+                autoFocus
+                fullWidth
+                label="Maintained Project Option"
+                value={selectedExistingProjectOptionId}
+                onChange={(e) => setSelectedExistingProjectOptionId(e.target.value)}
+                variant="outlined"
+                size="small"
+                sx={{ mb: 1.5, mt: 3 }}
+              >
+                {treeProjectOptionsForProgram.map((project) => (
+                  <MenuItem key={project.id} value={project.id}>{project.name}</MenuItem>
+                ))}
+              </TextField>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 2 }}>
+                Only projects configured in Maintain are available from the tree.
+              </Typography>
+            </>
+          ) : (
+            <TextField
+              autoFocus
+              fullWidth
+              label="Name"
+              value={newItemName}
+              onChange={(e) => setNewItemName(e.target.value)}
+              placeholder="Enter name"
+              variant="outlined"
+              size="small"
+              sx={{ mb: 2, mt: 3 }}
+            />
+          )}
           {dialogMode === 'program' && (
             <>
               <TextField
@@ -5724,7 +5805,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
           <Button
             onClick={handleCreateItem}
             variant="contained"
-            disabled={isCreating || !newItemName.trim()}
+            disabled={isCreating || ((dialogMode === 'project' && !isPlanningMaintainTab) ? !selectedExistingProjectOptionId : !newItemName.trim())}
             sx={{ textTransform: 'none' }}
           >
             {isCreating ? 'Creating...' : 'Create'}
