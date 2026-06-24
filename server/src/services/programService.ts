@@ -184,6 +184,7 @@ export class ProgramService {
     try {
       console.log(`[deleteMockCycle] Starting delete for cycle: ${mockCycleId}`);
       await client.query('BEGIN');
+      console.log(`[deleteMockCycle] Transaction started`);
 
       const sourceCycleResult = await client.query(
         `SELECT id, program_id, name, start_date, end_date, schedule_mode, accent_color
@@ -192,6 +193,7 @@ export class ProgramService {
          FOR UPDATE`,
         [mockCycleId]
       );
+      console.log(`[deleteMockCycle] Cycle lookup completed: ${sourceCycleResult.rowCount} rows`);
 
       if (sourceCycleResult.rows.length === 0) {
         console.log(`[deleteMockCycle] Cycle not found: ${mockCycleId}`);
@@ -200,7 +202,7 @@ export class ProgramService {
       }
 
       const sourceCycle = sourceCycleResult.rows[0];
-      console.log(`[deleteMockCycle] Found cycle: ${sourceCycle.name}`);
+      console.log(`[deleteMockCycle] Found cycle: ${sourceCycle.name} (program: ${sourceCycle.program_id})`);
 
       const sourceProjectsResult = await client.query(
         'SELECT id FROM projects WHERE mock_cycle_id = $1 FOR UPDATE',
@@ -210,6 +212,7 @@ export class ProgramService {
       console.log(`[deleteMockCycle] Found ${sourceProjectIds.length} projects linked to cycle`);
 
       if (sourceProjectIds.length > 0) {
+        console.log(`[deleteMockCycle] Looking for available target cycle in program ${sourceCycle.program_id}`);
         const availableTargetResult = await client.query(
           `SELECT mc.id
            FROM mock_cycles mc
@@ -222,8 +225,10 @@ export class ProgramService {
            LIMIT 1`,
           [sourceCycle.program_id, mockCycleId]
         );
+        console.log(`[deleteMockCycle] Available target search returned ${availableTargetResult.rowCount} rows`);
 
         let targetCycleId = availableTargetResult.rows[0]?.id as string | undefined;
+        console.log(`[deleteMockCycle] Target cycle ID after search: ${targetCycleId}`);
 
         if (!targetCycleId) {
           console.log(`[deleteMockCycle] No available target cycle, creating new one`);
@@ -240,8 +245,10 @@ export class ProgramService {
               sourceCycle.accent_color || null,
             ]
           );
+          console.log(`[deleteMockCycle] Create cycle returned ${createdCycleResult.rowCount} rows`);
+          
           if (createdCycleResult.rows.length === 0) {
-            throw new Error('Failed to create replacement cycle');
+            throw new Error('Failed to create replacement cycle - no rows returned');
           }
           targetCycleId = createdCycleResult.rows[0].id;
           console.log(`[deleteMockCycle] Created new target cycle: ${targetCycleId}`);
@@ -254,53 +261,72 @@ export class ProgramService {
         }
 
         // Remove execution/planning descendants under projects linked to this cycle.
-        console.log(`[deleteMockCycle] Deleting descendants for projects: ${sourceProjectIds.join(', ')}`);
-        await client.query(
+        console.log(`[deleteMockCycle] Deleting descendants for ${sourceProjectIds.length} projects`);
+        
+        const scheduleDeleteResult = await client.query(
           'DELETE FROM schedule_items WHERE project_id = ANY($1::uuid[])',
           [sourceProjectIds]
         );
-        await client.query(
+        console.log(`[deleteMockCycle] Deleted ${scheduleDeleteResult.rowCount} schedule items`);
+        
+        const taskDepDeleteResult = await client.query(
           `DELETE FROM task_dependencies
            WHERE task_id IN (SELECT id FROM tasks WHERE project_id = ANY($1::uuid[]))
               OR depends_on_task_id IN (SELECT id FROM tasks WHERE project_id = ANY($1::uuid[]))`,
           [sourceProjectIds]
         );
-        await client.query('DELETE FROM tasks WHERE project_id = ANY($1::uuid[])', [sourceProjectIds]);
-        await client.query('DELETE FROM task_groups WHERE project_id = ANY($1::uuid[])', [sourceProjectIds]);
-        await client.query('DELETE FROM project_objects WHERE project_id = ANY($1::uuid[])', [sourceProjectIds]);
+        console.log(`[deleteMockCycle] Deleted ${taskDepDeleteResult.rowCount} task dependencies`);
+        
+        const taskDeleteResult = await client.query('DELETE FROM tasks WHERE project_id = ANY($1::uuid[])', [sourceProjectIds]);
+        console.log(`[deleteMockCycle] Deleted ${taskDeleteResult.rowCount} tasks`);
+        
+        const tgDeleteResult = await client.query('DELETE FROM task_groups WHERE project_id = ANY($1::uuid[])', [sourceProjectIds]);
+        console.log(`[deleteMockCycle] Deleted ${tgDeleteResult.rowCount} task groups`);
+        
+        const poDeleteResult = await client.query('DELETE FROM project_objects WHERE project_id = ANY($1::uuid[])', [sourceProjectIds]);
+        console.log(`[deleteMockCycle] Deleted ${poDeleteResult.rowCount} project objects`);
 
-        console.log(`[deleteMockCycle] Reassigning projects to target cycle: ${targetCycleId}`);
+        console.log(`[deleteMockCycle] Reassigning ${sourceProjectIds.length} projects to target cycle: ${targetCycleId}`);
         const updateResult = await client.query(
           'UPDATE projects SET mock_cycle_id = $2, updated_at = CURRENT_TIMESTAMP WHERE mock_cycle_id = $1',
           [mockCycleId, targetCycleId]
         );
-        if (!updateResult) {
-          throw new Error('Update query failed - no result');
-        }
         console.log(`[deleteMockCycle] Updated ${updateResult.rowCount} projects`);
+        
+        if (updateResult.rowCount !== sourceProjectIds.length) {
+          console.warn(`[deleteMockCycle] Expected to update ${sourceProjectIds.length} projects, but only updated ${updateResult.rowCount}`);
+        }
       }
 
-      console.log(`[deleteMockCycle] Deleting mock cycle: ${mockCycleId}`);
-      const result = await client.query(
+      console.log(`[deleteMockCycle] About to delete mock cycle: ${mockCycleId}`);
+      const deleteResult = await client.query(
         'DELETE FROM mock_cycles WHERE id = $1 RETURNING id',
         [mockCycleId]
       );
 
-      if (result.rows.length > 0) {
-        console.log(`[deleteMockCycle] Successfully deleted cycle: ${mockCycleId}`);
+      console.log(`[deleteMockCycle] Delete query returned ${deleteResult.rowCount} rows`);
+      if (deleteResult.rows.length > 0) {
+        console.log(`[deleteMockCycle] Successfully deleted cycle: ${deleteResult.rows[0].id}`);
       } else {
         console.log(`[deleteMockCycle] Delete returned no rows`);
       }
 
+      console.log(`[deleteMockCycle] About to commit transaction`);
       await client.query('COMMIT');
       console.log(`[deleteMockCycle] Transaction committed successfully`);
-      return result.rows.length > 0;
+      return deleteResult.rows.length > 0;
     } catch (error) {
-      console.error(`[deleteMockCycle] Error occurred, rolling back:`, error);
-      await client.query('ROLLBACK');
+      console.error(`[deleteMockCycle] ERROR occurred, rolling back:`, error instanceof Error ? error.message : String(error));
+      try {
+        await client.query('ROLLBACK');
+        console.log(`[deleteMockCycle] Rollback completed`);
+      } catch (rollbackError) {
+        console.error(`[deleteMockCycle] Rollback failed:`, rollbackError);
+      }
       throw error;
     } finally {
       client.release();
+      console.log(`[deleteMockCycle] Client released`);
     }
   }
 
