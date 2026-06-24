@@ -1180,19 +1180,24 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     return projects[0]?.id || null;
   };
 
-  const getProcessAreasForProjectCycle = (projectId: string) => {
-    const areas = new Set<string>();
-    const cachedAreas = projectHierarchySummaries[projectId]?.processAreas || {};
-    Object.keys(cachedAreas).forEach((area) => {
-      const label = (area || '').trim();
-      if (label) areas.add(label);
-    });
+  const getInventoryProcessAreaOptions = (projectId: string) => {
+    const labels = new Set<string>();
     projectInventoryItems
       .filter((item: any) => item.projectId === projectId)
       .forEach((item: any) => {
-        const area = (item.processArea || '').trim();
-        if (area) areas.add(area);
+        const label = (item.processArea || '').trim();
+        if (label) labels.add(label);
       });
+    return Array.from(labels).sort((a, b) => a.localeCompare(b));
+  };
+
+  const getProcessAreasForProjectCycle = (projectId: string) => {
+    const areas = new Set<string>();
+    const attached = treeOrder.processAreas[projectId] || [];
+    attached.forEach((area) => {
+      const label = (area || '').trim();
+      if (label) areas.add(label);
+    });
     const additional = planningAdditionalGroups[projectId] || [];
     additional.forEach((groupName) => {
       const label = (groupName || '').trim();
@@ -1206,7 +1211,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
 
     const hiddenAreaSet = new Set((hiddenProcessAreas[projectId] || []).map((area) => (area || '').trim().toLowerCase()));
     const allAreas = Array.from(areas).filter((area) => !hiddenAreaSet.has((area || '').trim().toLowerCase()));
-    const ordered = mergeOrder(treeOrder.processAreas[projectId] || [], allAreas);
+    const ordered = mergeOrder(attached, allAreas);
     return ordered;
   };
 
@@ -1328,8 +1333,13 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   };
 
   const handleAddProcessArea = (projectId: string) => {
+    const options = getInventoryProcessAreaOptions(projectId);
+    if (options.length === 0) {
+      alert('No process areas are available from current project inventory.');
+      return;
+    }
     setProcessAreaTargetProjectId(projectId);
-    setNewProcessAreaName('');
+    setNewProcessAreaName(options[0]);
     setProcessAreaDialogOpen(true);
   };
 
@@ -1380,6 +1390,12 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     }
     if (!name) {
       alert('Process Area name is required.');
+      return;
+    }
+
+    const allowedOptions = getInventoryProcessAreaOptions(projectId);
+    if (!allowedOptions.some((option) => option.toLowerCase() === name.toLowerCase())) {
+      alert('Select a process area that exists in the current project inventory.');
       return;
     }
 
@@ -7339,16 +7355,20 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         </DialogTitle>
         <DialogContent sx={{ pt: 2 }}>
           <TextField
+            select
             autoFocus
             fullWidth
-            label="Process Area Name"
+            label="Process Area"
             value={newProcessAreaName}
             onChange={(e) => setNewProcessAreaName(e.target.value)}
             margin="normal"
-            placeholder="e.g., Environment Readiness"
             variant="outlined"
             size="small"
-          />
+          >
+            {(processAreaTargetProjectId ? getInventoryProcessAreaOptions(processAreaTargetProjectId) : []).map((areaName) => (
+              <MenuItem key={areaName} value={areaName}>{areaName}</MenuItem>
+            ))}
+          </TextField>
         </DialogContent>
         <DialogActions sx={{ gap: 1, p: 2, borderTop: '1px solid', borderColor: 'divider' }}>
           <Button
