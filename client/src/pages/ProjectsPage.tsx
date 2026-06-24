@@ -732,6 +732,17 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   const allMaintainProjects: Project[] = React.useMemo(() => (
     Object.values(projectsByMockCycle).flatMap((projects) => projects || []) as Project[]
   ), [projectsByMockCycle]);
+  const maintainCycleParentProjectOptions = React.useMemo(() => {
+    const byName = new Map<string, Project>();
+    allMaintainProjects.forEach((project) => {
+      const key = (project.name || '').trim().toLowerCase();
+      if (!key) return;
+      if (!byName.has(key)) {
+        byName.set(key, project);
+      }
+    });
+    return Array.from(byName.values()).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  }, [allMaintainProjects]);
   const maintainCycleRows = React.useMemo(() => (
     allMaintainCycles
       .map((cycle) => {
@@ -805,9 +816,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
 
   useEffect(() => {
     if (!maintainCycleParentProjectId || !allMaintainProjects.some((project) => project.id === maintainCycleParentProjectId)) {
-      setMaintainCycleParentProjectId(allMaintainProjects[0]?.id || '');
+      setMaintainCycleParentProjectId(maintainCycleParentProjectOptions[0]?.id || '');
     }
-  }, [allMaintainProjects, maintainCycleParentProjectId]);
+  }, [maintainCycleParentProjectOptions, maintainCycleParentProjectId, allMaintainProjects]);
 
   useEffect(() => {
     if (!maintainCycleParentProject) return;
@@ -2168,7 +2179,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
       }
     } else if (type === 'cycle') {
       const linkedProject = allMaintainProjects.find((project) => project.mockCycleId === itemId) || null;
-      setEditCycleParentProjectId(linkedProject?.id || '');
+      setEditCycleParentProjectId(linkedProject?.id || maintainCycleParentProjectOptions[0]?.id || '');
       for (const progId in mockCycles) {
         const cycle = mockCycles[progId]?.find(c => c.id === itemId);
         if (cycle) {
@@ -2212,14 +2223,17 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
           accentColor: editAccentColor || null,
         });
       } else if (editItemType === 'cycle') {
+        if (!editCycleParentProjectId) {
+          alert('A parent project is required for mock cycles.');
+          return;
+        }
+
         await apiClient.patch(`/api/mock-cycles/${editItemId}`, {
           name: editItemName,
           scheduleMode: editCycleScheduleMode,
           accentColor: editAccentColor || null,
         });
-        if (editCycleParentProjectId) {
-          await apiClient.patch(`/api/projects/${editCycleParentProjectId}`, { mockCycleId: editItemId });
-        }
+        await apiClient.patch(`/api/projects/${editCycleParentProjectId}`, { mockCycleId: editItemId });
       } else if (editItemType === 'project') {
         const cyclesInProgram = allMaintainCycles.filter((cycle) => cycle.programId === editProjectParentProgramId);
         const targetCycle = cyclesInProgram[0];
@@ -5090,7 +5104,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                             onChange={(e) => setMaintainCycleParentProjectId(e.target.value)}
                             sx={{ minWidth: 200 }}
                           >
-                            {allMaintainProjects.map((project) => (
+                            {maintainCycleParentProjectOptions.map((project) => (
                               <MenuItem key={project.id} value={project.id}>{project.name}</MenuItem>
                             ))}
                           </TextField>
@@ -6111,8 +6125,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                 variant="outlined"
                 size="small"
               >
-                <MenuItem value="">Unassigned</MenuItem>
-                {allMaintainProjects.map((project) => (
+                {maintainCycleParentProjectOptions.map((project) => (
                   <MenuItem key={project.id} value={project.id}>{project.name}</MenuItem>
                 ))}
               </TextField>
@@ -6218,7 +6231,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
             onClick={handleEditConfirm}
             variant="contained"
             color="primary"
-            disabled={isEditing}
+            disabled={isEditing || (editItemType === 'cycle' && !editCycleParentProjectId)}
             sx={{ textTransform: 'none' }}
           >
             {isEditing ? 'Saving...' : 'Save'}
