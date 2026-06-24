@@ -252,15 +252,23 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
 
   // Inventory states
   const [inventorySubTab, setInventorySubTab] = useState(0);
-  const [maintainSections, setMaintainSections] = useState({
-    programs: true,
-    projects: true,
-    mockCycles: true,
-  });
-  const [maintainProgramId, setMaintainProgramId] = useState('');
-  const [maintainProjectId, setMaintainProjectId] = useState('');
-  const [maintainCycleId, setMaintainCycleId] = useState('');
-  const [isAssigningMaintain, setIsAssigningMaintain] = useState(false);
+  const [maintainFormView, setMaintainFormView] = useState<'program' | 'cycle' | 'project'>('program');
+  const [isSubmittingMaintainForm, setIsSubmittingMaintainForm] = useState(false);
+  const [maintainProgramName, setMaintainProgramName] = useState('');
+  const [maintainProgramDescription, setMaintainProgramDescription] = useState('');
+  const [maintainProgramAccent, setMaintainProgramAccent] = useState('');
+  const [maintainCycleParentProgramId, setMaintainCycleParentProgramId] = useState('');
+  const [maintainCycleName, setMaintainCycleName] = useState('');
+  const [maintainCycleStartDate, setMaintainCycleStartDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [maintainCycleEndDate, setMaintainCycleEndDate] = useState(() => new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
+  const [maintainCycleScheduleMode, setMaintainCycleScheduleMode] = useState<CalendarMode>('all_days');
+  const [maintainCycleAccent, setMaintainCycleAccent] = useState('');
+  const [maintainProjectParentProgramId, setMaintainProjectParentProgramId] = useState('');
+  const [maintainProjectParentCycleId, setMaintainProjectParentCycleId] = useState('');
+  const [maintainProjectName, setMaintainProjectName] = useState('');
+  const [maintainProjectStartDate, setMaintainProjectStartDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [maintainProjectEndDate, setMaintainProjectEndDate] = useState(() => new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
+  const [maintainProjectAccent, setMaintainProjectAccent] = useState('');
   const [inventoryObjects, setInventoryObjects] = useState<{ id: string; objectId: string; description: string; processArea: string }[]>([]);
   const [projectInventoryItems, setProjectInventoryItems] = useState<any[]>([]);
   const [projectHierarchySummaries, setProjectHierarchySummaries] = useState<Record<string, {
@@ -721,32 +729,14 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     : selectedItem?.type === 'cycle'
       ? selectedItem.id
       : null;
-  const selectedProgramForMaintain = selectedItem?.type === 'program'
-    ? selectedItem.id
-    : selectedItem?.type === 'cycle'
-      ? selectedItem.programId
-      : (maintainProgramId || null);
-  const selectedCycleForMaintain = selectedItem?.type === 'cycle'
-    ? selectedItem.id
-    : selectedItem?.type === 'project'
-      ? selectedItem.cycleId
-      : selectedItem?.type === 'processArea'
-        ? selectedItem.cycleId
-        : (maintainCycleId || null);
   const allMaintainCycles: MockCycle[] = React.useMemo(() => (
     Object.values(mockCycles).flatMap((cycles) => cycles || []) as MockCycle[]
   ), [mockCycles]);
   const allMaintainProjects: Project[] = React.useMemo(() => (
     Object.values(projectsByMockCycle).flatMap((projects) => projects || []) as Project[]
   ), [projectsByMockCycle]);
-  const selectedMaintainProject = allMaintainProjects.find((project) => project.id === maintainProjectId) || null;
-  const selectedMaintainProjectCycle = selectedMaintainProject
-    ? allMaintainCycles.find((cycle) => cycle.id === selectedMaintainProject.mockCycleId) || null
-    : null;
-  const selectedMaintainCycle = allMaintainCycles.find((cycle) => cycle.id === maintainCycleId) || null;
-  const selectedMaintainProgram = programs.find((program) => program.id === maintainProgramId) || null;
-  const cyclesForSelectedMaintainProgram = maintainProgramId
-    ? allMaintainCycles.filter((cycle) => cycle.programId === maintainProgramId)
+  const cyclesForMaintainProjectProgram = maintainProjectParentProgramId
+    ? allMaintainCycles.filter((cycle) => cycle.programId === maintainProjectParentProgramId)
     : [];
   const getScopedProjectsForCycle = (cycleId: string, projectId?: string | null): Project[] => {
     const projects = (projectsByMockCycle[cycleId] || []) as Project[];
@@ -754,59 +744,107 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     return projects.filter((project) => project.id === projectId);
   };
 
-  const assignProjectToCycle = async (projectId: string, targetCycleId: string) => {
-    setIsAssigningMaintain(true);
+  const handleMaintainCreateProgram = async () => {
+    if (!maintainProgramName.trim()) {
+      alert('Program name is required.');
+      return;
+    }
+
+    setIsSubmittingMaintainForm(true);
     try {
-      await apiClient.patch(`/api/projects/${projectId}`, { mockCycleId: targetCycleId });
-      queryClient.invalidateQueries({ queryKey: ['projectsByMockCycle'] });
-      const cycle = allMaintainCycles.find((entry) => entry.id === targetCycleId);
-      if (cycle) {
-        setSelectedItem({ type: 'project', id: projectId, cycleId: targetCycleId });
-        setMaintainCycleId(targetCycleId);
-        setMaintainProgramId(cycle.programId);
+      const response = await apiClient.post('/api/programs', {
+        name: maintainProgramName.trim(),
+        description: maintainProgramDescription.trim() || null,
+        accentColor: maintainProgramAccent.trim() || null,
+      });
+      const created = response.data?.data;
+      queryClient.invalidateQueries({ queryKey: ['programs'] });
+      setMaintainProgramName('');
+      setMaintainProgramDescription('');
+      setMaintainProgramAccent('');
+      if (created?.id) {
+        setMaintainCycleParentProgramId(created.id);
+        setMaintainProjectParentProgramId(created.id);
+        setSelectedItem({ type: 'program', id: created.id });
       }
+      alert('Program created successfully.');
+    } catch (error: any) {
+      console.error('Failed to create program:', error);
+      alert(error?.response?.data?.message || 'Failed to create program.');
     } finally {
-      setIsAssigningMaintain(false);
+      setIsSubmittingMaintainForm(false);
     }
   };
 
-  const handleAssignProjectToProgram = async () => {
-    if (!maintainProjectId || !maintainProgramId) {
-      alert('Select a project and program first.');
+  const handleMaintainCreateCycle = async () => {
+    if (!maintainCycleParentProgramId) {
+      alert('Select a parent program.');
+      return;
+    }
+    if (!maintainCycleName.trim()) {
+      alert('Mock cycle name is required.');
       return;
     }
 
-    const cycleInProgram = cyclesForSelectedMaintainProgram.find((cycle) => cycle.id === maintainCycleId)
-      || cyclesForSelectedMaintainProgram[0];
-
-    if (!cycleInProgram) {
-      alert('Selected program has no mock cycles. Create one before assigning projects.');
-      return;
-    }
-
+    setIsSubmittingMaintainForm(true);
     try {
-      await assignProjectToCycle(maintainProjectId, cycleInProgram.id);
-      alert('Project reassigned to selected program.');
+      const response = await apiClient.post(`/api/programs/${maintainCycleParentProgramId}/mock-cycles`, {
+        name: maintainCycleName.trim(),
+        startDate: maintainCycleStartDate,
+        endDate: maintainCycleEndDate,
+        scheduleMode: maintainCycleScheduleMode,
+        accentColor: maintainCycleAccent.trim() || null,
+      });
+      const created = response.data?.data;
+      queryClient.invalidateQueries({ queryKey: ['mockCycles'] });
+      setMaintainCycleName('');
+      setMaintainCycleScheduleMode('all_days');
+      setMaintainCycleAccent('');
+      if (created?.id) {
+        setMaintainProjectParentProgramId(maintainCycleParentProgramId);
+        setMaintainProjectParentCycleId(created.id);
+        setSelectedItem({ type: 'cycle', id: created.id, programId: maintainCycleParentProgramId });
+      }
+      alert('Mock cycle created successfully.');
     } catch (error: any) {
-      console.error('Failed to assign project to program:', error);
-      const message = error?.response?.data?.message || 'Failed to assign project to program.';
-      alert(message);
+      console.error('Failed to create mock cycle:', error);
+      alert(error?.response?.data?.message || 'Failed to create mock cycle.');
+    } finally {
+      setIsSubmittingMaintainForm(false);
     }
   };
 
-  const handleAssignMockCycleToProject = async () => {
-    if (!maintainProjectId || !maintainCycleId) {
-      alert('Select a project and mock cycle first.');
+  const handleMaintainCreateProject = async () => {
+    if (!maintainProjectParentCycleId) {
+      alert('Select a parent mock cycle.');
+      return;
+    }
+    if (!maintainProjectName.trim()) {
+      alert('Project name is required.');
       return;
     }
 
+    setIsSubmittingMaintainForm(true);
     try {
-      await assignProjectToCycle(maintainProjectId, maintainCycleId);
-      alert('Mock cycle assigned to selected project.');
+      const response = await apiClient.post(`/api/projects/by-cycle/${maintainProjectParentCycleId}`, {
+        name: maintainProjectName.trim(),
+        startDate: maintainProjectStartDate,
+        endDate: maintainProjectEndDate,
+        accentColor: maintainProjectAccent.trim() || null,
+      });
+      const created = response.data?.data;
+      queryClient.invalidateQueries({ queryKey: ['projectsByMockCycle'] });
+      setMaintainProjectName('');
+      setMaintainProjectAccent('');
+      if (created?.id) {
+        setSelectedItem({ type: 'project', id: created.id, cycleId: maintainProjectParentCycleId });
+      }
+      alert('Project created successfully.');
     } catch (error: any) {
-      console.error('Failed to assign mock cycle to project:', error);
-      const message = error?.response?.data?.message || 'Failed to assign mock cycle to project.';
-      alert(message);
+      console.error('Failed to create project:', error);
+      alert(error?.response?.data?.message || 'Failed to create project.');
+    } finally {
+      setIsSubmittingMaintainForm(false);
     }
   };
 
@@ -825,22 +863,25 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   }, [selectedItem]);
 
   useEffect(() => {
-    if (!maintainProgramId || !programs.some((program) => program.id === maintainProgramId)) {
-      setMaintainProgramId(programs[0]?.id || '');
+    if (!maintainCycleParentProgramId || !programs.some((program) => program.id === maintainCycleParentProgramId)) {
+      setMaintainCycleParentProgramId(programs[0]?.id || '');
     }
-  }, [programs, maintainProgramId]);
+  }, [programs, maintainCycleParentProgramId]);
 
   useEffect(() => {
-    if (!maintainProjectId || !allMaintainProjects.some((project) => project.id === maintainProjectId)) {
-      setMaintainProjectId(allMaintainProjects[0]?.id || '');
+    if (!maintainProjectParentProgramId || !programs.some((program) => program.id === maintainProjectParentProgramId)) {
+      setMaintainProjectParentProgramId(programs[0]?.id || '');
     }
-  }, [allMaintainProjects, maintainProjectId]);
+  }, [programs, maintainProjectParentProgramId]);
 
   useEffect(() => {
-    if (!maintainCycleId || !allMaintainCycles.some((cycle) => cycle.id === maintainCycleId)) {
-      setMaintainCycleId(allMaintainCycles[0]?.id || '');
+    const validCycles = maintainProjectParentProgramId
+      ? allMaintainCycles.filter((cycle) => cycle.programId === maintainProjectParentProgramId)
+      : allMaintainCycles;
+    if (!maintainProjectParentCycleId || !validCycles.some((cycle) => cycle.id === maintainProjectParentCycleId)) {
+      setMaintainProjectParentCycleId(validCycles[0]?.id || '');
     }
-  }, [allMaintainCycles, maintainCycleId]);
+  }, [allMaintainCycles, maintainProjectParentProgramId, maintainProjectParentCycleId]);
   const activeCycleScheduleMode: CalendarMode = (() => {
     if (!activeCycleId) return 'all_days';
     for (const programId in mockCycles) {
@@ -2363,10 +2404,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     return filtered;
   };
 
-  const toggleMaintainSection = (section: 'programs' | 'projects' | 'mockCycles') => {
-    setMaintainSections((prev) => ({ ...prev, [section]: !prev[section] }));
-  };
-
   // Handle edit inventory item
   const handleEditInventoryItem = (item: any) => {
     setEditingInventoryItemId(item.id);
@@ -2873,58 +2910,29 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
           {isPlanningMaintainTab && (
             <Box sx={{ flex: 1, overflowY: 'auto', p: 1.25, display: 'flex', flexDirection: 'column', gap: 1.25 }}>
               <Typography variant="caption" sx={{ color: '#9FB0D8', fontWeight: 700, letterSpacing: '0.3px' }}>
-                Maintain Menus
+                Maintain Forms
               </Typography>
-
-              <Box>
-                <Typography variant="caption" sx={{ color: '#8EA3CB', display: 'block', mb: 0.4 }}>Program</Typography>
-                <Box
-                  component="select"
-                  value={maintainProgramId}
-                  onChange={(e) => setMaintainProgramId(e.target.value)}
-                  sx={{ width: '100%', p: '6px 10px', border: '1px solid rgba(94,123,180,0.45)', borderRadius: '8px', fontSize: '0.8rem', color: '#DBE7FF', backgroundColor: 'rgba(10, 22, 49, 0.9)' }}
-                >
-                  <option value="">Select program</option>
-                  {programs.map((program) => (
-                    <option key={program.id} value={program.id}>{program.name}</option>
-                  ))}
-                </Box>
-              </Box>
-
-              <Box>
-                <Typography variant="caption" sx={{ color: '#8EA3CB', display: 'block', mb: 0.4 }}>Project</Typography>
-                <Box
-                  component="select"
-                  value={maintainProjectId}
-                  onChange={(e) => setMaintainProjectId(e.target.value)}
-                  sx={{ width: '100%', p: '6px 10px', border: '1px solid rgba(94,123,180,0.45)', borderRadius: '8px', fontSize: '0.8rem', color: '#DBE7FF', backgroundColor: 'rgba(10, 22, 49, 0.9)' }}
-                >
-                  <option value="">Select project</option>
-                  {allMaintainProjects.map((project) => (
-                    <option key={project.id} value={project.id}>{project.name}</option>
-                  ))}
-                </Box>
-              </Box>
-
-              <Box>
-                <Typography variant="caption" sx={{ color: '#8EA3CB', display: 'block', mb: 0.4 }}>Mock Cycle</Typography>
-                <Box
-                  component="select"
-                  value={maintainCycleId}
-                  onChange={(e) => {
-                    const nextCycleId = e.target.value;
-                    setMaintainCycleId(nextCycleId);
-                    const cycle = allMaintainCycles.find((entry) => entry.id === nextCycleId);
-                    if (cycle) setMaintainProgramId(cycle.programId);
-                  }}
-                  sx={{ width: '100%', p: '6px 10px', border: '1px solid rgba(94,123,180,0.45)', borderRadius: '8px', fontSize: '0.8rem', color: '#DBE7FF', backgroundColor: 'rgba(10, 22, 49, 0.9)' }}
-                >
-                  <option value="">Select mock cycle</option>
-                  {allMaintainCycles.map((cycle) => (
-                    <option key={cycle.id} value={cycle.id}>{cycle.name}</option>
-                  ))}
-                </Box>
-              </Box>
+              <Button
+                variant={maintainFormView === 'program' ? 'contained' : 'text'}
+                onClick={() => setMaintainFormView('program')}
+                sx={{ textTransform: 'none', justifyContent: 'flex-start', fontWeight: 700 }}
+              >
+                Program Form
+              </Button>
+              <Button
+                variant={maintainFormView === 'cycle' ? 'contained' : 'text'}
+                onClick={() => setMaintainFormView('cycle')}
+                sx={{ textTransform: 'none', justifyContent: 'flex-start', fontWeight: 700 }}
+              >
+                Mock Cycle Form
+              </Button>
+              <Button
+                variant={maintainFormView === 'project' ? 'contained' : 'text'}
+                onClick={() => setMaintainFormView('project')}
+                sx={{ textTransform: 'none', justifyContent: 'flex-start', fontWeight: 700 }}
+              >
+                Project Form
+              </Button>
             </Box>
           )}
 
@@ -5053,361 +5061,215 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                   Maintain Planning Hierarchy
                 </Typography>
                 <Typography variant="body2" sx={{ color: '#9FB0D8' }}>
-                  Use menu-based hierarchy levels to manage assignments directly from this page.
-                </Typography>
-
-                <Box sx={{ mt: 1.4, display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(3, minmax(0, 1fr))' }, gap: 1 }}>
-                  <Box>
-                    <Typography variant="caption" sx={{ color: '#8EA3CB', display: 'block', mb: 0.4 }}>Program</Typography>
-                    <Box
-                      component="select"
-                      value={maintainProgramId}
-                      onChange={(e) => setMaintainProgramId(e.target.value)}
-                      sx={{ width: '100%', p: '6px 10px', border: '1px solid rgba(94,123,180,0.45)', borderRadius: '8px', fontSize: '0.8rem', color: '#DBE7FF', backgroundColor: 'rgba(10, 22, 49, 0.9)' }}
-                    >
-                      <option value="">Select program</option>
-                      {programs.map((program) => (
-                        <option key={program.id} value={program.id}>{program.name}</option>
-                      ))}
-                    </Box>
-                  </Box>
-                  <Box>
-                    <Typography variant="caption" sx={{ color: '#8EA3CB', display: 'block', mb: 0.4 }}>Project</Typography>
-                    <Box
-                      component="select"
-                      value={maintainProjectId}
-                      onChange={(e) => setMaintainProjectId(e.target.value)}
-                      sx={{ width: '100%', p: '6px 10px', border: '1px solid rgba(94,123,180,0.45)', borderRadius: '8px', fontSize: '0.8rem', color: '#DBE7FF', backgroundColor: 'rgba(10, 22, 49, 0.9)' }}
-                    >
-                      <option value="">Select project</option>
-                      {allMaintainProjects.map((project) => (
-                        <option key={project.id} value={project.id}>{project.name}</option>
-                      ))}
-                    </Box>
-                  </Box>
-                  <Box>
-                    <Typography variant="caption" sx={{ color: '#8EA3CB', display: 'block', mb: 0.4 }}>Mock Cycle</Typography>
-                    <Box
-                      component="select"
-                      value={maintainCycleId}
-                      onChange={(e) => {
-                        const nextCycleId = e.target.value;
-                        setMaintainCycleId(nextCycleId);
-                        const cycle = allMaintainCycles.find((entry) => entry.id === nextCycleId);
-                        if (cycle) setMaintainProgramId(cycle.programId);
-                      }}
-                      sx={{ width: '100%', p: '6px 10px', border: '1px solid rgba(94,123,180,0.45)', borderRadius: '8px', fontSize: '0.8rem', color: '#DBE7FF', backgroundColor: 'rgba(10, 22, 49, 0.9)' }}
-                    >
-                      <option value="">Select mock cycle</option>
-                      {allMaintainCycles.map((cycle) => (
-                        <option key={cycle.id} value={cycle.id}>{cycle.name}</option>
-                      ))}
-                    </Box>
-                  </Box>
-                </Box>
-
-                <Box sx={{ mt: 1.4, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                  <Button
-                    size="small"
-                    variant="contained"
-                    onClick={handleAssignProjectToProgram}
-                    disabled={isAssigningMaintain || !maintainProjectId || !maintainProgramId}
-                    sx={{ textTransform: 'none', fontWeight: 700 }}
-                  >
-                    Assign Project to Program
-                  </Button>
-                  <Button
-                    size="small"
-                    variant="outlined"
-                    onClick={handleAssignMockCycleToProject}
-                    disabled={isAssigningMaintain || !maintainProjectId || !maintainCycleId}
-                    sx={{ textTransform: 'none', fontWeight: 700 }}
-                  >
-                    Assign Mock Cycle to Project
-                  </Button>
-                </Box>
-
-                <Typography variant="caption" sx={{ mt: 1, display: 'block', color: '#8EA3CB' }}>
-                  Current selection: {selectedMaintainProject?.name || 'No project'}
-                  {' -> '}
-                  {selectedMaintainProjectCycle?.name || 'No cycle'}
-                  {' -> '}
-                  {selectedMaintainProgram?.name || 'No program'}
+                  Use the left links to open separate forms for each hierarchy level.
                 </Typography>
               </Box>
 
-              <Card sx={{ backgroundColor: 'rgba(9, 19, 47, 0.9)', border: '1px solid rgba(80,115,181,0.35)', borderRadius: 2 }}>
-                <CardHeader
-                  title="Programs"
-                  titleTypographyProps={{ sx: { color: '#DCE6FF', fontWeight: 700, fontSize: '1rem' } }}
-                  action={
-                    <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-                      <Chip size="small" label={`${programs.length} total`} variant="outlined" sx={{ color: '#BFD0F3', borderColor: 'rgba(96,127,189,0.45)' }} />
-                      <Button
-                        size="small"
-                        variant="contained"
-                        startIcon={<AddIcon />}
-                        onClick={() => openCreateDialog('program')}
-                        sx={{ textTransform: 'none', fontWeight: 600 }}
-                      >
-                        Add Program
-                      </Button>
-                      <IconButton onClick={() => toggleMaintainSection('programs')} sx={{ color: '#BFD0F3' }}>
-                        {maintainSections.programs ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-                      </IconButton>
-                    </Box>
-                  }
-                  sx={{ pb: 1 }}
-                />
-                {maintainSections.programs && (
-                  <CardContent sx={{ pt: 0 }}>
-                    {programs.length === 0 ? (
-                      <Typography variant="body2" sx={{ color: '#8EA3CB' }}>
-                        No programs created yet.
-                      </Typography>
-                    ) : (
-                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                        {programs.map((program) => (
-                          <Chip
-                            key={program.id}
-                            label={program.name}
-                            onClick={() => setSelectedItem({ type: 'program', id: program.id })}
-                            sx={{
-                              color: '#D6E2FF',
-                              backgroundColor: 'rgba(42,63,108,0.65)',
-                              border: '1px solid rgba(96,127,189,0.45)',
-                              '&:hover': { backgroundColor: 'rgba(49,73,123,0.8)' },
-                            }}
-                          />
-                        ))}
-                      </Box>
-                    )}
-                  </CardContent>
-                )}
-              </Card>
-
-              <Card sx={{ backgroundColor: 'rgba(9, 19, 47, 0.9)', border: '1px solid rgba(80,115,181,0.35)', borderRadius: 2 }}>
-                <CardHeader
-                  title="Projects"
-                  titleTypographyProps={{ sx: { color: '#DCE6FF', fontWeight: 700, fontSize: '1rem' } }}
-                  action={
-                    <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-                      <Chip
-                        size="small"
-                        label={`${Object.values(projectsByMockCycle).reduce((sum: number, items: any) => sum + (items?.length || 0), 0)} total`}
-                        variant="outlined"
-                        sx={{ color: '#BFD0F3', borderColor: 'rgba(96,127,189,0.45)' }}
-                      />
-                      <Button
-                        size="small"
-                        variant="contained"
-                        startIcon={<AddIcon />}
-                        onClick={() => selectedCycleForMaintain && openCreateDialog('project', undefined, selectedCycleForMaintain)}
-                        disabled={!selectedCycleForMaintain}
-                        sx={{ textTransform: 'none', fontWeight: 600 }}
-                      >
-                        Add Project
-                      </Button>
-                      <IconButton onClick={() => toggleMaintainSection('projects')} sx={{ color: '#BFD0F3' }}>
-                        {maintainSections.projects ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-                      </IconButton>
-                    </Box>
-                  }
-                  sx={{ pb: 1 }}
-                />
-                {maintainSections.projects && (
-                  <CardContent sx={{ pt: 0 }}>
-                    {Object.keys(projectsByMockCycle).length === 0 ? (
-                      <Typography variant="body2" sx={{ color: '#8EA3CB' }}>
-                        No projects created yet.
-                      </Typography>
-                    ) : (
-                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                        {Object.entries(projectsByMockCycle).map(([cycleId, cycleProjects]) => {
-                          const cycleName = Object.values(mockCycles).flat().find((cycle: any) => cycle.id === cycleId)?.name || 'Mock Cycle';
-                          return (
-                            <Box key={cycleId} sx={{ p: 1.2, borderRadius: 1.2, border: '1px solid rgba(96,127,189,0.35)', backgroundColor: 'rgba(20,35,70,0.7)' }}>
-                              <Typography variant="caption" sx={{ color: '#9FB0D8', display: 'block', mb: 0.6 }}>
-                                {cycleName}
-                              </Typography>
-                              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.8 }}>
-                                {(cycleProjects as Project[]).map((project) => (
-                                  <Chip
-                                    key={project.id}
-                                    label={project.name}
-                                    onClick={() => setSelectedItem({ type: 'project', id: project.id, cycleId })}
-                                    sx={{
-                                      color: '#D6E2FF',
-                                      backgroundColor: 'rgba(37,58,101,0.75)',
-                                      border: '1px solid rgba(96,127,189,0.4)',
-                                      '&:hover': { backgroundColor: 'rgba(45,69,117,0.88)' },
-                                    }}
-                                  />
-                                ))}
-                              </Box>
-                            </Box>
-                          );
-                        })}
-                      </Box>
-                    )}
-                    {!selectedCycleForMaintain && (
-                      <Typography variant="caption" sx={{ color: '#8EA3CB', display: 'block', mt: 1 }}>
-                        Select a Mock Cycle from the maintain menus to enable Add Project.
-                      </Typography>
-                    )}
-                  </CardContent>
-                )}
-              </Card>
-
-              <Card sx={{ backgroundColor: 'rgba(9, 19, 47, 0.9)', border: '1px solid rgba(80,115,181,0.35)', borderRadius: 2 }}>
-                <CardHeader
-                  title="Mock Cycles"
-                  titleTypographyProps={{ sx: { color: '#DCE6FF', fontWeight: 700, fontSize: '1rem' } }}
-                  action={
-                    <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-                      <Chip
-                        size="small"
-                        label={`${Object.values(mockCycles).reduce((sum: number, items: any) => sum + (items?.length || 0), 0)} total`}
-                        variant="outlined"
-                        sx={{ color: '#BFD0F3', borderColor: 'rgba(96,127,189,0.45)' }}
-                      />
-                      <Button
-                        size="small"
-                        variant="contained"
-                        startIcon={<AddIcon />}
-                        onClick={() => selectedProgramForMaintain && openCreateDialog('cycle', selectedProgramForMaintain)}
-                        disabled={!selectedProgramForMaintain}
-                        sx={{ textTransform: 'none', fontWeight: 600 }}
-                      >
-                        Add Mock Cycle
-                      </Button>
-                      <IconButton onClick={() => toggleMaintainSection('mockCycles')} sx={{ color: '#BFD0F3' }}>
-                        {maintainSections.mockCycles ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-                      </IconButton>
-                    </Box>
-                  }
-                  sx={{ pb: 1 }}
-                />
-                {maintainSections.mockCycles && (
-                  <CardContent sx={{ pt: 0 }}>
-                    {Object.keys(mockCycles).length === 0 ? (
-                      <Typography variant="body2" sx={{ color: '#8EA3CB' }}>
-                        No mock cycles created yet.
-                      </Typography>
-                    ) : (
-                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                        {Object.entries(mockCycles).map(([programId, cycles]) => {
-                          const programName = programs.find((program) => program.id === programId)?.name || 'Program';
-                          return (
-                            <Box key={programId} sx={{ p: 1.2, borderRadius: 1.2, border: '1px solid rgba(96,127,189,0.35)', backgroundColor: 'rgba(20,35,70,0.7)' }}>
-                              <Typography variant="caption" sx={{ color: '#9FB0D8', display: 'block', mb: 0.6 }}>
-                                {programName}
-                              </Typography>
-                              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.8 }}>
-                                {(cycles as MockCycle[]).map((cycle) => (
-                                  <Chip
-                                    key={cycle.id}
-                                    label={cycle.name}
-                                    onClick={() => setSelectedItem({ type: 'cycle', id: cycle.id, programId })}
-                                    sx={{
-                                      color: '#D6E2FF',
-                                      backgroundColor: 'rgba(37,58,101,0.75)',
-                                      border: '1px solid rgba(96,127,189,0.4)',
-                                      '&:hover': { backgroundColor: 'rgba(45,69,117,0.88)' },
-                                    }}
-                                  />
-                                ))}
-                              </Box>
-                            </Box>
-                          );
-                        })}
-                      </Box>
-                    )}
-                    {!selectedProgramForMaintain && (
-                      <Typography variant="caption" sx={{ color: '#8EA3CB', display: 'block', mt: 1 }}>
-                        Select a Program from the maintain menus to enable Add Mock Cycle.
-                      </Typography>
-                    )}
-                  </CardContent>
-                )}
-              </Card>
-            </Box>
-          )}
-
-          {/* Priorities Tab Content */}
-          {tabValue === 2 && (
-            <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
-              {!activeProjectId ? (
-                <Box sx={{
-                  border: '1px solid rgba(93,121,176,0.35)',
-                  borderRadius: 2,
-                  backgroundColor: 'rgba(18,33,65,0.72)',
-                  p: 2,
-                }}>
-                  <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.75, color: '#BFD0F3' }}>
-                    No Project Selected
-                  </Typography>
-                  <Typography variant="body2" sx={{ color: '#8EA3CB' }}>
-                    Select a project from the tree to view Late, In Progress, Due This Week, and Blocked tasks.
-                  </Typography>
-                </Box>
+              {!canManageHierarchy ? (
+                <Alert severity="info">You have read-only access. Admin role is required to submit hierarchy forms.</Alert>
               ) : (
-                <>
-                  <Typography variant="h5" sx={{ fontWeight: 700 }}>Priority Tasks</Typography>
-                  <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5 }}>
-                    Late, in progress, due this week, and blocked tasks with direct links.
-                  </Typography>
-
-                  {[
-                    { title: 'Late', tasks: lateTasks, border: 'rgba(214,77,119,0.45)', chipBg: 'rgba(168,58,87,0.32)', chipColor: '#FF809A' },
-                    { title: 'In Progress', tasks: inProgressTasks, border: 'rgba(61,152,213,0.45)', chipBg: 'rgba(44,122,175,0.32)', chipColor: '#6EC7FF' },
-                    { title: 'Due This Week', tasks: dueThisWeekTasks, border: 'rgba(205,145,53,0.45)', chipBg: 'rgba(156,108,43,0.32)', chipColor: '#FFC567' },
-                    { title: 'Blocked', tasks: blockedTasks, border: 'rgba(216,83,83,0.45)', chipBg: 'rgba(150,58,58,0.32)', chipColor: '#FF8E8E' },
-                  ].map((section) => (
-                    <Box key={section.title} sx={{ border: `1px solid ${section.border}`, borderRadius: 2, overflow: 'hidden', backgroundColor: 'rgba(20,34,66,0.65)' }}>
-                      <Box sx={{ px: 1.5, py: 1, display: 'flex', alignItems: 'center', gap: 1, backgroundColor: 'rgba(255,255,255,0.03)' }}>
-                        <Typography sx={{ fontWeight: 700, color: section.chipColor }}>{section.title}</Typography>
-                        <Box sx={{ px: 0.7, py: 0.05, borderRadius: 1, backgroundColor: section.chipBg, color: section.chipColor, fontWeight: 700, fontSize: '0.75rem' }}>
-                          {section.tasks.length}
+                <Card sx={{ backgroundColor: 'rgba(9, 19, 47, 0.9)', border: '1px solid rgba(80,115,181,0.35)', borderRadius: 2 }}>
+                  <CardHeader
+                    title={maintainFormView === 'program' ? 'Program Form' : maintainFormView === 'cycle' ? 'Mock Cycle Form' : 'Project Form'}
+                    titleTypographyProps={{ sx: { color: '#DCE6FF', fontWeight: 700, fontSize: '1rem' } }}
+                  />
+                  <CardContent sx={{ display: 'grid', gap: 1.25 }}>
+                    {maintainFormView === 'program' && (
+                      <>
+                        <TextField
+                          label="Program Name"
+                          value={maintainProgramName}
+                          onChange={(e) => setMaintainProgramName(e.target.value)}
+                          size="small"
+                          fullWidth
+                        />
+                        <TextField
+                          label="Program Description"
+                          value={maintainProgramDescription}
+                          onChange={(e) => setMaintainProgramDescription(e.target.value)}
+                          size="small"
+                          fullWidth
+                          multiline
+                          minRows={2}
+                        />
+                        <TextField
+                          label="Accent Color (hex)"
+                          value={maintainProgramAccent}
+                          onChange={(e) => setMaintainProgramAccent(e.target.value)}
+                          size="small"
+                          fullWidth
+                          placeholder="#5B67CA"
+                        />
+                        <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+                          <Button
+                            variant="contained"
+                            onClick={handleMaintainCreateProgram}
+                            disabled={isSubmittingMaintainForm || !maintainProgramName.trim()}
+                            sx={{ textTransform: 'none', fontWeight: 700 }}
+                          >
+                            Create Program
+                          </Button>
                         </Box>
-                      </Box>
+                      </>
+                    )}
 
-                      {section.tasks.length === 0 ? (
-                        <Box sx={{ p: 2 }}>
-                          <Typography variant="body2" color="text.secondary">No tasks in this section.</Typography>
-                        </Box>
-                      ) : (
-                        <Box sx={{ p: 1.25, display: 'flex', flexDirection: 'column', gap: 0.75 }}>
-                          {section.tasks.map((task: any) => (
-                            <Box key={`${section.title}-${task.id}`} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, px: 1, py: 0.75, borderRadius: 1, backgroundColor: 'rgba(255,255,255,0.03)' }}>
-                              <Box sx={{ minWidth: 0 }}>
-                                <Typography variant="body2" sx={{ fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                  {task.name || 'Untitled Task'}
-                                </Typography>
-                                <Typography variant="caption" color="text.secondary">
-                                  {getPriorityTaskContext(task)}
-                                  {task.endDate ? ` • Due ${new Date(task.endDate).toLocaleDateString()}` : ''}
-                                </Typography>
-                                <Typography variant="caption" sx={{ display: 'block', color: '#8EA3CB', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                  {getPriorityTaskBreadcrumb(task)}
-                                </Typography>
-                              </Box>
-                              <Link
-                                component="button"
-                                underline="hover"
-                                onClick={() => handlePriorityTaskClick(task)}
-                                sx={{ fontSize: '0.8rem', fontWeight: 600, color: 'primary.light', whiteSpace: 'nowrap' }}
-                              >
-                                Open Task
-                              </Link>
-                            </Box>
+                    {maintainFormView === 'cycle' && (
+                      <>
+                        <TextField
+                          select
+                          label="Parent Program"
+                          value={maintainCycleParentProgramId}
+                          onChange={(e) => setMaintainCycleParentProgramId(e.target.value)}
+                          size="small"
+                          fullWidth
+                        >
+                          {programs.map((program) => (
+                            <MenuItem key={program.id} value={program.id}>{program.name}</MenuItem>
                           ))}
+                        </TextField>
+                        <TextField
+                          label="Mock Cycle Name"
+                          value={maintainCycleName}
+                          onChange={(e) => setMaintainCycleName(e.target.value)}
+                          size="small"
+                          fullWidth
+                        />
+                        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1 }}>
+                          <TextField
+                            type="date"
+                            label="Start Date"
+                            value={maintainCycleStartDate}
+                            onChange={(e) => setMaintainCycleStartDate(e.target.value)}
+                            size="small"
+                            InputLabelProps={{ shrink: true }}
+                          />
+                          <TextField
+                            type="date"
+                            label="End Date"
+                            value={maintainCycleEndDate}
+                            onChange={(e) => setMaintainCycleEndDate(e.target.value)}
+                            size="small"
+                            InputLabelProps={{ shrink: true }}
+                          />
                         </Box>
-                      )}
-                    </Box>
-                  ))}
-                </>
+                        <TextField
+                          select
+                          label="Schedule Mode"
+                          value={maintainCycleScheduleMode}
+                          onChange={(e) => setMaintainCycleScheduleMode(e.target.value as CalendarMode)}
+                          size="small"
+                          fullWidth
+                        >
+                          <MenuItem value="all_days">All Days</MenuItem>
+                          <MenuItem value="working_days">Working Days</MenuItem>
+                        </TextField>
+                        <TextField
+                          label="Accent Color (hex)"
+                          value={maintainCycleAccent}
+                          onChange={(e) => setMaintainCycleAccent(e.target.value)}
+                          size="small"
+                          fullWidth
+                          placeholder="#64B5F6"
+                        />
+                        <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+                          <Button
+                            variant="contained"
+                            onClick={handleMaintainCreateCycle}
+                            disabled={isSubmittingMaintainForm || !maintainCycleParentProgramId || !maintainCycleName.trim()}
+                            sx={{ textTransform: 'none', fontWeight: 700 }}
+                          >
+                            Create Mock Cycle
+                          </Button>
+                        </Box>
+                      </>
+                    )}
+
+                    {maintainFormView === 'project' && (
+                      <>
+                        <TextField
+                          select
+                          label="Parent Program"
+                          value={maintainProjectParentProgramId}
+                          onChange={(e) => {
+                            setMaintainProjectParentProgramId(e.target.value);
+                            const nextCycles = allMaintainCycles.filter((cycle) => cycle.programId === e.target.value);
+                            setMaintainProjectParentCycleId(nextCycles[0]?.id || '');
+                          }}
+                          size="small"
+                          fullWidth
+                        >
+                          {programs.map((program) => (
+                            <MenuItem key={program.id} value={program.id}>{program.name}</MenuItem>
+                          ))}
+                        </TextField>
+                        <TextField
+                          select
+                          label="Parent Mock Cycle"
+                          value={maintainProjectParentCycleId}
+                          onChange={(e) => setMaintainProjectParentCycleId(e.target.value)}
+                          size="small"
+                          fullWidth
+                        >
+                          {cyclesForMaintainProjectProgram.map((cycle) => (
+                            <MenuItem key={cycle.id} value={cycle.id}>{cycle.name}</MenuItem>
+                          ))}
+                        </TextField>
+                        <TextField
+                          label="Project Name"
+                          value={maintainProjectName}
+                          onChange={(e) => setMaintainProjectName(e.target.value)}
+                          size="small"
+                          fullWidth
+                        />
+                        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1 }}>
+                          <TextField
+                            type="date"
+                            label="Start Date"
+                            value={maintainProjectStartDate}
+                            onChange={(e) => setMaintainProjectStartDate(e.target.value)}
+                            size="small"
+                            InputLabelProps={{ shrink: true }}
+                          />
+                          <TextField
+                            type="date"
+                            label="End Date"
+                            value={maintainProjectEndDate}
+                            onChange={(e) => setMaintainProjectEndDate(e.target.value)}
+                            size="small"
+                            InputLabelProps={{ shrink: true }}
+                          />
+                        </Box>
+                        <TextField
+                          label="Accent Color (hex)"
+                          value={maintainProjectAccent}
+                          onChange={(e) => setMaintainProjectAccent(e.target.value)}
+                          size="small"
+                          fullWidth
+                          placeholder="#00BFA5"
+                        />
+                        <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+                          <Button
+                            variant="contained"
+                            onClick={handleMaintainCreateProject}
+                            disabled={isSubmittingMaintainForm || !maintainProjectParentCycleId || !maintainProjectName.trim()}
+                            sx={{ textTransform: 'none', fontWeight: 700 }}
+                          >
+                            Create Project
+                          </Button>
+                        </Box>
+                      </>
+                    )}
+                  </CardContent>
+                </Card>
               )}
+
+              <Card sx={{ backgroundColor: 'rgba(9, 19, 47, 0.9)', border: '1px solid rgba(80,115,181,0.35)', borderRadius: 2 }}>
+                <CardContent sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5 }}>
+                  <Chip size="small" label={`Programs: ${programs.length}`} variant="outlined" sx={{ color: '#BFD0F3', borderColor: 'rgba(96,127,189,0.45)' }} />
+                  <Chip size="small" label={`Mock Cycles: ${allMaintainCycles.length}`} variant="outlined" sx={{ color: '#BFD0F3', borderColor: 'rgba(96,127,189,0.45)' }} />
+                  <Chip size="small" label={`Projects: ${allMaintainProjects.length}`} variant="outlined" sx={{ color: '#BFD0F3', borderColor: 'rgba(96,127,189,0.45)' }} />
+                </CardContent>
+              </Card>
             </Box>
           )}
 
