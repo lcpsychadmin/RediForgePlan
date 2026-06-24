@@ -29,7 +29,7 @@ export class ProjectService {
     return this.formatProject(result.rows[0]);
   }
 
-  async updateProject(projectId: string, data: { name?: string; description?: string; startDate?: string; endDate?: string; accentColor?: string; progressPercentage?: number }) {
+  async updateProject(projectId: string, data: { name?: string; description?: string; startDate?: string; endDate?: string; accentColor?: string; progressPercentage?: number; mockCycleId?: string }) {
     const fields: string[] = [];
     const values: any[] = [projectId];
     let paramCount = 2;
@@ -62,6 +62,11 @@ export class ProjectService {
     if (data.endDate !== undefined) {
       fields.push(`end_date = $${paramCount}`);
       values.push(data.endDate);
+      paramCount++;
+    }
+    if (data.mockCycleId !== undefined) {
+      fields.push(`mock_cycle_id = $${paramCount}`);
+      values.push(data.mockCycleId);
       paramCount++;
     }
 

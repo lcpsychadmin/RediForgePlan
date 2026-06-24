@@ -257,6 +257,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     projects: true,
     mockCycles: true,
   });
+  const [maintainProgramId, setMaintainProgramId] = useState('');
+  const [maintainProjectId, setMaintainProjectId] = useState('');
+  const [maintainCycleId, setMaintainCycleId] = useState('');
+  const [isAssigningMaintain, setIsAssigningMaintain] = useState(false);
   const [inventoryObjects, setInventoryObjects] = useState<{ id: string; objectId: string; description: string; processArea: string }[]>([]);
   const [projectInventoryItems, setProjectInventoryItems] = useState<any[]>([]);
   const [projectHierarchySummaries, setProjectHierarchySummaries] = useState<Record<string, {
@@ -721,18 +725,89 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     ? selectedItem.id
     : selectedItem?.type === 'cycle'
       ? selectedItem.programId
-      : null;
+      : (maintainProgramId || null);
   const selectedCycleForMaintain = selectedItem?.type === 'cycle'
     ? selectedItem.id
     : selectedItem?.type === 'project'
       ? selectedItem.cycleId
       : selectedItem?.type === 'processArea'
         ? selectedItem.cycleId
-        : null;
+        : (maintainCycleId || null);
+  const allMaintainCycles: MockCycle[] = React.useMemo(() => (
+    Object.values(mockCycles).flatMap((cycles) => cycles || []) as MockCycle[]
+  ), [mockCycles]);
+  const allMaintainProjects: Project[] = React.useMemo(() => (
+    Object.values(projectsByMockCycle).flatMap((projects) => projects || []) as Project[]
+  ), [projectsByMockCycle]);
+  const selectedMaintainProject = allMaintainProjects.find((project) => project.id === maintainProjectId) || null;
+  const selectedMaintainProjectCycle = selectedMaintainProject
+    ? allMaintainCycles.find((cycle) => cycle.id === selectedMaintainProject.mockCycleId) || null
+    : null;
+  const selectedMaintainCycle = allMaintainCycles.find((cycle) => cycle.id === maintainCycleId) || null;
+  const selectedMaintainProgram = programs.find((program) => program.id === maintainProgramId) || null;
+  const cyclesForSelectedMaintainProgram = maintainProgramId
+    ? allMaintainCycles.filter((cycle) => cycle.programId === maintainProgramId)
+    : [];
   const getScopedProjectsForCycle = (cycleId: string, projectId?: string | null): Project[] => {
     const projects = (projectsByMockCycle[cycleId] || []) as Project[];
     if (!projectId) return projects;
     return projects.filter((project) => project.id === projectId);
+  };
+
+  const assignProjectToCycle = async (projectId: string, targetCycleId: string) => {
+    setIsAssigningMaintain(true);
+    try {
+      await apiClient.patch(`/api/projects/${projectId}`, { mockCycleId: targetCycleId });
+      queryClient.invalidateQueries({ queryKey: ['projectsByMockCycle'] });
+      const cycle = allMaintainCycles.find((entry) => entry.id === targetCycleId);
+      if (cycle) {
+        setSelectedItem({ type: 'project', id: projectId, cycleId: targetCycleId });
+        setMaintainCycleId(targetCycleId);
+        setMaintainProgramId(cycle.programId);
+      }
+    } finally {
+      setIsAssigningMaintain(false);
+    }
+  };
+
+  const handleAssignProjectToProgram = async () => {
+    if (!maintainProjectId || !maintainProgramId) {
+      alert('Select a project and program first.');
+      return;
+    }
+
+    const cycleInProgram = cyclesForSelectedMaintainProgram.find((cycle) => cycle.id === maintainCycleId)
+      || cyclesForSelectedMaintainProgram[0];
+
+    if (!cycleInProgram) {
+      alert('Selected program has no mock cycles. Create one before assigning projects.');
+      return;
+    }
+
+    try {
+      await assignProjectToCycle(maintainProjectId, cycleInProgram.id);
+      alert('Project reassigned to selected program.');
+    } catch (error: any) {
+      console.error('Failed to assign project to program:', error);
+      const message = error?.response?.data?.message || 'Failed to assign project to program.';
+      alert(message);
+    }
+  };
+
+  const handleAssignMockCycleToProject = async () => {
+    if (!maintainProjectId || !maintainCycleId) {
+      alert('Select a project and mock cycle first.');
+      return;
+    }
+
+    try {
+      await assignProjectToCycle(maintainProjectId, maintainCycleId);
+      alert('Mock cycle assigned to selected project.');
+    } catch (error: any) {
+      console.error('Failed to assign mock cycle to project:', error);
+      const message = error?.response?.data?.message || 'Failed to assign mock cycle to project.';
+      alert(message);
+    }
   };
 
   useEffect(() => {
@@ -748,6 +823,24 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
 
     localStorage.setItem(HIERARCHY_SELECTION_STORAGE_KEY, JSON.stringify(payload));
   }, [selectedItem]);
+
+  useEffect(() => {
+    if (!maintainProgramId || !programs.some((program) => program.id === maintainProgramId)) {
+      setMaintainProgramId(programs[0]?.id || '');
+    }
+  }, [programs, maintainProgramId]);
+
+  useEffect(() => {
+    if (!maintainProjectId || !allMaintainProjects.some((project) => project.id === maintainProjectId)) {
+      setMaintainProjectId(allMaintainProjects[0]?.id || '');
+    }
+  }, [allMaintainProjects, maintainProjectId]);
+
+  useEffect(() => {
+    if (!maintainCycleId || !allMaintainCycles.some((cycle) => cycle.id === maintainCycleId)) {
+      setMaintainCycleId(allMaintainCycles[0]?.id || '');
+    }
+  }, [allMaintainCycles, maintainCycleId]);
   const activeCycleScheduleMode: CalendarMode = (() => {
     if (!activeCycleId) return 'all_days';
     for (const programId in mockCycles) {
@@ -2677,6 +2770,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     return !!end && end >= todayStart && end <= weekEnd;
   });
   const blockedTasks = allPriorityTasks.filter(t => t.status === 'blocked');
+  const isPlanningMaintainTab = sectionMode === 'planning' && tabValue === 6;
 
   const getPriorityTaskContext = (task: any) => {
     if (task.projectObjectId) {
@@ -2776,7 +2870,65 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
             </Box>
           )}
 
-          <Box sx={{ flex: 1, overflowY: 'auto', pt: 1 }}>
+          {isPlanningMaintainTab && (
+            <Box sx={{ flex: 1, overflowY: 'auto', p: 1.25, display: 'flex', flexDirection: 'column', gap: 1.25 }}>
+              <Typography variant="caption" sx={{ color: '#9FB0D8', fontWeight: 700, letterSpacing: '0.3px' }}>
+                Maintain Menus
+              </Typography>
+
+              <Box>
+                <Typography variant="caption" sx={{ color: '#8EA3CB', display: 'block', mb: 0.4 }}>Program</Typography>
+                <Box
+                  component="select"
+                  value={maintainProgramId}
+                  onChange={(e) => setMaintainProgramId(e.target.value)}
+                  sx={{ width: '100%', p: '6px 10px', border: '1px solid rgba(94,123,180,0.45)', borderRadius: '8px', fontSize: '0.8rem', color: '#DBE7FF', backgroundColor: 'rgba(10, 22, 49, 0.9)' }}
+                >
+                  <option value="">Select program</option>
+                  {programs.map((program) => (
+                    <option key={program.id} value={program.id}>{program.name}</option>
+                  ))}
+                </Box>
+              </Box>
+
+              <Box>
+                <Typography variant="caption" sx={{ color: '#8EA3CB', display: 'block', mb: 0.4 }}>Project</Typography>
+                <Box
+                  component="select"
+                  value={maintainProjectId}
+                  onChange={(e) => setMaintainProjectId(e.target.value)}
+                  sx={{ width: '100%', p: '6px 10px', border: '1px solid rgba(94,123,180,0.45)', borderRadius: '8px', fontSize: '0.8rem', color: '#DBE7FF', backgroundColor: 'rgba(10, 22, 49, 0.9)' }}
+                >
+                  <option value="">Select project</option>
+                  {allMaintainProjects.map((project) => (
+                    <option key={project.id} value={project.id}>{project.name}</option>
+                  ))}
+                </Box>
+              </Box>
+
+              <Box>
+                <Typography variant="caption" sx={{ color: '#8EA3CB', display: 'block', mb: 0.4 }}>Mock Cycle</Typography>
+                <Box
+                  component="select"
+                  value={maintainCycleId}
+                  onChange={(e) => {
+                    const nextCycleId = e.target.value;
+                    setMaintainCycleId(nextCycleId);
+                    const cycle = allMaintainCycles.find((entry) => entry.id === nextCycleId);
+                    if (cycle) setMaintainProgramId(cycle.programId);
+                  }}
+                  sx={{ width: '100%', p: '6px 10px', border: '1px solid rgba(94,123,180,0.45)', borderRadius: '8px', fontSize: '0.8rem', color: '#DBE7FF', backgroundColor: 'rgba(10, 22, 49, 0.9)' }}
+                >
+                  <option value="">Select mock cycle</option>
+                  {allMaintainCycles.map((cycle) => (
+                    <option key={cycle.id} value={cycle.id}>{cycle.name}</option>
+                  ))}
+                </Box>
+              </Box>
+            </Box>
+          )}
+
+          <Box sx={{ flex: 1, overflowY: 'auto', pt: 1, display: isPlanningMaintainTab ? 'none' : 'block' }}>
             {programs.length === 0 ? (
               <Typography variant="caption" color="textSecondary" sx={{ px: 2 }}>
                 No programs
@@ -3288,7 +3440,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
           </Box>
 
           {/* Add Program Button at Bottom */}
-          {canManageHierarchy && (
+          {canManageHierarchy && !isPlanningMaintainTab && (
             <Box sx={{ p: 2, borderTop: '1px solid rgba(255,255,255,0.08)' }}>
               <Button
                 variant="text"
@@ -4901,7 +5053,86 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                   Maintain Planning Hierarchy
                 </Typography>
                 <Typography variant="body2" sx={{ color: '#9FB0D8' }}>
-                  Use these dedicated sections to maintain Programs, Projects, and Mock Cycles.
+                  Use menu-based hierarchy levels to manage assignments directly from this page.
+                </Typography>
+
+                <Box sx={{ mt: 1.4, display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(3, minmax(0, 1fr))' }, gap: 1 }}>
+                  <Box>
+                    <Typography variant="caption" sx={{ color: '#8EA3CB', display: 'block', mb: 0.4 }}>Program</Typography>
+                    <Box
+                      component="select"
+                      value={maintainProgramId}
+                      onChange={(e) => setMaintainProgramId(e.target.value)}
+                      sx={{ width: '100%', p: '6px 10px', border: '1px solid rgba(94,123,180,0.45)', borderRadius: '8px', fontSize: '0.8rem', color: '#DBE7FF', backgroundColor: 'rgba(10, 22, 49, 0.9)' }}
+                    >
+                      <option value="">Select program</option>
+                      {programs.map((program) => (
+                        <option key={program.id} value={program.id}>{program.name}</option>
+                      ))}
+                    </Box>
+                  </Box>
+                  <Box>
+                    <Typography variant="caption" sx={{ color: '#8EA3CB', display: 'block', mb: 0.4 }}>Project</Typography>
+                    <Box
+                      component="select"
+                      value={maintainProjectId}
+                      onChange={(e) => setMaintainProjectId(e.target.value)}
+                      sx={{ width: '100%', p: '6px 10px', border: '1px solid rgba(94,123,180,0.45)', borderRadius: '8px', fontSize: '0.8rem', color: '#DBE7FF', backgroundColor: 'rgba(10, 22, 49, 0.9)' }}
+                    >
+                      <option value="">Select project</option>
+                      {allMaintainProjects.map((project) => (
+                        <option key={project.id} value={project.id}>{project.name}</option>
+                      ))}
+                    </Box>
+                  </Box>
+                  <Box>
+                    <Typography variant="caption" sx={{ color: '#8EA3CB', display: 'block', mb: 0.4 }}>Mock Cycle</Typography>
+                    <Box
+                      component="select"
+                      value={maintainCycleId}
+                      onChange={(e) => {
+                        const nextCycleId = e.target.value;
+                        setMaintainCycleId(nextCycleId);
+                        const cycle = allMaintainCycles.find((entry) => entry.id === nextCycleId);
+                        if (cycle) setMaintainProgramId(cycle.programId);
+                      }}
+                      sx={{ width: '100%', p: '6px 10px', border: '1px solid rgba(94,123,180,0.45)', borderRadius: '8px', fontSize: '0.8rem', color: '#DBE7FF', backgroundColor: 'rgba(10, 22, 49, 0.9)' }}
+                    >
+                      <option value="">Select mock cycle</option>
+                      {allMaintainCycles.map((cycle) => (
+                        <option key={cycle.id} value={cycle.id}>{cycle.name}</option>
+                      ))}
+                    </Box>
+                  </Box>
+                </Box>
+
+                <Box sx={{ mt: 1.4, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                  <Button
+                    size="small"
+                    variant="contained"
+                    onClick={handleAssignProjectToProgram}
+                    disabled={isAssigningMaintain || !maintainProjectId || !maintainProgramId}
+                    sx={{ textTransform: 'none', fontWeight: 700 }}
+                  >
+                    Assign Project to Program
+                  </Button>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    onClick={handleAssignMockCycleToProject}
+                    disabled={isAssigningMaintain || !maintainProjectId || !maintainCycleId}
+                    sx={{ textTransform: 'none', fontWeight: 700 }}
+                  >
+                    Assign Mock Cycle to Project
+                  </Button>
+                </Box>
+
+                <Typography variant="caption" sx={{ mt: 1, display: 'block', color: '#8EA3CB' }}>
+                  Current selection: {selectedMaintainProject?.name || 'No project'}
+                  {' -> '}
+                  {selectedMaintainProjectCycle?.name || 'No cycle'}
+                  {' -> '}
+                  {selectedMaintainProgram?.name || 'No program'}
                 </Typography>
               </Box>
 
@@ -5021,7 +5252,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                     )}
                     {!selectedCycleForMaintain && (
                       <Typography variant="caption" sx={{ color: '#8EA3CB', display: 'block', mt: 1 }}>
-                        Select a Mock Cycle, Project, or Process Area in the tree to enable Add Project.
+                        Select a Mock Cycle from the maintain menus to enable Add Project.
                       </Typography>
                     )}
                   </CardContent>
@@ -5094,7 +5325,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                     )}
                     {!selectedProgramForMaintain && (
                       <Typography variant="caption" sx={{ color: '#8EA3CB', display: 'block', mt: 1 }}>
-                        Select a Program or Mock Cycle in the tree to enable Add Mock Cycle.
+                        Select a Program from the maintain menus to enable Add Mock Cycle.
                       </Typography>
                     )}
                   </CardContent>
