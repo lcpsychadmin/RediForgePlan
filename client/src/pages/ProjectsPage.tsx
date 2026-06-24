@@ -218,7 +218,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   const [editProgressPercentage, setEditProgressPercentage] = useState(0);
   const [editCycleParentProjectId, setEditCycleParentProjectId] = useState('');
   const [editProjectParentProgramId, setEditProjectParentProgramId] = useState('');
-  const [editProjectParentCycleId, setEditProjectParentCycleId] = useState('');
   const [isEditing, setIsEditing] = useState(false);
   const [cloneCycleDialogOpen, setCloneCycleDialogOpen] = useState(false);
   const [cloneCycleSourceId, setCloneCycleSourceId] = useState<string | null>(null);
@@ -2195,7 +2194,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
           setEditEndDate(project.endDate || '');
           setEditAccentColor(project.accentColor || '');
           setEditProgressPercentage(project.progressPercentage || 0);
-          setEditProjectParentCycleId(cycleId);
           setEditProjectParentProgramId(parentCycle?.programId || '');
           break;
         }
@@ -2232,7 +2230,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
           endDate: editEndDate,
           accentColor: editAccentColor,
           progressPercentage: editProgressPercentage,
-          mockCycleId: editProjectParentCycleId,
         });
       }
 
@@ -6148,38 +6145,13 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
           {editItemType === 'project' && (
             <>
               <TextField
-                select
-                label="Parent Program"
-                value={editProjectParentProgramId}
-                onChange={(e) => {
-                  const nextProgramId = e.target.value;
-                  setEditProjectParentProgramId(nextProgramId);
-                  const nextCycles = allMaintainCycles.filter((cycle) => cycle.programId === nextProgramId);
-                  setEditProjectParentCycleId(nextCycles[0]?.id || '');
-                }}
+                label="Program"
+                value={programs.find((program) => program.id === editProjectParentProgramId)?.name || 'Unassigned'}
                 fullWidth
                 variant="outlined"
                 size="small"
-              >
-                {programs.map((program) => (
-                  <MenuItem key={program.id} value={program.id}>{program.name}</MenuItem>
-                ))}
-              </TextField>
-              <TextField
-                select
-                label="Parent Mock Cycle"
-                value={editProjectParentCycleId}
-                onChange={(e) => setEditProjectParentCycleId(e.target.value)}
-                fullWidth
-                variant="outlined"
-                size="small"
-              >
-                {allMaintainCycles
-                  .filter((cycle) => cycle.programId === editProjectParentProgramId)
-                  .map((cycle) => (
-                    <MenuItem key={cycle.id} value={cycle.id}>{cycle.name}</MenuItem>
-                  ))}
-              </TextField>
+                InputProps={{ readOnly: true }}
+              />
               <TextField
                 label="Start Date"
                 type="date"
@@ -6250,7 +6222,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
             onClick={handleEditConfirm}
             variant="contained"
             color="primary"
-            disabled={isEditing || (editItemType === 'project' && !editProjectParentCycleId)}
+            disabled={isEditing}
             sx={{ textTransform: 'none' }}
           >
             {isEditing ? 'Saving...' : 'Save'}
