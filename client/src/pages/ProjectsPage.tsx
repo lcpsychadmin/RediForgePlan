@@ -168,6 +168,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   // State for selected item
   const [selectedItem, setSelectedItem] = useState<SelectableItem | null>(null);
   const [tabValue, setTabValue] = useState(0);
+  const isPlanningMaintainTab = sectionMode === 'planning' && tabValue === 6;
   
   // Dialog states
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -2915,7 +2916,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     return !!end && end >= todayStart && end <= weekEnd;
   });
   const blockedTasks = allPriorityTasks.filter(t => t.status === 'blocked');
-  const isPlanningMaintainTab = sectionMode === 'planning' && tabValue === 6;
 
   const getPriorityTaskContext = (task: any) => {
     if (task.projectObjectId) {
