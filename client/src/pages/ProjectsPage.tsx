@@ -6106,6 +6106,21 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         )}
         <MenuItem
           onClick={() => {
+            if (!canManageHierarchy || menuType !== 'program' || !menuItemId) return;
+            setMenuAnchorEl(null);
+            setAttachNewCycleToTree(true);
+            openCreateDialog('cycle', menuItemId);
+          }}
+          sx={{
+            display: canManageHierarchy && menuType === 'program' && !!menuItemId && getOrderedCycles(menuItemId).length === 0
+              ? 'flex'
+              : 'none',
+          }}
+        >
+          <AddIcon fontSize="small" sx={{ mr: 1 }} /> Add Mock Cycle
+        </MenuItem>
+        <MenuItem
+          onClick={() => {
             if (menuType !== 'cycle' || !menuItemId) return;
             const targetProjectId = getPrimaryProjectIdForCycle(menuItemId);
             if (!targetProjectId) {
