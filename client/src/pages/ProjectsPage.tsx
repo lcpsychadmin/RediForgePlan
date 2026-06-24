@@ -344,6 +344,28 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   });
   const [isCreatingProjectInventoryItem, setIsCreatingProjectInventoryItem] = useState(false);
 
+  const getEmptyProjectInventoryItem = () => ({
+    dataObjectId: '',
+    parentProjectObjectId: '',
+    subObjectSuffix: '',
+    subObjectDescription: '',
+    isSubObject: false,
+    processArea: '',
+    complexity: '',
+    deploymentDisposition: '',
+    buildType: '',
+    objectType: '',
+    dra: '',
+    developer: '',
+    systemsAnalyst: '',
+    cutoverPhase: '',
+    ddmApproach: '',
+    riskSecurityType: '',
+    migrationType: '',
+    factorType: '',
+    loadMethod: '',
+  });
+
   // Plan tab states
   const [projectTasks, setProjectTasks] = useState<any[]>([]);
   const [projectTaskGroups, setProjectTaskGroups] = useState<any[]>([]);
@@ -2662,7 +2684,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
 
   const handleCatalogProcessAreaChange = async (objectId: string, processArea: string) => {
     try {
-      await apiClient.put(`/api/global-objects/${objectId}`, {
+      await apiClient.patch(`/api/global-objects/${objectId}`, {
         processArea,
       });
       setInventoryObjects(prev => prev.map(obj => obj.id === objectId ? { ...obj, processArea } : obj));
@@ -5355,7 +5377,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                           boxShadow: 'none',
                         }}
                         startIcon={<AddIcon />}
-                        onClick={() => setProjectInventoryDialogOpen(true)}
+                        onClick={() => {
+                          setEditingInventoryItemId(null);
+                          setProjectInventoryItem(getEmptyProjectInventoryItem());
+                          setProjectInventoryDialogOpen(true);
+                        }}
                         disabled={!selectedProjectForInventory}
                       >
                         Add to Inventory
@@ -7643,7 +7669,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                 
                 if (editingCatalogObjectId) {
                   // Update existing object
-                  await apiClient.put(`/api/global-objects/${editingCatalogObjectId}`, {
+                  await apiClient.patch(`/api/global-objects/${editingCatalogObjectId}`, {
                     description: catalogObjectDesc,
                     processArea: catalogProcessArea,
                   });
@@ -7720,27 +7746,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
       <Dialog open={projectInventoryDialogOpen} onClose={() => {
         setProjectInventoryDialogOpen(false);
         setEditingInventoryItemId(null);
-        setProjectInventoryItem({
-          dataObjectId: '',
-          parentProjectObjectId: '',
-          subObjectSuffix: '',
-          subObjectDescription: '',
-          isSubObject: false,
-          processArea: '',
-          complexity: '',
-          deploymentDisposition: '',
-          buildType: '',
-          objectType: '',
-          dra: '',
-          developer: '',
-          systemsAnalyst: '',
-          cutoverPhase: '',
-          ddmApproach: '',
-          riskSecurityType: '',
-          migrationType: '',
-          factorType: '',
-          loadMethod: '',
-        });
+        setProjectInventoryItem(getEmptyProjectInventoryItem());
       }} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 2 } }}>
         <DialogTitle sx={{ 
           background: theme => `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark || theme.palette.primary.main} 100%)`,
@@ -8060,27 +8066,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
             onClick={() => {
               setProjectInventoryDialogOpen(false);
               setEditingInventoryItemId(null);
-              setProjectInventoryItem({
-                dataObjectId: '',
-                parentProjectObjectId: '',
-                subObjectSuffix: '',
-                subObjectDescription: '',
-                isSubObject: false,
-                processArea: '',
-                complexity: '',
-                deploymentDisposition: '',
-                buildType: '',
-                objectType: '',
-                dra: '',
-                developer: '',
-                systemsAnalyst: '',
-                cutoverPhase: '',
-                ddmApproach: '',
-                riskSecurityType: '',
-                migrationType: '',
-                factorType: '',
-                loadMethod: '',
-              });
+              setProjectInventoryItem(getEmptyProjectInventoryItem());
             }}
             sx={{ textTransform: 'none' }}
           >
@@ -8212,27 +8198,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                 }
                 
                 setProjectInventoryDialogOpen(false);
-                setProjectInventoryItem({
-                  dataObjectId: '',
-                  parentProjectObjectId: '',
-                  subObjectSuffix: '',
-                  subObjectDescription: '',
-                  isSubObject: false,
-                  processArea: '',
-                  complexity: '',
-                  deploymentDisposition: '',
-                  buildType: '',
-                  objectType: '',
-                  dra: '',
-                  developer: '',
-                  systemsAnalyst: '',
-                  cutoverPhase: '',
-                  ddmApproach: '',
-                  riskSecurityType: '',
-                  migrationType: '',
-                  factorType: '',
-                  loadMethod: '',
-                });
+                setProjectInventoryItem(getEmptyProjectInventoryItem());
               } catch (error) {
                 console.error('Failed to save item:', error);
                 const errorMessage = (error as any)?.response?.data?.message || 'Failed to save item. Please try again.';
