@@ -232,13 +232,14 @@ export class ProgramService {
 
         if (!targetCycleId) {
           console.log(`[deleteMockCycle] No available target cycle, creating new one`);
+          const replacementBaseName = sourceCycle.name.replace(/\s*\(Replacement\)+\s*$/i, '').trim() || sourceCycle.name;
           const createdCycleResult = await client.query(
             `INSERT INTO mock_cycles (program_id, name, start_date, end_date, schedule_mode, accent_color)
              VALUES ($1, $2, $3, $4, $5, $6)
              RETURNING id`,
             [
               sourceCycle.program_id,
-              `${sourceCycle.name} (Replacement)`,
+              `${replacementBaseName} (Replacement)`,
               sourceCycle.start_date,
               sourceCycle.end_date,
               sourceCycle.schedule_mode || 'all_days',
