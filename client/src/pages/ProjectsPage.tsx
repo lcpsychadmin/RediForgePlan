@@ -382,6 +382,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   // Refs for always-current values — avoids stale closures in cascade
   const projectTasksRef = React.useRef<any[]>([]);
   projectTasksRef.current = projectTasks;
+  const projectTasksLoadedRef = React.useRef(false);
+  const projectInventoryLoadedRef = React.useRef(false);
+  const seededDefaultTaskObjectsRef = React.useRef<Set<string>>(new Set());
   const taskDepsRef = React.useRef<Record<string, any[]>>({});
   taskDepsRef.current = taskDeps;
 
@@ -1848,8 +1851,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
       if (!activeProjectId) {
         setProjectInventoryItems([]);
         setSelectedExecutionProcessArea('');
+        projectInventoryLoadedRef.current = false;
         return;
       }
+
+      projectInventoryLoadedRef.current = false;
 
       try {
         const response = await apiClient.get(`/api/project-objects/project/${activeProjectId}`);
@@ -1879,9 +1885,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
           startDate: item.startDate,
           endDate: item.endDate,
         })));
+        projectInventoryLoadedRef.current = true;
       } catch (error) {
         console.error('Failed to load project inventory:', error);
         setProjectInventoryItems([]);
+        projectInventoryLoadedRef.current = false;
       }
     };
 
@@ -1903,8 +1911,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         setProjectTasks([]);
         setProjectTaskGroups([]);
         setTaskCommentCounts({});
+        projectTasksLoadedRef.current = false;
         return;
       }
+
+      projectTasksLoadedRef.current = false;
 
       try {
         // Load tasks
@@ -1944,15 +1955,62 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
           }
         }
         setTaskCommentCounts(commentCounts);
+        projectTasksLoadedRef.current = true;
       } catch (error) {
         console.error('Failed to load tasks:', error);
         setProjectTasks([]);
         setProjectTaskGroups([]);
+        projectTasksLoadedRef.current = false;
       }
     };
 
     loadTasksAndGroups();
   }, [activeProjectId]);
+
+  useEffect(() => {
+    seededDefaultTaskObjectsRef.current = new Set();
+    projectTasksLoadedRef.current = false;
+    projectInventoryLoadedRef.current = false;
+  }, [activeProjectId]);
+
+  useEffect(() => {
+    if (!activeProjectId) return;
+    if (!projectTasksLoadedRef.current || !projectInventoryLoadedRef.current) return;
+    if (defaultTaskOrder.length === 0) return;
+
+    const seededIds = seededDefaultTaskObjectsRef.current;
+    const subObjectsNeedingDefaults = projectInventoryItems.filter((item: any) =>
+      item.parentProjectObjectId &&
+      !projectTasks.some((task: any) => task.projectObjectId === item.id) &&
+      !seededIds.has(item.id)
+    );
+
+    if (subObjectsNeedingDefaults.length === 0) return;
+
+    let cancelled = false;
+    (async () => {
+      for (const subObject of subObjectsNeedingDefaults) {
+        seededIds.add(subObject.id);
+        try {
+          const tasksResponse = await apiClient.post(`/api/tasks/defaults/project-object/${subObject.id}`, {
+            projectId: activeProjectId,
+          });
+          if (cancelled) return;
+          const seededTasks = (tasksResponse.data.data || []).map((t: any) => normalizeTaskDateFields(t));
+          if (seededTasks.length > 0) {
+            setProjectTasks(prev => [...prev, ...seededTasks]);
+          }
+        } catch (error) {
+          console.error('Failed to seed default tasks for sub-object:', error);
+          seededIds.delete(subObject.id);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeProjectId, projectInventoryItems, projectTasks, defaultTaskOrder]);
 
   useEffect(() => {
     const loadCycleOverview = async () => {
@@ -4601,7 +4659,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                               return (a.name || '').localeCompare(b.name || '');
                                             });
                                           const childStatus = childTasks.length > 0 && childTasks.every(t => t.status === 'complete') ? 'complete' : childTasks.some(t => t.status === 'in_progress') ? 'in_progress' : childTasks.some(t => t.status === 'blocked') ? 'blocked' : 'not_started';
-                                          const childStatusLabel = childStatus === 'in_progress' ? 'In Progress' : childStatus === 'not_started' ? 'Not Started' : childStatus.charAt(0).toUpperCase() + childStatus.slice(1);
                                           const childGlobal = inventoryObjects.find(o => o.id === subObject.globalObjectId || o.objectId === subObject.objectId);
                                           const childDescription = childGlobal?.description || subObject.subObjectDescription || subObject.description || '';
                                           return (
@@ -4629,8 +4686,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                               <Typography variant="caption" sx={{ color: 'text.primary', fontWeight: 600, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                                 {childDescription || 'Sub-object'}
                                               </Typography>
-                                              <Box sx={{ px: 1, py: 0.25, borderRadius: 1, border: '1px solid rgba(111, 180, 78, 0.25)', backgroundColor: childStatus === 'complete' ? 'rgba(91, 192, 91, 0.14)' : childStatus === 'in_progress' ? 'rgba(86, 180, 255, 0.14)' : childStatus === 'blocked' ? 'rgba(237, 117, 117, 0.14)' : 'rgba(255,255,255,0.06)', color: childStatus === 'complete' ? '#B7E08D' : childStatus === 'in_progress' ? '#8ED8FF' : childStatus === 'blocked' ? '#FFB3B3' : 'text.secondary', fontSize: '0.7rem', fontWeight: 700, flexShrink: 0 }}>
-                                                {childStatusLabel}
+                                              <Box sx={{ display: { xs: 'none', md: 'flex' }, gap: 0.4, alignItems: 'center', flexShrink: 0 }}>
+                                                {childTasks.slice(0, 10).map((task: any, i: number) => (
+                                                  <Box key={i} sx={{ width: 16, height: 4, borderRadius: 2, backgroundColor: getTaskStatusColor(task.status) }} />
+                                                ))}
                                               </Box>
                                               <Box sx={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: getTaskStatusColor(childStatus), flexShrink: 0 }} />
                                             </Box>
