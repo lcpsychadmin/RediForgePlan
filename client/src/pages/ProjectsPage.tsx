@@ -7500,6 +7500,17 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
           Add Data Object to Plan
         </DialogTitle>
         <DialogContent sx={{ pt: 2 }}>
+          {(() => {
+            const selectedProcessArea = (selectedItem?.type === 'processArea' ? selectedItem.area : '').trim().toLowerCase();
+            const selectableParentObjects = projectInventoryItems
+              .filter((item: any) => !item.parentProjectObjectId)
+              .filter((item: any) => {
+                if (!selectedProcessArea) return true;
+                return ((item.processArea || '').trim().toLowerCase() === selectedProcessArea);
+              })
+              .sort((a: any, b: any) => (a.objectId || '').localeCompare(b.objectId || ''));
+
+            return (
           <TextField
             select
             autoFocus
@@ -7511,14 +7522,14 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
               setNewDataObjectId(value);
             }}
             margin="normal"
-            helperText="Only objects in this project's inventory are available"
+            helperText={selectedProcessArea
+              ? 'Only objects assigned to this process area are available'
+              : "Only objects in this project's inventory are available"}
             variant="outlined"
             size="small"
           >
-            {projectInventoryItems.filter((item: any) => !item.parentProjectObjectId).length > 0 ? (
-              projectInventoryItems
-                .filter((item: any) => !item.parentProjectObjectId)
-                .sort((a: any, b: any) => (a.objectId || '').localeCompare(b.objectId || ''))
+            {selectableParentObjects.length > 0 ? (
+              selectableParentObjects
                 .map((item: any) => {
                   const subObjectCount = projectInventoryItems.filter((entry: any) => entry.parentProjectObjectId === item.id).length;
                   return (
@@ -7530,9 +7541,13 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                   );
                 })
             ) : (
-              <MenuItem disabled>No objects in project inventory</MenuItem>
+              <MenuItem disabled>
+                {selectedProcessArea ? 'No objects assigned to this process area' : 'No objects in project inventory'}
+              </MenuItem>
             )}
           </TextField>
+            );
+          })()}
           <Box sx={{ mt: 2, p: 1.25, border: '1px solid rgba(255,255,255,0.08)', borderRadius: 1, backgroundColor: 'rgba(255,255,255,0.02)' }}>
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.35 }}>
               Process Area / Plan Group
