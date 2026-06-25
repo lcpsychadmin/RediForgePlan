@@ -7502,12 +7502,26 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         <DialogContent sx={{ pt: 2 }}>
           {(() => {
             const selectedProcessArea = (selectedItem?.type === 'processArea' ? selectedItem.area : '').trim().toLowerCase();
+            const inventoryById = new Map(projectInventoryItems.map((item: any) => [item.id, item]));
+            const getRootObjectId = (objectId: string) => {
+              let current = inventoryById.get(objectId);
+              while (current?.parentProjectObjectId) {
+                current = inventoryById.get(current.parentProjectObjectId);
+              }
+              return current?.id || objectId;
+            };
+            const assignedRootObjectIds = new Set(
+              projectTasks
+                .filter((task: any) => !!task.projectObjectId)
+                .map((task: any) => getRootObjectId(task.projectObjectId))
+            );
             const selectableParentObjects = projectInventoryItems
               .filter((item: any) => !item.parentProjectObjectId)
               .filter((item: any) => {
                 if (!selectedProcessArea) return true;
                 return ((item.processArea || '').trim().toLowerCase() === selectedProcessArea);
               })
+              .filter((item: any) => !assignedRootObjectIds.has(item.id))
               .sort((a: any, b: any) => (a.objectId || '').localeCompare(b.objectId || ''));
 
             return (
@@ -7523,8 +7537,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
             }}
             margin="normal"
             helperText={selectedProcessArea
-              ? 'Only objects assigned to this process area are available'
-              : "Only objects in this project's inventory are available"}
+              ? 'Only unassigned objects in this process area are available'
+              : "Only unassigned objects in this project's inventory are available"}
             variant="outlined"
             size="small"
           >
@@ -7542,7 +7556,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                 })
             ) : (
               <MenuItem disabled>
-                {selectedProcessArea ? 'No objects assigned to this process area' : 'No objects in project inventory'}
+                {selectedProcessArea ? 'No unassigned objects in this process area' : 'No unassigned objects in project inventory'}
               </MenuItem>
             )}
           </TextField>
