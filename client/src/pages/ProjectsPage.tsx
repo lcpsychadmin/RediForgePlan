@@ -1858,33 +1858,56 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
       projectInventoryLoadedRef.current = false;
 
       try {
-        const response = await apiClient.get(`/api/project-objects/project/${activeProjectId}`);
-        const items = response.data.data || [];
-        setProjectInventoryItems(items.map((item: any) => ({
-          id: item.id,
-          projectId: item.projectId,
-          dataObjectId: item.objectId,
-          objectId: item.objectId,
-          globalObjectId: item.globalObjectId,
-          parentProjectObjectId: item.parentProjectObjectId || '',
-          parentObjectId: item.parentObjectId || '',
-          subObjectSuffix: item.subObjectSuffix || '',
-          subObjectDescription: item.subObjectDescription || '',
-          isSubObject: !!item.parentProjectObjectId,
-          processArea: item.processArea,
-          complexity: item.complexity,
-          deploymentDisposition: item.deploymentDisposition,
-          buildType: item.buildType,
-          objectType: item.objectType,
-          cutoverPhase: item.cutoverPhase,
-          ddmApproach: item.ddmApproach,
-          riskSecurityType: item.riskSecurityType,
-          migrationType: item.migrationType,
-          factorType: item.factorType,
-          loadMethod: item.loadMethod,
-          startDate: item.startDate,
-          endDate: item.endDate,
-        })));
+        const selectedProjectName = (selectedDetails?.type === 'project' || selectedDetails?.type === 'processArea')
+          ? (selectedDetails.name || '').trim().toLowerCase()
+          : '';
+        const siblingProjectIds = new Set<string>([activeProjectId]);
+        const cycleProjects = activeCycleId ? (projectsByMockCycle[activeCycleId] || []) : [];
+        if (selectedProjectName) {
+          cycleProjects.forEach((project: any) => {
+            if ((project.name || '').trim().toLowerCase() === selectedProjectName) {
+              siblingProjectIds.add(project.id);
+            }
+          });
+        }
+
+        const responses = await Promise.all(
+          Array.from(siblingProjectIds).map(async (projectId) => {
+            const response = await apiClient.get(`/api/project-objects/project/${projectId}`);
+            return response.data.data || [];
+          })
+        );
+
+        const itemsById = new Map<string, any>();
+        responses.flat().forEach((item: any) => {
+          itemsById.set(item.id, {
+            id: item.id,
+            projectId: item.projectId,
+            dataObjectId: item.objectId,
+            objectId: item.objectId,
+            globalObjectId: item.globalObjectId,
+            parentProjectObjectId: item.parentProjectObjectId || '',
+            parentObjectId: item.parentObjectId || '',
+            subObjectSuffix: item.subObjectSuffix || '',
+            subObjectDescription: item.subObjectDescription || '',
+            isSubObject: !!item.parentProjectObjectId,
+            processArea: item.processArea,
+            complexity: item.complexity,
+            deploymentDisposition: item.deploymentDisposition,
+            buildType: item.buildType,
+            objectType: item.objectType,
+            cutoverPhase: item.cutoverPhase,
+            ddmApproach: item.ddmApproach,
+            riskSecurityType: item.riskSecurityType,
+            migrationType: item.migrationType,
+            factorType: item.factorType,
+            loadMethod: item.loadMethod,
+            startDate: item.startDate,
+            endDate: item.endDate,
+          });
+        });
+
+        setProjectInventoryItems(Array.from(itemsById.values()));
         projectInventoryLoadedRef.current = true;
       } catch (error) {
         console.error('Failed to load project inventory:', error);
@@ -1894,7 +1917,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     };
 
     loadProjectInventory();
-  }, [activeProjectId]);
+  }, [activeProjectId, activeCycleId, projectsByMockCycle, selectedDetails]);
 
   useEffect(() => {
     if (selectedItem?.type === 'processArea') {
