@@ -1979,8 +1979,19 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     if (defaultTaskOrder.length === 0) return;
 
     const seededIds = seededDefaultTaskObjectsRef.current;
+    const inventoryById = new Map(projectInventoryItems.map((item: any) => [item.id, item]));
+    const assignedParentObjectIds = new Set(
+      projectTasks
+        .filter((task: any) => !!task.projectObjectId)
+        .map((task: any) => task.projectObjectId)
+        .filter((objectId: string) => {
+          const item = inventoryById.get(objectId);
+          return !!item && !item.parentProjectObjectId;
+        })
+    );
     const subObjectsNeedingDefaults = projectInventoryItems.filter((item: any) =>
       item.parentProjectObjectId &&
+      assignedParentObjectIds.has(item.parentProjectObjectId) &&
       !projectTasks.some((task: any) => task.projectObjectId === item.id) &&
       !seededIds.has(item.id)
     );
