@@ -1858,9 +1858,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
       projectInventoryLoadedRef.current = false;
 
       try {
-        const selectedProjectName = (selectedDetails?.type === 'project' || selectedDetails?.type === 'processArea')
-          ? (selectedDetails.name || '').trim().toLowerCase()
-          : '';
+        const selectedProjectRecord = [
+          ...(activeCycleId ? (projectsByMockCycle[activeCycleId] || []) : []),
+          ...Object.values(projectsByProgram).flat(),
+        ].find((project: any) => project.id === activeProjectId) || null;
+        const selectedProjectName = (selectedProjectRecord?.name || '').trim().toLowerCase();
         const siblingProjectIds = new Set<string>([activeProjectId]);
         const cycleProjects = activeCycleId ? (projectsByMockCycle[activeCycleId] || []) : [];
         if (selectedProjectName) {
@@ -1917,7 +1919,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     };
 
     loadProjectInventory();
-  }, [activeProjectId, activeCycleId, projectsByMockCycle, selectedDetails]);
+  }, [activeProjectId, activeCycleId, projectsByMockCycle, projectsByProgram]);
 
   useEffect(() => {
     if (selectedItem?.type === 'processArea') {
