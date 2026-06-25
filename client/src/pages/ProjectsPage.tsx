@@ -7501,24 +7501,40 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         </DialogTitle>
         <DialogContent sx={{ pt: 2 }}>
           {(() => {
-            const selectedProcessArea = (selectedItem?.type === 'processArea' ? selectedItem.area : '').trim().toLowerCase();
+            const selectedProcessAreaRaw = (selectedItem?.type === 'processArea' ? selectedItem.area : '').trim().toLowerCase();
+            const selectedProcessAreaDisplay = (
+              selectedItem?.type === 'processArea' && selectedItem?.projectId
+                ? getProcessAreaDisplayName(selectedItem.projectId, selectedItem.area)
+                : ''
+            ).trim().toLowerCase();
             const inventoryById = new Map(projectInventoryItems.map((item: any) => [item.id, item]));
-            const assignedRootObjectIds = new Set(
+            const assignedObjectIds = new Set(
               projectTasks
                 .filter((task: any) => !!task.projectObjectId)
                 .map((task: any) => task.projectObjectId)
-                .filter((objectId: string) => {
-                  const item = inventoryById.get(objectId);
-                  return !!item && !item.parentProjectObjectId;
-                })
             );
-            const selectableParentObjects = projectInventoryItems
-              .filter((item: any) => !item.parentProjectObjectId)
+            const areaMatchesSelectedNode = (areaValue: string, projectIdValue: string) => {
+              if (!selectedProcessAreaRaw && !selectedProcessAreaDisplay) return true;
+              const areaRaw = (areaValue || '').trim().toLowerCase();
+              const areaDisplay = getProcessAreaDisplayName(
+                projectIdValue,
+                areaValue || ''
+              ).trim().toLowerCase();
+              return areaRaw === selectedProcessAreaRaw
+                || (!!selectedProcessAreaDisplay && areaDisplay === selectedProcessAreaDisplay);
+            };
+            const selectableObjects = projectInventoryItems
               .filter((item: any) => {
-                if (!selectedProcessArea) return true;
-                return ((item.processArea || '').trim().toLowerCase() === selectedProcessArea);
+                const projectIdForItem = activeProjectId || item.projectId || '';
+                if (areaMatchesSelectedNode(item.processArea || '', projectIdForItem)) {
+                  return true;
+                }
+
+                // Some objects are effectively assigned to a node through sub-objects.
+                const childItems = projectInventoryItems.filter((entry: any) => entry.parentProjectObjectId === item.id);
+                return childItems.some((child: any) => areaMatchesSelectedNode(child.processArea || '', activeProjectId || child.projectId || projectIdForItem));
               })
-              .filter((item: any) => !assignedRootObjectIds.has(item.id))
+              .filter((item: any) => !assignedObjectIds.has(item.id))
               .sort((a: any, b: any) => (a.objectId || '').localeCompare(b.objectId || ''));
 
             return (
@@ -7533,19 +7549,21 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
               setNewDataObjectId(value);
             }}
             margin="normal"
-            helperText={selectedProcessArea
+            helperText={(selectedProcessAreaRaw || selectedProcessAreaDisplay)
               ? 'Only unassigned objects in this process area are available'
               : "Only unassigned objects in this project's inventory are available"}
             variant="outlined"
             size="small"
           >
-            {selectableParentObjects.length > 0 ? (
-              selectableParentObjects
+            {selectableObjects.length > 0 ? (
+              selectableObjects
                 .map((item: any) => {
                   const subObjectCount = projectInventoryItems.filter((entry: any) => entry.parentProjectObjectId === item.id).length;
+                  const parentObject = item.parentProjectObjectId ? inventoryById.get(item.parentProjectObjectId) : null;
                   return (
                     <MenuItem key={item.id} value={item.id}>
                       {item.objectId}
+                      {parentObject ? ` (Sub-object of ${parentObject.objectId})` : ''}
                       {item.processArea && ` (${getProcessAreaDisplayName(activeProjectId || item.projectId || '', item.processArea)})`}
                       {subObjectCount > 0 ? ` + ${subObjectCount} sub-object${subObjectCount === 1 ? '' : 's'}` : ''}
                     </MenuItem>
@@ -7553,7 +7571,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                 })
             ) : (
               <MenuItem disabled>
-                {selectedProcessArea ? 'No unassigned objects in this process area' : 'No unassigned objects in project inventory'}
+                {(selectedProcessAreaRaw || selectedProcessAreaDisplay) ? 'No unassigned objects in this process area' : 'No unassigned objects in project inventory'}
               </MenuItem>
             )}
           </TextField>
