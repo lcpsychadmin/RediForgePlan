@@ -4559,6 +4559,18 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                               const hierarchyChildTasks = isHierarchyNode
                                 ? subObjects.flatMap((subObject: any) => projectTasks.filter(t => t.projectObjectId === subObject.id))
                                 : [];
+                              const hierarchyChildObjectStatuses = isHierarchyNode
+                                ? subObjects.map((subObject: any) => {
+                                    const childTasks = projectTasks.filter(t => t.projectObjectId === subObject.id);
+                                    return childTasks.length > 0 && childTasks.every(t => t.status === 'complete')
+                                      ? 'complete'
+                                      : childTasks.some(t => t.status === 'in_progress')
+                                        ? 'in_progress'
+                                        : childTasks.some(t => t.status === 'blocked')
+                                          ? 'blocked'
+                                          : 'not_started';
+                                  })
+                                : [];
                               const displayTasks = isHierarchyNode ? [] : directTasksForObject;
                               const relevantTasks = isHierarchyNode ? hierarchyChildTasks : directTasksForObject;
                               const hierarchyStatus = hierarchyChildTasks.length > 0 && hierarchyChildTasks.every(t => t.status === 'complete')
@@ -4643,7 +4655,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                     {isHierarchyNode ? (
                                       <>
                                         <Box sx={{ display: { xs: 'none', md: 'flex' }, gap: 0.4, alignItems: 'center', flexShrink: 0 }}>
-                                          {hierarchyChildTasks.slice(0, 10).map((task, i) => (<Box key={i} sx={{ width: 16, height: 4, borderRadius: 2, backgroundColor: getTaskStatusColor(task.status) }} />))}
+                                          {hierarchyChildObjectStatuses.slice(0, 10).map((status, i) => (<Box key={i} sx={{ width: 16, height: 4, borderRadius: 2, backgroundColor: getTaskStatusColor(status) }} />))}
                                         </Box>
                                         <Box sx={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: getTaskStatusColor(hierarchyStatus), flexShrink: 0 }} />
                                       </>
