@@ -3318,6 +3318,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         const projGroups: any[] = groupsRes.data.data || [];
         projTasks.forEach(t => {
           const invItem = projInv.find(o => o.id === t.projectObjectId);
+          const parentInvItem = invItem?.parentProjectObjectId ? projInv.find(o => o.id === invItem.parentProjectObjectId) : null;
           const group = projGroups.find(g => g.id === t.taskGroupId);
           const taskCycle = activeCycleId
             ? (mockCycles[proj.programId || ''] || []).find((cycle: any) => cycle.id === activeCycleId)
@@ -3333,6 +3334,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
             projectAccentColor: proj.accentColor || '#00BFA5',
             processArea: taskProcessArea,
             objectLabel: invItem ? (invItem.objectId + (invItem.description ? ' — ' + invItem.description : '')) : null,
+            objectDescription: invItem?.description || invItem?.subObjectDescription || null,
+            parentProjectObjectId: invItem?.parentProjectObjectId || null,
+            parentObjectLabel: parentInvItem ? (parentInvItem.objectId + (parentInvItem.description ? ' — ' + parentInvItem.description : '')) : null,
+            parentObjectDescription: parentInvItem?.description || parentInvItem?.subObjectDescription || null,
+            isSubObject: !!invItem?.parentProjectObjectId,
             groupLabel: group?.name || null,
           });
         });
@@ -7787,11 +7793,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                 if (cycle) { cycleName = cycle.name; break; }
               }
 
-              // Group by project -> process area -> object/task group
+              // Group by project -> process area -> hierarchy node
               const projectMap: Record<string, {
                 name: string;
                 color: string;
-                areas: Record<string, { nodes: Record<string, { label: string; type: 'object' | 'taskGroup' | 'other'; tasks: any[] }> }>;
+                areas: Record<string, { nodes: Record<string, { label: string; type: 'object' | 'taskGroup' | 'other'; tasks: any[]; children: string[]; parentObjectId?: string | null }> }>;
               }> = {};
               cycleTasksForDep
                 .filter(t => t.id !== depDialogTaskId && (!depSearchTerm
@@ -7812,13 +7818,37 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                   if (!projectMap[pid].areas[area]) {
                     projectMap[pid].areas[area] = { nodes: {} };
                   }
-                  const oKey = t.objectLabel ? `obj-${t.projectObjectId}` : t.groupLabel ? `grp-${t.taskGroupId}` : 'ungrouped';
-                  const oLabel = t.objectLabel || t.groupLabel || 'Other Tasks';
-                  const nodeType: 'object' | 'taskGroup' | 'other' = t.objectLabel ? 'object' : t.groupLabel ? 'taskGroup' : 'other';
-                  if (!projectMap[pid].areas[area].nodes[oKey]) {
-                    projectMap[pid].areas[area].nodes[oKey] = { label: oLabel, type: nodeType, tasks: [] };
+                  const areaNodes = projectMap[pid].areas[area].nodes;
+                  if (t.objectLabel) {
+                    const childKey = `obj-${t.projectObjectId}`;
+                    const childLabel = t.objectLabel;
+                    const childParentId = t.parentProjectObjectId || null;
+                    if (!areaNodes[childKey]) {
+                      areaNodes[childKey] = { label: childLabel, type: 'object', tasks: [], children: [], parentObjectId: childParentId };
+                    }
+                    areaNodes[childKey].tasks.push(t);
+
+                    if (childParentId) {
+                      const parentKey = `obj-${childParentId}`;
+                      const parentLabel = t.parentObjectLabel || 'Parent Object';
+                      if (!areaNodes[parentKey]) {
+                        areaNodes[parentKey] = { label: parentLabel, type: 'object', tasks: [], children: [], parentObjectId: null };
+                      }
+                      if (!areaNodes[parentKey].children.includes(childKey)) areaNodes[parentKey].children.push(childKey);
+                    }
+                  } else if (t.groupLabel) {
+                    const groupKey = `grp-${t.taskGroupId}`;
+                    if (!areaNodes[groupKey]) {
+                      areaNodes[groupKey] = { label: t.groupLabel || 'Task Group', type: 'taskGroup', tasks: [], children: [] };
+                    }
+                    areaNodes[groupKey].tasks.push(t);
+                  } else {
+                    const otherKey = 'ungrouped';
+                    if (!areaNodes[otherKey]) {
+                      areaNodes[otherKey] = { label: 'Other Tasks', type: 'other', tasks: [], children: [] };
+                    }
+                    areaNodes[otherKey].tasks.push(t);
                   }
-                  projectMap[pid].areas[area].nodes[oKey].tasks.push(t);
                 });
 
               return (
@@ -7858,7 +7888,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                 <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, fontSize: '0.7rem', letterSpacing: '0.04em' }}>{getProcessAreaDisplayName(pid, areaName)}</Typography>
                               </Box>
 
-                              {areaExpanded && Object.entries(areaData.nodes).map(([oKey, objData]) => {
+                              {areaExpanded && Object.entries(areaData.nodes).filter(([, objData]) => !objData.parentObjectId).map(([oKey, objData]) => {
                                 const objExpKey = `${areaKey}-${oKey}`;
                                 const objExpanded = depTreeExpanded[objExpKey] === true;
                                 return (
@@ -7874,7 +7904,81 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                       <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500, fontSize: '0.72rem' }}>{objData.label}</Typography>
                                     </Box>
 
-                                    {objExpanded && objData.tasks.map((t: any) => {
+                                    {objExpanded && objData.children.length > 0 && objData.children.map((childKey: string) => {
+                                      const childNode = areaData.nodes[childKey];
+                                      if (!childNode) return null;
+                                      const childExpKey = `${areaKey}-${childKey}`;
+                                      const childExpanded = depTreeExpanded[childExpKey] === true;
+                                      return (
+                                        <Box key={childKey} sx={{ ml: 2.5, mt: 0.25 }}>
+                                          <Box onClick={() => setDepTreeExpanded(prev => ({ ...prev, [childExpKey]: !childExpanded }))}
+                                            sx={{ display: 'flex', alignItems: 'center', gap: 0.75, py: 0.4, px: 0.75, borderRadius: 1, cursor: 'pointer', '&:hover': { backgroundColor: 'rgba(255,255,255,0.04)' } }}>
+                                            <ChevronRightIcon sx={{ fontSize: '0.7rem', color: 'text.disabled', transform: childExpanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s', flexShrink: 0 }} />
+                                            <ViewListIcon sx={{ fontSize: '0.75rem', color: 'text.secondary' }} />
+                                            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500, fontSize: '0.72rem' }}>{childNode.label}</Typography>
+                                          </Box>
+
+                                          {childExpanded && childNode.tasks.map((t: any) => {
+                                            const isDep = (taskDeps[depDialogTaskId || ''] || []).some((d: any) => d.dependsOnTaskId === t.id);
+                                            return (
+                                              <Box key={t.id} sx={{ ml: 2.5, display: 'flex', alignItems: 'center', gap: 1.25, py: 0.5, px: 0.75, borderRadius: 1, cursor: 'pointer', backgroundColor: isDep ? 'rgba(91,103,202,0.14)' : 'transparent', '&:hover': { backgroundColor: isDep ? 'rgba(91,103,202,0.2)' : 'rgba(255,255,255,0.05)' } }}
+                                                onClick={async () => {
+                                                  const taskId = depDialogTaskId;
+                                                  if (!taskId) return;
+                                                  try {
+                                                    if (isDep) {
+                                                      await apiClient.delete(`/api/tasks/${taskId}/dependencies/${t.id}`);
+                                                    } else {
+                                                      await apiClient.post(`/api/tasks/${taskId}/dependencies`, { dependsOnTaskId: t.id });
+                                                    }
+                                                  } catch (depErr) { console.error('Dep toggle failed', depErr); return; }
+
+                                                  const freshDeps = await loadTaskDeps(taskId);
+                                                  const affectedTask = projectTasks.find(pt => pt.id === taskId);
+
+                                                  if (affectedTask?.duration && freshDeps.length > 0) {
+                                                    let maxEndDate: string | null = null;
+                                                    for (const dep of freshDeps) {
+                                                      const depEnd = dep.endDate
+                                                                  || projectTasks.find((ct: any) => ct.id === dep.dependsOnTaskId)?.endDate
+                                                                  || cycleTasksForDep.find((ct: any) => ct.id === dep.dependsOnTaskId)?.endDate;
+                                                      if (depEnd && (!maxEndDate || depEnd > maxEndDate)) maxEndDate = depEnd;
+                                                    }
+                                                    if (maxEndDate) {
+                                                      let newStart: string;
+                                                      const ddep = new Date(maxEndDate.substring(0, 10) + 'T00:00:00');
+                                                      ddep.setDate(ddep.getDate() + 1);
+                                                      const taskMode = getTaskCalendarMode(affectedTask);
+                                                      if (taskMode === 'working_days') {
+                                                        while (isWeekend(ddep)) ddep.setDate(ddep.getDate() + 1);
+                                                      }
+                                                      newStart = formatDateOnly(ddep);
+                                                      const patchPayload: any = { startDate: newStart };
+                                                      const newEnd = calcEndDate(newStart, affectedTask.duration, affectedTask);
+                                                      if (newEnd) patchPayload.endDate = newEnd;
+                                                      try {
+                                                        await apiClient.patch(`/api/tasks/${taskId}`, patchPayload);
+                                                        setProjectTasks(prev => prev.map(pt => pt.id === taskId ? { ...pt, ...patchPayload } : pt));
+                                                        const updatedTasks = projectTasks.map(pt => pt.id === taskId ? { ...pt, ...patchPayload } : pt);
+                                                        const updatedDeps = { ...taskDeps, [taskId]: freshDeps };
+                                                        await cascadeAllDates(updatedTasks, updatedDeps);
+                                                      } catch (e) { /* ignore */ }
+                                                    }
+                                                  }
+                                                }}>
+                                                <Box sx={{ width: 14, height: 14, borderRadius: '3px', border: '1.5px solid', borderColor: isDep ? 'primary.main' : 'rgba(255,255,255,0.3)', backgroundColor: isDep ? 'primary.main' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                                  {isDep && <Box sx={{ width: 6, height: 6, backgroundColor: 'white', borderRadius: '1px' }} />}
+                                                </Box>
+                                                <Typography variant="body2" sx={{ fontSize: '0.78rem', flex: 1 }}>{t.name || 'Unnamed'}</Typography>
+                                                <Box sx={{ px: 0.75, py: 0.15, borderRadius: 0.5, fontSize: '0.65rem', fontWeight: 600, backgroundColor: `${getTaskStatusColor(t.status)}22`, color: getTaskStatusColor(t.status), flexShrink: 0, whiteSpace: 'nowrap' }}>{(t.status || '').replace(/_/g, ' ')}</Box>
+                                              </Box>
+                                            );
+                                          })}
+                                        </Box>
+                                      );
+                                    })}
+
+                                    {objExpanded && !objData.children.length && objData.tasks.map((t: any) => {
                                       const isDep = (taskDeps[depDialogTaskId || ''] || []).some((d: any) => d.dependsOnTaskId === t.id);
                                       return (
                                         <Box key={t.id} sx={{ ml: 2.5, display: 'flex', alignItems: 'center', gap: 1.25, py: 0.5, px: 0.75, borderRadius: 1, cursor: 'pointer', backgroundColor: isDep ? 'rgba(91,103,202,0.14)' : 'transparent', '&:hover': { backgroundColor: isDep ? 'rgba(91,103,202,0.2)' : 'rgba(255,255,255,0.05)' } }}
