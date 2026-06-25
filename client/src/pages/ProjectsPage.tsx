@@ -1698,7 +1698,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
       setExpandedPrograms(new Set(Array.isArray(parsed?.expandedPrograms) ? parsed.expandedPrograms : []));
       setExpandedCycles(new Set(Array.isArray(parsed?.expandedCycles) ? parsed.expandedCycles : []));
       setExpandedProjectGroups(new Set(Array.isArray(parsed?.expandedProjectGroups) ? parsed.expandedProjectGroups : []));
-      setExpandedObjects(new Set(Array.isArray(parsed?.expandedObjects) ? parsed.expandedObjects : []));
+      // Object rows should start collapsed on load; users can expand them manually in-session.
+      setExpandedObjects(new Set());
     };
 
     const hydrateHierarchyState = async () => {
@@ -4600,6 +4601,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                               return (a.name || '').localeCompare(b.name || '');
                                             });
                                           const childStatus = childTasks.length > 0 && childTasks.every(t => t.status === 'complete') ? 'complete' : childTasks.some(t => t.status === 'in_progress') ? 'in_progress' : childTasks.some(t => t.status === 'blocked') ? 'blocked' : 'not_started';
+                                          const childStatusLabel = childStatus === 'in_progress' ? 'In Progress' : childStatus === 'not_started' ? 'Not Started' : childStatus.charAt(0).toUpperCase() + childStatus.slice(1);
                                           const childGlobal = inventoryObjects.find(o => o.id === subObject.globalObjectId || o.objectId === subObject.objectId);
                                           const childDescription = childGlobal?.description || subObject.subObjectDescription || subObject.description || '';
                                           return (
@@ -4618,15 +4620,17 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                                 gap: 1,
                                               }}
                                             >
-                                              <ChevronRightIcon sx={{ fontSize: 15, color: 'text.secondary', transform: 'rotate(90deg)', flexShrink: 0 }} />
+                                              <Box sx={{ width: 16, display: 'flex', justifyContent: 'center', flexShrink: 0 }}>
+                                                <Box sx={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: getTaskStatusColor(childStatus) }} />
+                                              </Box>
                                               <Typography sx={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '0.78rem', color: planAccentColor, flexShrink: 0 }}>
                                                 {subObject.objectId}
                                               </Typography>
                                               <Typography variant="caption" sx={{ color: 'text.primary', fontWeight: 600, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                                 {childDescription || 'Sub-object'}
                                               </Typography>
-                                              <Box sx={{ px: 1, py: 0.25, borderRadius: 1, backgroundColor: 'rgba(111, 180, 78, 0.14)', border: '1px solid rgba(111, 180, 78, 0.25)', color: '#B7E08D', fontSize: '0.7rem', fontWeight: 700, flexShrink: 0 }}>
-                                                {childTasks.length} task{childTasks.length === 1 ? '' : 's'}
+                                              <Box sx={{ px: 1, py: 0.25, borderRadius: 1, border: '1px solid rgba(111, 180, 78, 0.25)', backgroundColor: childStatus === 'complete' ? 'rgba(91, 192, 91, 0.14)' : childStatus === 'in_progress' ? 'rgba(86, 180, 255, 0.14)' : childStatus === 'blocked' ? 'rgba(237, 117, 117, 0.14)' : 'rgba(255,255,255,0.06)', color: childStatus === 'complete' ? '#B7E08D' : childStatus === 'in_progress' ? '#8ED8FF' : childStatus === 'blocked' ? '#FFB3B3' : 'text.secondary', fontSize: '0.7rem', fontWeight: 700, flexShrink: 0 }}>
+                                                {childStatusLabel}
                                               </Box>
                                               <Box sx={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: getTaskStatusColor(childStatus), flexShrink: 0 }} />
                                             </Box>
