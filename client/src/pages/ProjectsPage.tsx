@@ -4661,38 +4661,81 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                           const childStatus = childTasks.length > 0 && childTasks.every(t => t.status === 'complete') ? 'complete' : childTasks.some(t => t.status === 'in_progress') ? 'in_progress' : childTasks.some(t => t.status === 'blocked') ? 'blocked' : 'not_started';
                                           const childGlobal = inventoryObjects.find(o => o.id === subObject.globalObjectId || o.objectId === subObject.objectId);
                                           const childDescription = childGlobal?.description || subObject.subObjectDescription || subObject.description || '';
+                                            const childExpanded = expandedObjects.has(subObject.id);
                                           return (
-                                            <Box
-                                              key={subObject.id}
-                                              sx={{
-                                                ml: 1,
-                                                pl: 1.5,
-                                                pr: 1.5,
-                                                py: 1,
-                                                borderRadius: 2,
-                                                border: '1px solid rgba(255,255,255,0.08)',
-                                                backgroundColor: 'rgba(255,255,255,0.03)',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                gap: 1,
-                                              }}
-                                            >
-                                              <Box sx={{ width: 16, display: 'flex', justifyContent: 'center', flexShrink: 0 }}>
-                                                <Box sx={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: getTaskStatusColor(childStatus) }} />
+                                              <Box key={subObject.id} sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
+                                                <Box
+                                                  sx={{
+                                                    ml: 1,
+                                                    pl: 1.5,
+                                                    pr: 1.5,
+                                                    py: 1,
+                                                    borderRadius: 2,
+                                                    border: '1px solid rgba(255,255,255,0.08)',
+                                                    backgroundColor: 'rgba(255,255,255,0.03)',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: 1,
+                                                    cursor: 'pointer',
+                                                  }}
+                                                  onClick={() => {
+                                                    const next = new Set(expandedObjects);
+                                                    if (childExpanded) next.delete(subObject.id);
+                                                    else next.add(subObject.id);
+                                                    setExpandedObjects(next);
+                                                    apiClient.put('/api/hierarchy-preferences/state', {
+                                                      treeOrder,
+                                                      expandedPrograms: Array.from(expandedPrograms),
+                                                      expandedCycles: Array.from(expandedCycles),
+                                                      expandedProjectGroups: Array.from(expandedProjectGroups),
+                                                      expandedObjects: Array.from(next),
+                                                      planningAdditionalGroups,
+                                                      planningAdditionalProcessAreas,
+                                                      hiddenProcessAreas,
+                                                      processAreaAccentOverrides,
+                                                      processAreaDescriptions,
+                                                      hierarchyLevelIcons,
+                                                    }).catch(() => {});
+                                                  }}
+                                                >
+                                                  <IconButton size="small" onClick={(e) => { e.stopPropagation(); const next = new Set(expandedObjects); if (childExpanded) next.delete(subObject.id); else next.add(subObject.id); setExpandedObjects(next); apiClient.put('/api/hierarchy-preferences/state', { treeOrder, expandedPrograms: Array.from(expandedPrograms), expandedCycles: Array.from(expandedCycles), expandedProjectGroups: Array.from(expandedProjectGroups), expandedObjects: Array.from(next), planningAdditionalGroups, planningAdditionalProcessAreas, hiddenProcessAreas, processAreaAccentOverrides, processAreaDescriptions, hierarchyLevelIcons }).catch(() => {}); }} sx={{ p: 0.2, flexShrink: 0 }}>
+                                                    <ChevronRightIcon sx={{ fontSize: 16, color: 'text.secondary', transition: 'transform 0.2s', transform: childExpanded ? 'rotate(90deg)' : 'rotate(0deg)' }} />
+                                                  </IconButton>
+                                                  <Box sx={{ width: 16, display: 'flex', justifyContent: 'center', flexShrink: 0 }}>
+                                                    <Box sx={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: getTaskStatusColor(childStatus) }} />
+                                                  </Box>
+                                                  <Typography sx={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '0.78rem', color: planAccentColor, flexShrink: 0 }}>
+                                                    {subObject.objectId}
+                                                  </Typography>
+                                                  <Typography variant="caption" sx={{ color: 'text.primary', fontWeight: 600, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                    {childDescription || 'Sub-object'}
+                                                  </Typography>
+                                                  <Box sx={{ display: { xs: 'none', md: 'flex' }, gap: 0.4, alignItems: 'center', flexShrink: 0 }}>
+                                                    {childTasks.slice(0, 10).map((task: any, i: number) => (
+                                                      <Box key={i} sx={{ width: 16, height: 4, borderRadius: 2, backgroundColor: getTaskStatusColor(task.status) }} />
+                                                    ))}
+                                                  </Box>
+                                                  <Box sx={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: getTaskStatusColor(childStatus), flexShrink: 0 }} />
+                                                </Box>
+                                                {childExpanded && (
+                                                  <Box sx={{ ml: 2.5, pl: 2.0, borderLeft: '2px solid rgba(111, 180, 78, 0.22)', display: 'flex', flexDirection: 'column', gap: 0.75 }}>
+                                                    {childTasks.length === 0 ? (
+                                                      <Typography variant="caption" sx={{ color: 'text.disabled', px: 1 }}>No tasks</Typography>
+                                                    ) : (
+                                                      childTasks.map((task: any) => (
+                                                        <Box key={task.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1, py: 0.9, borderRadius: 2, border: '1px solid rgba(255,255,255,0.06)', backgroundColor: 'rgba(255,255,255,0.02)' }}>
+                                                          <Box sx={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: getTaskStatusColor(task.status), flexShrink: 0 }} />
+                                                          <Typography sx={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '0.75rem', color: '#D9E7FF', flexShrink: 0 }}>{task.name}</Typography>
+                                                          <Typography variant="caption" sx={{ color: 'text.secondary', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.assignedTo || 'Unassigned'}</Typography>
+                                                          <Box sx={{ px: 1, py: 0.2, borderRadius: 1, backgroundColor: task.status === 'complete' ? 'rgba(91,192,91,0.14)' : task.status === 'in_progress' ? 'rgba(86,180,255,0.14)' : task.status === 'blocked' ? 'rgba(237,117,117,0.14)' : 'rgba(255,255,255,0.06)', color: task.status === 'complete' ? '#B7E08D' : task.status === 'in_progress' ? '#8ED8FF' : task.status === 'blocked' ? '#FFB3B3' : 'text.secondary', fontSize: '0.68rem', fontWeight: 700, flexShrink: 0 }}>
+                                                            {task.status === 'in_progress' ? 'In Progress' : task.status === 'not_started' ? 'Not Started' : task.status.charAt(0).toUpperCase() + task.status.slice(1)}
+                                                          </Box>
+                                                        </Box>
+                                                      ))
+                                                    )}
+                                                  </Box>
+                                                )}
                                               </Box>
-                                              <Typography sx={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '0.78rem', color: planAccentColor, flexShrink: 0 }}>
-                                                {subObject.objectId}
-                                              </Typography>
-                                              <Typography variant="caption" sx={{ color: 'text.primary', fontWeight: 600, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                {childDescription || 'Sub-object'}
-                                              </Typography>
-                                              <Box sx={{ display: { xs: 'none', md: 'flex' }, gap: 0.4, alignItems: 'center', flexShrink: 0 }}>
-                                                {childTasks.slice(0, 10).map((task: any, i: number) => (
-                                                  <Box key={i} sx={{ width: 16, height: 4, borderRadius: 2, backgroundColor: getTaskStatusColor(task.status) }} />
-                                                ))}
-                                              </Box>
-                                              <Box sx={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: getTaskStatusColor(childStatus), flexShrink: 0 }} />
-                                            </Box>
                                           );
                                         })}
                                       </Box>
