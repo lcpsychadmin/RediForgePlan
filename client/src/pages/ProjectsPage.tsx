@@ -1858,15 +1858,15 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
       projectInventoryLoadedRef.current = false;
 
       try {
-        const selectedProjectRecord = [
-          ...(activeCycleId ? (projectsByMockCycle[activeCycleId] || []) : []),
-          ...Object.values(projectsByProgram).flat(),
-        ].find((project: any) => project.id === activeProjectId) || null;
+        const selectedProjectRecord = Object.values(projectsByProgram).flat().find((project: any) => project.id === activeProjectId) || null;
         const selectedProjectName = (selectedProjectRecord?.name || '').trim().toLowerCase();
+        const selectedProjectProgramId = selectedProjectRecord?.programId || '';
         const siblingProjectIds = new Set<string>([activeProjectId]);
-        const cycleProjects = activeCycleId ? (projectsByMockCycle[activeCycleId] || []) : [];
+        const programProjects = selectedProjectProgramId
+          ? Object.values(projectsByProgram).flat().filter((project: any) => project.programId === selectedProjectProgramId)
+          : [];
         if (selectedProjectName) {
-          cycleProjects.forEach((project: any) => {
+          programProjects.forEach((project: any) => {
             if ((project.name || '').trim().toLowerCase() === selectedProjectName) {
               siblingProjectIds.add(project.id);
             }
