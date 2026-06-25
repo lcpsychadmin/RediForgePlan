@@ -1139,7 +1139,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   };
 
   const getOrderStorageKey = (projectId: string) => `rf-plan-order:${projectId}`;
-  const getTreeOrderStorageKey = () => 'rf-tree-order';
   const objectRowKey = (id: string) => `obj:${id}`;
   const taskGroupRowKey = (id: string) => `grp:${id}`;
 
@@ -1719,20 +1718,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         // Fallback to local storage when no DB preference exists yet.
       }
 
-      try {
-        const raw = localStorage.getItem(getTreeOrderStorageKey());
-        if (!raw) {
-          if (!cancelled) setHierarchyStateHydrated(true);
-          return;
-        }
-        const parsed = JSON.parse(raw);
-        if (!cancelled) {
-          applyTreeOrder(parsed);
-        }
-      } catch {
-        // ignore local parse failures
-      } finally {
-        if (!cancelled) setHierarchyStateHydrated(true);
+      if (!cancelled) {
+        setHierarchyStateHydrated(true);
       }
     };
 
@@ -1796,7 +1783,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
 
   // Persist tree ordering.
   useEffect(() => {
-    localStorage.setItem(getTreeOrderStorageKey(), JSON.stringify(treeOrder));
     if (!hierarchyStateHydrated) return;
 
     const timeout = setTimeout(() => {
@@ -1809,7 +1795,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         processAreaDescriptions,
         hierarchyLevelIcons,
       }).catch(() => {
-        // Keep local persistence as fallback.
+        // No-op: hierarchy state is shared through the database.
       });
     }, 350);
 
@@ -4136,14 +4122,26 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                       .filter(Boolean) as Project[];
                     const allPlanTasks = projectTasks.filter(t => t.projectObjectId || t.taskGroupId);
                     const progressPct = allPlanTasks.length > 0 ? Math.round(allPlanTasks.reduce((s, t) => s + (t.progressPercentage ?? 0), 0) / allPlanTasks.length) : 0;
-                    const allObjectIds = Array.from(new Set(projectTasks.filter(t => t.projectObjectId).map(t => t.projectObjectId)));
                     const normalizedProcessAreaFilter = (selectedExecutionProcessArea || '').trim().toLowerCase();
                     const showProjectSummaryOnly = !normalizedProcessAreaFilter;
                     const getObjectProcessArea = (objectId: string) => {
                       const inventoryObject = projectInventoryItems.find(obj => obj.id === objectId);
                       return (inventoryObject?.processArea || 'Unassigned Process Area').trim() || 'Unassigned Process Area';
                     };
-                    const sortedObjectIds = (showProjectSummaryOnly ? [] : [...allObjectIds])
+                    const getRootInventoryObjectId = (objectId: string) => {
+                      let currentObject = projectInventoryItems.find((item: any) => item.id === objectId);
+                      while (currentObject?.parentProjectObjectId) {
+                        currentObject = projectInventoryItems.find((item: any) => item.id === currentObject.parentProjectObjectId);
+                      }
+                      return currentObject?.id || objectId;
+                    };
+                    const rootPlanObjectIds = Array.from(new Set([
+                      ...projectTasks.filter(t => t.projectObjectId).map(t => getRootInventoryObjectId(t.projectObjectId)),
+                      ...projectInventoryItems
+                        .filter((item: any) => !item.parentProjectObjectId && getSubObjectsForParent(item.id).length > 0)
+                        .map((item: any) => item.id),
+                    ]));
+                    const sortedObjectIds = (showProjectSummaryOnly ? [] : [...rootPlanObjectIds])
                       .filter((objectId: string) => {
                         return getObjectProcessArea(objectId).toLowerCase() === normalizedProcessAreaFilter;
                       })
@@ -4395,7 +4393,12 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                             )}
                             {sortedObjectIds.map((objectId, objectIndex) => {
                               const rowKey = objectRowKey(objectId || '');
-                              const tasksForObject = projectTasks
+                              const inventoryObject = projectInventoryItems.find(obj => obj.id === objectId);
+                              const parentObjectId = inventoryObject?.parentProjectObjectId || '';
+                              const subObjects = getSubObjectsForParent(objectId || '');
+                              const isHierarchyNode = !parentObjectId && subObjects.length > 0;
+                              if (parentObjectId && !expandedObjects.has(parentObjectId)) return null;
+                              const directTasksForObject = projectTasks
                                 .filter(t => t.projectObjectId === objectId)
                                 .sort((a, b) => {
                                   // 1. Start date ascending (nulls last)
@@ -4411,7 +4414,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                   // 3. Alphabetical
                                   return (a.name || '').localeCompare(b.name || '');
                                 });
-                              const inventoryObject = projectInventoryItems.find(obj => obj.id === objectId);
                               const objectName = inventoryObject?.objectId || 'Unknown Object';
                               const globalObj = inventoryObjects.find(o => o.id === inventoryObject?.globalObjectId || o.objectId === inventoryObject?.objectId);
                               const description = globalObj?.description || inventoryObject?.description || '';
@@ -4419,10 +4421,24 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                               const previousArea = objectIndex > 0 ? getObjectProcessArea(sortedObjectIds[objectIndex - 1] || '') : null;
                               const showAreaHeader = currentArea !== previousArea;
                               const isExpanded = expandedObjects.has(objectId || '');
-                              if (planSearchTerm && !objectName.toLowerCase().includes(planSearchTerm.toLowerCase()) && !description.toLowerCase().includes(planSearchTerm.toLowerCase())) return null;
-                              if (planStatusFilter && !tasksForObject.some(t => t.status === planStatusFilter)) return null;
-                              if (planAssignedFilter && !tasksForObject.some(t => t.draUserId === planAssignedFilter || t.developerUserId === planAssignedFilter)) return null;
-                              const overallStatus = tasksForObject.length > 0 && tasksForObject.every(t => t.status === 'complete') ? 'complete' : tasksForObject.some(t => t.status === 'in_progress') ? 'in_progress' : tasksForObject.some(t => t.status === 'blocked') ? 'blocked' : 'not_started';
+                              const hierarchyChildTasks = isHierarchyNode
+                                ? subObjects.flatMap((subObject: any) => projectTasks.filter(t => t.projectObjectId === subObject.id))
+                                : [];
+                              const displayTasks = isHierarchyNode ? [] : directTasksForObject;
+                              const relevantTasks = isHierarchyNode ? hierarchyChildTasks : directTasksForObject;
+                              const matchesSearch = (() => {
+                                const term = planSearchTerm.toLowerCase();
+                                if (objectName.toLowerCase().includes(term) || description.toLowerCase().includes(term)) return true;
+                                return isHierarchyNode && subObjects.some((subObject: any) => {
+                                  const subName = (subObject.objectId || '').toLowerCase();
+                                  const subDescription = ((inventoryObjects.find(o => o.id === subObject.globalObjectId || o.objectId === subObject.objectId)?.description || subObject.description || '') as string).toLowerCase();
+                                  return subName.includes(term) || subDescription.includes(term);
+                                });
+                              })();
+                              if (planSearchTerm && !matchesSearch) return null;
+                              if (planStatusFilter && !relevantTasks.some(t => t.status === planStatusFilter)) return null;
+                              if (planAssignedFilter && !relevantTasks.some(t => t.draUserId === planAssignedFilter || t.developerUserId === planAssignedFilter)) return null;
+                              const overallStatus = !isHierarchyNode && displayTasks.length > 0 && displayTasks.every(t => t.status === 'complete') ? 'complete' : !isHierarchyNode && displayTasks.some(t => t.status === 'in_progress') ? 'in_progress' : !isHierarchyNode && displayTasks.some(t => t.status === 'blocked') ? 'blocked' : 'not_started';
                               return (
                                 <React.Fragment key={`obj-${objectId}`}>
                                   {showAreaHeader && selectedItem?.type !== 'processArea' && (
@@ -4473,21 +4489,29 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                     order: rowOrderIndex.get(rowKey) ?? 0,
                                   }}
                                 >
-                                  <Box sx={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, backgroundColor: planAccentColor }} />
+                                    <Box sx={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, backgroundColor: planAccentColor }} />
                                   <Box onClick={() => { const next = new Set(expandedObjects); if (isExpanded) next.delete(objectId || ''); else next.add(objectId || ''); setExpandedObjects(next); }}
                                     sx={{ pl: 2.5, pr: 1, py: 1.25, display: 'flex', alignItems: 'center', gap: { xs: 0.8, sm: 1.5 }, cursor: 'pointer', '&:hover': { backgroundColor: 'rgba(255,255,255,0.03)' } }}>
                                     <DragIndicatorIcon sx={{ fontSize: 14, color: 'text.disabled', flexShrink: 0, cursor: canReorderPlan ? 'grab' : 'not-allowed', opacity: canReorderPlan ? 1 : 0.45 }} />
                                     <ChevronRightIcon sx={{ fontSize: 16, color: 'text.secondary', transition: 'transform 0.2s', transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)', flexShrink: 0 }} />
                                     <Typography sx={{ fontFamily: 'monospace', fontWeight: 700, fontSize: { xs: '0.76rem', sm: '0.82rem' }, color: planAccentColor, flexShrink: 0, minWidth: { xs: 0, sm: 90 }, maxWidth: { xs: '38vw', sm: 'none' }, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{objectName}</Typography>
                                     <Typography variant="caption" sx={{ color: 'text.primary', fontWeight: 600, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{description}</Typography>
-                                    <Box sx={{ display: { xs: 'none', md: 'flex' }, gap: 0.4, alignItems: 'center', flexShrink: 0 }}>
-                                      {tasksForObject.slice(0, 10).map((task, i) => (<Box key={i} sx={{ width: 16, height: 4, borderRadius: 2, backgroundColor: getTaskStatusColor(task.status) }} />))}
-                                    </Box>
-                                    <Box sx={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: getTaskStatusColor(overallStatus), flexShrink: 0 }} />
+                                    {isHierarchyNode ? (
+                                      <Box sx={{ px: 1, py: 0.25, borderRadius: 1, backgroundColor: 'rgba(111, 180, 78, 0.14)', border: '1px solid rgba(111, 180, 78, 0.25)', color: '#B7E08D', fontSize: '0.7rem', fontWeight: 700, flexShrink: 0 }}>
+                                        {subObjects.length} sub-object{subObjects.length === 1 ? '' : 's'}
+                                      </Box>
+                                    ) : (
+                                      <>
+                                        <Box sx={{ display: { xs: 'none', md: 'flex' }, gap: 0.4, alignItems: 'center', flexShrink: 0 }}>
+                                          {displayTasks.slice(0, 10).map((task, i) => (<Box key={i} sx={{ width: 16, height: 4, borderRadius: 2, backgroundColor: getTaskStatusColor(task.status) }} />))}
+                                        </Box>
+                                        <Box sx={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: getTaskStatusColor(overallStatus), flexShrink: 0 }} />
+                                      </>
+                                    )}
                                     <IconButton size="small" onClick={(e) => { e.stopPropagation(); setMenuAnchorEl(e.currentTarget); setMenuType('task'); setMenuItemId(objectId || ''); }}><MoreVertIcon sx={{ fontSize: '1rem' }} /></IconButton>
                                   </Box>
                                   {/* Timeline and Status Info Line */}
-                                  {tasksForObject.length > 0 && (() => {
+                                  {!isHierarchyNode && displayTasks.length > 0 && (() => {
                                     const parseLocalDate = (dateString: string) => {
                                       if (!dateString) return null;
                                       const parts = dateString.trim().split(/[-\/]/);
@@ -4514,7 +4538,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                     // Find min start date and max end date from all tasks
                                     let minStart = null;
                                     let maxEnd = null;
-                                    for (const task of tasksForObject) {
+                                    for (const task of displayTasks) {
                                       const startParsed = parseLocalDate(task.startDate) || todayParts;
                                       const endParsed = parseLocalDate(task.endDate) || todayParts;
                                       if (startParsed) {
@@ -4541,7 +4565,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                       </Box>
                                     );
                                   })()}
-                                  {isExpanded && (
+                                  {!isHierarchyNode && isExpanded && (
                                     <Box sx={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
                                       {/* Object dependencies row */}
                                       {(taskDeps[objectId || ''] || []).length > 0 && (
@@ -4559,9 +4583,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                             <Typography key={h} variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', letterSpacing: '0.05em', fontWeight: 600, whiteSpace: 'pre-line', lineHeight: 1.05 }}>{h}</Typography>
                                           ))}
                                         </Box>
-                                        {tasksForObject.length === 0
+                                        {displayTasks.length === 0
                                           ? <Typography variant="caption" color="text.disabled" sx={{ px: 2, py: 1, display: 'block', minWidth: 930 }}>No tasks</Typography>
-                                          : tasksForObject.map((task) => (
+                                          : displayTasks.map((task) => (
                                           <Box key={task.id} sx={{ minWidth: 930, display: 'grid', gridTemplateColumns: 'minmax(180px,1fr) 120px 60px 150px 84px 44px 100px 100px 92px', gap: 0, px: 2, py: 0.5, alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.03)', '&:hover': { backgroundColor: 'rgba(255,255,255,0.02)' } }}>
                                             {/* Task name */}
                                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
@@ -4733,6 +4757,59 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                             </Box>
                                           </Box>
                                         ))}
+                                        {isHierarchyNode && isExpanded && subObjects.length > 0 && (
+                                          <Box sx={{ borderTop: '1px solid rgba(255,255,255,0.06)', px: 2, py: 1.25 }}>
+                                            <Box sx={{ pl: 2.5, borderLeft: '2px solid rgba(111, 180, 78, 0.28)', display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                              {subObjects.map((subObject: any) => {
+                                                const childTasks = projectTasks
+                                                  .filter(t => t.projectObjectId === subObject.id)
+                                                  .sort((a, b) => {
+                                                    const aDate = a.startDate ? new Date(a.startDate).getTime() : Infinity;
+                                                    const bDate = b.startDate ? new Date(b.startDate).getTime() : Infinity;
+                                                    if (aDate !== bDate) return aDate - bDate;
+                                                    const aIdx = defaultTaskOrder.indexOf(a.name);
+                                                    const bIdx = defaultTaskOrder.indexOf(b.name);
+                                                    const aOrder = aIdx === -1 ? 999 : aIdx;
+                                                    const bOrder = bIdx === -1 ? 999 : bIdx;
+                                                    if (aOrder !== bOrder) return aOrder - bOrder;
+                                                    return (a.name || '').localeCompare(b.name || '');
+                                                  });
+                                                const childStatus = childTasks.length > 0 && childTasks.every(t => t.status === 'complete') ? 'complete' : childTasks.some(t => t.status === 'in_progress') ? 'in_progress' : childTasks.some(t => t.status === 'blocked') ? 'blocked' : 'not_started';
+                                                const childGlobal = inventoryObjects.find(o => o.id === subObject.globalObjectId || o.objectId === subObject.objectId);
+                                                const childDescription = childGlobal?.description || subObject.subObjectDescription || subObject.description || '';
+                                                return (
+                                                  <Box
+                                                    key={subObject.id}
+                                                    sx={{
+                                                      ml: 1,
+                                                      pl: 1.5,
+                                                      pr: 1.5,
+                                                      py: 1,
+                                                      borderRadius: 2,
+                                                      border: '1px solid rgba(255,255,255,0.08)',
+                                                      backgroundColor: 'rgba(255,255,255,0.03)',
+                                                      display: 'flex',
+                                                      alignItems: 'center',
+                                                      gap: 1,
+                                                    }}
+                                                  >
+                                                    <ChevronRightIcon sx={{ fontSize: 15, color: 'text.secondary', transform: 'rotate(90deg)', flexShrink: 0 }} />
+                                                    <Typography sx={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '0.78rem', color: planAccentColor, flexShrink: 0 }}>
+                                                      {subObject.objectId}
+                                                    </Typography>
+                                                    <Typography variant="caption" sx={{ color: 'text.primary', fontWeight: 600, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                      {childDescription || 'Sub-object'}
+                                                    </Typography>
+                                                    <Box sx={{ px: 1, py: 0.25, borderRadius: 1, backgroundColor: 'rgba(111, 180, 78, 0.14)', border: '1px solid rgba(111, 180, 78, 0.25)', color: '#B7E08D', fontSize: '0.7rem', fontWeight: 700, flexShrink: 0 }}>
+                                                      {childTasks.length} task{childTasks.length === 1 ? '' : 's'}
+                                                    </Box>
+                                                    <Box sx={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: getTaskStatusColor(childStatus), flexShrink: 0 }} />
+                                                  </Box>
+                                                );
+                                              })}
+                                            </Box>
+                                          </Box>
+                                        )}
                                         {/* Add Task row */}
                                         <Box sx={{ px: 2, py: 0.5, minWidth: 930 }}>
                                           <Button size="small" variant="text" startIcon={<AddIcon sx={{ fontSize: '0.8rem !important' }} />}

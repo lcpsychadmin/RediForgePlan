@@ -52,14 +52,14 @@ CREATE INDEX idx_sessions_user_id ON sessions(user_id);
 CREATE INDEX idx_sessions_token ON sessions(jwt_token);
 CREATE INDEX idx_sessions_expires_at ON sessions(expires_at);
 
-CREATE TABLE user_hierarchy_preferences (
-  user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+CREATE TABLE global_hierarchy_preferences (
+  id SMALLINT PRIMARY KEY DEFAULT 1 CHECK (id = 1),
   tree_order JSONB,
   hierarchy_state JSONB,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_user_hierarchy_preferences_updated_at ON user_hierarchy_preferences(updated_at);
+CREATE INDEX idx_global_hierarchy_preferences_updated_at ON global_hierarchy_preferences(updated_at);
 
 -- =====================================================
 -- CORE HIERARCHY TABLES
