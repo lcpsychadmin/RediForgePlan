@@ -4561,6 +4561,13 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                 : [];
                               const displayTasks = isHierarchyNode ? [] : directTasksForObject;
                               const relevantTasks = isHierarchyNode ? hierarchyChildTasks : directTasksForObject;
+                              const hierarchyStatus = hierarchyChildTasks.length > 0 && hierarchyChildTasks.every(t => t.status === 'complete')
+                                ? 'complete'
+                                : hierarchyChildTasks.some(t => t.status === 'in_progress')
+                                  ? 'in_progress'
+                                  : hierarchyChildTasks.some(t => t.status === 'blocked')
+                                    ? 'blocked'
+                                    : 'not_started';
                               const matchesSearch = (() => {
                                 const term = planSearchTerm.toLowerCase();
                                 if (objectName.toLowerCase().includes(term) || description.toLowerCase().includes(term)) return true;
@@ -4634,9 +4641,12 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                     <Typography sx={{ fontFamily: 'monospace', fontWeight: 700, fontSize: { xs: '0.76rem', sm: '0.82rem' }, color: planAccentColor, flexShrink: 0, minWidth: { xs: 0, sm: 90 }, maxWidth: { xs: '38vw', sm: 'none' }, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{objectName}</Typography>
                                     <Typography variant="caption" sx={{ color: 'text.primary', fontWeight: 600, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{description}</Typography>
                                     {isHierarchyNode ? (
-                                      <Box sx={{ px: 1, py: 0.25, borderRadius: 1, backgroundColor: 'rgba(111, 180, 78, 0.14)', border: '1px solid rgba(111, 180, 78, 0.25)', color: '#B7E08D', fontSize: '0.7rem', fontWeight: 700, flexShrink: 0 }}>
-                                        {subObjects.length} sub-object{subObjects.length === 1 ? '' : 's'}
-                                      </Box>
+                                      <>
+                                        <Box sx={{ display: { xs: 'none', md: 'flex' }, gap: 0.4, alignItems: 'center', flexShrink: 0 }}>
+                                          {hierarchyChildTasks.slice(0, 10).map((task, i) => (<Box key={i} sx={{ width: 16, height: 4, borderRadius: 2, backgroundColor: getTaskStatusColor(task.status) }} />))}
+                                        </Box>
+                                        <Box sx={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: getTaskStatusColor(hierarchyStatus), flexShrink: 0 }} />
+                                      </>
                                     ) : (
                                       <>
                                         <Box sx={{ display: { xs: 'none', md: 'flex' }, gap: 0.4, alignItems: 'center', flexShrink: 0 }}>
