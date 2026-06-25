@@ -166,6 +166,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   const [expandedPrograms, setExpandedPrograms] = useState<Set<string>>(new Set());
   const [expandedCycles, setExpandedCycles] = useState<Set<string>>(new Set());
   const [expandedProjectGroups, setExpandedProjectGroups] = useState<Set<string>>(new Set());
+  const [expandedObjects, setExpandedObjects] = useState<Set<string>>(new Set());
   
   // State for selected item
   const [selectedItem, setSelectedItem] = useState<SelectableItem | null>(null);
@@ -369,7 +370,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   // Plan tab states
   const [projectTasks, setProjectTasks] = useState<any[]>([]);
   const [projectTaskGroups, setProjectTaskGroups] = useState<any[]>([]);
-  const [expandedObjects, setExpandedObjects] = useState<Set<string>>(new Set());
   const [expandedTaskGroups, setExpandedTaskGroups] = useState<Set<string>>(new Set());
   const [editingTask, setEditingTask] = useState<any | null>(null);
   const [depDialogTaskId, setDepDialogTaskId] = useState<string | null>(null);
@@ -1694,12 +1694,22 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
       });
     };
 
+    const applyExpandedState = (parsed: any) => {
+      setExpandedPrograms(new Set(Array.isArray(parsed?.expandedPrograms) ? parsed.expandedPrograms : []));
+      setExpandedCycles(new Set(Array.isArray(parsed?.expandedCycles) ? parsed.expandedCycles : []));
+      setExpandedProjectGroups(new Set(Array.isArray(parsed?.expandedProjectGroups) ? parsed.expandedProjectGroups : []));
+      setExpandedObjects(new Set(Array.isArray(parsed?.expandedObjects) ? parsed.expandedObjects : []));
+    };
+
     const hydrateHierarchyState = async () => {
       try {
         const response = await apiClient.get('/api/hierarchy-preferences/state');
         const parsed = response.data?.data;
         if (!cancelled && parsed && typeof parsed === 'object') {
           if (parsed?.treeOrder) applyTreeOrder(parsed.treeOrder);
+          if (parsed?.expandedPrograms || parsed?.expandedCycles || parsed?.expandedProjectGroups || parsed?.expandedObjects) {
+            applyExpandedState(parsed);
+          }
           if (parsed?.planningAdditionalGroups && typeof parsed.planningAdditionalGroups === 'object') setPlanningAdditionalGroups(parsed.planningAdditionalGroups);
           if (parsed?.planningAdditionalProcessAreas && typeof parsed.planningAdditionalProcessAreas === 'object') setPlanningAdditionalProcessAreas(parsed.planningAdditionalProcessAreas);
           if (parsed?.hiddenProcessAreas && typeof parsed.hiddenProcessAreas === 'object') setHiddenProcessAreas(parsed.hiddenProcessAreas);
@@ -1788,6 +1798,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     const timeout = setTimeout(() => {
       apiClient.put('/api/hierarchy-preferences/state', {
         treeOrder,
+        expandedPrograms: Array.from(expandedPrograms),
+        expandedCycles: Array.from(expandedCycles),
+        expandedProjectGroups: Array.from(expandedProjectGroups),
+        expandedObjects: Array.from(expandedObjects),
         planningAdditionalGroups,
         planningAdditionalProcessAreas,
         hiddenProcessAreas,
@@ -1802,6 +1816,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     return () => clearTimeout(timeout);
   }, [
     treeOrder,
+    expandedPrograms,
+    expandedCycles,
+    expandedProjectGroups,
+    expandedObjects,
     planningAdditionalGroups,
     planningAdditionalProcessAreas,
     hiddenProcessAreas,
