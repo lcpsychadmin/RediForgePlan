@@ -7519,10 +7519,14 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                 : ''
             ).trim().toLowerCase();
             const inventoryById = new Map(projectInventoryItems.map((item: any) => [item.id, item]));
-            const assignedObjectIds = new Set(
+            const assignedParentObjectIds = new Set(
               projectTasks
                 .filter((task: any) => !!task.projectObjectId)
                 .map((task: any) => task.projectObjectId)
+                .filter((objectId: string) => {
+                  const item = inventoryById.get(objectId);
+                  return !!item && !item.parentProjectObjectId;
+                })
             );
             const areaMatchesSelectedNode = (areaValue: string, projectIdValue: string) => {
               if (!selectedProcessAreaRaw && !selectedProcessAreaDisplay) return true;
@@ -7545,7 +7549,19 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                 const childItems = projectInventoryItems.filter((entry: any) => entry.parentProjectObjectId === item.id);
                 return childItems.some((child: any) => areaMatchesSelectedNode(child.processArea || '', activeProjectId || child.projectId || projectIdForItem));
               })
-              .filter((item: any) => !assignedObjectIds.has(item.id))
+              .filter((item: any) => {
+                // Parent rows are assigned only when the parent itself has plan tasks.
+                if (!item.parentProjectObjectId) {
+                  return !assignedParentObjectIds.has(item.id);
+                }
+
+                // Child rows should only be treated as assigned when their parent is assigned.
+                if (!assignedParentObjectIds.has(item.parentProjectObjectId)) {
+                  return true;
+                }
+
+                return !projectTasks.some((task: any) => task.projectObjectId === item.id);
+              })
               .sort((a: any, b: any) => (a.objectId || '').localeCompare(b.objectId || ''));
 
             return (
