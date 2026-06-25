@@ -7503,17 +7503,14 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
           {(() => {
             const selectedProcessArea = (selectedItem?.type === 'processArea' ? selectedItem.area : '').trim().toLowerCase();
             const inventoryById = new Map(projectInventoryItems.map((item: any) => [item.id, item]));
-            const getRootObjectId = (objectId: string) => {
-              let current = inventoryById.get(objectId);
-              while (current?.parentProjectObjectId) {
-                current = inventoryById.get(current.parentProjectObjectId);
-              }
-              return current?.id || objectId;
-            };
             const assignedRootObjectIds = new Set(
               projectTasks
                 .filter((task: any) => !!task.projectObjectId)
-                .map((task: any) => getRootObjectId(task.projectObjectId))
+                .map((task: any) => task.projectObjectId)
+                .filter((objectId: string) => {
+                  const item = inventoryById.get(objectId);
+                  return !!item && !item.parentProjectObjectId;
+                })
             );
             const selectableParentObjects = projectInventoryItems
               .filter((item: any) => !item.parentProjectObjectId)
