@@ -2393,7 +2393,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     setAttachCycleDialogOpen(true);
   };
 
-  const handleAttachCycleConfirm = () => {
+  const handleAttachCycleConfirm = async () => {
     if (!attachCycleProgramId || !attachCycleId) return;
 
     const cycle = (mockCycles[attachCycleProgramId] || []).find((entry: MockCycle) => entry.id === attachCycleId) || null;
@@ -2402,13 +2402,26 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
       return;
     }
 
-    setTreeOrder((prev) => ({
-      ...prev,
+    const nextTreeOrder = {
+      ...treeOrder,
       cycles: {
-        ...prev.cycles,
-        [attachCycleProgramId]: mergeOrder(prev.cycles[attachCycleProgramId] || [], [attachCycleId]),
+        ...treeOrder.cycles,
+        [attachCycleProgramId]: mergeOrder(treeOrder.cycles[attachCycleProgramId] || [], [attachCycleId]),
       },
-    }));
+    };
+
+    setTreeOrder(nextTreeOrder);
+    await apiClient.put('/api/hierarchy-preferences/state', {
+      treeOrder: nextTreeOrder,
+      planningAdditionalGroups,
+      planningAdditionalProcessAreas,
+      hiddenProcessAreas,
+      processAreaAccentOverrides,
+      processAreaDescriptions,
+      hierarchyLevelIcons,
+    }).catch(() => {
+      // The debounced saver will retry; this is just to avoid refresh races.
+    });
     setExpandedPrograms((prev) => new Set(prev).add(attachCycleProgramId));
     setExpandedCycles((prev) => new Set(prev).add(attachCycleId));
     setSelectedItem({ type: 'cycle', id: attachCycleId, programId: attachCycleProgramId, projectId: cycle.projectId });
@@ -4493,7 +4506,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                   <Box onClick={() => { const next = new Set(expandedObjects); if (isExpanded) next.delete(objectId || ''); else next.add(objectId || ''); setExpandedObjects(next); }}
                                     sx={{ pl: 2.5, pr: 1, py: 1.25, display: 'flex', alignItems: 'center', gap: { xs: 0.8, sm: 1.5 }, cursor: 'pointer', '&:hover': { backgroundColor: 'rgba(255,255,255,0.03)' } }}>
                                     <DragIndicatorIcon sx={{ fontSize: 14, color: 'text.disabled', flexShrink: 0, cursor: canReorderPlan ? 'grab' : 'not-allowed', opacity: canReorderPlan ? 1 : 0.45 }} />
-                                    <ChevronRightIcon sx={{ fontSize: 16, color: 'text.secondary', transition: 'transform 0.2s', transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)', flexShrink: 0 }} />
+                                    <IconButton size="small" onClick={(e) => { e.stopPropagation(); const next = new Set(expandedObjects); if (isExpanded) next.delete(objectId || ''); else next.add(objectId || ''); setExpandedObjects(next); }} sx={{ p: 0.2, flexShrink: 0 }}>
+                                      <ChevronRightIcon sx={{ fontSize: 16, color: 'text.secondary', transition: 'transform 0.2s', transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)' }} />
+                                    </IconButton>
                                     <Typography sx={{ fontFamily: 'monospace', fontWeight: 700, fontSize: { xs: '0.76rem', sm: '0.82rem' }, color: planAccentColor, flexShrink: 0, minWidth: { xs: 0, sm: 90 }, maxWidth: { xs: '38vw', sm: 'none' }, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{objectName}</Typography>
                                     <Typography variant="caption" sx={{ color: 'text.primary', fontWeight: 600, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{description}</Typography>
                                     {isHierarchyNode ? (
