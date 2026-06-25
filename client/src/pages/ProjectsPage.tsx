@@ -279,6 +279,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   const [maintainPendingCycleProjectId, setMaintainPendingCycleProjectId] = useState<string | null>(null);
   const [inventoryObjects, setInventoryObjects] = useState<{ id: string; objectId: string; description: string; processArea: string }[]>([]);
   const [projectInventoryItems, setProjectInventoryItems] = useState<any[]>([]);
+  const [projectInventoryTaskObjectIds, setProjectInventoryTaskObjectIds] = useState<string[]>([]);
   const [projectHierarchySummaries, setProjectHierarchySummaries] = useState<Record<string, {
     processAreas: Record<string, { objectCount: number; taskGroupCount: number; taskCount: number; progressPct: number }>;
     projectProgressPct: number;
@@ -1880,6 +1881,13 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
           })
         );
 
+        const taskResponses = await Promise.all(
+          Array.from(siblingProjectIds).map(async (projectId) => {
+            const response = await apiClient.get(`/api/tasks/project/${projectId}`);
+            return response.data.data || [];
+          })
+        );
+
         const itemsById = new Map<string, any>();
         responses.flat().forEach((item: any) => {
           itemsById.set(item.id, {
@@ -1910,10 +1918,12 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         });
 
         setProjectInventoryItems(Array.from(itemsById.values()));
+        setProjectInventoryTaskObjectIds(Array.from(new Set(taskResponses.flat().map((task: any) => task.projectObjectId).filter(Boolean))));
         projectInventoryLoadedRef.current = true;
       } catch (error) {
         console.error('Failed to load project inventory:', error);
         setProjectInventoryItems([]);
+        setProjectInventoryTaskObjectIds([]);
         projectInventoryLoadedRef.current = false;
       }
     };
@@ -7544,14 +7554,12 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                 : ''
             ).trim().toLowerCase();
             const inventoryById = new Map(projectInventoryItems.map((item: any) => [item.id, item]));
+            const inventoryTaskObjectIdSet = new Set<string>(projectInventoryTaskObjectIds);
             const assignedParentObjectIds = new Set(
-              projectTasks
-                .filter((task: any) => !!task.projectObjectId)
-                .map((task: any) => task.projectObjectId)
-                .filter((objectId: string) => {
-                  const item = inventoryById.get(objectId);
-                  return !!item && !item.parentProjectObjectId;
-                })
+              Array.from(inventoryTaskObjectIdSet).filter((objectId) => {
+                const item = inventoryById.get(objectId);
+                return !!item && !item.parentProjectObjectId;
+              })
             );
             const areaMatchesSelectedNode = (areaValue: string, projectIdValue: string) => {
               if (!selectedProcessAreaRaw && !selectedProcessAreaDisplay) return true;
@@ -7617,12 +7625,13 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                 return assignedParentObjectIds.has(item.id);
               }
 
-              // Child rows should only be treated as assigned when their parent is assigned.
-              if (!assignedParentObjectIds.has(item.parentProjectObjectId)) {
-                return false;
+              // Child rows are considered assigned if their parent is already on the plan,
+              // or if the child itself has direct task rows.
+              if (assignedParentObjectIds.has(item.parentProjectObjectId)) {
+                return true;
               }
 
-              return projectTasks.some((task: any) => task.projectObjectId === item.id);
+              return inventoryTaskObjectIdSet.has(item.id);
             };
 
             const selectableObjects = areaMatchedObjects
@@ -7630,8 +7639,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                 return !isObjectAssignedForNode(item);
               })
               .sort((a: any, b: any) => (a.objectId || '').localeCompare(b.objectId || ''));
-
-            const displayObjects = selectableObjects.length > 0 ? selectableObjects : areaMatchedObjects;
 
             return (
           <TextField
@@ -7651,19 +7658,17 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
             variant="outlined"
             size="small"
           >
-            {displayObjects.length > 0 ? (
-              displayObjects
+            {selectableObjects.length > 0 ? (
+              selectableObjects
                 .map((item: any) => {
                   const subObjectCount = projectInventoryItems.filter((entry: any) => entry.parentProjectObjectId === item.id).length;
                   const parentObject = item.parentProjectObjectId ? inventoryById.get(item.parentProjectObjectId) : null;
-                  const isAssigned = isObjectAssignedForNode(item);
                   return (
                     <MenuItem key={item.id} value={item.id}>
                       {item.objectId}
                       {parentObject ? ` (Sub-object of ${parentObject.objectId})` : ''}
                       {item.processArea && ` (${getProcessAreaDisplayName(activeProjectId || item.projectId || '', item.processArea)})`}
                       {subObjectCount > 0 ? ` + ${subObjectCount} sub-object${subObjectCount === 1 ? '' : 's'}` : ''}
-                      {isAssigned && selectableObjects.length === 0 ? ' (Already has tasks)' : ''}
                     </MenuItem>
                   );
                 })
