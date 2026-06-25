@@ -4718,21 +4718,198 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                                   <Box sx={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: getTaskStatusColor(childStatus), flexShrink: 0 }} />
                                                 </Box>
                                                 {childExpanded && (
-                                                  <Box sx={{ ml: 2.5, pl: 2.0, borderLeft: '2px solid rgba(111, 180, 78, 0.22)', display: 'flex', flexDirection: 'column', gap: 0.75 }}>
-                                                    {childTasks.length === 0 ? (
-                                                      <Typography variant="caption" sx={{ color: 'text.disabled', px: 1 }}>No tasks</Typography>
-                                                    ) : (
-                                                      childTasks.map((task: any) => (
-                                                        <Box key={task.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1, py: 0.9, borderRadius: 2, border: '1px solid rgba(255,255,255,0.06)', backgroundColor: 'rgba(255,255,255,0.02)' }}>
-                                                          <Box sx={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: getTaskStatusColor(task.status), flexShrink: 0 }} />
-                                                          <Typography sx={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '0.75rem', color: '#D9E7FF', flexShrink: 0 }}>{task.name}</Typography>
-                                                          <Typography variant="caption" sx={{ color: 'text.secondary', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.assignedTo || 'Unassigned'}</Typography>
-                                                          <Box sx={{ px: 1, py: 0.2, borderRadius: 1, backgroundColor: task.status === 'complete' ? 'rgba(91,192,91,0.14)' : task.status === 'in_progress' ? 'rgba(86,180,255,0.14)' : task.status === 'blocked' ? 'rgba(237,117,117,0.14)' : 'rgba(255,255,255,0.06)', color: task.status === 'complete' ? '#B7E08D' : task.status === 'in_progress' ? '#8ED8FF' : task.status === 'blocked' ? '#FFB3B3' : 'text.secondary', fontSize: '0.68rem', fontWeight: 700, flexShrink: 0 }}>
-                                                            {task.status === 'in_progress' ? 'In Progress' : task.status === 'not_started' ? 'Not Started' : task.status.charAt(0).toUpperCase() + task.status.slice(1)}
+                                                  <Box sx={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                                                    {(taskDeps[subObject.id] || []).length > 0 && (
+                                                      <Box sx={{ px: 2, py: 0.75, display: 'flex', alignItems: 'center', gap: 1, borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                                                        <Typography variant="caption" color="text.disabled">Depends on:</Typography>
+                                                        {(taskDeps[subObject.id] || []).map((dep: any) => (
+                                                          <Box key={dep.id} sx={{ px: 1, py: 0.25, borderRadius: 1, backgroundColor: 'rgba(91,103,202,0.2)', fontSize: '0.7rem', color: '#9FA8DA' }}>{dep.objectId || dep.dependsOnName}</Box>
+                                                        ))}
+                                                      </Box>
+                                                    )}
+                                                    <Box sx={{ width: '100%', overflowX: 'auto' }}>
+                                                      <Box sx={{ minWidth: 930, display: 'grid', gridTemplateColumns: 'minmax(180px,1fr) 120px 60px 150px 84px 44px 100px 100px 92px', gap: 0, px: 2, py: 0.5, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                                                        {['TASK', 'STATUS', '%', 'ASSIGNED TO', 'DUR', 'WKND', 'START DATE', 'END DATE', 'ACTIONS'].map(h => (
+                                                          <Typography key={h} variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', letterSpacing: '0.05em', fontWeight: 600, whiteSpace: 'pre-line', lineHeight: 1.05 }}>{h}</Typography>
+                                                        ))}
+                                                      </Box>
+                                                      {childTasks.length === 0
+                                                        ? <Typography variant="caption" color="text.disabled" sx={{ px: 2, py: 1, display: 'block', minWidth: 930 }}>No tasks</Typography>
+                                                        : childTasks.map((task) => (
+                                                        <Box key={task.id} sx={{ minWidth: 930, display: 'grid', gridTemplateColumns: 'minmax(180px,1fr) 120px 60px 150px 84px 44px 100px 100px 92px', gap: 0, px: 2, py: 0.5, alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.03)', '&:hover': { backgroundColor: 'rgba(255,255,255,0.02)' } }}>
+                                                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                                                            <Box sx={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: getTaskStatusColor(task.status), flexShrink: 0 }} />
+                                                            <TextField size="small" value={task.name || ''} onBlur={e => updateTaskInline(task.id, 'name', e.target.value)}
+                                                              onChange={e => setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, name: e.target.value } : t))}
+                                                              sx={{ ...taskFieldSx, flex: 1 }} />
+                                                          </Box>
+                                                          <TextField select size="small" value={task.status} onChange={e => {
+                                                            const s = e.target.value;
+                                                            const newStatus = s;
+                                                            updateTaskInline(task.id, 'status', newStatus);
+                                                            if (newStatus === 'complete') updateTaskInline(task.id, 'progressPercentage', '100');
+                                                            else if (newStatus !== 'in_progress') updateTaskInline(task.id, 'progressPercentage', '0');
+                                                          }} sx={taskFieldSx}>
+                                                            <MenuItem value="not_started">Not Started</MenuItem>
+                                                            <MenuItem value="in_progress">In Progress</MenuItem>
+                                                            <MenuItem value="complete">Completed</MenuItem>
+                                                            <MenuItem value="blocked">Blocked</MenuItem>
+                                                          </TextField>
+                                                          <TextField size="small" type="number" value={task.progressPercentage ?? 0}
+                                                            disabled={task.status !== 'in_progress'}
+                                                            onChange={e => {
+                                                              const val = Math.min(100, Math.max(0, parseInt(e.target.value) || 0));
+                                                              updateTaskInline(task.id, 'progressPercentage', String(val));
+                                                            }}
+                                                            slotProps={{ htmlInput: { min: 0, max: 100 } }}
+                                                            sx={{ ...taskFieldSx, '& input': { textAlign: 'center', px: 0.5 } }} />
+                                                          <TextField select size="small" value={task.assignedTo || ''}
+                                                            onChange={e => updateTaskInline(task.id, 'assignedTo', e.target.value)}
+                                                            sx={taskFieldSx}>
+                                                            <MenuItem value=""><em>Unassigned</em></MenuItem>
+                                                            {people.map(p => <MenuItem key={p.id} value={p.name}>{p.name}</MenuItem>)}
+                                                          </TextField>
+                                                          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start' }}>
+                                                            <TextField size="small" type="number"
+                                                              value={task.duration != null ? Number(task.duration) : ''}
+                                                              placeholder="—"
+                                                              onChange={e => {
+                                                                const dur = parseFloat(e.target.value) || null;
+                                                                setProjectTasks(prev => prev.map(t => {
+                                                                  if (t.id !== task.id) return t;
+                                                                  const updates: any = { duration: dur };
+                                                                  if (dur && t.startDate) {
+                                                                    const newEnd = calcEndDate(t.startDate, dur, t);
+                                                                    if (newEnd) updates.endDate = newEnd;
+                                                                  }
+                                                                  return { ...t, ...updates };
+                                                                }));
+                                                              }}
+                                                              onBlur={e => {
+                                                                const dur = parseFloat(e.target.value) || 0;
+                                                                const freshStart = projectTasksRef.current.find(t => t.id === task.id)?.startDate || task.startDate;
+                                                                const newEnd = dur && freshStart ? calcEndDate(freshStart, dur, task) : null;
+                                                                const patch: any = { duration: dur || null, durationUnit: 'days' };
+                                                                if (newEnd) patch.endDate = newEnd;
+                                                                setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, ...patch } : t));
+                                                                apiClient.patch(`/api/tasks/${task.id}`, patch)
+                                                                  .then(() => {
+                                                                    if (newEnd) {
+                                                                      const snap = projectTasksRef.current.map(t => t.id === task.id ? { ...t, ...patch } : t);
+                                                                      cascadeAllDates(snap, taskDepsRef.current);
+                                                                    }
+                                                                  })
+                                                                  .catch(() => {});
+                                                              }}
+                                                              slotProps={{ htmlInput: { min: 0, step: 1 } }}
+                                                              sx={{ ...taskFieldSx, '& input': { textAlign: 'center', px: 0.25, width: 32 } }} />
+                                                          </Box>
+                                                          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', pl: 0 }}>
+                                                            <Checkbox
+                                                              size="small"
+                                                              checked={getTaskCalendarMode(task) === 'all_days'}
+                                                              onChange={e => {
+                                                                const cycleIsAllDays = activeCycleScheduleMode === 'all_days';
+                                                                const checked = e.target.checked;
+                                                                const scheduleModeOverride = checked === cycleIsAllDays
+                                                                  ? null
+                                                                  : (checked ? 'all_days' : 'working_days');
+                                                                const taskSnapshot = projectTasksRef.current.find(t => t.id === task.id) || task;
+                                                                const nextTask = { ...taskSnapshot, scheduleModeOverride };
+                                                                const patchData: any = { scheduleModeOverride };
+                                                                if (nextTask.startDate && nextTask.duration) {
+                                                                  const recalculatedEnd = calcEndDate(nextTask.startDate, Number(nextTask.duration), nextTask);
+                                                                  if (recalculatedEnd) patchData.endDate = recalculatedEnd;
+                                                                }
+                                                                setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, ...patchData } : t));
+                                                                apiClient.patch(`/api/tasks/${task.id}`, patchData)
+                                                                  .then(() => {
+                                                                    const snap = projectTasksRef.current.map(t => t.id === task.id ? { ...t, ...patchData } : t);
+                                                                    cascadeAllDates(snap, taskDepsRef.current);
+                                                                  })
+                                                                  .catch(() => {});
+                                                              }}
+                                                              sx={{ p: 0, m: 0 }}
+                                                            />
+                                                          </Box>
+                                                          {(taskDeps[task.id] || []).length > 0 ? (
+                                                            <Box title="Set by dependency — adjust via › button" sx={{ display: 'flex', alignItems: 'center', px: 1, height: 26, minWidth: 100, border: '1px dashed rgba(255,255,255,0.2)', borderRadius: 1, backgroundColor: 'rgba(255,255,255,0.08)', cursor: 'not-allowed', fontSize: '0.72rem', color: 'rgba(255,255,255,0.75)' }}>
+                                                              {task.startDate ? (() => { const [y,m,d] = task.startDate.split('-'); return `${m}/${d}/${y}`; })() : '—'}
+                                                            </Box>
+                                                          ) : (
+                                                            <Box sx={{ position: 'relative', '&:focus-within .date-empty': { display: 'none' } }}>
+                                                              <TextField size="small" type="date"
+                                                                value={task.startDate || ''}
+                                                                onChange={e => {
+                                                                  const newStart = e.target.value;
+                                                                  const freshTask = projectTasksRef.current.find(t => t.id === task.id);
+                                                                  const dur = freshTask?.duration ?? task.duration;
+                                                                  const endToSet = dur ? (calcEndDate(newStart, Number(dur), task) || null) : null;
+                                                                  const patchData: any = { startDate: newStart };
+                                                                  if (endToSet) patchData.endDate = endToSet;
+                                                                  setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, startDate: newStart, ...(endToSet ? { endDate: endToSet } : {}) } : t));
+                                                                  apiClient.patch(`/api/tasks/${task.id}`, patchData)
+                                                                    .then(() => {
+                                                                      const snap = projectTasksRef.current.map(t => t.id === task.id ? { ...t, startDate: newStart, ...(endToSet ? { endDate: endToSet } : {}) } : t);
+                                                                      cascadeAllDates(snap, taskDepsRef.current);
+                                                                    })
+                                                                    .catch(() => {});
+                                                                  e.target.blur();
+                                                                }}
+                                                                sx={{ ...taskFieldSx, ...(!task.startDate ? { '& input': { color: 'transparent' }, '& input:focus': { color: 'inherit' }, '& input::-webkit-calendar-picker-indicator': { opacity: 0 }, '& input:focus::-webkit-calendar-picker-indicator': { opacity: 1 } } : {}) }} />
+                                                              {!task.startDate && <Box className="date-empty" sx={{ position: 'absolute', inset: 0, pl: 1.5, display: 'flex', alignItems: 'center', pointerEvents: 'none', fontSize: '0.72rem', color: 'text.disabled' }}>—</Box>}
+                                                            </Box>
+                                                          )}
+                                                          {!!task.duration ? (
+                                                            <Box title="Calculated from start date + duration" sx={{ display: 'flex', alignItems: 'center', px: 1, height: 26, minWidth: 100, border: '1px dashed rgba(255,255,255,0.2)', borderRadius: 1, backgroundColor: 'rgba(255,255,255,0.08)', cursor: 'not-allowed', fontSize: '0.72rem', color: 'rgba(255,255,255,0.75)' }}>
+                                                              {(() => { if (!task.startDate) return '—'; const c = calcEndDate(task.startDate, Number(task.duration), task); if (!c) return '—'; const [y,m,d] = c.split('-'); return `${m}/${d}/${y}`; })()}
+                                                            </Box>
+                                                          ) : task.endDate ? (
+                                                            <Box sx={{ display: 'flex', alignItems: 'center', px: 1, height: 26, minWidth: 100, border: '1px dashed rgba(255,255,255,0.2)', borderRadius: 1, backgroundColor: 'rgba(255,255,255,0.08)', fontSize: '0.72rem', color: 'rgba(255,255,255,0.75)' }}>
+                                                              {(() => { const [y,m,d] = task.endDate.split('-'); return `${m}/${d}/${y}`; })()}
+                                                            </Box>
+                                                          ) : (
+                                                            <Box sx={{ position: 'relative', '&:focus-within .date-empty-end': { display: 'none' } }}>
+                                                              <TextField size="small" type="date"
+                                                                value={task.endDate || ''}
+                                                                onChange={e => { updateTaskInline(task.id, 'endDate', e.target.value); e.target.blur(); }}
+                                                                sx={{ ...taskFieldSx, '& input': { color: 'transparent' }, '& input:focus': { color: 'inherit' }, '& input::-webkit-calendar-picker-indicator': { opacity: 0 }, '& input:focus::-webkit-calendar-picker-indicator': { opacity: 1 } }} />
+                                                              <Box className="date-empty-end" sx={{ position: 'absolute', inset: 0, pl: 1.5, display: 'flex', alignItems: 'center', pointerEvents: 'none', fontSize: '0.72rem', color: 'text.disabled' }}>—</Box>
+                                                            </Box>
+                                                          )}
+                                                          <Box sx={{ display: 'flex', gap: 0.25, alignItems: 'center' }}>
+                                                            <IconButton size="small" title="Discussion" onClick={() => setCommentModalTask({ id: task.id, name: task.name || 'Task' })}
+                                                              sx={{ opacity: (taskCommentCounts[task.id] || 0) > 0 ? 1 : 0.6, color: (taskCommentCounts[task.id] || 0) > 0 ? planAccentColor : 'inherit', '&:hover': { opacity: 1, color: planAccentColor } }}>
+                                                              <ChatBubbleOutlineIcon sx={{ fontSize: '0.9rem' }} />
+                                                            </IconButton>
+                                                            <IconButton size="small" title="Dependencies" onClick={async () => {
+                                                              await loadTaskDeps(task.id);
+                                                              setDepDialogTaskId(task.id);
+                                                              setDepSearchTerm('');
+                                                              await loadCycleTasksForDep(task.id);
+                                                            }} sx={{ opacity: (taskDeps[task.id] || []).length > 0 ? 1 : 0.6, color: (taskDeps[task.id] || []).length > 0 ? planAccentColor : 'inherit', '&:hover': { opacity: 1, color: planAccentColor } }}>
+                                                              <ChevronRightIcon sx={{ fontSize: '0.9rem' }} />
+                                                            </IconButton>
+                                                            <IconButton size="small" title="More task actions" onClick={(e) => openTaskRowMenu(e, task)} sx={{ opacity: 0.6, '&:hover': { opacity: 1 } }}>
+                                                              <MoreVertIcon sx={{ fontSize: '0.9rem' }} />
+                                                            </IconButton>
                                                           </Box>
                                                         </Box>
                                                       ))
-                                                    )}
+                                                      }
+                                                    </Box>
+                                                    <Box sx={{ px: 2, py: 0.5, minWidth: 930 }}>
+                                                      <Button size="small" variant="text" startIcon={<AddIcon sx={{ fontSize: '0.8rem !important' }} />}
+                                                        onClick={async () => {
+                                                          try {
+                                                            const res = await apiClient.post(`/api/tasks/project/${activeProjectId}`, { taskType: 'custom', projectObjectId: subObject.id, name: 'New Task', durationUnit: 'days' });
+                                                            setProjectTasks(prev => [...prev, normalizeTaskDateFields(res.data.data)]);
+                                                          } catch (e) { console.error(e); }
+                                                        }}
+                                                        sx={{ fontSize: '0.72rem', color: '#7C83D0', textTransform: 'none' }}>
+                                                        Add Task
+                                                      </Button>
+                                                    </Box>
                                                   </Box>
                                                 )}
                                               </Box>
