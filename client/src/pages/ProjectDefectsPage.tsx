@@ -1,20 +1,102 @@
 import React from 'react';
-import { Alert, Box, Card, CardContent, Chip, CircularProgress, Grid, Stack, Typography, Button, Divider } from '@mui/material';
+import {
+  Alert,
+  Avatar,
+  Box,
+  Button,
+  Card,
+  CardContent,
+  Chip,
+  CircularProgress,
+  Divider,
+  Grid,
+  List,
+  ListItemButton,
+  ListItemText,
+  MenuItem,
+  Paper,
+  Stack,
+  TextField,
+  Typography,
+} from '@mui/material';
 import { useParams } from 'react-router-dom';
 import { useQuery, useQueries, useQueryClient } from '@tanstack/react-query';
 import PageContainer from '../layout/PageContainer';
 import ContentHeader from '../layout/ContentHeader';
-import TaskDetailModal from '../components/tasks/TaskDetailModal';
-import DefectCard from '../components/defects/DefectCard';
 import apiClient from '../api/client';
 import { Defect, DefectStatus, ReportingSummary } from '../api/types';
 
 const qualityTaskTypes = new Set(['preload_validation', 'postload_validation', 'load']);
+const statusOptions: DefectStatus[] = ['open', 'in_progress', 'resolved', 'closed'];
+
+const parseDefectDescriptionSections = (description: string | null | undefined) => {
+  const text = (description || '').trim();
+  if (!text) {
+    return {
+      details: '',
+      reproSteps: '',
+      systemInfo: '',
+      acceptanceCriteria: '',
+      discussion: '',
+    };
+  }
+
+  const getSection = (name: string) => {
+    const sectionRegex = new RegExp(`##\\s*${name}\\s*\\n([\\s\\S]*?)(?=\\n##\\s*|$)`, 'i');
+    const match = text.match(sectionRegex);
+    return match ? match[1].trim() : '';
+  };
+
+  const stripped = text
+    .replace(/\n?##\s*Repro Steps\s*\n[\s\S]*?(?=\n##\s*|$)/gi, '')
+    .replace(/\n?##\s*System Info\s*\n[\s\S]*?(?=\n##\s*|$)/gi, '')
+    .replace(/\n?##\s*Acceptance Criteria\s*\n[\s\S]*?(?=\n##\s*|$)/gi, '')
+    .replace(/\n?##\s*Discussion\s*\n[\s\S]*?(?=\n##\s*|$)/gi, '')
+    .trim();
+
+  return {
+    details: stripped,
+    reproSteps: getSection('Repro Steps'),
+    systemInfo: getSection('System Info'),
+    acceptanceCriteria: getSection('Acceptance Criteria'),
+    discussion: getSection('Discussion'),
+  };
+};
+
+const composeDefectDescription = (sections: {
+  details: string;
+  reproSteps: string;
+  systemInfo: string;
+  acceptanceCriteria: string;
+  discussion: string;
+}) => {
+  const blocks: string[] = [];
+  if (sections.details.trim()) blocks.push(sections.details.trim());
+  if (sections.reproSteps.trim()) blocks.push(`## Repro Steps\n${sections.reproSteps.trim()}`);
+  if (sections.systemInfo.trim()) blocks.push(`## System Info\n${sections.systemInfo.trim()}`);
+  if (sections.acceptanceCriteria.trim()) blocks.push(`## Acceptance Criteria\n${sections.acceptanceCriteria.trim()}`);
+  if (sections.discussion.trim()) blocks.push(`## Discussion\n${sections.discussion.trim()}`);
+  return blocks.join('\n\n').trim();
+};
 
 const ProjectDefectsPage: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
-  const [selectedTask, setSelectedTask] = React.useState<any | null>(null);
   const [taskFilter, setTaskFilter] = React.useState<'all' | 'validation' | 'load' | 'other'>('all');
+  const [statusFilter, setStatusFilter] = React.useState<'all' | DefectStatus>('all');
+  const [searchTerm, setSearchTerm] = React.useState('');
+  const [selectedDefectId, setSelectedDefectId] = React.useState<string>('');
+  const [draft, setDraft] = React.useState({
+    title: '',
+    severity: 'medium' as Defect['severity'],
+    status: 'open' as DefectStatus,
+    assignedToUserId: '',
+    details: '',
+    reproSteps: '',
+    systemInfo: '',
+    acceptanceCriteria: '',
+    discussion: '',
+  });
+  const [isSaving, setIsSaving] = React.useState(false);
 
   const { data: project } = useQuery({
     queryKey: ['project-defects-project', projectId],
@@ -91,22 +173,6 @@ const ProjectDefectsPage: React.FC = () => {
     });
   }, [defectQueries, taskIds, taskById]);
 
-  const groupedDefects = React.useMemo(() => {
-    const groups: Record<DefectStatus, Defect[]> = {
-      open: [],
-      in_progress: [],
-      resolved: [],
-      closed: [],
-    };
-
-    allDefects.forEach((defect: any) => {
-      const status = (defect.status || 'open') as DefectStatus;
-      groups[status].push(defect);
-    });
-
-    return groups;
-  }, [allDefects]);
-
   const allTaskTypes = React.useMemo(() => {
     const grouped: Record<string, number> = {};
     (tasks || []).forEach((task: any) => {
@@ -144,6 +210,81 @@ const ProjectDefectsPage: React.FC = () => {
 
     return groups;
   }, [filteredTasks]);
+
+  const filteredDefects = React.useMemo(() => {
+    return allDefects
+      .filter((defect: any) => (statusFilter === 'all' ? true : defect.status === statusFilter))
+      .filter((defect: any) => {
+        const haystack = `${defect.title || ''} ${defect.taskName || ''} ${defect.issueCode || ''}`.toLowerCase();
+        return haystack.includes(searchTerm.trim().toLowerCase());
+      })
+      .sort((a: any, b: any) => new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime());
+  }, [allDefects, statusFilter, searchTerm]);
+
+  const activeDefect = React.useMemo(
+    () => filteredDefects.find((defect: any) => defect.id === selectedDefectId) || filteredDefects[0] || null,
+    [filteredDefects, selectedDefectId]
+  );
+
+  React.useEffect(() => {
+    if (!activeDefect) {
+      setSelectedDefectId('');
+      return;
+    }
+    if (selectedDefectId !== activeDefect.id) {
+      setSelectedDefectId(activeDefect.id);
+    }
+  }, [activeDefect, selectedDefectId]);
+
+  React.useEffect(() => {
+    if (!activeDefect) return;
+    const parsed = parseDefectDescriptionSections(activeDefect.description);
+    setDraft({
+      title: activeDefect.title || '',
+      severity: activeDefect.severity || 'medium',
+      status: activeDefect.status || 'open',
+      assignedToUserId: activeDefect.assignedToUserId || '',
+      details: parsed.details,
+      reproSteps: parsed.reproSteps,
+      systemInfo: parsed.systemInfo,
+      acceptanceCriteria: parsed.acceptanceCriteria,
+      discussion: parsed.discussion,
+    });
+  }, [activeDefect?.id]);
+
+  const computedDescription = React.useMemo(
+    () => composeDefectDescription(draft),
+    [draft]
+  );
+
+  const isDirty = React.useMemo(() => {
+    if (!activeDefect) return false;
+    return (
+      draft.title.trim() !== (activeDefect.title || '').trim()
+      || draft.severity !== activeDefect.severity
+      || draft.status !== activeDefect.status
+      || (draft.assignedToUserId || '') !== (activeDefect.assignedToUserId || '')
+      || computedDescription !== ((activeDefect.description || '').trim())
+    );
+  }, [activeDefect, draft, computedDescription]);
+
+  const saveDefect = async () => {
+    if (!activeDefect) return;
+    try {
+      setIsSaving(true);
+      await apiClient.patch(`/api/defects/${activeDefect.id}`, {
+        title: draft.title.trim(),
+        severity: draft.severity,
+        status: draft.status,
+        assignedToUserId: draft.assignedToUserId || null,
+        description: computedDescription,
+      });
+      await queryClient.invalidateQueries({ queryKey: ['project-defects', projectId] });
+      await queryClient.invalidateQueries({ queryKey: ['project-defects-summary', projectId] });
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   if (!projectId) {
     return <Alert severity="error">Project ID not found</Alert>;
@@ -187,62 +328,244 @@ const ProjectDefectsPage: React.FC = () => {
           <Stack spacing={2}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
               <Box>
-                <Typography variant="subtitle1" fontWeight={700}>All defects</Typography>
-                <Typography variant="body2" color="text.secondary">Every defect in this project is editable here, grouped by current status.</Typography>
+                <Typography variant="subtitle1" fontWeight={700}>Defect Work Items</Typography>
+                <Typography variant="body2" color="text.secondary">ADO-style defect triage with a work-item queue and detail editor.</Typography>
               </Box>
-              <Button size="small" variant="outlined" onClick={() => setSelectedTask(filteredTasks[0] || null)} sx={{ textTransform: 'none' }}>
-                Open first task
-              </Button>
             </Box>
             <Divider />
-            {defectQueries.some((query: any) => query.isLoading) ? (
-              <Typography variant="body2">Loading defects...</Typography>
-            ) : allDefects.length === 0 ? (
-              <Alert severity="info">No defects have been created for tasks in this project yet.</Alert>
-            ) : (
-              <Stack spacing={2}>
-                {(['open', 'in_progress', 'resolved', 'closed'] as DefectStatus[]).map((status) => {
-                  const items = groupedDefects[status] || [];
-                  return (
-                    <Box key={status}>
-                      <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1, textTransform: 'capitalize' }}>
-                        {status.replace('_', ' ')} ({items.length})
-                      </Typography>
-                      {items.length === 0 ? (
-                        <Alert severity="info" variant="outlined">No {status.replace('_', ' ')} defects.</Alert>
-                      ) : (
-                        <Stack spacing={1.25}>
-                          {items.map((defect: any) => (
-                            <Box key={defect.id} sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
-                                <Chip size="small" variant="outlined" label={defect.taskName || 'Task'} />
-                                {defect.taskType ? <Chip size="small" variant="outlined" label={(defect.taskType || '').replace(/_/g, ' ')} /> : null}
-                              </Box>
-                              <DefectCard
-                                defect={defect}
-                                users={people}
-                                onEdit={() => setSelectedTask(taskById[defect.taskId] || null)}
-                                onStatusChange={async (defectId, nextStatus) => {
-                                  await apiClient.patch(`/api/defects/${defectId}`, { status: nextStatus });
-                                  await queryClient.invalidateQueries({ queryKey: ['project-defects', projectId] });
-                                }}
-                                onAssign={async (defectId, assignedToUserId) => {
-                                  await apiClient.patch(`/api/defects/${defectId}`, { assignedToUserId });
-                                  await queryClient.invalidateQueries({ queryKey: ['project-defects', projectId] });
-                                }}
-                              />
-                            </Box>
-                          ))}
-                        </Stack>
-                      )}
-                    </Box>
-                  );
-                })}
-              </Stack>
-            )}
+            <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
+              <TextField
+                size="small"
+                label="Search defects"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                sx={{ minWidth: 260 }}
+              />
+              <TextField
+                size="small"
+                select
+                label="Status"
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as 'all' | DefectStatus)}
+                sx={{ minWidth: 180 }}
+              >
+                <MenuItem value="all">All statuses</MenuItem>
+                {statusOptions.map((status) => (
+                  <MenuItem key={status} value={status}>{status.replace('_', ' ')}</MenuItem>
+                ))}
+              </TextField>
+            </Stack>
           </Stack>
         </CardContent>
       </Card>
+
+      {defectQueries.some((query: any) => query.isLoading) ? (
+        <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
+          <CircularProgress />
+        </Box>
+      ) : filteredDefects.length === 0 ? (
+        <Alert severity="info">No defects found for the selected filters.</Alert>
+      ) : (
+        <Grid container spacing={2.5} sx={{ mb: 3 }}>
+          <Grid item xs={12} md={4} lg={3.5}>
+            <Paper variant="outlined" sx={{ height: '100%', maxHeight: 760, overflow: 'auto' }}>
+              <Box sx={{ px: 1.5, py: 1, borderBottom: '1px solid', borderColor: 'divider' }}>
+                <Typography variant="subtitle2" fontWeight={700}>Defect Queue ({filteredDefects.length})</Typography>
+              </Box>
+              <List dense disablePadding>
+                {filteredDefects.map((defect: any) => (
+                  <ListItemButton
+                    key={defect.id}
+                    selected={activeDefect?.id === defect.id}
+                    onClick={() => setSelectedDefectId(defect.id)}
+                    sx={{ alignItems: 'flex-start', py: 1.2 }}
+                  >
+                    <ListItemText
+                      primary={<Typography variant="body2" fontWeight={700}>BUG {defect.id.slice(0, 8)}</Typography>}
+                      secondary={(
+                        <Stack spacing={0.7} sx={{ mt: 0.5 }}>
+                          <Typography variant="body2">{defect.title}</Typography>
+                          <Stack direction="row" spacing={0.75} useFlexGap flexWrap="wrap">
+                            <Chip size="small" variant="outlined" label={defect.status.replace('_', ' ')} />
+                            <Chip size="small" label={defect.severity} color={defect.severity === 'critical' ? 'error' : defect.severity === 'high' ? 'warning' : 'default'} />
+                          </Stack>
+                          <Typography variant="caption" color="text.secondary">{defect.taskName || 'Task'}</Typography>
+                        </Stack>
+                      )}
+                    />
+                  </ListItemButton>
+                ))}
+              </List>
+            </Paper>
+          </Grid>
+
+          <Grid item xs={12} md={8} lg={8.5}>
+            {!activeDefect ? (
+              <Alert severity="info">Select a defect to view details.</Alert>
+            ) : (
+              <Paper variant="outlined" sx={{ p: 2 }}>
+                <Stack spacing={2}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+                    <Stack spacing={0.5}>
+                      <Typography variant="caption" color="text.secondary">BUG {activeDefect.id.slice(0, 8)}</Typography>
+                      <TextField
+                        value={draft.title}
+                        onChange={(e) => setDraft((prev) => ({ ...prev, title: e.target.value }))}
+                        variant="standard"
+                        fullWidth
+                        sx={{ minWidth: { xs: '100%', md: 420 }, '& .MuiInputBase-input': { fontSize: '1.35rem', fontWeight: 700 } }}
+                      />
+                    </Stack>
+                    <Stack direction="row" spacing={1}>
+                      <Button
+                        variant="outlined"
+                        sx={{ textTransform: 'none' }}
+                        disabled={!isDirty || isSaving}
+                        onClick={() => {
+                          const parsed = parseDefectDescriptionSections(activeDefect.description);
+                          setDraft({
+                            title: activeDefect.title || '',
+                            severity: activeDefect.severity || 'medium',
+                            status: activeDefect.status || 'open',
+                            assignedToUserId: activeDefect.assignedToUserId || '',
+                            details: parsed.details,
+                            reproSteps: parsed.reproSteps,
+                            systemInfo: parsed.systemInfo,
+                            acceptanceCriteria: parsed.acceptanceCriteria,
+                            discussion: parsed.discussion,
+                          });
+                        }}
+                      >
+                        Reset
+                      </Button>
+                      <Button variant="contained" sx={{ textTransform: 'none' }} disabled={!isDirty || isSaving} onClick={saveDefect}>
+                        {isSaving ? 'Saving...' : 'Save'}
+                      </Button>
+                    </Stack>
+                  </Box>
+
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <Chip size="small" color="primary" label="Details" />
+                    <Chip size="small" variant="outlined" label="Related Work" />
+                    <Chip size="small" variant="outlined" label="Discussion" />
+                  </Stack>
+
+                  <Grid container spacing={2}>
+                    <Grid item xs={12} lg={7.5}>
+                      <Stack spacing={1.5}>
+                        <TextField
+                          label="Details"
+                          multiline
+                          minRows={3}
+                          value={draft.details}
+                          onChange={(e) => setDraft((prev) => ({ ...prev, details: e.target.value }))}
+                        />
+                        <TextField
+                          label="Repro Steps"
+                          multiline
+                          minRows={3}
+                          value={draft.reproSteps}
+                          onChange={(e) => setDraft((prev) => ({ ...prev, reproSteps: e.target.value }))}
+                        />
+                        <TextField
+                          label="System Info"
+                          multiline
+                          minRows={2}
+                          value={draft.systemInfo}
+                          onChange={(e) => setDraft((prev) => ({ ...prev, systemInfo: e.target.value }))}
+                        />
+                        <TextField
+                          label="Acceptance Criteria"
+                          multiline
+                          minRows={2}
+                          value={draft.acceptanceCriteria}
+                          onChange={(e) => setDraft((prev) => ({ ...prev, acceptanceCriteria: e.target.value }))}
+                        />
+                        <TextField
+                          label="Discussion"
+                          multiline
+                          minRows={3}
+                          value={draft.discussion}
+                          onChange={(e) => setDraft((prev) => ({ ...prev, discussion: e.target.value }))}
+                        />
+                      </Stack>
+                    </Grid>
+
+                    <Grid item xs={12} lg={4.5}>
+                      <Stack spacing={1.5}>
+                        <Card variant="outlined">
+                          <CardContent>
+                            <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1 }}>Details</Typography>
+                            <Stack spacing={1.25}>
+                              <TextField
+                                label="State"
+                                size="small"
+                                select
+                                value={draft.status}
+                                onChange={(e) => setDraft((prev) => ({ ...prev, status: e.target.value as DefectStatus }))}
+                              >
+                                {statusOptions.map((status) => (
+                                  <MenuItem key={status} value={status}>{status.replace('_', ' ')}</MenuItem>
+                                ))}
+                              </TextField>
+                              <TextField
+                                label="Severity"
+                                size="small"
+                                select
+                                value={draft.severity}
+                                onChange={(e) => setDraft((prev) => ({ ...prev, severity: e.target.value as Defect['severity'] }))}
+                              >
+                                <MenuItem value="low">Low</MenuItem>
+                                <MenuItem value="medium">Medium</MenuItem>
+                                <MenuItem value="high">High</MenuItem>
+                                <MenuItem value="critical">Critical</MenuItem>
+                              </TextField>
+                              <TextField
+                                label="Assigned To"
+                                size="small"
+                                select
+                                value={draft.assignedToUserId}
+                                onChange={(e) => setDraft((prev) => ({ ...prev, assignedToUserId: e.target.value }))}
+                              >
+                                <MenuItem value="">Unassigned</MenuItem>
+                                {(people || []).map((person: any) => (
+                                  <MenuItem key={person.id} value={person.id}>{person.email}</MenuItem>
+                                ))}
+                              </TextField>
+                              <Typography variant="caption" color="text.secondary">Task: {activeDefect.taskName || 'Task'}</Typography>
+                              <Typography variant="caption" color="text.secondary">Issue Type: {activeDefect.issueCode || 'None'}</Typography>
+                              <Typography variant="caption" color="text.secondary">Object: {activeDefect.globalObjectId || 'None'}</Typography>
+                            </Stack>
+                          </CardContent>
+                        </Card>
+
+                        <Card variant="outlined">
+                          <CardContent>
+                            <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1 }}>Activity</Typography>
+                            <Stack spacing={1}>
+                              <Stack direction="row" spacing={1} alignItems="center">
+                                <Avatar sx={{ width: 24, height: 24, fontSize: 11 }}>
+                                  {(activeDefect.createdByUserEmail || 'u').slice(0, 1).toUpperCase()}
+                                </Avatar>
+                                <Typography variant="caption" color="text.secondary">Created by {activeDefect.createdByUserEmail || activeDefect.createdByUserId}</Typography>
+                              </Stack>
+                              <Typography variant="caption" color="text.secondary">Created: {new Date(activeDefect.createdAt).toLocaleString()}</Typography>
+                              <Typography variant="caption" color="text.secondary">Updated: {new Date(activeDefect.updatedAt).toLocaleString()}</Typography>
+                              {activeDefect.resolvedAt ? (
+                                <Typography variant="caption" color="text.secondary">Resolved: {new Date(activeDefect.resolvedAt).toLocaleString()}</Typography>
+                              ) : null}
+                            </Stack>
+                          </CardContent>
+                        </Card>
+                      </Stack>
+                    </Grid>
+                  </Grid>
+                </Stack>
+              </Paper>
+            )}
+          </Grid>
+        </Grid>
+      )}
 
       <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 3 }}>
         {(['all', 'validation', 'load', 'other'] as const).map((filter) => (
@@ -341,15 +664,6 @@ const ProjectDefectsPage: React.FC = () => {
         </Stack>
       )}
 
-      <TaskDetailModal
-        open={!!selectedTask}
-        onClose={() => setSelectedTask(null)}
-        taskId={selectedTask?.id}
-        task={selectedTask}
-        peopleById={peopleById}
-        people={people}
-        accentColor="#5B67CA"
-      />
     </PageContainer>
   );
 };
