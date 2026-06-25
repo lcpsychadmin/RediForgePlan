@@ -7535,8 +7535,43 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                 projectIdValue,
                 areaValue || ''
               ).trim().toLowerCase();
-              return areaRaw === selectedProcessAreaRaw
-                || (!!selectedProcessAreaDisplay && areaDisplay === selectedProcessAreaDisplay);
+
+              const canonical = (value: string) => (value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+              const acronym = (value: string) => {
+                const tokens = (value || '').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+                if (tokens.length === 0) return '';
+                return tokens.map((token) => token[0]).join('');
+              };
+
+              const selectedTokens = new Set<string>([
+                selectedProcessAreaRaw,
+                selectedProcessAreaDisplay,
+                canonical(selectedProcessAreaRaw),
+                canonical(selectedProcessAreaDisplay),
+                acronym(selectedProcessAreaRaw),
+                acronym(selectedProcessAreaDisplay),
+              ].filter(Boolean));
+
+              const itemTokens = [
+                areaRaw,
+                areaDisplay,
+                canonical(areaRaw),
+                canonical(areaDisplay),
+                acronym(areaRaw),
+                acronym(areaDisplay),
+              ].filter(Boolean);
+
+              if (itemTokens.some((token) => selectedTokens.has(token))) {
+                return true;
+              }
+
+              const selectedCanonical = canonical(selectedProcessAreaRaw || selectedProcessAreaDisplay);
+              const itemCanonical = canonical(areaRaw || areaDisplay);
+              if (selectedCanonical && itemCanonical) {
+                return itemCanonical.includes(selectedCanonical) || selectedCanonical.includes(itemCanonical);
+              }
+
+              return false;
             };
             const selectableObjects = projectInventoryItems
               .filter((item: any) => {
