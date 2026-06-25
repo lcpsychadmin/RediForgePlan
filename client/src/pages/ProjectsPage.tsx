@@ -4582,6 +4582,59 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                     )}
                                     <IconButton size="small" onClick={(e) => { e.stopPropagation(); setMenuAnchorEl(e.currentTarget); setMenuType('task'); setMenuItemId(objectId || ''); }}><MoreVertIcon sx={{ fontSize: '1rem' }} /></IconButton>
                                   </Box>
+                                  {isHierarchyNode && isExpanded && (
+                                    <Box sx={{ borderTop: '1px solid rgba(255,255,255,0.06)', px: 2, py: 1.25 }}>
+                                      <Box sx={{ pl: 2.5, borderLeft: '2px solid rgba(111, 180, 78, 0.28)', display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                        {subObjects.map((subObject: any) => {
+                                          const childTasks = projectTasks
+                                            .filter(t => t.projectObjectId === subObject.id)
+                                            .sort((a, b) => {
+                                              const aDate = a.startDate ? new Date(a.startDate).getTime() : Infinity;
+                                              const bDate = b.startDate ? new Date(b.startDate).getTime() : Infinity;
+                                              if (aDate !== bDate) return aDate - bDate;
+                                              const aIdx = defaultTaskOrder.indexOf(a.name);
+                                              const bIdx = defaultTaskOrder.indexOf(b.name);
+                                              const aOrder = aIdx === -1 ? 999 : aIdx;
+                                              const bOrder = bIdx === -1 ? 999 : bIdx;
+                                              if (aOrder !== bOrder) return aOrder - bOrder;
+                                              return (a.name || '').localeCompare(b.name || '');
+                                            });
+                                          const childStatus = childTasks.length > 0 && childTasks.every(t => t.status === 'complete') ? 'complete' : childTasks.some(t => t.status === 'in_progress') ? 'in_progress' : childTasks.some(t => t.status === 'blocked') ? 'blocked' : 'not_started';
+                                          const childGlobal = inventoryObjects.find(o => o.id === subObject.globalObjectId || o.objectId === subObject.objectId);
+                                          const childDescription = childGlobal?.description || subObject.subObjectDescription || subObject.description || '';
+                                          return (
+                                            <Box
+                                              key={subObject.id}
+                                              sx={{
+                                                ml: 1,
+                                                pl: 1.5,
+                                                pr: 1.5,
+                                                py: 1,
+                                                borderRadius: 2,
+                                                border: '1px solid rgba(255,255,255,0.08)',
+                                                backgroundColor: 'rgba(255,255,255,0.03)',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: 1,
+                                              }}
+                                            >
+                                              <ChevronRightIcon sx={{ fontSize: 15, color: 'text.secondary', transform: 'rotate(90deg)', flexShrink: 0 }} />
+                                              <Typography sx={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '0.78rem', color: planAccentColor, flexShrink: 0 }}>
+                                                {subObject.objectId}
+                                              </Typography>
+                                              <Typography variant="caption" sx={{ color: 'text.primary', fontWeight: 600, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                {childDescription || 'Sub-object'}
+                                              </Typography>
+                                              <Box sx={{ px: 1, py: 0.25, borderRadius: 1, backgroundColor: 'rgba(111, 180, 78, 0.14)', border: '1px solid rgba(111, 180, 78, 0.25)', color: '#B7E08D', fontSize: '0.7rem', fontWeight: 700, flexShrink: 0 }}>
+                                                {childTasks.length} task{childTasks.length === 1 ? '' : 's'}
+                                              </Box>
+                                              <Box sx={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: getTaskStatusColor(childStatus), flexShrink: 0 }} />
+                                            </Box>
+                                          );
+                                        })}
+                                      </Box>
+                                    </Box>
+                                  )}
                                   {/* Timeline and Status Info Line */}
                                   {!isHierarchyNode && displayTasks.length > 0 && (() => {
                                     const parseLocalDate = (dateString: string) => {
