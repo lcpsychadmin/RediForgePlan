@@ -7573,7 +7573,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
 
               return false;
             };
-            const selectableObjects = projectInventoryItems
+            const areaMatchedObjects = projectInventoryItems
               .filter((item: any) => {
                 const projectIdForItem = activeProjectId || item.projectId || '';
                 if (areaMatchesSelectedNode(item.processArea || '', projectIdForItem)) {
@@ -7584,20 +7584,29 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                 const childItems = projectInventoryItems.filter((entry: any) => entry.parentProjectObjectId === item.id);
                 return childItems.some((child: any) => areaMatchesSelectedNode(child.processArea || '', activeProjectId || child.projectId || projectIdForItem));
               })
+              .sort((a: any, b: any) => (a.objectId || '').localeCompare(b.objectId || ''));
+
+            const isObjectAssignedForNode = (item: any) => {
+              // Parent rows are assigned only when the parent itself has plan tasks.
+              if (!item.parentProjectObjectId) {
+                return assignedParentObjectIds.has(item.id);
+              }
+
+              // Child rows should only be treated as assigned when their parent is assigned.
+              if (!assignedParentObjectIds.has(item.parentProjectObjectId)) {
+                return false;
+              }
+
+              return projectTasks.some((task: any) => task.projectObjectId === item.id);
+            };
+
+            const selectableObjects = areaMatchedObjects
               .filter((item: any) => {
-                // Parent rows are assigned only when the parent itself has plan tasks.
-                if (!item.parentProjectObjectId) {
-                  return !assignedParentObjectIds.has(item.id);
-                }
-
-                // Child rows should only be treated as assigned when their parent is assigned.
-                if (!assignedParentObjectIds.has(item.parentProjectObjectId)) {
-                  return true;
-                }
-
-                return !projectTasks.some((task: any) => task.projectObjectId === item.id);
+                return !isObjectAssignedForNode(item);
               })
               .sort((a: any, b: any) => (a.objectId || '').localeCompare(b.objectId || ''));
+
+            const displayObjects = selectableObjects.length > 0 ? selectableObjects : areaMatchedObjects;
 
             return (
           <TextField
@@ -7617,17 +7626,19 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
             variant="outlined"
             size="small"
           >
-            {selectableObjects.length > 0 ? (
-              selectableObjects
+            {displayObjects.length > 0 ? (
+              displayObjects
                 .map((item: any) => {
                   const subObjectCount = projectInventoryItems.filter((entry: any) => entry.parentProjectObjectId === item.id).length;
                   const parentObject = item.parentProjectObjectId ? inventoryById.get(item.parentProjectObjectId) : null;
+                  const isAssigned = isObjectAssignedForNode(item);
                   return (
                     <MenuItem key={item.id} value={item.id}>
                       {item.objectId}
                       {parentObject ? ` (Sub-object of ${parentObject.objectId})` : ''}
                       {item.processArea && ` (${getProcessAreaDisplayName(activeProjectId || item.projectId || '', item.processArea)})`}
                       {subObjectCount > 0 ? ` + ${subObjectCount} sub-object${subObjectCount === 1 ? '' : 's'}` : ''}
+                      {isAssigned && selectableObjects.length === 0 ? ' (Already has tasks)' : ''}
                     </MenuItem>
                   );
                 })
