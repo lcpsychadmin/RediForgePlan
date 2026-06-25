@@ -4757,7 +4757,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                             </Box>
                                           </Box>
                                         ))}
-                                        {isHierarchyNode && isExpanded && subObjects.length > 0 && (
+                                        {subObjects.length > 0 && isExpanded && (
                                           <Box sx={{ borderTop: '1px solid rgba(255,255,255,0.06)', px: 2, py: 1.25 }}>
                                             <Box sx={{ pl: 2.5, borderLeft: '2px solid rgba(111, 180, 78, 0.28)', display: 'flex', flexDirection: 'column', gap: 1 }}>
                                               {subObjects.map((subObject: any) => {
