@@ -85,8 +85,23 @@ export class ProgramService {
 
   // Mock Cycles
   async getMockCyclesByProgram(programId: string) {
+    // Hierarchy view: only cycles marked in_hierarchy = true
     const result = await db.query(
-      `SELECT mc.id, p.program_id, mc.project_id, mc.name, mc.start_date, mc.end_date, mc.accent_color, mc.schedule_mode, mc.created_at, mc.updated_at
+      `SELECT mc.id, p.program_id, mc.project_id, mc.name, mc.start_date, mc.end_date, mc.accent_color, mc.schedule_mode, mc.in_hierarchy, mc.created_at, mc.updated_at
+       FROM mock_cycles mc
+       JOIN projects p ON p.id = mc.project_id
+       WHERE p.program_id = $1
+         AND mc.in_hierarchy = true
+       ORDER BY mc.start_date DESC`,
+      [programId]
+    );
+    return result.rows.map((row) => this.formatMockCycle(row));
+  }
+
+  async getAllMockCyclesByProgram(programId: string) {
+    // Maintain view: all cycles regardless of in_hierarchy flag
+    const result = await db.query(
+      `SELECT mc.id, p.program_id, mc.project_id, mc.name, mc.start_date, mc.end_date, mc.accent_color, mc.schedule_mode, mc.in_hierarchy, mc.created_at, mc.updated_at
        FROM mock_cycles mc
        JOIN projects p ON p.id = mc.project_id
        WHERE p.program_id = $1
@@ -98,7 +113,7 @@ export class ProgramService {
 
   async getMockCyclesByProject(projectId: string) {
     const result = await db.query(
-      `SELECT mc.id, p.program_id, mc.project_id, mc.name, mc.start_date, mc.end_date, mc.accent_color, mc.schedule_mode, mc.created_at, mc.updated_at
+      `SELECT mc.id, p.program_id, mc.project_id, mc.name, mc.start_date, mc.end_date, mc.accent_color, mc.schedule_mode, mc.in_hierarchy, mc.created_at, mc.updated_at
        FROM mock_cycles mc
        JOIN projects p ON p.id = mc.project_id
        WHERE mc.project_id = $1
@@ -110,7 +125,7 @@ export class ProgramService {
 
   async getMockCycleById(mockCycleId: string) {
     const result = await db.query(
-      `SELECT mc.id, p.program_id, mc.project_id, mc.name, mc.start_date, mc.end_date, mc.accent_color, mc.schedule_mode, mc.created_at, mc.updated_at
+      `SELECT mc.id, p.program_id, mc.project_id, mc.name, mc.start_date, mc.end_date, mc.accent_color, mc.schedule_mode, mc.in_hierarchy, mc.created_at, mc.updated_at
        FROM mock_cycles mc
        JOIN projects p ON p.id = mc.project_id
        WHERE mc.id = $1`,
@@ -225,25 +240,23 @@ export class ProgramService {
       }
       const projectId = cycleResult.rows[0].project_id;
 
-      // Cascade-delete all child data for the project in dependency order.
-      // schedule_items cascade from tasks (FK ON DELETE CASCADE) so deleting tasks handles them.
-      // defects cascade from tasks (FK ON DELETE CASCADE) so deleting tasks handles them.
-      // task_validation_stats, task_issue_types cascade from tasks as well.
-      // object_dependencies cascade from project_objects.
-      // We delete explicitly in order to avoid FK conflicts.
+      // Delete all child data for the project in dependency order.
+      // schedule_items, defects, validation stats, issue types cascade from tasks via FK.
+      // object_dependencies cascade from project_objects via FK.
       await client.query('DELETE FROM schedule_items WHERE project_id = $1', [projectId]);
       await client.query('DELETE FROM tasks WHERE project_id = $1', [projectId]);
       await client.query('DELETE FROM task_groups WHERE project_id = $1', [projectId]);
       await client.query('DELETE FROM project_objects WHERE project_id = $1', [projectId]);
 
-      // Finally delete the mock cycle itself (project and program are preserved).
-      const result = await client.query(
-        'DELETE FROM mock_cycles WHERE id = $1 RETURNING id',
+      // Remove from hierarchy tree but KEEP the mock cycle record
+      // so it remains accessible from the Maintain screen.
+      await client.query(
+        'UPDATE mock_cycles SET in_hierarchy = false, updated_at = CURRENT_TIMESTAMP WHERE id = $1',
         [mockCycleId]
       );
 
       await client.query('COMMIT');
-      return result.rows.length > 0;
+      return true;
     } catch (err) {
       await client.query('ROLLBACK');
       throw err;
@@ -882,6 +895,7 @@ export class ProgramService {
       endDate: row.end_date,
       accentColor: row.accent_color,
       scheduleMode: row.schedule_mode || 'all_days',
+      inHierarchy: row.in_hierarchy !== false,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };

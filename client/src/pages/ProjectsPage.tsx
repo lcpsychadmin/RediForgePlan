@@ -817,9 +817,30 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     : selectedItem?.type === 'cycle'
       ? selectedItem.id
       : null;
+
+  // All mock cycles (including those removed from hierarchy) — used by the Maintain screen.
+  const { data: allMockCyclesForMaintain = {} } = useQuery({
+    queryKey: ['allMockCyclesForMaintain'],
+    queryFn: async () => {
+      const cycles: Record<string, MockCycle[]> = {};
+      await Promise.all(
+        programs.map(async (program: Program) => {
+          try {
+            const response = await apiClient.get(`/api/programs/${program.id}/mock-cycles?includeHidden=true`);
+            cycles[program.id] = response.data.data;
+          } catch {
+            cycles[program.id] = [];
+          }
+        })
+      );
+      return cycles;
+    },
+    enabled: programs.length > 0,
+  });
+
   const allMaintainCycles: MockCycle[] = React.useMemo(() => (
-    Object.values(mockCycles).flatMap((cycles) => cycles || []) as MockCycle[]
-  ), [mockCycles]);
+    Object.values(allMockCyclesForMaintain).flatMap((cycles) => cycles || []) as MockCycle[]
+  ), [allMockCyclesForMaintain]);
   const allMaintainProjects: Project[] = React.useMemo(() => (
     Object.values(projectsByProgram).flatMap((projects) => projects || []) as Project[]
   ), [projectsByProgram]);
@@ -2664,6 +2685,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['programs'] }),
         queryClient.invalidateQueries({ queryKey: ['mockCycles'] }),
+        queryClient.invalidateQueries({ queryKey: ['allMockCyclesForMaintain'] }),
         queryClient.invalidateQueries({ queryKey: ['projectsByMockCycle'] }),
         queryClient.invalidateQueries({ queryKey: ['projectsByProgram'] }),
       ]);
@@ -2671,6 +2693,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
       await Promise.all([
         queryClient.refetchQueries({ queryKey: ['programs'], type: 'active' }),
         queryClient.refetchQueries({ queryKey: ['mockCycles'], type: 'active' }),
+        queryClient.refetchQueries({ queryKey: ['allMockCyclesForMaintain'], type: 'active' }),
         queryClient.refetchQueries({ queryKey: ['projectsByMockCycle'], type: 'active' }),
         queryClient.refetchQueries({ queryKey: ['projectsByProgram'], type: 'active' }),
       ]);

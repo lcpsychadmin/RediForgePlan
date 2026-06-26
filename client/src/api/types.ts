@@ -77,6 +77,7 @@ export interface MockCycle {
   startDate: string;
   endDate: string;
   status: 'planned' | 'active' | 'completed';
+  inHierarchy?: boolean;
   createdAt: string;
   updatedAt: string;
 }

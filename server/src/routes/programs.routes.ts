@@ -105,7 +105,10 @@ router.get(
         throw new ApiError(404, 'Program not found', 'NOT_FOUND');
       }
 
-      const cycles = await programService.getMockCyclesByProgram(req.params.programId);
+      const includeHidden = req.query.includeHidden === 'true';
+      const cycles = includeHidden
+        ? await programService.getAllMockCyclesByProgram(req.params.programId)
+        : await programService.getMockCyclesByProgram(req.params.programId);
       res.json(formatListResponse(cycles, cycles.length));
     } catch (error) {
       next(error);
