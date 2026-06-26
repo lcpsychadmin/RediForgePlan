@@ -210,8 +210,46 @@ export class ProgramService {
   }
 
   async deleteMockCycle(mockCycleId: string) {
-    const result = await db.query('DELETE FROM mock_cycles WHERE id = $1 RETURNING id', [mockCycleId]);
-    return result.rows.length > 0;
+    const client = await db.connect();
+    try {
+      await client.query('BEGIN');
+
+      // Resolve the project linked to this mock cycle
+      const cycleResult = await client.query(
+        'SELECT project_id FROM mock_cycles WHERE id = $1',
+        [mockCycleId]
+      );
+      if (cycleResult.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return false;
+      }
+      const projectId = cycleResult.rows[0].project_id;
+
+      // Cascade-delete all child data for the project in dependency order.
+      // schedule_items cascade from tasks (FK ON DELETE CASCADE) so deleting tasks handles them.
+      // defects cascade from tasks (FK ON DELETE CASCADE) so deleting tasks handles them.
+      // task_validation_stats, task_issue_types cascade from tasks as well.
+      // object_dependencies cascade from project_objects.
+      // We delete explicitly in order to avoid FK conflicts.
+      await client.query('DELETE FROM schedule_items WHERE project_id = $1', [projectId]);
+      await client.query('DELETE FROM tasks WHERE project_id = $1', [projectId]);
+      await client.query('DELETE FROM task_groups WHERE project_id = $1', [projectId]);
+      await client.query('DELETE FROM project_objects WHERE project_id = $1', [projectId]);
+
+      // Finally delete the mock cycle itself (project and program are preserved).
+      const result = await client.query(
+        'DELETE FROM mock_cycles WHERE id = $1 RETURNING id',
+        [mockCycleId]
+      );
+
+      await client.query('COMMIT');
+      return result.rows.length > 0;
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
   }
 
   async cloneMockCycle(sourceMockCycleId: string, data?: { name?: string }) {
