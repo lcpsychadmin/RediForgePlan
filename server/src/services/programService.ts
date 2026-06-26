@@ -225,44 +225,13 @@ export class ProgramService {
   }
 
   async deleteMockCycle(mockCycleId: string) {
-    const client = await db.connect();
-    try {
-      await client.query('BEGIN');
-
-      // Resolve the project linked to this mock cycle
-      const cycleResult = await client.query(
-        'SELECT project_id FROM mock_cycles WHERE id = $1',
-        [mockCycleId]
-      );
-      if (cycleResult.rows.length === 0) {
-        await client.query('ROLLBACK');
-        return false;
-      }
-      const projectId = cycleResult.rows[0].project_id;
-
-      // Delete all child data for the project in dependency order.
-      // schedule_items, defects, validation stats, issue types cascade from tasks via FK.
-      // object_dependencies cascade from project_objects via FK.
-      await client.query('DELETE FROM schedule_items WHERE project_id = $1', [projectId]);
-      await client.query('DELETE FROM tasks WHERE project_id = $1', [projectId]);
-      await client.query('DELETE FROM task_groups WHERE project_id = $1', [projectId]);
-      await client.query('DELETE FROM project_objects WHERE project_id = $1', [projectId]);
-
-      // Remove from hierarchy tree but KEEP the mock cycle record
-      // so it remains accessible from the Maintain screen.
-      await client.query(
-        'UPDATE mock_cycles SET in_hierarchy = false, updated_at = CURRENT_TIMESTAMP WHERE id = $1',
-        [mockCycleId]
-      );
-
-      await client.query('COMMIT');
-      return true;
-    } catch (err) {
-      await client.query('ROLLBACK');
-      throw err;
-    } finally {
-      client.release();
-    }
+    // Soft-delete: just mark the mock cycle as removed from hierarchy.
+    // Tasks, objects, and other project data remain intact.
+    const result = await db.query(
+      'UPDATE mock_cycles SET in_hierarchy = false, updated_at = CURRENT_TIMESTAMP WHERE id = $1 RETURNING id',
+      [mockCycleId]
+    );
+    return result.rows.length > 0;
   }
 
   async cloneMockCycle(sourceMockCycleId: string, data?: { name?: string }) {
