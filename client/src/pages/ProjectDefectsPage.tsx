@@ -79,8 +79,13 @@ const composeDefectDescription = (sections: {
   return blocks.join('\n\n').trim();
 };
 
-const ProjectDefectsPage: React.FC = () => {
-  const { projectId } = useParams<{ projectId: string }>();
+interface ProjectDefectsPageProps {
+  projectId?: string | null;
+}
+
+const ProjectDefectsPage: React.FC<ProjectDefectsPageProps> = ({ projectId: projectIdProp }) => {
+  const { projectId: routeProjectId } = useParams<{ projectId: string }>();
+  const resolvedProjectId = projectIdProp || routeProjectId || '';
   const [taskFilter, setTaskFilter] = React.useState<'all' | 'validation' | 'load' | 'other'>('all');
   const [statusFilter, setStatusFilter] = React.useState<'all' | DefectStatus>('all');
   const [searchTerm, setSearchTerm] = React.useState('');
@@ -99,43 +104,43 @@ const ProjectDefectsPage: React.FC = () => {
   const [isSaving, setIsSaving] = React.useState(false);
 
   const { data: project } = useQuery({
-    queryKey: ['project-defects-project', projectId],
+    queryKey: ['project-defects-project', resolvedProjectId],
     queryFn: async () => {
-      const response = await apiClient.get(`/api/projects/${projectId}`);
+      const response = await apiClient.get(`/api/projects/${resolvedProjectId}`);
       return response.data.data;
     },
-    enabled: !!projectId,
+    enabled: !!resolvedProjectId,
   });
 
   const { data: tasks = [], isLoading: tasksLoading, error: tasksError } = useQuery({
-    queryKey: ['project-defects-tasks', projectId],
+    queryKey: ['project-defects-tasks', resolvedProjectId],
     queryFn: async () => {
-      const response = await apiClient.get(`/api/tasks/project/${projectId}`);
+      const response = await apiClient.get(`/api/tasks/project/${resolvedProjectId}`);
       return response.data.data || [];
     },
-    enabled: !!projectId,
+    enabled: !!resolvedProjectId,
   });
 
   const taskIds = React.useMemo(() => (tasks || []).map((task: any) => task.id).filter(Boolean), [tasks]);
 
   const defectQueries = useQueries({
     queries: taskIds.map((taskId) => ({
-      queryKey: ['project-defects', projectId, taskId],
+      queryKey: ['project-defects', resolvedProjectId, taskId],
       queryFn: async () => {
         const response = await apiClient.get(`/api/tasks/${taskId}/defects`);
         return response.data.data || [];
       },
-      enabled: !!projectId && !!taskId,
+      enabled: !!resolvedProjectId && !!taskId,
     })),
   });
 
   const { data: summary } = useQuery<ReportingSummary>({
-    queryKey: ['project-defects-summary', projectId],
+    queryKey: ['project-defects-summary', resolvedProjectId],
     queryFn: async () => {
-      const response = await apiClient.get(`/api/reporting/projects/${projectId}/summary`);
+      const response = await apiClient.get(`/api/reporting/projects/${resolvedProjectId}/summary`);
       return response.data.data;
     },
-    enabled: !!projectId,
+    enabled: !!resolvedProjectId,
     staleTime: 30_000,
   });
 
@@ -279,15 +284,15 @@ const ProjectDefectsPage: React.FC = () => {
         assignedToUserId: draft.assignedToUserId || null,
         description: computedDescription,
       });
-      await queryClient.invalidateQueries({ queryKey: ['project-defects', projectId] });
-      await queryClient.invalidateQueries({ queryKey: ['project-defects-summary', projectId] });
+      await queryClient.invalidateQueries({ queryKey: ['project-defects', resolvedProjectId] });
+      await queryClient.invalidateQueries({ queryKey: ['project-defects-summary', resolvedProjectId] });
     } finally {
       setIsSaving(false);
     }
   };
 
-  if (!projectId) {
-    return <Alert severity="error">Project ID not found</Alert>;
+  if (!resolvedProjectId) {
+    return <Alert severity="info">Select a project from the left tree to view defects.</Alert>;
   }
 
   return (

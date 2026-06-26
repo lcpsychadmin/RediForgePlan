@@ -6569,7 +6569,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
           {/* Defects Tab Content */}
           {tabValue === 4 && (
             <Box sx={{ flex: 1, overflow: 'hidden' }}>
-              <ProjectDefectsPage />
+              <ProjectDefectsPage projectId={activeProjectId} />
             </Box>
           )}
 
