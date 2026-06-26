@@ -818,7 +818,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
       ? selectedItem.id
       : null;
 
-  // All mock cycles (including those removed from hierarchy) — used by the Maintain screen.
+  // All active mock cycles (in_hierarchy = true) — used by the Maintain screen and hierarchy tree.
   const { data: allMockCyclesForMaintain = {} } = useQuery({
     queryKey: ['allMockCyclesForMaintain'],
     queryFn: async () => {
@@ -826,7 +826,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
       await Promise.all(
         programs.map(async (program: Program) => {
           try {
-            const response = await apiClient.get(`/api/programs/${program.id}/mock-cycles?includeHidden=true`);
+            const response = await apiClient.get(`/api/programs/${program.id}/mock-cycles`);
             cycles[program.id] = response.data.data;
           } catch {
             cycles[program.id] = [];

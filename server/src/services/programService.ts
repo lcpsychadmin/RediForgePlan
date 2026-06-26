@@ -99,12 +99,14 @@ export class ProgramService {
   }
 
   async getAllMockCyclesByProgram(programId: string) {
-    // Maintain view: all cycles regardless of in_hierarchy flag
+    // Maintain view: only active cycles (in_hierarchy = true)
+    // Both hierarchy and maintain views show the same filtered list
     const result = await db.query(
       `SELECT mc.id, p.program_id, mc.project_id, mc.name, mc.start_date, mc.end_date, mc.accent_color, mc.schedule_mode, mc.in_hierarchy, mc.created_at, mc.updated_at
        FROM mock_cycles mc
        JOIN projects p ON p.id = mc.project_id
        WHERE p.program_id = $1
+         AND mc.in_hierarchy = true
        ORDER BY mc.start_date DESC`,
       [programId]
     );
