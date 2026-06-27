@@ -19,6 +19,7 @@ import FolderOpenIcon from '@mui/icons-material/FolderOpen';
 import AssignmentTurnedInIcon from '@mui/icons-material/AssignmentTurnedIn';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import AssessmentIcon from '@mui/icons-material/Assessment';
+import TableChartIcon from '@mui/icons-material/TableChart';
 import { palette } from '../theme/palette';
 
 const DRAWER_WIDTH = 260;
@@ -49,6 +50,11 @@ const Sidebar: React.FC<{ open: boolean; onClose: () => void }> = ({ open, onClo
       label: 'My Tasks',
       path: '/my-tasks',
       icon: <AssignmentTurnedInIcon sx={{ fontSize: '1.25rem' }} />,
+    },
+    {
+      label: 'Inventory',
+      path: '/inventory',
+      icon: <TableChartIcon sx={{ fontSize: '1.25rem' }} />,
     },
   ];
 

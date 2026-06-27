@@ -1,6 +1,7 @@
 import React from 'react';
 import { Box, Typography } from '@mui/material';
 import TopNav from './TopNav';
+import GlobalFilterBar from './GlobalFilterBar';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -30,6 +31,9 @@ const Layout: React.FC<LayoutProps> = ({
   const location = useLocation();
   const { user } = useAuth();
   const isWorkspacePage = location.pathname === '/projects' || location.pathname === '/planning';
+  // Show global filter bar on pages that benefit from program/project context
+  const isProjectWorkspace = location.pathname.startsWith('/programs/');
+  const showFilterBar = !isWorkspacePage && !isProjectWorkspace && location.pathname !== '/dashboard';
 
   const now = new Date();
   const dateStr = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -58,10 +62,13 @@ const Layout: React.FC<LayoutProps> = ({
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column',
-          p: isWorkspacePage ? 0 : 3,
+          p: 0,
         }}
       >
-        {children}
+        {showFilterBar && <GlobalFilterBar />}
+        <Box sx={{ flex: 1, overflow: 'auto', p: isWorkspacePage ? 0 : 3 }}>
+          {children}
+        </Box>
       </Box>
 
       {/* Footer */}

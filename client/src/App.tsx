@@ -4,6 +4,7 @@ import { ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { FilterProvider } from './contexts/FilterContext';
 import { ProtectedRoute, RoleRoute } from './components/ProtectedRoute';
 import { setLogoutCallback } from './api/client';
 import queryClient from './api/queryClient';
@@ -98,6 +99,15 @@ const AppRoutes: React.FC = () => {
         element={
           <ProtectedRoute>
             <ProjectsPage sectionMode="planning" />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/inventory"
+        element={
+          <ProtectedRoute>
+            <InventoryPage />
           </ProtectedRoute>
         }
       />
@@ -231,8 +241,10 @@ const App: React.FC = () => {
       <QueryClientProvider client={queryClient}>
         <Router>
           <AuthProvider>
-            <LogoutCallbackRegistration />
-            <AppRoutes />
+            <FilterProvider>
+              <LogoutCallbackRegistration />
+              <AppRoutes />
+            </FilterProvider>
           </AuthProvider>
         </Router>
       </QueryClientProvider>

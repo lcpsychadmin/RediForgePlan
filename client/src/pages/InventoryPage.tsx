@@ -9,9 +9,13 @@ import InventoryFilters from '../components/inventory/InventoryFilters';
 import InventoryTable from '../components/inventory/InventoryTable';
 import { useProjectObjects } from '../hooks/useProjectObjects';
 import { useParams } from 'react-router-dom';
+import { useFilter } from '../contexts/FilterContext';
 
 const InventoryPage: React.FC = () => {
-  const { projectId } = useParams<{ projectId: string }>();
+  const { projectId: routeProjectId } = useParams<{ projectId: string }>();
+  const { selectedProjectId: contextProjectId } = useFilter();
+  // Prefer route param (project workspace context), fall back to global filter
+  const projectId = routeProjectId || contextProjectId || undefined;
   const [filters, setFilters] = useState<Record<string, string>>({});
 
   const { data: objects = [], isLoading, error } = useProjectObjects(projectId!, {
@@ -20,7 +24,7 @@ const InventoryPage: React.FC = () => {
   });
 
   if (!projectId) {
-    return <Alert severity="error">Project ID not found</Alert>;
+    return <Alert severity="info">Select a project using the filter above to view inventory.</Alert>;
   }
 
   const handleFilterChange = (key: string, value: string) => {
