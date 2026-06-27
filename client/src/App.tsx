@@ -113,6 +113,33 @@ const AppRoutes: React.FC = () => {
       />
 
       <Route
+        path="/priorities"
+        element={
+          <ProtectedRoute>
+            <PrioritiesPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/schedule"
+        element={
+          <ProtectedRoute>
+            <SchedulePage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/defects"
+        element={
+          <ProtectedRoute>
+            <ProjectDefectsPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
         path="/settings"
         element={
           <ProtectedRoute>

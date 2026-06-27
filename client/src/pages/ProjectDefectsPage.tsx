@@ -25,6 +25,7 @@ import PageContainer from '../layout/PageContainer';
 import ContentHeader from '../layout/ContentHeader';
 import apiClient from '../api/client';
 import { Defect, DefectStatus, ReportingSummary } from '../api/types';
+import { useFilter } from '../contexts/FilterContext';
 
 const qualityTaskTypes = new Set(['preload_validation', 'postload_validation', 'load']);
 const statusOptions: DefectStatus[] = ['open', 'in_progress', 'resolved', 'closed'];
@@ -85,7 +86,8 @@ interface ProjectDefectsPageProps {
 
 const ProjectDefectsPage: React.FC<ProjectDefectsPageProps> = ({ projectId: projectIdProp }) => {
   const { projectId: routeProjectId } = useParams<{ projectId: string }>();
-  const resolvedProjectId = projectIdProp || routeProjectId || '';
+  const { selectedProjectId } = useFilter();
+  const resolvedProjectId = projectIdProp || routeProjectId || selectedProjectId || '';
   const [taskFilter, setTaskFilter] = React.useState<'all' | 'validation' | 'load' | 'other'>('all');
   const [statusFilter, setStatusFilter] = React.useState<'all' | DefectStatus>('all');
   const [searchTerm, setSearchTerm] = React.useState('');
@@ -292,7 +294,7 @@ const ProjectDefectsPage: React.FC<ProjectDefectsPageProps> = ({ projectId: proj
   };
 
   if (!resolvedProjectId) {
-    return <Alert severity="info">Select a project from the left tree to view defects.</Alert>;
+    return <Alert severity="info">Select a project using the global filter to view defects.</Alert>;
   }
 
   return (

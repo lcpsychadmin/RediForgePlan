@@ -20,6 +20,9 @@ import AssignmentTurnedInIcon from '@mui/icons-material/AssignmentTurnedIn';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import AssessmentIcon from '@mui/icons-material/Assessment';
 import TableChartIcon from '@mui/icons-material/TableChart';
+import WarningAmberIcon from '@mui/icons-material/WarningAmber';
+import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
+import BugReportIcon from '@mui/icons-material/BugReport';
 import { palette } from '../theme/palette';
 
 const DRAWER_WIDTH = 260;
@@ -55,6 +58,21 @@ const Sidebar: React.FC<{ open: boolean; onClose: () => void }> = ({ open, onClo
       label: 'Inventory',
       path: '/inventory',
       icon: <TableChartIcon sx={{ fontSize: '1.25rem' }} />,
+    },
+    {
+      label: 'Priorities',
+      path: '/priorities',
+      icon: <WarningAmberIcon sx={{ fontSize: '1.25rem' }} />,
+    },
+    {
+      label: 'Schedule',
+      path: '/schedule',
+      icon: <CalendarMonthIcon sx={{ fontSize: '1.25rem' }} />,
+    },
+    {
+      label: 'Defects',
+      path: '/defects',
+      icon: <BugReportIcon sx={{ fontSize: '1.25rem' }} />,
     },
   ];
 

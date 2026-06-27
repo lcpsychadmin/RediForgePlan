@@ -14,9 +14,12 @@ import DraggableScheduleGrid from '../components/schedule/DraggableScheduleGrid'
 import { useSchedule } from '../api/hooks';
 import { useParams } from 'react-router-dom';
 import { addDays, startOfWeek, subDays, format } from 'date-fns';
+import { useFilter } from '../contexts/FilterContext';
 
 const SchedulePage: React.FC = () => {
-  const { projectId } = useParams<{ projectId: string }>();
+  const { projectId: routeProjectId } = useParams<{ projectId: string }>();
+  const { selectedProjectId } = useFilter();
+  const projectId = routeProjectId || selectedProjectId || '';
   const [weekStart, setWeekStart] = useState(startOfWeek(new Date()));
 
   const { data: scheduleItems = [], isLoading, error } = useSchedule(projectId!);
@@ -53,7 +56,7 @@ const SchedulePage: React.FC = () => {
   );
 
   if (!projectId) {
-    return <Alert severity="error">Project ID not found</Alert>;
+    return <Alert severity="info">Select a project using the global filter to view schedule.</Alert>;
   }
 
   const weekEnd = addDays(weekStart, 6);

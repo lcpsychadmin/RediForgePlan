@@ -10,11 +10,14 @@ import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import apiClient from '../api/client';
 import TaskDetailModal from '../components/tasks/TaskDetailModal';
+import { useFilter } from '../contexts/FilterContext';
 
 type DefectSeverity = 'critical' | 'high' | 'medium' | 'low';
 
 const PrioritiesPage: React.FC = () => {
-  const { projectId } = useParams<{ projectId: string }>();
+  const { projectId: routeProjectId } = useParams<{ projectId: string }>();
+  const { selectedProjectId } = useFilter();
+  const projectId = routeProjectId || selectedProjectId || '';
   const [selectedTask, setSelectedTask] = React.useState<any | null>(null);
 
   const { data: prioritized, isLoading, error } = usePriorities(projectId!);
@@ -53,7 +56,7 @@ const PrioritiesPage: React.FC = () => {
   });
 
   if (!projectId) {
-    return <Alert severity="error">Project ID not found</Alert>;
+    return <Alert severity="info">Select a project using the global filter to view priorities.</Alert>;
   }
 
   const sectionConfig = [
