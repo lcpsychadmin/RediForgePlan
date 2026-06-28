@@ -1461,21 +1461,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
 
     try {
       const normalizedArea = name.toLowerCase();
-      const rootObjectsInArea = projectInventoryItems.filter((item: any) =>
-        item.projectId === projectId &&
-        !item.parentProjectObjectId &&
-        ((item.processArea || '').trim().toLowerCase() === normalizedArea)
-      );
-
-      const rootObjectsMissingPlanTasks = rootObjectsInArea.filter((item: any) =>
-        !projectTasks.some((task: any) => task.projectObjectId === item.id)
-      );
-
-      await Promise.all(
-        rootObjectsMissingPlanTasks.map((item: any) =>
-          apiClient.post(`/api/tasks/defaults/project-object/${item.id}`, { projectId })
-        )
-      );
 
       setPlanningAdditionalProcessAreas((prev) => {
         const existing = prev[projectId] || [];
@@ -7377,8 +7362,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                 }
               }
             } else if (menuType === 'task') {
-              const task = projectTasks.find(t => t.projectObjectId === menuItemId);
-              itemName = task?.name || 'Unknown Task';
+              const object = projectInventoryItems.find((item: any) => item.id === menuItemId);
+              itemName = object?.objectId || object?.dataObjectId || 'Data Object';
             } else if (menuType === 'taskGroup') {
               const group = projectTaskGroups.find(g => g.id === menuItemId);
               itemName = group?.name || 'Unknown Group';
@@ -7395,12 +7380,20 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
       {/* Delete Confirmation Dialog */}
       <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle sx={{ color: 'error.main', fontWeight: 'bold' }}>
-          Delete {deleteItemType}?
+          {deleteItemType === 'task' ? 'Remove object from plan?' : `Delete ${deleteItemType}?`}
         </DialogTitle>
         <DialogContent sx={{ pt: 2 }}>
           <Typography variant="body1" sx={{ mb: 2 }}>
             Are you sure you want to delete <strong>{deleteItemName}</strong>?
           </Typography>
+
+          {deleteItemType === 'task' && (
+            <Alert severity="info" sx={{ mb: 2 }}>
+              <Typography variant="body2">
+                This removes the object's tasks from Plan only. The object remains in Inventory.
+              </Typography>
+            </Alert>
+          )}
           
           {deleteChildrenCount > 0 && (
             <Alert severity="warning" sx={{ mb: 2 }}>
