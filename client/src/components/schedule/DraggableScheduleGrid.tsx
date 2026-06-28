@@ -182,8 +182,8 @@ export const DraggableScheduleGrid: React.FC<DraggableScheduleGridProps> = ({
                   key={format(day, 'yyyy-MM-dd')}
                   sx={{
                     minHeight: columnHeight,
-                    backgroundColor: isToday ? `${palette.primary.main}10` : palette.background.paper,
-                    border: isToday ? `2px solid ${palette.primary.main}` : `1px solid ${palette.divider}`,
+                    backgroundColor: isToday ? `${palette.primary.main}10` : 'rgba(255,255,255,0.03)',
+                    border: isToday ? `2px solid ${palette.primary.main}` : '1px solid rgba(255,255,255,0.06)',
                     borderRadius: 1.25,
                   }}
                 />
