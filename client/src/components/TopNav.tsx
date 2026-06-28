@@ -37,10 +37,10 @@ interface TopNavProps {
 
 const executionSubNavItems = [
   { label: 'Plan', icon: <GridViewIcon sx={{ fontSize: '0.95rem' }} />, tabIndex: 0 },
-  { label: 'Priorities', icon: <WarningAmberIcon sx={{ fontSize: '0.95rem' }} />, tabIndex: 2 },
-  { label: 'Schedule', icon: <CalendarMonthIcon sx={{ fontSize: '0.95rem' }} />, tabIndex: 3 },
-  { label: 'Defects', icon: <WarningAmberIcon sx={{ fontSize: '0.95rem' }} />, tabIndex: 4 },
-  { label: 'My Tasks', icon: <AssignmentTurnedInIcon sx={{ fontSize: '0.95rem' }} />, tabIndex: 5 },
+  { label: 'Priorities', icon: <WarningAmberIcon sx={{ fontSize: '0.95rem' }} />, path: '/priorities' },
+  { label: 'Schedule', icon: <CalendarMonthIcon sx={{ fontSize: '0.95rem' }} />, path: '/schedule' },
+  { label: 'Defects', icon: <WarningAmberIcon sx={{ fontSize: '0.95rem' }} />, path: '/defects' },
+  { label: 'My Tasks', icon: <AssignmentTurnedInIcon sx={{ fontSize: '0.95rem' }} />, path: '/my-tasks' },
 ];
 
 const planningSubNavItems = [
@@ -452,15 +452,17 @@ const TopNav: React.FC<TopNavProps> = ({
                   mr: { xs: 0, sm: 0.75 },
                   ml: { xs: 0, sm: -0.5 },
                 },
-                backgroundColor: (typeof item.tabIndex === 'number' && tabValue === item.tabIndex)
-                  ? 'primary.main'
-                  : 'rgba(255, 255, 255, 0.08)',
+                backgroundColor: (
+                  (item.path && location.pathname === item.path) ||
+                  (!item.path && typeof item.tabIndex === 'number' && tabValue === item.tabIndex)
+                ) ? 'primary.main' : 'rgba(255, 255, 255, 0.08)',
                 opacity: 1,
                 cursor: 'pointer',
                 '&:hover': {
-                  backgroundColor: (typeof item.tabIndex === 'number' && tabValue === item.tabIndex)
-                    ? 'primary.dark'
-                    : 'rgba(255, 255, 255, 0.15)',
+                  backgroundColor: (
+                    (item.path && location.pathname === item.path) ||
+                    (!item.path && typeof item.tabIndex === 'number' && tabValue === item.tabIndex)
+                  ) ? 'primary.dark' : 'rgba(255, 255, 255, 0.15)',
                 },
               }}
             >

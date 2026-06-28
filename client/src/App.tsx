@@ -22,6 +22,7 @@ import InventoryPage from './pages/InventoryPage';
 import PrioritiesPage from './pages/PrioritiesPage';
 import ProjectDefectsPage from './pages/ProjectDefectsPage';
 import SchedulePage from './pages/SchedulePage';
+import MyTasksPage from './pages/MyTasksPage';
 import ReportingDashboardPage from './pages/ReportingDashboardPage';
 
 // Layout
@@ -152,7 +153,7 @@ const AppRoutes: React.FC = () => {
         path="/my-tasks"
         element={
           <ProtectedRoute>
-            <Navigate to="/projects?tab=my-tasks" replace />
+            <MyTasksPage />
           </ProtectedRoute>
         }
       />
