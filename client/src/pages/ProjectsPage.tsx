@@ -1232,13 +1232,36 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   };
 
   const getInventoryProcessAreaOptions = (projectId: string) => {
+    const candidateProjectIds = new Set<string>([projectId]);
+    const allProjects = Object.values(projectsByProgram).flat() as any[];
+    const selectedProjectRecord = allProjects.find((project: any) => project.id === projectId) || null;
+    const selectedProjectName = (selectedProjectRecord?.name || '').trim().toLowerCase();
+    const selectedProjectProgramId = selectedProjectRecord?.programId || '';
+
+    if (selectedProjectName && selectedProjectProgramId) {
+      allProjects.forEach((project: any) => {
+        if (
+          project.programId === selectedProjectProgramId &&
+          (project.name || '').trim().toLowerCase() === selectedProjectName
+        ) {
+          candidateProjectIds.add(project.id);
+        }
+      });
+    }
+
     const labels = new Set<string>();
     projectInventoryItems
-      .filter((item: any) => item.projectId === projectId)
+      .filter((item: any) => candidateProjectIds.has(item.projectId))
       .forEach((item: any) => {
         const label = (item.processArea || '').trim();
         if (label) labels.add(label);
       });
+
+    (hiddenProcessAreas[projectId] || []).forEach((area) => {
+      const label = (area || '').trim();
+      if (label) labels.add(label);
+    });
+
     return Array.from(labels).sort((a, b) => a.localeCompare(b));
   };
 
@@ -2714,10 +2737,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
       } else if (deleteItemType === 'project') {
         await apiClient.delete(`/api/projects/${deleteItemId}`);
       } else if (deleteItemType === 'task') {
-        // Delete only the tasks for this project object — keeps the object in inventory
-        const tasksForObject = projectTasks.filter(t => t.projectObjectId === deleteItemId);
-        await Promise.all(tasksForObject.map(t => apiClient.delete(`/api/tasks/${t.id}`)));
-        setProjectTasks(prev => prev.filter(t => t.projectObjectId !== deleteItemId));
+        // Delete tasks for this object and descendant sub-objects, while keeping inventory objects.
+        const objectIdsToRemove = getObjectAndDescendantIds(deleteItemId);
+        const tasksForObjects = projectTasks.filter((task) => task.projectObjectId && objectIdsToRemove.has(task.projectObjectId));
+        await Promise.all(tasksForObjects.map((task) => apiClient.delete(`/api/tasks/${task.id}`)));
+        setProjectTasks((prev) => prev.filter((task) => !(task.projectObjectId && objectIdsToRemove.has(task.projectObjectId))));
       } else if ((deleteItemType as any) === 'taskSingle') {
         // Delete a single task row
         await apiClient.delete(`/api/tasks/${deleteItemId}`);
@@ -3080,6 +3104,25 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     return projectInventoryItems
       .filter((item: any) => item.parentProjectObjectId === parentId)
       .sort((a: any, b: any) => (a.subObjectSuffix || '').localeCompare(b.subObjectSuffix || ''));
+  };
+
+  const getObjectAndDescendantIds = (rootObjectId: string) => {
+    const ids = new Set<string>();
+    const queue: string[] = [rootObjectId];
+
+    while (queue.length > 0) {
+      const currentId = queue.shift();
+      if (!currentId || ids.has(currentId)) continue;
+      ids.add(currentId);
+
+      projectInventoryItems.forEach((item: any) => {
+        if (item.parentProjectObjectId === currentId && !ids.has(item.id)) {
+          queue.push(item.id);
+        }
+      });
+    }
+
+    return ids;
   };
 
   // Handle edit inventory item
@@ -7390,7 +7433,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
           {deleteItemType === 'task' && (
             <Alert severity="info" sx={{ mb: 2 }}>
               <Typography variant="body2">
-                This removes the object's tasks from Plan only. The object remains in Inventory.
+                This removes the object's tasks (including sub-object tasks) from Plan only. The object remains in Inventory.
               </Typography>
             </Alert>
           )}
