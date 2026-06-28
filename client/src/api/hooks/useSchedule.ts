@@ -19,8 +19,8 @@ export function useSchedule(projectId: string) {
   return useQuery({
     queryKey: SCHEDULE_KEYS.listByProject(projectId),
     queryFn: async () => {
-      const response = await apiClient.get<{ data: ScheduleItem[] }>(`/schedule/project/${projectId}`);
-      return response.data.data;
+      const response = await apiClient.get<{ data: ScheduleItem[] }>(`/api/schedule/project/${projectId}`);
+      return response.data.data || [];
     },
     enabled: !!projectId,
   });
@@ -33,7 +33,7 @@ export function useScheduleItem(scheduleItemId: string) {
   return useQuery({
     queryKey: SCHEDULE_KEYS.detail(scheduleItemId),
     queryFn: async () => {
-      const response = await apiClient.get<{ data: ScheduleItem }>(`/schedule/${scheduleItemId}`);
+      const response = await apiClient.get<{ data: ScheduleItem }>(`/api/schedule/${scheduleItemId}`);
       return response.data.data;
     },
     enabled: !!scheduleItemId,
@@ -48,7 +48,7 @@ export function useCreateScheduleItem(projectId: string) {
 
   return useMutation({
     mutationFn: async (payload: CreateScheduleItemPayload) => {
-      const response = await apiClient.post<{ data: ScheduleItem }>('/schedule', payload);
+      const response = await apiClient.post<{ data: ScheduleItem }>('/api/schedule', payload);
       return response.data.data;
     },
     onSuccess: (newItem) => {
@@ -66,7 +66,7 @@ export function useUpdateScheduleItem(scheduleItemId: string, projectId: string)
 
   return useMutation({
     mutationFn: async (payload: UpdateScheduleItemPayload) => {
-      const response = await apiClient.patch<{ data: ScheduleItem }>(`/schedule/${scheduleItemId}`, payload);
+      const response = await apiClient.patch<{ data: ScheduleItem }>(`/api/schedule/${scheduleItemId}`, payload);
       return response.data.data;
     },
     onMutate: async (newData) => {
@@ -108,7 +108,7 @@ export function useUpdateScheduleItemInProject(projectId: string) {
 
   return useMutation({
     mutationFn: async (payload: { id: string; scheduledDate: string }) => {
-      const response = await apiClient.patch<{ data: ScheduleItem }>(`/schedule/${payload.id}`, {
+      const response = await apiClient.patch<{ data: ScheduleItem }>(`/api/schedule/${payload.id}`, {
         scheduledDate: payload.scheduledDate,
       });
       return response.data.data;
@@ -154,7 +154,7 @@ export function useDeleteScheduleItem(scheduleItemId: string, projectId: string)
 
   return useMutation({
     mutationFn: async () => {
-      await apiClient.delete(`/schedule/${scheduleItemId}`);
+      await apiClient.delete(`/api/schedule/${scheduleItemId}`);
     },
     onSuccess: () => {
       queryClient.removeQueries({ queryKey: SCHEDULE_KEYS.detail(scheduleItemId) });
