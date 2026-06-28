@@ -1,7 +1,7 @@
 // client/src/pages/SchedulePage.tsx
 
-import React, { useState } from 'react';
-import { Box, CircularProgress, Alert, Button, Stack } from '@mui/material';
+import React, { useState, useMemo } from 'react';
+import { Box, CircularProgress, Alert, Button, Stack, MenuItem, Select, FormControl, InputLabel, Typography } from '@mui/material';
 import { useQuery } from '@tanstack/react-query';
 import apiClient from '../api/client';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
@@ -20,6 +20,8 @@ const SchedulePage: React.FC = () => {
   const { selectedProjectId } = useFilter();
   const projectId = routeProjectId || selectedProjectId || '';
   const [weekStart, setWeekStart] = useState(startOfWeek(new Date()));
+  const [filterProcessArea, setFilterProcessArea] = useState('');
+  const [filterMockCycle, setFilterMockCycle] = useState('');
 
   const { data: scheduleItems = [], isLoading, error } = useSchedule(projectId!);
   const { data: hierarchyState = {} } = useQuery({
@@ -33,6 +35,25 @@ const SchedulePage: React.FC = () => {
 
   const processAreaAccentOverrides =
     (hierarchyState as any)?.processAreaAccentOverrides || {};
+
+  const processAreaOptions = useMemo(() =>
+    Array.from(new Set(scheduleItems.map((i: any) => i.processArea).filter(Boolean))).sort() as string[],
+    [scheduleItems]
+  );
+
+  const mockCycleOptions = useMemo(() =>
+    Array.from(new Set(scheduleItems.map((i: any) => i.mockCycleName).filter(Boolean))).sort() as string[],
+    [scheduleItems]
+  );
+
+  const filteredItems = useMemo(() =>
+    scheduleItems.filter((i: any) => {
+      if (filterProcessArea && i.processArea !== filterProcessArea) return false;
+      if (filterMockCycle && i.mockCycleName !== filterMockCycle) return false;
+      return true;
+    }),
+    [scheduleItems, filterProcessArea, filterMockCycle]
+  );
 
   if (!projectId) {
     return <Alert severity="info">Select a project using the global filter to view schedule.</Alert>;
@@ -72,6 +93,59 @@ const SchedulePage: React.FC = () => {
         </Button>
       </Stack>
 
+      {/* Filters */}
+      <Box
+        sx={{
+          p: 2,
+          mb: 2,
+          borderRadius: 2,
+          backgroundColor: 'rgba(255,255,255,0.07)',
+          border: '1px solid rgba(255,255,255,0.08)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 2,
+          flexWrap: 'wrap',
+        }}
+      >
+        <Typography variant="caption" sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'text.secondary', mr: 0.5 }}>
+          Filter
+        </Typography>
+        <FormControl size="small" sx={{ minWidth: 180 }}>
+          <InputLabel id="pa-filter-label">Process Area</InputLabel>
+          <Select
+            labelId="pa-filter-label"
+            label="Process Area"
+            value={filterProcessArea}
+            onChange={(e) => setFilterProcessArea(e.target.value)}
+          >
+            <MenuItem value="">All</MenuItem>
+            {processAreaOptions.map((pa) => (
+              <MenuItem key={pa} value={pa}>{pa}</MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+        <FormControl size="small" sx={{ minWidth: 180 }}>
+          <InputLabel id="mc-filter-label">Mock Cycle</InputLabel>
+          <Select
+            labelId="mc-filter-label"
+            label="Mock Cycle"
+            value={filterMockCycle}
+            onChange={(e) => setFilterMockCycle(e.target.value)}
+          >
+            <MenuItem value="">All</MenuItem>
+            {mockCycleOptions.map((mc) => (
+              <MenuItem key={mc} value={mc}>{mc}</MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+        {(filterProcessArea || filterMockCycle) && (
+          <Button size="small" onClick={() => { setFilterProcessArea(''); setFilterMockCycle(''); }}>
+            Clear
+          </Button>
+        )}
+      </Box>
+
+      {/* Schedule */}
       <Box
         sx={{
           p: 2,
@@ -88,7 +162,7 @@ const SchedulePage: React.FC = () => {
           <Alert severity="error">{error.message}</Alert>
         ) : (
           <DraggableScheduleGrid
-            items={scheduleItems as any}
+            items={filteredItems as any}
             weekStart={weekStart}
             projectId={projectId}
             processAreaAccentOverrides={processAreaAccentOverrides}
