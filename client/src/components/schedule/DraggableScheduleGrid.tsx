@@ -3,7 +3,6 @@
 import React, { useState } from 'react';
 import {
   Box,
-  Grid,
   Paper,
   Typography,
   useTheme,
@@ -161,7 +160,13 @@ export const DraggableScheduleGrid: React.FC<DraggableScheduleGridProps> = ({
         <Box>
           <WeekHeader weekStart={weekStart} />
 
-          <Grid container spacing={1}>
+          <Box
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
+              gap: 1,
+            }}
+          >
             {days.map((day) => {
               const dayItems = getItemsForDay(day);
               const isToday =
@@ -171,7 +176,7 @@ export const DraggableScheduleGrid: React.FC<DraggableScheduleGridProps> = ({
               const dayString = format(day, 'yyyy-MM-dd');
 
               return (
-                <Grid item xs={12} sm={10 / 7} key={dayString}>
+                <Box key={dayString}>
                   <DroppableScheduleCell
                     dayString={dayString}
                     dayItems={dayItems}
@@ -199,10 +204,10 @@ export const DraggableScheduleGrid: React.FC<DraggableScheduleGridProps> = ({
                       </Box>
                     </SortableContext>
                   </DroppableScheduleCell>
-                </Grid>
+                </Box>
               );
             })}
-          </Grid>
+          </Box>
         </Box>
 
         {/* Drag overlay for visual feedback */}

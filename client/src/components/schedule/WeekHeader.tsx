@@ -1,7 +1,7 @@
 // client/src/components/schedule/WeekHeader.tsx
 
 import React from 'react';
-import { Box, Typography, Grid, useTheme } from '@mui/material';
+import { Box, Typography, useTheme } from '@mui/material';
 import { format, addDays, startOfWeek } from 'date-fns';
 import { palette } from '../../theme/palette';
 
@@ -14,30 +14,16 @@ const WeekHeader: React.FC<WeekHeaderProps> = ({ weekStart = startOfWeek(new Dat
   const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
 
   return (
-    <Grid
-      container
-      spacing={1}
+    <Box
       sx={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
+        gap: 1,
         mb: 2,
         pb: 2,
         borderBottom: `2px solid ${palette.divider}`,
       }}
     >
-      <Grid item xs={12} sm={2}>
-        <Typography
-          variant="subtitle2"
-          sx={{
-            fontWeight: 700,
-            textAlign: 'center',
-            color: palette.text.primary,
-            textTransform: 'uppercase',
-            letterSpacing: '0.05em',
-            fontSize: '0.75rem',
-          }}
-        >
-          Task
-        </Typography>
-      </Grid>
       {days.map((day) => {
         const isToday =
           day.getDate() === new Date().getDate() &&
@@ -45,7 +31,7 @@ const WeekHeader: React.FC<WeekHeaderProps> = ({ weekStart = startOfWeek(new Dat
           day.getFullYear() === new Date().getFullYear();
 
         return (
-          <Grid item xs={12} sm={10 / 7} key={day.toISOString()}>
+          <Box key={day.toISOString()}>
             <Box
               sx={{
                 textAlign: 'center',
@@ -80,10 +66,10 @@ const WeekHeader: React.FC<WeekHeaderProps> = ({ weekStart = startOfWeek(new Dat
                 {format(day, 'MMM d')}
               </Typography>
             </Box>
-          </Grid>
+          </Box>
         );
       })}
-    </Grid>
+    </Box>
   );
 };
 
