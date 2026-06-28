@@ -74,7 +74,10 @@ const TopNav: React.FC<TopNavProps> = ({
   }, [notifications, unreadCount]);
   const isExecutionPage = location.pathname === '/projects';
   const isPlanningPage = location.pathname === '/planning';
-  const isWorkspacePage = isExecutionPage || isPlanningPage;
+  // All pages that share the execution workspace header + sub-nav pills
+  const executionRelatedPaths = ['/projects', '/priorities', '/schedule', '/defects', '/my-tasks'];
+  const isExecutionRelated = executionRelatedPaths.includes(location.pathname);
+  const isWorkspacePage = isExecutionRelated || isPlanningPage;
   const sectionTitle = isPlanningPage ? 'Planning Workspace' : 'Mock/Cutover Execution';
   const activeSubNavItems = isPlanningPage ? planningSubNavItems : executionSubNavItems;
 

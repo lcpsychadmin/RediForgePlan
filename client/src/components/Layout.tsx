@@ -30,10 +30,16 @@ const Layout: React.FC<LayoutProps> = ({
 }) => {
   const location = useLocation();
   const { user } = useAuth();
-  const isWorkspacePage = location.pathname === '/projects' || location.pathname === '/planning';
-  // Show global filter bar on pages that benefit from program/project context
+  // Pages with the full workspace header + sub-nav pills (112px top margin)
+  const isWorkspacePage = [
+    '/projects', '/planning',
+    '/priorities', '/schedule', '/defects', '/my-tasks',
+  ].includes(location.pathname);
+  // Show global filter bar on standalone content pages (NOT on the Plan hierarchy page or Planning workspace)
   const isProjectWorkspace = location.pathname.startsWith('/programs/');
-  const showFilterBar = !isWorkspacePage && !isProjectWorkspace && location.pathname !== '/dashboard';
+  const showFilterBar = isWorkspacePage
+    ? !['/projects', '/planning'].includes(location.pathname)  // show on exec sub-pages, not on Plan
+    : !isProjectWorkspace && location.pathname !== '/dashboard';
 
   const now = new Date();
   const dateStr = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
