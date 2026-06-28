@@ -4496,7 +4496,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                     const canAddDataObjectHere = !showProjectSummaryOnly && !!activeProjectId;
                     const activePlanGroup = selectedItem?.type === 'processArea' ? selectedItem.area : '';
                     const taskFieldSx = {
-                      '& .MuiInputBase-root': { fontSize: '0.72rem', height: 26 },
+                      width: '100%',
+                      minWidth: 0,
+                      '& .MuiInputBase-root': { fontSize: '0.72rem', height: 26, width: '100%', minWidth: 0 },
                       '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': { borderColor: planAccentColor },
                       '& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: planAccentColor },
                       '& input::-webkit-outer-spin-button': { WebkitAppearance: 'none', margin: 0 },
@@ -5021,8 +5023,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                                               {task.startDate ? (() => { const [y,m,d] = task.startDate.split('-'); return `${m}/${d}/${y}`; })() : '—'}
                                                             </Box>
                                                           ) : (
-                                                            <Box sx={{ position: 'relative', '&:focus-within .date-empty': { display: 'none' } }}>
-                                                              <TextField size="small" type="date"
+                                                            <Box sx={{ position: 'relative', width: '100%', minWidth: 0, '&:focus-within .date-empty': { display: 'none' } }}>
+                                                              <TextField fullWidth size="small" type="date"
                                                                 value={task.startDate || ''}
                                                                 onChange={e => {
                                                                   const newStart = e.target.value;
@@ -5288,8 +5290,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                                 {task.startDate ? (() => { const [y,m,d] = task.startDate.split('-'); return `${m}/${d}/${y}`; })() : '—'}
                                               </Box>
                                             ) : (
-                                              <Box sx={{ position: 'relative', '&:focus-within .date-empty': { display: 'none' } }}>
-                                                <TextField size="small" type="date"
+                                                            <Box sx={{ position: 'relative', width: '100%', minWidth: 0, '&:focus-within .date-empty': { display: 'none' } }}>
+                                                              <TextField fullWidth size="small" type="date"
                                                   value={task.startDate || ''}
                                                   onChange={e => {
                                                     const newStart = e.target.value;
