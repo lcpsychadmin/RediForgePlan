@@ -72,20 +72,29 @@ const SchedulePage: React.FC = () => {
         </Button>
       </Stack>
 
-      {isLoading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-          <CircularProgress />
-        </Box>
-      ) : error ? (
-        <Alert severity="error">{error.message}</Alert>
-      ) : (
-        <DraggableScheduleGrid
-          items={scheduleItems as any}
-          weekStart={weekStart}
-          projectId={projectId}
-          processAreaAccentOverrides={processAreaAccentOverrides}
-        />
-      )}
+      <Box
+        sx={{
+          p: 2,
+          borderRadius: 2,
+          backgroundColor: 'rgba(255,255,255,0.07)',
+          border: '1px solid rgba(255,255,255,0.08)',
+        }}
+      >
+        {isLoading ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+            <CircularProgress />
+          </Box>
+        ) : error ? (
+          <Alert severity="error">{error.message}</Alert>
+        ) : (
+          <DraggableScheduleGrid
+            items={scheduleItems as any}
+            weekStart={weekStart}
+            projectId={projectId}
+            processAreaAccentOverrides={processAreaAccentOverrides}
+          />
+        )}
+      </Box>
     </PageContainer>
   );
 };

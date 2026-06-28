@@ -222,7 +222,7 @@ export const DraggableScheduleGrid: React.FC<DraggableScheduleGridProps> = ({
                     boxShadow: 1,
                     pointerEvents: 'auto',
                     overflow: 'hidden',
-                    border: `2px dotted ${color}`,
+                    border: `2px dashed ${color}`,
                     backdropFilter: 'blur(2px)',
                     display: 'flex',
                     flexDirection: 'column',
@@ -267,6 +267,7 @@ export const DraggableScheduleGrid: React.FC<DraggableScheduleGridProps> = ({
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
                       fontSize: '0.64rem',
+                      fontWeight: 400,
                       lineHeight: 1.1,
                     }}
                   >
@@ -281,6 +282,7 @@ export const DraggableScheduleGrid: React.FC<DraggableScheduleGridProps> = ({
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
                       fontSize: '0.64rem',
+                      fontWeight: 400,
                       lineHeight: 1.1,
                     }}
                   >
@@ -295,6 +297,7 @@ export const DraggableScheduleGrid: React.FC<DraggableScheduleGridProps> = ({
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
                       fontSize: '0.64rem',
+                      fontWeight: 400,
                       lineHeight: 1.1,
                     }}
                   >
