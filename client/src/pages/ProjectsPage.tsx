@@ -4887,9 +4887,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                                   <IconButton size="small" onClick={(e) => { e.stopPropagation(); const next = new Set(expandedObjects); if (childExpanded) next.delete(subObject.id); else next.add(subObject.id); setExpandedObjects(next); apiClient.put('/api/hierarchy-preferences/state', { treeOrder, expandedPrograms: Array.from(expandedPrograms), expandedCycles: Array.from(expandedCycles), expandedProjectGroups: Array.from(expandedProjectGroups), expandedObjects: Array.from(next), planningAdditionalGroups, planningAdditionalProcessAreas, hiddenProcessAreas, processAreaAccentOverrides, processAreaDescriptions, hierarchyLevelIcons }).catch(() => {}); }} sx={{ p: 0.2, flexShrink: 0 }}>
                                                     <ChevronRightIcon sx={{ fontSize: 16, color: 'text.secondary', transition: 'transform 0.2s', transform: childExpanded ? 'rotate(90deg)' : 'rotate(0deg)' }} />
                                                   </IconButton>
-                                                  <Box sx={{ width: 16, display: 'flex', justifyContent: 'center', flexShrink: 0 }}>
-                                                    <Box sx={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: getTaskStatusColor(childStatus) }} />
-                                                  </Box>
                                                   <Typography sx={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '0.78rem', color: planAccentColor, flexShrink: 0 }}>
                                                     {subObject.objectId}
                                                   </Typography>
