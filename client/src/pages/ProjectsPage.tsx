@@ -2979,7 +2979,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
 
       setExpandedPrograms(prev => new Set(prev).add(selectedTargetCycle.programId));
       if (copiedToCycle?.id) {
-        setSelectedItem({ type: 'cycle', id: copiedToCycle.id, programId: selectedTargetCycle.programId });
+        setSelectedItem({ type: 'cycle', id: copiedToCycle.id, programId: selectedTargetCycle.programId, projectId: copiedToCycle.projectId });
       }
       setTabValue(0);
       setCloneCycleDialogOpen(false);
