@@ -1,10 +1,9 @@
 // client/src/pages/SchedulePage.tsx
 
 import React, { useState } from 'react';
-import { Box, CircularProgress, Alert, Button, Stack, Snackbar } from '@mui/material';
+import { Box, CircularProgress, Alert, Button, Stack } from '@mui/material';
 import { useQuery } from '@tanstack/react-query';
 import apiClient from '../api/client';
-import MuiAlert from '@mui/material/Alert';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import PageContainer from '../layout/PageContainer';
@@ -23,37 +22,17 @@ const SchedulePage: React.FC = () => {
   const [weekStart, setWeekStart] = useState(startOfWeek(new Date()));
 
   const { data: scheduleItems = [], isLoading, error } = useSchedule(projectId!);
-  const taskIds = React.useMemo(() => scheduleItems.map((item) => item.taskId).filter(Boolean), [scheduleItems]);
-
-  const { data: openDefectMap = {} } = useQuery({
-    queryKey: ['schedule-open-defects', projectId, taskIds],
+  const { data: hierarchyState = {} } = useQuery({
+    queryKey: ['hierarchy-preferences-state'],
     queryFn: async () => {
-      const entries = await Promise.all(
-        taskIds.map(async (taskId) => {
-          try {
-            const response = await apiClient.get(`/tasks/${taskId}/defects`);
-            const defects = response.data.data || [];
-            const openCount = defects.filter((defect: any) => defect.status === 'open').length;
-            return [taskId, openCount] as const;
-          } catch (_error) {
-            return [taskId, 0] as const;
-          }
-        })
-      );
-
-      return Object.fromEntries(entries);
+      const response = await apiClient.get('/api/hierarchy-preferences/state');
+      return response.data?.data || {};
     },
-    enabled: !!projectId && taskIds.length > 0,
+    enabled: !!projectId,
   });
 
-  const scheduleItemsWithDefects = React.useMemo(
-    () =>
-      scheduleItems.map((item) => ({
-        ...item,
-        hasOpenDefects: Number(openDefectMap[item.taskId] || 0) > 0,
-      })),
-    [scheduleItems, openDefectMap]
-  );
+  const processAreaAccentOverrides =
+    (hierarchyState as any)?.processAreaAccentOverrides || {};
 
   if (!projectId) {
     return <Alert severity="info">Select a project using the global filter to view schedule.</Alert>;
@@ -101,9 +80,10 @@ const SchedulePage: React.FC = () => {
         <Alert severity="error">{error.message}</Alert>
       ) : (
         <DraggableScheduleGrid
-          items={scheduleItemsWithDefects as any}
+          items={scheduleItems as any}
           weekStart={weekStart}
           projectId={projectId}
+          processAreaAccentOverrides={processAreaAccentOverrides}
         />
       )}
     </PageContainer>

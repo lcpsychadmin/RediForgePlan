@@ -538,8 +538,16 @@ export interface ScheduleItem {
   taskName?: string;
   taskStatus?: string;
   taskType?: string;
+  startDate?: string;
+  endDate?: string;
   projectObjectId?: string;
   objectId?: string;
+  objectDescription?: string;
+  processArea?: string;
+  programName?: string;
+  projectName?: string;
+  mockCycleName?: string;
+  projectAccentColor?: string;
   scheduledDate: string;
   createdAt: string;
   updatedAt: string;

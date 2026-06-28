@@ -75,11 +75,29 @@ export class ScheduleService {
 
     const result = await db.query(
       `SELECT si.id, si.project_id, si.task_id, si.scheduled_date, si.created_at,
-              t.task_type, t.name, t.status, po.id as project_object_id, go.object_id
+              t.task_type, t.name, t.status, t.start_date, t.end_date,
+              po.id as project_object_id,
+              COALESCE(go.object_id, po.id::text) as object_id,
+              COALESCE(NULLIF(po.sub_object_description, ''), go.description) as object_description,
+              COALESCE(go.process_area, tg.process_area, 'Unassigned') as process_area,
+              p.name as project_name,
+              p.accent_color as project_accent_color,
+              pr.name as program_name,
+              mc_primary.name as mock_cycle_name
        FROM schedule_items si
        JOIN tasks t ON si.task_id = t.id
        LEFT JOIN project_objects po ON t.project_object_id = po.id
        LEFT JOIN global_objects go ON po.global_object_id = go.id
+       LEFT JOIN task_groups tg ON t.task_group_id = tg.id
+       JOIN projects p ON si.project_id = p.id
+       JOIN programs pr ON p.program_id = pr.id
+       LEFT JOIN LATERAL (
+         SELECT name
+         FROM mock_cycles
+         WHERE project_id = p.id
+         ORDER BY updated_at DESC, created_at DESC
+         LIMIT 1
+       ) mc_primary ON true
        WHERE si.project_id = $1
        ORDER BY si.scheduled_date ASC`,
       [projectId]
@@ -96,11 +114,29 @@ export class ScheduleService {
     // Fetch with full data
     const full = await db.query(
       `SELECT si.id, si.project_id, si.task_id, si.scheduled_date, si.created_at,
-              t.task_type, t.name, t.status, po.id as project_object_id, go.object_id
+              t.task_type, t.name, t.status, t.start_date, t.end_date,
+              po.id as project_object_id,
+              COALESCE(go.object_id, po.id::text) as object_id,
+              COALESCE(NULLIF(po.sub_object_description, ''), go.description) as object_description,
+              COALESCE(go.process_area, tg.process_area, 'Unassigned') as process_area,
+              p.name as project_name,
+              p.accent_color as project_accent_color,
+              pr.name as program_name,
+              mc_primary.name as mock_cycle_name
        FROM schedule_items si
        JOIN tasks t ON si.task_id = t.id
        LEFT JOIN project_objects po ON t.project_object_id = po.id
        LEFT JOIN global_objects go ON po.global_object_id = go.id
+       LEFT JOIN task_groups tg ON t.task_group_id = tg.id
+       JOIN projects p ON si.project_id = p.id
+       JOIN programs pr ON p.program_id = pr.id
+       LEFT JOIN LATERAL (
+         SELECT name
+         FROM mock_cycles
+         WHERE project_id = p.id
+         ORDER BY updated_at DESC, created_at DESC
+         LIMIT 1
+       ) mc_primary ON true
        WHERE si.id = $1`,
       [result.rows[0].id]
     );
@@ -118,11 +154,29 @@ export class ScheduleService {
 
     const full = await db.query(
       `SELECT si.id, si.project_id, si.task_id, si.scheduled_date, si.created_at,
-              t.task_type, t.name, t.status, po.id as project_object_id, go.object_id
+              t.task_type, t.name, t.status, t.start_date, t.end_date,
+              po.id as project_object_id,
+              COALESCE(go.object_id, po.id::text) as object_id,
+              COALESCE(NULLIF(po.sub_object_description, ''), go.description) as object_description,
+              COALESCE(go.process_area, tg.process_area, 'Unassigned') as process_area,
+              p.name as project_name,
+              p.accent_color as project_accent_color,
+              pr.name as program_name,
+              mc_primary.name as mock_cycle_name
        FROM schedule_items si
        JOIN tasks t ON si.task_id = t.id
        LEFT JOIN project_objects po ON t.project_object_id = po.id
        LEFT JOIN global_objects go ON po.global_object_id = go.id
+       LEFT JOIN task_groups tg ON t.task_group_id = tg.id
+       JOIN projects p ON si.project_id = p.id
+       JOIN programs pr ON p.program_id = pr.id
+       LEFT JOIN LATERAL (
+         SELECT name
+         FROM mock_cycles
+         WHERE project_id = p.id
+         ORDER BY updated_at DESC, created_at DESC
+         LIMIT 1
+       ) mc_primary ON true
        WHERE si.id = $1`,
       [scheduleItemId]
     );
@@ -146,8 +200,16 @@ export class ScheduleService {
       taskType: row.task_type,
       taskName: row.name,
       taskStatus: row.status,
+      startDate: row.start_date,
+      endDate: row.end_date,
       projectObjectId: row.project_object_id,
       objectId: row.object_id,
+      objectDescription: row.object_description,
+      processArea: row.process_area,
+      programName: row.program_name,
+      projectName: row.project_name,
+      mockCycleName: row.mock_cycle_name,
+      projectAccentColor: row.project_accent_color,
       scheduledDate: row.scheduled_date,
       createdAt: row.created_at,
     };

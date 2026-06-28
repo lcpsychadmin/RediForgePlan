@@ -1,46 +1,25 @@
 // client/src/components/schedule/DraggableScheduleGrid.tsx
 
-import React, { useState } from 'react';
-import {
-  Box,
-  Paper,
-  Typography,
-  useTheme,
-  Snackbar,
-  Alert as MuiAlert,
-} from '@mui/material';
-import {
-  DndContext,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  DragEndEvent,
-  DragOverlay,
-} from '@dnd-kit/core';
-import {
-  SortableContext,
-  verticalListSortingStrategy,
-} from '@dnd-kit/sortable';
-import { addDays, format } from 'date-fns';
-import DraggableScheduleItem from './DraggableScheduleItem';
-import DroppableScheduleCell from './DroppableScheduleCell';
+import React from 'react';
+import { Box, Paper, Typography, Chip } from '@mui/material';
+import { addDays, format, differenceInCalendarDays, max, min } from 'date-fns';
 import WeekHeader from './WeekHeader';
 import { ScheduleItem as ScheduleItemType } from '../../api/types';
 import { palette } from '../../theme/palette';
-import { useUpdateScheduleItemInProject } from '../../api/hooks';
 
 interface DraggableScheduleGridProps {
   items?: ScheduleItemType[];
   weekStart: Date;
   projectId: string;
+  processAreaAccentOverrides?: Record<string, Record<string, string>>;
 }
 
-interface AlertState {
-  open: boolean;
-  message: string;
-  severity: 'success' | 'error';
+interface PositionedItem {
+  item: ScheduleItemType;
+  startCol: number;
+  endCol: number;
+  lane: number;
+  color: string;
 }
 
 /**
@@ -52,191 +31,228 @@ export const DraggableScheduleGrid: React.FC<DraggableScheduleGridProps> = ({
   items = [],
   weekStart,
   projectId,
+  processAreaAccentOverrides = {},
 }) => {
-  const theme = useTheme();
-  const [activeId, setActiveId] = useState<string | null>(null);
-  const [alert, setAlert] = useState<AlertState>({
-    open: false,
-    message: '',
-    severity: 'success',
+  const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
+  const weekEnd = addDays(weekStart, 6);
+
+  const areaPalette = ['#2979FF', '#00A884', '#F97316', '#8B5CF6', '#D946EF', '#0EA5E9', '#F59E0B', '#EF4444'];
+
+  const getDateKey = (value: string | undefined | null) => (value ? String(value).slice(0, 10) : '');
+
+  const dateFromKey = (key: string) => {
+    const safeKey = key || '1970-01-01';
+    return new Date(`${safeKey}T00:00:00`);
+  };
+
+  const hashColorForArea = (area: string) => {
+    let hash = 0;
+    for (let i = 0; i < area.length; i += 1) {
+      hash = (hash * 31 + area.charCodeAt(i)) >>> 0;
+    }
+    return areaPalette[hash % areaPalette.length];
+  };
+
+  const getAreaColor = (item: ScheduleItemType) => {
+    const processArea = (item.processArea || 'Unassigned').trim();
+    const override = processAreaAccentOverrides?.[projectId]?.[processArea];
+    return override || hashColorForArea(processArea);
+  };
+
+  const visibleSpans = items
+    .map((item) => {
+      const startKey = getDateKey(item.startDate || item.scheduledDate);
+      const endKey = getDateKey(item.endDate || item.scheduledDate);
+      if (!startKey || !endKey) return null;
+
+      const rawStart = dateFromKey(startKey);
+      const rawEnd = dateFromKey(endKey);
+      const spanStart = rawStart <= rawEnd ? rawStart : rawEnd;
+      const spanEnd = rawStart <= rawEnd ? rawEnd : rawStart;
+
+      if (spanEnd < weekStart || spanStart > weekEnd) return null;
+
+      const clampedStart = max([spanStart, weekStart]);
+      const clampedEnd = min([spanEnd, weekEnd]);
+      const startCol = differenceInCalendarDays(clampedStart, weekStart) + 1;
+      const endCol = differenceInCalendarDays(clampedEnd, weekStart) + 1;
+
+      return {
+        item,
+        startCol,
+        endCol,
+      };
+    })
+    .filter(Boolean) as Array<{ item: ScheduleItemType; startCol: number; endCol: number }>;
+
+  visibleSpans.sort((a, b) => {
+    if (a.startCol !== b.startCol) return a.startCol - b.startCol;
+    return b.endCol - a.endCol;
   });
 
-  const { mutate: updateScheduleItem, isPending: isUpdating } = useUpdateScheduleItemInProject(projectId);
+  const laneEndCols: number[] = [];
+  const positionedItems: PositionedItem[] = visibleSpans.map((entry) => {
+    let lane = laneEndCols.findIndex((endCol) => entry.startCol > endCol);
+    if (lane === -1) {
+      lane = laneEndCols.length;
+      laneEndCols.push(entry.endCol);
+    } else {
+      laneEndCols[lane] = entry.endCol;
+    }
 
-  // Configure sensors for drag detection
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      distance: 8, // 8px movement to activate drag
-    }),
-    useSensor(KeyboardSensor)
+    return {
+      ...entry,
+      lane,
+      color: getAreaColor(entry.item),
+    };
+  });
+
+  const laneCount = Math.max(1, laneEndCols.length);
+  const rowHeight = 98;
+
+  const legendEntries = Array.from(
+    new Map(
+      positionedItems.map((entry) => {
+        const area = (entry.item.processArea || 'Unassigned').trim() || 'Unassigned';
+        return [area, entry.color] as const;
+      })
+    ).entries()
   );
 
-  const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
-
-  const getDateKey = (value: string | undefined | null) => {
-    if (!value) return '';
-    return String(value).slice(0, 10);
-  };
-
-  const getItemsForDay = (date: Date) => {
-    const dayKey = format(date, 'yyyy-MM-dd');
-    return items.filter((item) => {
-      return getDateKey(item.scheduledDate) === dayKey;
-    });
-  };
-
-  const getDayIdsForSortable = (date: Date) => {
-    const dayItems = getItemsForDay(date);
-    return dayItems.map((item) => `${item.id}-${format(date, 'yyyy-MM-dd')}`);
-  };
-
-  const handleDragStart = (event: DragEndEvent) => {
-    setActiveId(event.active.id as string);
-  };
-
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-
-    setActiveId(null);
-
-    if (!over) {
-      return; // Dropped outside valid area
-    }
-
-    // Extract drop target info (format: "YYYY-MM-DD")
-    const dropTargetId = over.id as string;
-
-    if (typeof dropTargetId !== 'string' || !dropTargetId.match(/^\d{4}-\d{2}-\d{2}$/)) {
-      return; // Not a valid day drop target
-    }
-
-    // Extract item ID from active element
-    const itemId = active.id as string;
-
-    // Find the item being dragged
-    const draggedItem = items.find((item) => item.id === itemId);
-
-    if (!draggedItem) {
-      return;
-    }
-
-    // If dropped on the same day, do nothing
-    if (draggedItem.scheduledDate === dropTargetId) {
-      return;
-    }
-
-    // Perform optimistic update
-    updateScheduleItem(
-      { id: itemId, scheduledDate: dropTargetId },
-      {
-        onSuccess: () => {
-          setAlert({
-            open: true,
-            message: 'Schedule updated successfully',
-            severity: 'success',
-          });
-        },
-        onError: (error) => {
-          setAlert({
-            open: true,
-            message: `Failed to update schedule. Changes reverted. ${error instanceof Error ? error.message : ''}`,
-            severity: 'error',
-          });
-        },
-      }
-    );
-  };
-
-  const activeItem = items.find((item) => item.id === activeId);
-
   return (
-    <>
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragStart={handleDragStart}
-        onDragEnd={handleDragEnd}
-      >
-        <Box>
-          <WeekHeader weekStart={weekStart} />
+    <Box>
+      <WeekHeader weekStart={weekStart} />
 
+      {legendEntries.length > 0 && (
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 1.5 }}>
+          {legendEntries.map(([area, color]) => (
+            <Chip
+              key={area}
+              label={area}
+              size="small"
+              sx={{
+                backgroundColor: color,
+                color: '#fff',
+                fontWeight: 700,
+                borderRadius: 1,
+              }}
+            />
+          ))}
+        </Box>
+      )}
+
+      {positionedItems.length === 0 ? (
+        <Paper sx={{ p: 2 }}>
+          <Typography variant="body2" sx={{ color: palette.text.secondary }}>
+            No scheduled load cards for this week.
+          </Typography>
+        </Paper>
+      ) : (
+        <Box sx={{ position: 'relative' }}>
           <Box
             sx={{
               display: 'grid',
               gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
+              gridTemplateRows: `repeat(${laneCount}, ${rowHeight}px)`,
               gap: 1,
             }}
           >
-            {days.map((day) => {
-              const dayItems = getItemsForDay(day);
-              const isToday =
-                day.getDate() === new Date().getDate() &&
-                day.getMonth() === new Date().getMonth() &&
-                day.getFullYear() === new Date().getFullYear();
-              const dayString = format(day, 'yyyy-MM-dd');
+            {Array.from({ length: laneCount }).map((_, rowIndex) =>
+              days.map((day) => {
+                const isToday =
+                  day.getDate() === new Date().getDate() &&
+                  day.getMonth() === new Date().getMonth() &&
+                  day.getFullYear() === new Date().getFullYear();
+
+                return (
+                  <Paper
+                    key={`${rowIndex}-${format(day, 'yyyy-MM-dd')}`}
+                    sx={{
+                      backgroundColor: isToday ? `${palette.primary.main}10` : palette.background.paper,
+                      border: isToday ? `2px solid ${palette.primary.main}` : `1px solid ${palette.divider}`,
+                      borderRadius: 1.25,
+                    }}
+                  />
+                );
+              })
+            )}
+          </Box>
+
+          <Box
+            sx={{
+              position: 'absolute',
+              inset: 0,
+              display: 'grid',
+              gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
+              gridTemplateRows: `repeat(${laneCount}, ${rowHeight}px)`,
+              gap: 1,
+              pointerEvents: 'none',
+            }}
+          >
+            {positionedItems.map(({ item, startCol, endCol, lane, color }) => {
+              const idLine = item.objectId || item.taskName || 'Object';
+              const description = item.objectDescription || item.taskName || '';
+              const contextLine = [item.programName, item.projectName, item.mockCycleName].filter(Boolean).join(' | ');
 
               return (
-                <Box key={dayString}>
-                  <DroppableScheduleCell
-                    dayString={dayString}
-                    dayItems={dayItems}
-                    isToday={isToday}
-                    isUpdating={isUpdating}
+                <Paper
+                  key={item.id}
+                  sx={{
+                    gridColumn: `${startCol} / ${endCol + 1}`,
+                    gridRow: lane + 1,
+                    backgroundColor: color,
+                    color: '#fff',
+                    p: 1,
+                    borderRadius: 1.25,
+                    boxShadow: 2,
+                    pointerEvents: 'auto',
+                    overflow: 'hidden',
+                  }}
+                >
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      fontFamily: 'monospace',
+                      fontWeight: 800,
+                      display: 'block',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}
                   >
-                    {dayItems.length === 0 && (
-                      <Typography
-                        variant="caption"
-                        sx={{
-                          color: palette.text.disabled,
-                          p: 2,
-                          textAlign: 'center',
-                          fontStyle: 'italic',
-                        }}
-                      >
-                        No tasks scheduled
-                      </Typography>
-                    )}
-                    <SortableContext items={dayItems.map((item) => item.id)} strategy={verticalListSortingStrategy}>
-                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                        {dayItems.map((item) => (
-                          <DraggableScheduleItem key={item.id} item={item} />
-                        ))}
-                      </Box>
-                    </SortableContext>
-                  </DroppableScheduleCell>
-                </Box>
+                    {idLine}
+                  </Typography>
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      display: 'block',
+                      opacity: 0.98,
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}
+                  >
+                    {description}
+                  </Typography>
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      display: 'block',
+                      opacity: 0.9,
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}
+                  >
+                    {contextLine}
+                  </Typography>
+                </Paper>
               );
             })}
           </Box>
         </Box>
-
-        {/* Drag overlay for visual feedback */}
-        <DragOverlay>
-          {activeItem ? (
-            <Box
-              sx={{
-                opacity: 0.8,
-                boxShadow: theme.shadows[4],
-              }}
-            >
-              <DraggableScheduleItem item={activeItem} isOverlay />
-            </Box>
-          ) : null}
-        </DragOverlay>
-      </DndContext>
-
-      {/* Alert Snackbar */}
-      <Snackbar
-        open={alert.open}
-        autoHideDuration={4000}
-        onClose={() => setAlert((prev) => ({ ...prev, open: false }))}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
-      >
-        <MuiAlert severity={alert.severity} variant="filled">
-          {alert.message}
-        </MuiAlert>
-      </Snackbar>
-    </>
+      )}
+    </Box>
   );
 };
 
