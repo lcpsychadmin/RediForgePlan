@@ -26,6 +26,7 @@ import MyTasksPage from './pages/MyTasksPage';
 import ReportingDashboardPage from './pages/ReportingDashboardPage';
 
 // Layout
+import Layout from './components/Layout';
 import ProjectLayout from './layout/ProjectLayout';
 
 // Redirect component for authenticated users trying to access login
@@ -108,7 +109,9 @@ const AppRoutes: React.FC = () => {
         path="/inventory"
         element={
           <ProtectedRoute>
-            <InventoryPage />
+            <Layout>
+              <InventoryPage />
+            </Layout>
           </ProtectedRoute>
         }
       />
@@ -117,7 +120,9 @@ const AppRoutes: React.FC = () => {
         path="/priorities"
         element={
           <ProtectedRoute>
-            <PrioritiesPage />
+            <Layout>
+              <PrioritiesPage />
+            </Layout>
           </ProtectedRoute>
         }
       />
@@ -126,7 +131,9 @@ const AppRoutes: React.FC = () => {
         path="/schedule"
         element={
           <ProtectedRoute>
-            <SchedulePage />
+            <Layout>
+              <SchedulePage />
+            </Layout>
           </ProtectedRoute>
         }
       />
@@ -135,7 +142,9 @@ const AppRoutes: React.FC = () => {
         path="/defects"
         element={
           <ProtectedRoute>
-            <ProjectDefectsPage />
+            <Layout>
+              <ProjectDefectsPage />
+            </Layout>
           </ProtectedRoute>
         }
       />
