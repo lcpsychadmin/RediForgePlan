@@ -348,6 +348,83 @@ export class ProjectObjectService {
     return result.rows.length > 0;
   }
 
+  // ── Cycle-scoped helpers ─────────────────────────────────────────────────────
+
+  /** Look up the project_id for a mock cycle (needed to satisfy the NOT NULL FK). */
+  private async getProjectIdForCycle(mockCycleId: string): Promise<string> {
+    const result = await db.query(
+      'SELECT project_id FROM mock_cycles WHERE id = $1',
+      [mockCycleId]
+    );
+    if (result.rows.length === 0) throw new Error(`Mock cycle ${mockCycleId} not found`);
+    return result.rows[0].project_id as string;
+  }
+
+  async getProjectObjectsByCycle(mockCycleId: string, filters?: { status?: string; draUserId?: string; developerUserId?: string; processArea?: string }) {
+    const supportsSubObjects = await this.supportsSubObjects();
+    let query = supportsSubObjects
+      ? `
+        SELECT po.id, po.project_id, po.global_object_id, po.parent_project_object_id, po.sub_object_suffix, po.sub_object_description,
+          COALESCE(parent_go.object_id || '-' || po.sub_object_suffix, go.object_id) AS object_id,
+          parent_go.object_id AS parent_object_id,
+          COALESCE(go.process_area, parent_go.process_area) AS process_area,
+          po.complexity, po.deployment_disposition,
+          po.build_type, po.object_type, po.cutover_phase, po.ddm_approach, po.risk_security_type,
+          po.migration_type, po.factor_type, po.load_method, po.start_date, po.end_date, po.status,
+          po.dra_user_id, po.developer_user_id, po.notes, po.created_at, po.updated_at,
+          parent_po.created_at AS parent_created_at
+        FROM project_objects po
+        LEFT JOIN global_objects go ON po.global_object_id = go.id
+        LEFT JOIN project_objects parent_po ON po.parent_project_object_id = parent_po.id
+        LEFT JOIN global_objects parent_go ON parent_po.global_object_id = parent_go.id
+        WHERE po.mock_cycle_id = $1
+      `
+      : `
+        SELECT po.id, po.project_id, po.global_object_id,
+               go.object_id, go.process_area,
+               po.complexity, po.deployment_disposition,
+               po.build_type, po.object_type, po.cutover_phase, po.ddm_approach, po.risk_security_type,
+               po.migration_type, po.factor_type, po.load_method, po.start_date, po.end_date, po.status,
+               po.dra_user_id, po.developer_user_id, po.notes, po.created_at, po.updated_at
+        FROM project_objects po
+        JOIN global_objects go ON po.global_object_id = go.id
+        WHERE po.mock_cycle_id = $1
+      `;
+
+    const params: any[] = [mockCycleId];
+    let paramCount = 2;
+
+    if (filters?.status) { query += ` AND po.status = $${paramCount}`; params.push(filters.status); paramCount++; }
+    if (filters?.draUserId) { query += ` AND po.dra_user_id = $${paramCount}`; params.push(filters.draUserId); paramCount++; }
+    if (filters?.developerUserId) { query += ` AND po.developer_user_id = $${paramCount}`; params.push(filters.developerUserId); paramCount++; }
+    if (filters?.processArea) {
+      query += supportsSubObjects
+        ? ` AND COALESCE(go.process_area, parent_go.process_area) = $${paramCount}`
+        : ` AND go.process_area = $${paramCount}`;
+      params.push(filters.processArea);
+      paramCount++;
+    }
+
+    query += supportsSubObjects
+      ? ` ORDER BY CASE WHEN po.parent_project_object_id IS NULL THEN 0 ELSE 1 END, COALESCE(parent_po.created_at, po.created_at) DESC, po.created_at DESC`
+      : ' ORDER BY po.created_at DESC';
+
+    const result = await db.query(query, params);
+    return result.rows.map(row => this.formatProjectObject(row));
+  }
+
+  async createProjectObjectForCycle(mockCycleId: string, data: ProjectObjectInput) {
+    const projectId = await this.getProjectIdForCycle(mockCycleId);
+    // Delegate to existing createProjectObject, then patch in mock_cycle_id
+    const obj = await this.createProjectObject(projectId, data);
+    // Back-fill mock_cycle_id on the newly inserted row
+    await db.query(
+      'UPDATE project_objects SET mock_cycle_id = $1 WHERE id = $2',
+      [mockCycleId, obj.id]
+    );
+    return { ...obj };
+  }
+
   async getProjectObjectStats(projectObjectId: string) {
     const result = await db.query(
       `SELECT

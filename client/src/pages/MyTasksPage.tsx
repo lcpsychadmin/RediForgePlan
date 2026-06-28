@@ -82,7 +82,7 @@ const MyTasksPage: React.FC = () => {
       const taskBatches = await Promise.all(
         projectScopes.map(async ({ program, cycle, project }: any) => {
           try {
-            const tasksResponse = await apiClient.get(`/api/tasks/project/${project.id}`);
+            const tasksResponse = await apiClient.get(`/api/tasks/cycle/${cycle.id}`);
             const tasks = tasksResponse.data.data || [];
 
             return tasks

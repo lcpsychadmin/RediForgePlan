@@ -428,7 +428,111 @@ export class TaskService {
       });
       created.push(task);
     }
-    // Return created tasks without auto-deps — user sets dependencies manually
+    return created;
+  }
+
+  // ── Cycle-scoped helpers ────────────────────────────────────────────────────
+
+  /** Look up the project_id for a mock cycle (needed to satisfy the NOT NULL FK). */
+  private async getProjectIdForCycle(mockCycleId: string): Promise<string> {
+    const result = await db.query(
+      'SELECT project_id FROM mock_cycles WHERE id = $1',
+      [mockCycleId]
+    );
+    if (result.rows.length === 0) throw new Error(`Mock cycle ${mockCycleId} not found`);
+    return result.rows[0].project_id as string;
+  }
+
+  async getTaskGroupsByCycle(mockCycleId: string) {
+    const supportsProcessArea = await this.supportsTaskGroupProcessArea();
+    const result = await db.query(
+      supportsProcessArea
+        ? 'SELECT id, project_id, name, process_area, description, start_date, end_date, created_at, updated_at FROM task_groups WHERE mock_cycle_id = $1 ORDER BY created_at ASC'
+        : 'SELECT id, project_id, name, NULL::VARCHAR AS process_area, description, start_date, end_date, created_at, updated_at FROM task_groups WHERE mock_cycle_id = $1 ORDER BY created_at ASC',
+      [mockCycleId]
+    );
+    return result.rows.map(row => this.formatTaskGroup(row));
+  }
+
+  async createTaskGroupForCycle(mockCycleId: string, name: string, processArea: string | undefined, description: string | undefined, startDate: string | undefined, endDate: string | undefined) {
+    const projectId = await this.getProjectIdForCycle(mockCycleId);
+    const supportsProcessArea = await this.supportsTaskGroupProcessArea();
+    const result = await db.query(
+      supportsProcessArea
+        ? 'INSERT INTO task_groups (project_id, mock_cycle_id, name, process_area, description, start_date, end_date) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, project_id, name, process_area, description, start_date, end_date, created_at, updated_at'
+        : 'INSERT INTO task_groups (project_id, mock_cycle_id, name, description, start_date, end_date) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, project_id, name, NULL::VARCHAR AS process_area, description, start_date, end_date, created_at, updated_at',
+      supportsProcessArea
+        ? [projectId, mockCycleId, name, processArea || null, description || null, startDate || null, endDate || null]
+        : [projectId, mockCycleId, name, description || null, startDate || null, endDate || null]
+    );
+    return this.formatTaskGroup(result.rows[0]);
+  }
+
+  async getTasksByCycle(mockCycleId: string, filters?: { status?: string; taskType?: string; draUserId?: string; developerUserId?: string; projectObjectId?: string; taskGroupId?: string }) {
+    let query = `
+      SELECT t.id, t.project_id, t.project_object_id, t.task_group_id, t.task_type, t.name, t.status,
+             t.start_date, t.end_date, t.assigned_to, t.duration, t.duration_unit, t.schedule_mode_override, t.progress_percentage,
+             t.dra_user_id, t.developer_user_id, t.notes, t.created_at, t.updated_at
+      FROM tasks t
+      WHERE t.mock_cycle_id = $1
+    `;
+    const params: any[] = [mockCycleId];
+    let paramCount = 2;
+
+    if (filters?.status) { query += ` AND t.status = $${paramCount}`; params.push(filters.status); paramCount++; }
+    if (filters?.taskType) { query += ` AND t.task_type = $${paramCount}`; params.push(filters.taskType); paramCount++; }
+    if (filters?.draUserId) { query += ` AND t.dra_user_id = $${paramCount}`; params.push(filters.draUserId); paramCount++; }
+    if (filters?.developerUserId) { query += ` AND t.developer_user_id = $${paramCount}`; params.push(filters.developerUserId); paramCount++; }
+    if (filters?.projectObjectId) { query += ` AND t.project_object_id = $${paramCount}`; params.push(filters.projectObjectId); paramCount++; }
+    if (filters?.taskGroupId) { query += ` AND t.task_group_id = $${paramCount}`; params.push(filters.taskGroupId); paramCount++; }
+
+    query += ' ORDER BY t.created_at DESC';
+    const result = await db.query(query, params);
+    return result.rows.map(row => this.formatTask(row));
+  }
+
+  async createTaskForCycle(mockCycleId: string, data: TaskInput) {
+    if (!data.projectObjectId && !data.taskGroupId) {
+      throw new Error('Task must have either projectObjectId or taskGroupId');
+    }
+    const projectId = await this.getProjectIdForCycle(mockCycleId);
+    const result = await db.query(
+      `INSERT INTO tasks (
+        project_id, mock_cycle_id, project_object_id, task_group_id, task_type, name, status,
+        start_date, end_date, assigned_to, duration, duration_unit, schedule_mode_override,
+        progress_percentage, dra_user_id, developer_user_id, notes
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+       RETURNING id, project_id, project_object_id, task_group_id, task_type, name, status,
+                 start_date, end_date, assigned_to, duration, duration_unit, schedule_mode_override,
+                 progress_percentage, dra_user_id, developer_user_id, notes, created_at, updated_at`,
+      [
+        projectId, mockCycleId,
+        data.projectObjectId || null, data.taskGroupId || null,
+        data.taskType, data.name || null,
+        data.status || 'not_started',
+        data.startDate || null, data.endDate || null,
+        data.assignedTo || null, data.duration || null,
+        data.durationUnit || 'days', data.scheduleModeOverride || null,
+        data.progressPercentage || 0,
+        data.draUserId || null, data.developerUserId || null, data.notes || null,
+      ]
+    );
+    return this.formatTask(result.rows[0]);
+  }
+
+  async createDefaultTasksForCycle(mockCycleId: string, projectObjectId: string) {
+    const templates = await this.getDefaultTaskTemplates();
+    const active = templates.filter((t: any) => t.isActive);
+    const created = [];
+    for (const tpl of active) {
+      const task = await this.createTaskForCycle(mockCycleId, {
+        projectObjectId,
+        taskType: tpl.taskType,
+        name: tpl.name,
+        status: 'not_started',
+      });
+      created.push(task);
+    }
     return created;
   }
 

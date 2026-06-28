@@ -5,10 +5,91 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { requireAuth, requireRole } from '../middleware/authMiddleware.js';
 import taskService from '../services/taskService.js';
 import projectService from '../services/projectService.js';
+import programService from '../services/programService.js';
 import { ApiError } from '../middleware/errorHandler.js';
 import { formatListResponse, formatSingleResponse } from '../utils/responseFormatter.js';
 
 const router = Router();
+
+// ===== CYCLE-SCOPED TASK GROUPS =====
+
+router.get(
+  '/groups/cycle/:mockCycleId',
+  requireAuth,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const cycle = await programService.getMockCycleById(req.params.mockCycleId);
+      if (!cycle) throw new ApiError(404, 'Mock cycle not found', 'NOT_FOUND');
+      const groups = await taskService.getTaskGroupsByCycle(req.params.mockCycleId);
+      res.json(formatListResponse(groups, groups.length));
+    } catch (error) { next(error); }
+  }
+);
+
+router.post(
+  '/groups/cycle/:mockCycleId',
+  requireAuth,
+  requireRole('analyst', 'admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const cycle = await programService.getMockCycleById(req.params.mockCycleId);
+      if (!cycle) throw new ApiError(404, 'Mock cycle not found', 'NOT_FOUND');
+      const { name, processArea, description, startDate, endDate } = req.body;
+      if (!name) throw new ApiError(400, 'Task group name is required', 'MISSING_FIELD');
+      const group = await taskService.createTaskGroupForCycle(req.params.mockCycleId, name, processArea, description, startDate, endDate);
+      res.status(201).json(formatSingleResponse(group));
+    } catch (error) { next(error); }
+  }
+);
+
+// ===== CYCLE-SCOPED TASKS =====
+
+router.get(
+  '/cycle/:mockCycleId',
+  requireAuth,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const cycle = await programService.getMockCycleById(req.params.mockCycleId);
+      if (!cycle) throw new ApiError(404, 'Mock cycle not found', 'NOT_FOUND');
+      const filters = {
+        status: req.query.status as string | undefined,
+        taskType: req.query.taskType as string | undefined,
+        draUserId: req.query.draUserId as string | undefined,
+        developerUserId: req.query.developerUserId as string | undefined,
+        projectObjectId: req.query.projectObjectId as string | undefined,
+        taskGroupId: req.query.taskGroupId as string | undefined,
+      };
+      const tasks = await taskService.getTasksByCycle(req.params.mockCycleId, filters);
+      res.json(formatListResponse(tasks, tasks.length));
+    } catch (error) { next(error); }
+  }
+);
+
+router.post(
+  '/cycle/:mockCycleId',
+  requireAuth,
+  requireRole('analyst', 'admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const cycle = await programService.getMockCycleById(req.params.mockCycleId);
+      if (!cycle) throw new ApiError(404, 'Mock cycle not found', 'NOT_FOUND');
+      const { taskType, ...data } = req.body;
+      if (!taskType) throw new ApiError(400, 'Task type is required', 'MISSING_FIELD');
+      const task = await taskService.createTaskForCycle(req.params.mockCycleId, { taskType, ...data });
+      res.status(201).json(formatSingleResponse(task));
+    } catch (error) { next(error); }
+  }
+);
+
+// Auto-create default tasks for a project object (cycle-scoped)
+router.post('/defaults/project-object-cycle/:projectObjectId', requireAuth, requireRole('analyst', 'admin'), async (req, res, next) => {
+  try {
+    const { mockCycleId } = req.body;
+    if (!mockCycleId) throw new ApiError(400, 'mockCycleId required', 'MISSING_FIELD');
+    const tasks = await taskService.createDefaultTasksForCycle(mockCycleId, req.params.projectObjectId);
+    res.status(201).json(formatListResponse(tasks, tasks.length));
+  } catch (error) { next(error); }
+});
 
 // ===== TASK GROUPS =====
 

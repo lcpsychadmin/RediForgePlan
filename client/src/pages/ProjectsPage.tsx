@@ -714,12 +714,16 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
 
   useEffect(() => {
     const loadHierarchySummaries = async () => {
-      const projectIds = Array.from(new Set(
-        Object.values(projectsByMockCycle)
-          .flat()
-          .map((project: any) => project.id)
-          .filter(Boolean)
-      ));
+      // Build a map of projectId → cycleId so we can fetch cycle-scoped data
+      // while still keying the summary cache by projectId (used by getProcessAreaProgress).
+      const projectToCycle = new Map<string, string>();
+      for (const [cycleId, projects] of Object.entries(projectsByMockCycle)) {
+        for (const project of projects as any[]) {
+          projectToCycle.set(project.id, cycleId);
+        }
+      }
+
+      const projectIds = Array.from(projectToCycle.keys());
 
       if (projectIds.length === 0) {
         setProjectHierarchySummaries({});
@@ -728,10 +732,12 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
 
       try {
         const entries = await Promise.all(projectIds.map(async (projectId: string) => {
+          const cycleId = projectToCycle.get(projectId);
+          if (!cycleId) return [projectId, { processAreas: {}, projectProgressPct: 0, projectObjectCount: 0, projectTaskGroupCount: 0 }] as const;
           const [objectsRes, groupsRes, tasksRes] = await Promise.all([
-            apiClient.get(`/api/project-objects/project/${projectId}`),
-            apiClient.get(`/api/tasks/groups/project/${projectId}`),
-            apiClient.get(`/api/tasks/project/${projectId}`),
+            apiClient.get(`/api/project-objects/cycle/${cycleId}`),
+            apiClient.get(`/api/tasks/groups/cycle/${cycleId}`),
+            apiClient.get(`/api/tasks/cycle/${cycleId}`),
           ]);
 
           const objects = objectsRes.data?.data || [];
@@ -1029,7 +1035,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
       const taskBatches = await Promise.all(
         projectScopes.map(async ({ program, cycle, project }: any) => {
           try {
-            const tasksResponse = await apiClient.get(`/api/tasks/project/${project.id}`);
+            const tasksResponse = await apiClient.get(`/api/tasks/cycle/${cycle.id}`);
             const tasks = tasksResponse.data.data || [];
             return tasks
               .filter((task: any) => {
@@ -1417,10 +1423,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     setProcessAreaDialogOpen(true);
   };
 
-  const reloadProjectPlanData = async (projectId: string) => {
+  const reloadProjectPlanData = async (mockCycleId: string) => {
     const [tasksRes, groupsRes] = await Promise.all([
-      apiClient.get(`/api/tasks/project/${projectId}`),
-      apiClient.get(`/api/tasks/groups/project/${projectId}`),
+      apiClient.get(`/api/tasks/cycle/${mockCycleId}`),
+      apiClient.get(`/api/tasks/groups/cycle/${mockCycleId}`),
     ]);
     setProjectTasks((tasksRes.data.data || []).map((task: any) => normalizeTaskDateFields(task)));
     setProjectTaskGroups(groupsRes.data.data || []);
@@ -1511,7 +1517,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         },
       }));
 
-      await reloadProjectPlanData(projectId);
+      await reloadProjectPlanData(activeCycleId || projectId);
 
       setProcessAreaDialogOpen(false);
       setProcessAreaTargetProjectId(null);
@@ -1571,7 +1577,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         },
       }));
 
-      await reloadProjectPlanData(projectId);
+      await reloadProjectPlanData(activeCycleId || projectId);
     } catch (error) {
       console.error('Failed to remove process area from plan:', error);
       alert('Failed to remove process area from the execution plan');
@@ -1610,9 +1616,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
           cycleProjects.map(async (project: Project, index: number) => {
             try {
               const [objectsResponse, tasksResponse, groupsResponse] = await Promise.all([
-                apiClient.get(`/api/project-objects/project/${project.id}`),
-                apiClient.get(`/api/tasks/project/${project.id}`),
-                apiClient.get(`/api/tasks/groups/project/${project.id}`),
+                apiClient.get(`/api/project-objects/cycle/${activeCycleId}`),
+                apiClient.get(`/api/tasks/cycle/${activeCycleId}`),
+                apiClient.get(`/api/tasks/groups/cycle/${activeCycleId}`),
               ]);
 
               const items = objectsResponse.data?.data || [];
@@ -2031,7 +2037,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   // Load tasks and task groups when project is selected
   useEffect(() => {
     const loadTasksAndGroups = async () => {
-      if (!activeProjectId) {
+      if (!activeCycleId && !activeProjectId) {
         setProjectTasks([]);
         setProjectTaskGroups([]);
         setTaskCommentCounts({});
@@ -2042,8 +2048,12 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
       projectTasksLoadedRef.current = false;
 
       try {
-        // Load tasks
-        const tasksResponse = await apiClient.get(`/api/tasks/project/${activeProjectId}`);
+        // Load tasks — prefer cycle-scoped endpoint; fall back to project-scoped
+        // (tab 1 Inventory context uses activeProjectId directly).
+        const taskUrl = activeCycleId
+          ? `/api/tasks/cycle/${activeCycleId}`
+          : `/api/tasks/project/${activeProjectId}`;
+        const tasksResponse = await apiClient.get(taskUrl);
         const tasks = (tasksResponse.data.data || []).map((task: any) => normalizeTaskDateFields(task));
         setProjectTasks(tasks);
 
@@ -2063,8 +2073,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         // Cascade dates for tasks with dependencies+duration
         await cascadeAllDates(tasks, allDeps);
 
-        // Load task groups
-        const groupsResponse = await apiClient.get(`/api/tasks/groups/project/${activeProjectId}`);
+        // Load task groups\n        const groupUrl = activeCycleId\n          ? `/api/tasks/groups/cycle/${activeCycleId}`\n          : `/api/tasks/groups/project/${activeProjectId}`;\n        const groupsResponse = await apiClient.get(groupUrl);
         const groups = groupsResponse.data.data || [];
         setProjectTaskGroups(groups);
 
@@ -2127,8 +2136,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
       for (const subObject of subObjectsNeedingDefaults) {
         seededIds.add(subObject.id);
         try {
-          const tasksResponse = await apiClient.post(`/api/tasks/defaults/project-object/${subObject.id}`, {
-            projectId: activeProjectId,
+          const tasksResponse = await apiClient.post(`/api/tasks/defaults/project-object-cycle/${subObject.id}`, {
+            mockCycleId: activeCycleId,
           });
           if (cancelled) return;
           const seededTasks = (tasksResponse.data.data || []).map((t: any) => normalizeTaskDateFields(t));
@@ -2175,9 +2184,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         setIsLoadingCycleOverview(true);
         const perProject = await Promise.all(projects.map(async (project: Project) => {
           const [tasksRes, objectsRes, groupsRes] = await Promise.all([
-            apiClient.get(`/api/tasks/project/${project.id}`),
-            apiClient.get(`/api/project-objects/project/${project.id}`),
-            apiClient.get(`/api/tasks/groups/project/${project.id}`),
+            apiClient.get(`/api/tasks/cycle/${cycleId}`),
+            apiClient.get(`/api/project-objects/cycle/${cycleId}`),
+            apiClient.get(`/api/tasks/groups/cycle/${cycleId}`),
           ]);
 
           return {
@@ -2265,9 +2274,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         setIsLoadingProgramOverview(true);
         const perProject = await Promise.all(projects.map(async (project: Project) => {
           const [tasksRes, objectsRes, groupsRes] = await Promise.all([
-            apiClient.get(`/api/tasks/project/${project.id}`),
-            apiClient.get(`/api/project-objects/project/${project.id}`),
-            apiClient.get(`/api/tasks/groups/project/${project.id}`),
+            apiClient.get(`/api/tasks/cycle/${cycleId}`),
+            apiClient.get(`/api/project-objects/cycle/${cycleId}`),
+            apiClient.get(`/api/tasks/groups/cycle/${cycleId}`),
           ]);
 
           return {
@@ -2280,45 +2289,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         const allTasks = perProject.flatMap((item: any) => item.tasks);
         const objectCount = perProject.reduce((sum: number, item: any) => sum + (item.objects?.length || 0), 0);
         const taskGroupCount = perProject.reduce((sum: number, item: any) => sum + (item.groups?.length || 0), 0);
-
-        let minDate: Date | null = null;
-        let maxDate: Date | null = null;
-        for (const task of allTasks) {
-          const start = normalizeDateOnly(task.startDate || undefined);
-          const end = normalizeDateOnly(task.endDate || undefined);
-          if (start && (!minDate || start < minDate)) minDate = start;
-          if (end && (!maxDate || end > maxDate)) maxDate = end;
-        }
-
-        const statusCounts = {
-          complete: allTasks.filter((task: any) => task.status === 'complete').length,
-          in_progress: allTasks.filter((task: any) => task.status === 'in_progress').length,
-          blocked: allTasks.filter((task: any) => task.status === 'blocked').length,
-          not_started: allTasks.filter((task: any) => task.status === 'not_started').length,
-        };
-
-        const progressPct = allTasks.length > 0
-          ? Math.round(allTasks.reduce((sum: number, task: any) => sum + (task.progressPercentage ?? 0), 0) / allTasks.length)
-          : Math.round(projects.reduce((sum, project) => sum + (project.progressPercentage || 0), 0) / Math.max(1, projects.length));
-
-        const formatDate = (value: Date | null) => {
-          if (!value) return null;
-          return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`;
-        };
-
-        setProgramOverview({
-          projectCount: projects.length,
-          objectCount,
-          taskGroupCount,
-          taskCount: allTasks.length,
-          statusCounts,
-          progressPct,
-          timelineStart: formatDate(minDate),
-          timelineEnd: formatDate(maxDate),
-        });
-      } catch (error) {
-        console.error('Failed to load program overview:', error);
-        setProgramOverview(null);
       } finally {
         setIsLoadingProgramOverview(false);
       }
@@ -2768,11 +2738,13 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
       ]);
       
       // Reload tasks if we deleted a task or task group
-      if (activeProjectId && (deleteItemType === 'task' || deleteItemType === 'taskGroup')) {
+      if ((activeCycleId || activeProjectId) && (deleteItemType === 'task' || deleteItemType === 'taskGroup')) {
         const reloadTs = Date.now();
+        const taskUrl = activeCycleId ? `/api/tasks/cycle/${activeCycleId}` : `/api/tasks/project/${activeProjectId}`;
+        const groupUrl = activeCycleId ? `/api/tasks/groups/cycle/${activeCycleId}` : `/api/tasks/groups/project/${activeProjectId}`;
         const [tasksRes, groupsRes] = await Promise.all([
-          apiClient.get(`/api/tasks/project/${activeProjectId}`),
-          apiClient.get(`/api/tasks/groups/project/${activeProjectId}`),
+          apiClient.get(taskUrl),
+          apiClient.get(groupUrl),
         ]);
         const reloadedTasks = (tasksRes.data.data || []).map((task: any) => normalizeTaskDateFields(task));
         setProjectTasks(reloadedTasks);
@@ -3468,9 +3440,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     await Promise.all(allProjects.map(async (proj: any) => {
       try {
         const [tasksRes, invRes, groupsRes] = await Promise.all([
-          apiClient.get(`/api/tasks/project/${proj.id}`),
-          apiClient.get(`/api/project-objects/project/${proj.id}`),
-          apiClient.get(`/api/tasks/groups/project/${proj.id}`),
+          apiClient.get(`/api/tasks/cycle/${activeCycleId}`),
+          apiClient.get(`/api/project-objects/cycle/${activeCycleId}`),
+          apiClient.get(`/api/tasks/groups/cycle/${activeCycleId}`),
         ]);
         const projTasks: any[] = tasksRes.data.data || [];
         const projInv: any[] = invRes.data.data || [];
@@ -5091,7 +5063,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                                       <Button size="small" variant="text" startIcon={<AddIcon sx={{ fontSize: '0.8rem !important' }} />}
                                                         onClick={async () => {
                                                           try {
-                                                            const res = await apiClient.post(`/api/tasks/project/${activeProjectId}`, { taskType: 'custom', projectObjectId: subObject.id, name: 'New Task', durationUnit: 'days' });
+                                                            const res = await apiClient.post(`/api/tasks/cycle/${activeCycleId}`, { taskType: 'custom', projectObjectId: subObject.id, name: 'New Task', durationUnit: 'days' });
                                                             setProjectTasks(prev => [...prev, normalizeTaskDateFields(res.data.data)]);
                                                           } catch (e) { console.error(e); }
                                                         }}
@@ -5419,7 +5391,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                           <Button size="small" variant="text" startIcon={<AddIcon sx={{ fontSize: '0.8rem !important' }} />}
                                             onClick={async () => {
                                               try {
-                                                const res = await apiClient.post(`/api/tasks/project/${activeProjectId}`, { taskType: 'custom', projectObjectId: objectId, name: 'New Task', durationUnit: 'days' });
+                                                const res = await apiClient.post(`/api/tasks/cycle/${activeCycleId}`, { taskType: 'custom', projectObjectId: objectId, name: 'New Task', durationUnit: 'days' });
                                                 setProjectTasks(prev => [...prev, normalizeTaskDateFields(res.data.data)]);
                                               } catch (e) { console.error(e); }
                                             }}
@@ -5752,7 +5724,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                         <Button size="small" variant="text" startIcon={<AddIcon sx={{ fontSize: '0.8rem !important' }} />}
                                           onClick={async () => {
                                             try {
-                                              const res = await apiClient.post(`/api/tasks/project/${activeProjectId}`, { taskType: 'custom', taskGroupId: group.id, name: 'New Task', durationUnit: 'days' });
+                                              const res = await apiClient.post(`/api/tasks/cycle/${activeCycleId}`, { taskType: 'custom', taskGroupId: group.id, name: 'New Task', durationUnit: 'days' });
                                               setProjectTasks(prev => [...prev, normalizeTaskDateFields(res.data.data)]);
                                             } catch (e) { console.error(e); }
                                           }}
@@ -7862,8 +7834,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
 
                 const taskBatches = await Promise.all(
                   objectIdsToAdd.map(async (objectId) => {
-                    const tasksResponse = await apiClient.post(`/api/tasks/defaults/project-object/${objectId}`, {
-                      projectId: targetProjectId,
+                    const tasksResponse = await apiClient.post(`/api/tasks/defaults/project-object-cycle/${objectId}`, {
+                      mockCycleId: activeCycleId,
                     });
                     return (tasksResponse.data.data || []).map((t: any) => normalizeTaskDateFields(t));
                   })
@@ -7872,9 +7844,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                 const updatedTasks = [...projectTasks, ...newTasks];
                 setProjectTasks(updatedTasks);
 
-                // If defaults endpoint returns no new tasks, reload project tasks to reflect existing assignments.
+                // If defaults endpoint returns no new tasks, reload cycle tasks to reflect existing assignments.
                 if (newTasks.length === 0) {
-                  const refreshed = await apiClient.get(`/api/tasks/project/${targetProjectId}`);
+                  const refreshUrl = activeCycleId ? `/api/tasks/cycle/${activeCycleId}` : `/api/tasks/project/${targetProjectId}`;
+                  const refreshed = await apiClient.get(refreshUrl);
                   setProjectTasks((refreshed.data.data || []).map((t: any) => normalizeTaskDateFields(t)));
                 }
 
@@ -8409,7 +8382,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                 setIsCreatingTaskGroup(true);
                 const resolvedGrouping = (selectedItem?.type === 'processArea' ? selectedItem.area : '').trim();
                 
-                const response = await apiClient.post(`/api/tasks/groups/project/${activeProjectId}`, {
+                const response = await apiClient.post(`/api/tasks/groups/cycle/${activeCycleId}`, {
                   name: newTaskGroupName,
                   processArea: resolvedGrouping || null,
                 });

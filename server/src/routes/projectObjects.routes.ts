@@ -6,11 +6,58 @@ import { requireAuth, requireRole } from '../middleware/authMiddleware.js';
 import projectObjectService from '../services/projectObjectService.js';
 import { DependencyService } from '../services/priorityService.js';
 import projectService from '../services/projectService.js';
+import programService from '../services/programService.js';
 import { ApiError } from '../middleware/errorHandler.js';
 import { formatListResponse, formatSingleResponse } from '../utils/responseFormatter.js';
 
 const router = Router();
 const dependencyService = new DependencyService();
+
+// ===== CYCLE-SCOPED ROUTES =====
+
+router.get(
+  '/cycle/:mockCycleId',
+  requireAuth,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const cycle = await programService.getMockCycleById(req.params.mockCycleId);
+      if (!cycle) throw new ApiError(404, 'Mock cycle not found', 'NOT_FOUND');
+      const filters = {
+        status: req.query.status as string | undefined,
+        draUserId: req.query.draUserId as string | undefined,
+        developerUserId: req.query.developerUserId as string | undefined,
+        processArea: req.query.processArea as string | undefined,
+      };
+      const objects = await projectObjectService.getProjectObjectsByCycle(req.params.mockCycleId, filters);
+      res.json(formatListResponse(objects, objects.length));
+    } catch (error) { next(error); }
+  }
+);
+
+router.post(
+  '/cycle/:mockCycleId',
+  requireAuth,
+  requireRole('analyst', 'admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const cycle = await programService.getMockCycleById(req.params.mockCycleId);
+      if (!cycle) throw new ApiError(404, 'Mock cycle not found', 'NOT_FOUND');
+      const { globalObjectId, parentProjectObjectId, subObjectSuffix, subObjectDescription, ...data } = req.body;
+      if (!globalObjectId && !parentProjectObjectId) {
+        throw new ApiError(400, 'Either global object ID or parent project object ID is required', 'MISSING_FIELD');
+      }
+      let object;
+      try {
+        object = await projectObjectService.createProjectObjectForCycle(req.params.mockCycleId, {
+          globalObjectId, parentProjectObjectId, subObjectSuffix, subObjectDescription, ...data,
+        });
+      } catch (error: any) {
+        throw new ApiError(400, error?.message || 'Unable to create project object', 'VALIDATION_ERROR');
+      }
+      res.status(201).json(formatSingleResponse(object));
+    } catch (error) { next(error); }
+  }
+);
 
 // Get project objects by project with filters
 router.get(

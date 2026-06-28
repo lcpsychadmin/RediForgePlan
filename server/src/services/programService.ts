@@ -322,27 +322,27 @@ export class ProgramService {
                   factor_type, load_method, start_date, end_date, status, dra_user_id,
                   developer_user_id, notes
            FROM project_objects
-           WHERE project_id = ANY($1)`,
-          [sourceProjectIds]
+           WHERE mock_cycle_id = $1`,
+          [sourceMockCycleId]
         );
 
         for (const po of projectObjectsResult.rows) {
-          const newProjectId = projectIdMap.get(po.project_id);
+          const newProjectId = Array.from(projectIdMap.values())[0];
           if (!newProjectId) continue;
           const inserted = await client.query(
             `INSERT INTO project_objects (
-              project_id, global_object_id, complexity, deployment_disposition, build_type,
+              project_id, mock_cycle_id, global_object_id, complexity, deployment_disposition, build_type,
               object_type, cutover_phase, ddm_approach, risk_security_type, migration_type,
               factor_type, load_method, start_date, end_date, status, dra_user_id,
               developer_user_id, notes
             ) VALUES (
-              $1, $2, $3, $4, $5,
-              $6, $7, $8, $9, $10,
-              $11, $12, $13, $14, $15, $16,
-              $17, $18
+              $1, $2, $3, $4, $5, $6,
+              $7, $8, $9, $10, $11,
+              $12, $13, $14, $15, $16, $17,
+              $18, $19
             ) RETURNING id`,
             [
-              newProjectId,
+              newProjectId, newCycleId,
               po.global_object_id,
               po.complexity,
               po.deployment_disposition,
@@ -395,33 +395,33 @@ export class ProgramService {
           taskGroupsResult = await client.query(
             `SELECT id, project_id, name, process_area, description, start_date, end_date
              FROM task_groups
-             WHERE project_id = ANY($1)`,
-            [sourceProjectIds]
+             WHERE mock_cycle_id = $1`,
+            [sourceMockCycleId]
           );
         } catch {
           supportsTaskGroupProcessArea = false;
           taskGroupsResult = await client.query(
             `SELECT id, project_id, name, NULL::VARCHAR AS process_area, description, start_date, end_date
              FROM task_groups
-             WHERE project_id = ANY($1)`,
-            [sourceProjectIds]
+             WHERE mock_cycle_id = $1`,
+            [sourceMockCycleId]
           );
         }
 
         for (const tg of taskGroupsResult.rows) {
-          const newProjectId = projectIdMap.get(tg.project_id);
+          const newProjectId = Array.from(projectIdMap.values())[0];
           if (!newProjectId) continue;
           const inserted = await client.query(
             supportsTaskGroupProcessArea
-              ? `INSERT INTO task_groups (project_id, name, process_area, description, start_date, end_date)
-                 VALUES ($1, $2, $3, $4, $5, $6)
+              ? `INSERT INTO task_groups (project_id, mock_cycle_id, name, process_area, description, start_date, end_date)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7)
                  RETURNING id`
-              : `INSERT INTO task_groups (project_id, name, description, start_date, end_date)
-                 VALUES ($1, $2, $3, $4, $5)
+              : `INSERT INTO task_groups (project_id, mock_cycle_id, name, description, start_date, end_date)
+                 VALUES ($1, $2, $3, $4, $5, $6)
                  RETURNING id`,
             supportsTaskGroupProcessArea
-              ? [newProjectId, tg.name, tg.process_area, tg.description, tg.start_date, tg.end_date]
-              : [newProjectId, tg.name, tg.description, tg.start_date, tg.end_date]
+              ? [newProjectId, newCycleId, tg.name, tg.process_area, tg.description, tg.start_date, tg.end_date]
+              : [newProjectId, newCycleId, tg.name, tg.description, tg.start_date, tg.end_date]
           );
           taskGroupIdMap.set(tg.id, inserted.rows[0].id);
         }
@@ -431,12 +431,12 @@ export class ProgramService {
                   start_date, end_date, assigned_to, duration, duration_unit,
                   schedule_mode_override, progress_percentage, dra_user_id, developer_user_id, notes
            FROM tasks
-           WHERE project_id = ANY($1)`,
-          [sourceProjectIds]
+           WHERE mock_cycle_id = $1`,
+          [sourceMockCycleId]
         );
 
         for (const t of tasksResult.rows) {
-          const newProjectId = projectIdMap.get(t.project_id);
+          const newProjectId = Array.from(projectIdMap.values())[0];
           if (!newProjectId) continue;
 
           const newProjectObjectId = t.project_object_id ? projectObjectIdMap.get(t.project_object_id) || null : null;
@@ -444,16 +444,16 @@ export class ProgramService {
 
           const inserted = await client.query(
             `INSERT INTO tasks (
-              project_id, project_object_id, task_group_id, task_type, name, status,
+              project_id, mock_cycle_id, project_object_id, task_group_id, task_type, name, status,
               start_date, end_date, assigned_to, duration, duration_unit,
               schedule_mode_override, progress_percentage, dra_user_id, developer_user_id, notes
             ) VALUES (
-              $1, $2, $3, $4, $5, $6,
-              $7, $8, $9, $10, $11,
-              $12, $13, $14, $15, $16
+              $1, $2, $3, $4, $5, $6, $7,
+              $8, $9, $10, $11, $12,
+              $13, $14, $15, $16, $17
             ) RETURNING id`,
             [
-              newProjectId,
+              newProjectId, newCycleId,
               newProjectObjectId,
               newTaskGroupId,
               t.task_type,
@@ -497,23 +497,23 @@ export class ProgramService {
           }
 
           const scheduleItemsResult = await client.query(
-            `SELECT project_id, task_id, scheduled_date
+            `SELECT task_id, scheduled_date
              FROM schedule_items
-             WHERE project_id = ANY($1)
+             WHERE mock_cycle_id = $1
                AND task_id = ANY($2)`,
-            [sourceProjectIds, sourceTaskIds]
+            [sourceMockCycleId, sourceTaskIds]
           );
 
           for (const item of scheduleItemsResult.rows) {
-            const newProjectId = projectIdMap.get(item.project_id);
+            const newProjectId = Array.from(projectIdMap.values())[0];
             const newTaskId = taskIdMap.get(item.task_id);
             if (!newProjectId || !newTaskId) continue;
 
             await client.query(
-              `INSERT INTO schedule_items (project_id, task_id, scheduled_date)
-               VALUES ($1, $2, $3)
+              `INSERT INTO schedule_items (project_id, mock_cycle_id, task_id, scheduled_date)
+               VALUES ($1, $2, $3, $4)
                ON CONFLICT DO NOTHING`,
-              [newProjectId, newTaskId, item.scheduled_date]
+              [newProjectId, newCycleId, newTaskId, item.scheduled_date]
             );
           }
         }
@@ -638,14 +638,15 @@ export class ProgramService {
           ]
         );
 
-        // Cascade-safe deletion order (tasks cascade to schedule_items/task_dependencies).
-        await client.query(`DELETE FROM tasks          WHERE project_id = $1`, [targetProjectId]);
-        await client.query(`DELETE FROM task_groups    WHERE project_id = $1`, [targetProjectId]);
-        await client.query(`DELETE FROM project_objects WHERE project_id = $1`, [targetProjectId]);
-        await client.query(`DELETE FROM schedule_items WHERE project_id = $1`, [targetProjectId]);
+        // Delete only THIS cycle's execution data (scope by mock_cycle_id so
+        // sibling cycles that still share the project are not affected).
+        await client.query(`DELETE FROM tasks           WHERE mock_cycle_id = $1`, [targetMockCycleId]);
+        await client.query(`DELETE FROM task_groups     WHERE mock_cycle_id = $1`, [targetMockCycleId]);
+        await client.query(`DELETE FROM project_objects WHERE mock_cycle_id = $1`, [targetMockCycleId]);
+        await client.query(`DELETE FROM schedule_items  WHERE mock_cycle_id = $1`, [targetMockCycleId]);
       }
 
-      // ── Copy execution data from source project to the effective target project ──
+      // ── Copy execution data from source cycle to the effective target project ──
 
       const projectObjectIdMap = new Map<string, string>();
       const taskGroupIdMap = new Map<string, string>();
@@ -658,25 +659,25 @@ export class ProgramService {
                 factor_type, load_method, start_date, end_date, status, dra_user_id,
                 developer_user_id, notes
          FROM project_objects
-         WHERE project_id = $1`,
-        [sourceProjectId]
+         WHERE mock_cycle_id = $1`,
+        [sourceMockCycleId]
       );
 
       for (const po of projectObjectsResult.rows) {
         const inserted = await client.query(
           `INSERT INTO project_objects (
-            project_id, global_object_id, complexity, deployment_disposition, build_type,
+            project_id, mock_cycle_id, global_object_id, complexity, deployment_disposition, build_type,
             object_type, cutover_phase, ddm_approach, risk_security_type, migration_type,
             factor_type, load_method, start_date, end_date, status, dra_user_id,
             developer_user_id, notes
           ) VALUES (
-            $1, $2, $3, $4, $5,
-            $6, $7, $8, $9, $10,
-            $11, $12, $13, $14, $15, $16,
-            $17, $18
+            $1, $2, $3, $4, $5, $6,
+            $7, $8, $9, $10, $11,
+            $12, $13, $14, $15, $16, $17,
+            $18, $19
           ) RETURNING id`,
           [
-            targetProjectId,
+            targetProjectId, targetMockCycleId,
             po.global_object_id,
             po.complexity,
             po.deployment_disposition,
@@ -730,31 +731,31 @@ export class ProgramService {
         taskGroupsResult = await client.query(
           `SELECT id, name, process_area, description, start_date, end_date
            FROM task_groups
-           WHERE project_id = $1`,
-          [sourceProjectId]
+           WHERE mock_cycle_id = $1`,
+          [sourceMockCycleId]
         );
       } catch {
         supportsTaskGroupProcessArea = false;
         taskGroupsResult = await client.query(
           `SELECT id, name, NULL::VARCHAR AS process_area, description, start_date, end_date
            FROM task_groups
-           WHERE project_id = $1`,
-          [sourceProjectId]
+           WHERE mock_cycle_id = $1`,
+          [sourceMockCycleId]
         );
       }
 
       for (const tg of taskGroupsResult.rows) {
         const inserted = await client.query(
           supportsTaskGroupProcessArea
-            ? `INSERT INTO task_groups (project_id, name, process_area, description, start_date, end_date)
-               VALUES ($1, $2, $3, $4, $5, $6)
+            ? `INSERT INTO task_groups (project_id, mock_cycle_id, name, process_area, description, start_date, end_date)
+               VALUES ($1, $2, $3, $4, $5, $6, $7)
                RETURNING id`
-            : `INSERT INTO task_groups (project_id, name, description, start_date, end_date)
-               VALUES ($1, $2, $3, $4, $5)
+            : `INSERT INTO task_groups (project_id, mock_cycle_id, name, description, start_date, end_date)
+               VALUES ($1, $2, $3, $4, $5, $6)
                RETURNING id`,
           supportsTaskGroupProcessArea
-            ? [targetProjectId, tg.name, tg.process_area, tg.description, tg.start_date, tg.end_date]
-            : [targetProjectId, tg.name, tg.description, tg.start_date, tg.end_date]
+            ? [targetProjectId, targetMockCycleId, tg.name, tg.process_area, tg.description, tg.start_date, tg.end_date]
+            : [targetProjectId, targetMockCycleId, tg.name, tg.description, tg.start_date, tg.end_date]
         );
         taskGroupIdMap.set(tg.id, inserted.rows[0].id);
       }
@@ -765,8 +766,8 @@ export class ProgramService {
                 start_date, end_date, assigned_to, duration, duration_unit,
                 schedule_mode_override, progress_percentage, dra_user_id, developer_user_id, notes
          FROM tasks
-         WHERE project_id = $1`,
-        [sourceProjectId]
+         WHERE mock_cycle_id = $1`,
+        [sourceMockCycleId]
       );
 
       for (const t of tasksResult.rows) {
@@ -775,16 +776,16 @@ export class ProgramService {
 
         const inserted = await client.query(
           `INSERT INTO tasks (
-            project_id, project_object_id, task_group_id, task_type, name, status,
+            project_id, mock_cycle_id, project_object_id, task_group_id, task_type, name, status,
             start_date, end_date, assigned_to, duration, duration_unit,
             schedule_mode_override, progress_percentage, dra_user_id, developer_user_id, notes
           ) VALUES (
-            $1, $2, $3, $4, $5, $6,
-            $7, $8, $9, $10, $11,
-            $12, $13, $14, $15, $16
+            $1, $2, $3, $4, $5, $6, $7,
+            $8, $9, $10, $11, $12,
+            $13, $14, $15, $16, $17
           ) RETURNING id`,
           [
-            targetProjectId,
+            targetProjectId, targetMockCycleId,
             newProjectObjectId,
             newTaskGroupId,
             t.task_type,
@@ -832,19 +833,19 @@ export class ProgramService {
         const scheduleItemsResult = await client.query(
           `SELECT task_id, scheduled_date
            FROM schedule_items
-           WHERE project_id = $1
+           WHERE mock_cycle_id = $1
              AND task_id = ANY($2)`,
-          [sourceProjectId, sourceTaskIds]
+          [sourceMockCycleId, sourceTaskIds]
         );
 
         for (const item of scheduleItemsResult.rows) {
           const newTaskId = taskIdMap.get(item.task_id);
           if (!newTaskId) continue;
           await client.query(
-            `INSERT INTO schedule_items (project_id, task_id, scheduled_date)
-             VALUES ($1, $2, $3)
+            `INSERT INTO schedule_items (project_id, mock_cycle_id, task_id, scheduled_date)
+             VALUES ($1, $2, $3, $4)
              ON CONFLICT DO NOTHING`,
-            [targetProjectId, newTaskId, item.scheduled_date]
+            [targetProjectId, targetMockCycleId, newTaskId, item.scheduled_date]
           );
         }
       }
