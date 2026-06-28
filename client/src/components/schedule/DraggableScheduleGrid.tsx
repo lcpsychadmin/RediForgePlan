@@ -1,7 +1,7 @@
 // client/src/components/schedule/DraggableScheduleGrid.tsx
 
 import React from 'react';
-import { Box, Paper, Typography, Chip } from '@mui/material';
+import { Box, Paper, Typography } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import { addDays, format, differenceInCalendarDays, max, min } from 'date-fns';
 import WeekHeader from './WeekHeader';
@@ -34,6 +34,8 @@ export const DraggableScheduleGrid: React.FC<DraggableScheduleGridProps> = ({
   projectId,
   processAreaAccentOverrides = {},
 }) => {
+  const laneCardHeight = 92;
+  const laneGapPx = 8;
   const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
   const weekEnd = addDays(weekStart, 6);
 
@@ -109,7 +111,7 @@ export const DraggableScheduleGrid: React.FC<DraggableScheduleGridProps> = ({
   });
 
   const laneCount = Math.max(1, laneEndCols.length);
-  const rowHeight = 98;
+  const columnHeight = (laneCount * laneCardHeight) + ((laneCount - 1) * laneGapPx);
 
   const legendEntries = Array.from(
     new Map(
@@ -125,19 +127,30 @@ export const DraggableScheduleGrid: React.FC<DraggableScheduleGridProps> = ({
       <WeekHeader weekStart={weekStart} />
 
       {legendEntries.length > 0 && (
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 1.5 }}>
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5, mb: 1.5 }}>
           {legendEntries.map(([area, color]) => (
-            <Chip
+            <Box
               key={area}
-              label={area}
-              size="small"
               sx={{
-                backgroundColor: color,
-                color: '#fff',
-                fontWeight: 700,
-                borderRadius: 1,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 0.75,
               }}
-            />
+            >
+              <Box
+                sx={{
+                  width: 10,
+                  height: 10,
+                  borderRadius: '50%',
+                  backgroundColor: color,
+                  border: `1px solid ${alpha('#ffffff', 0.7)}`,
+                  boxShadow: `0 0 0 1px ${alpha(color, 0.35)}`,
+                }}
+              />
+              <Typography variant="caption" sx={{ color: palette.text.primary, fontWeight: 700 }}>
+                {area}
+              </Typography>
+            </Box>
           ))}
         </Box>
       )}
@@ -154,29 +167,28 @@ export const DraggableScheduleGrid: React.FC<DraggableScheduleGridProps> = ({
             sx={{
               display: 'grid',
               gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
-              gridTemplateRows: `repeat(${laneCount}, ${rowHeight}px)`,
+              gridTemplateRows: '1fr',
               gap: 1,
             }}
           >
-            {Array.from({ length: laneCount }).map((_, rowIndex) =>
-              days.map((day) => {
-                const isToday =
-                  day.getDate() === new Date().getDate() &&
-                  day.getMonth() === new Date().getMonth() &&
-                  day.getFullYear() === new Date().getFullYear();
+            {days.map((day) => {
+              const isToday =
+                day.getDate() === new Date().getDate() &&
+                day.getMonth() === new Date().getMonth() &&
+                day.getFullYear() === new Date().getFullYear();
 
-                return (
-                  <Paper
-                    key={`${rowIndex}-${format(day, 'yyyy-MM-dd')}`}
-                    sx={{
-                      backgroundColor: isToday ? `${palette.primary.main}10` : palette.background.paper,
-                      border: isToday ? `2px solid ${palette.primary.main}` : `1px solid ${palette.divider}`,
-                      borderRadius: 1.25,
-                    }}
-                  />
-                );
-              })
-            )}
+              return (
+                <Paper
+                  key={format(day, 'yyyy-MM-dd')}
+                  sx={{
+                    minHeight: columnHeight,
+                    backgroundColor: isToday ? `${palette.primary.main}10` : palette.background.paper,
+                    border: isToday ? `2px solid ${palette.primary.main}` : `1px solid ${palette.divider}`,
+                    borderRadius: 1.25,
+                  }}
+                />
+              );
+            })}
           </Box>
 
           <Box
@@ -185,7 +197,7 @@ export const DraggableScheduleGrid: React.FC<DraggableScheduleGridProps> = ({
               inset: 0,
               display: 'grid',
               gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
-              gridTemplateRows: `repeat(${laneCount}, ${rowHeight}px)`,
+              gridTemplateRows: '1fr',
               gap: 1,
               pointerEvents: 'none',
             }}
@@ -199,15 +211,18 @@ export const DraggableScheduleGrid: React.FC<DraggableScheduleGridProps> = ({
                   key={item.id}
                   sx={{
                     gridColumn: `${startCol} / ${endCol + 1}`,
-                    gridRow: lane + 1,
-                    backgroundColor: alpha(color, 0.78),
+                    gridRow: 1,
+                    alignSelf: 'start',
+                    mt: `${lane * (laneCardHeight + laneGapPx)}px`,
+                    minHeight: laneCardHeight,
+                    backgroundColor: alpha(color, 0.56),
                     color: '#fff',
                     p: 1,
                     borderRadius: 1.25,
                     boxShadow: 1,
                     pointerEvents: 'auto',
                     overflow: 'hidden',
-                    border: `1px dotted ${alpha('#ffffff', 0.6)}`,
+                    border: `2px dotted ${alpha('#ffffff', 0.85)}`,
                     backdropFilter: 'blur(2px)',
                     display: 'flex',
                     flexDirection: 'column',
