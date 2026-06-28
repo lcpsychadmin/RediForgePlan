@@ -24,7 +24,7 @@ import {
   SortableContext,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
-import { addDays, parse, format } from 'date-fns';
+import { addDays, format } from 'date-fns';
 import DraggableScheduleItem from './DraggableScheduleItem';
 import DroppableScheduleCell from './DroppableScheduleCell';
 import WeekHeader from './WeekHeader';
@@ -74,18 +74,15 @@ export const DraggableScheduleGrid: React.FC<DraggableScheduleGridProps> = ({
 
   const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
 
+  const getDateKey = (value: string | undefined | null) => {
+    if (!value) return '';
+    return String(value).slice(0, 10);
+  };
+
   const getItemsForDay = (date: Date) => {
+    const dayKey = format(date, 'yyyy-MM-dd');
     return items.filter((item) => {
-      try {
-        const itemDate = parse(item.scheduledDate, 'yyyy-MM-dd', new Date());
-        return (
-          itemDate.getFullYear() === date.getFullYear() &&
-          itemDate.getMonth() === date.getMonth() &&
-          itemDate.getDate() === date.getDate()
-        );
-      } catch {
-        return false;
-      }
+      return getDateKey(item.scheduledDate) === dayKey;
     });
   };
 
