@@ -565,52 +565,61 @@ export class ProgramService {
       const sourceProjectId = sourceCycle.project_id as string;
       const targetProjectId = targetCycle.project_id as string;
 
-      const sourceProjectResult = await client.query(
-        `SELECT name, description, start_date, end_date, accent_color, progress_percentage
-         FROM projects
-         WHERE id = $1`,
-        [sourceProjectId]
-      );
+      // When source and target share the same underlying project all inventory,
+      // tasks and schedule data are already identical — skip the destructive
+      // DELETE/INSERT block and only synchronise the cycle-level metadata below.
+      const sharedProject = sourceProjectId === targetProjectId;
 
-      if (sourceProjectResult.rows.length === 0) {
-        throw new Error('Unable to locate source project for the selected mock cycle.');
+      if (!sharedProject) {
+        const sourceProjectResult = await client.query(
+          `SELECT name, description, start_date, end_date, accent_color, progress_percentage
+           FROM projects
+           WHERE id = $1`,
+          [sourceProjectId]
+        );
+
+        if (sourceProjectResult.rows.length === 0) {
+          throw new Error('Unable to locate source project for the selected mock cycle.');
+        }
+
+        const sourceProject = sourceProjectResult.rows[0];
+
+        // Align destination project metadata before copying nested data.
+        await client.query(
+          `UPDATE projects
+           SET name = $2,
+               description = $3,
+               start_date = $4,
+               end_date = $5,
+               accent_color = $6,
+               progress_percentage = $7,
+               updated_at = CURRENT_TIMESTAMP
+           WHERE id = $1`,
+          [
+            targetProjectId,
+            sourceProject.name,
+            sourceProject.description,
+            sourceProject.start_date,
+            sourceProject.end_date,
+            sourceProject.accent_color,
+            sourceProject.progress_percentage || 0,
+          ]
+        );
+
+        // Remove existing destination scope so copied records replace it completely.
+        await client.query(`DELETE FROM tasks WHERE project_id = $1`, [targetProjectId]);
+        await client.query(`DELETE FROM task_groups WHERE project_id = $1`, [targetProjectId]);
+        await client.query(`DELETE FROM project_objects WHERE project_id = $1`, [targetProjectId]);
+        await client.query(`DELETE FROM schedule_items WHERE project_id = $1`, [targetProjectId]);
       }
-
-      const sourceProject = sourceProjectResult.rows[0];
-
-      // Align destination project metadata before copying nested data.
-      await client.query(
-        `UPDATE projects
-         SET name = $2,
-             description = $3,
-             start_date = $4,
-             end_date = $5,
-             accent_color = $6,
-             progress_percentage = $7,
-             updated_at = CURRENT_TIMESTAMP
-         WHERE id = $1`,
-        [
-          targetProjectId,
-          sourceProject.name,
-          sourceProject.description,
-          sourceProject.start_date,
-          sourceProject.end_date,
-          sourceProject.accent_color,
-          sourceProject.progress_percentage || 0,
-        ]
-      );
-
-      // Remove existing destination scope so copied records replace it completely.
-      await client.query(`DELETE FROM tasks WHERE project_id = $1`, [targetProjectId]);
-      await client.query(`DELETE FROM task_groups WHERE project_id = $1`, [targetProjectId]);
-      await client.query(`DELETE FROM project_objects WHERE project_id = $1`, [targetProjectId]);
-      await client.query(`DELETE FROM schedule_items WHERE project_id = $1`, [targetProjectId]);
 
       const projectObjectIdMap = new Map<string, string>();
       const taskGroupIdMap = new Map<string, string>();
       const taskIdMap = new Map<string, string>();
 
-      const projectObjectsResult = await client.query(
+      // Only copy project-level data when the cycles live in separate projects.
+      // Cycles that share a project already have the same inventory and tasks.
+      const projectObjectsResult = !sharedProject ? await client.query(
         `SELECT id, global_object_id, complexity, deployment_disposition, build_type,
                 object_type, cutover_phase, ddm_approach, risk_security_type, migration_type,
                 factor_type, load_method, start_date, end_date, status, dra_user_id,
@@ -618,7 +627,7 @@ export class ProgramService {
          FROM project_objects
          WHERE project_id = $1`,
         [sourceProjectId]
-      );
+      ) : { rows: [] };
 
       for (const po of projectObjectsResult.rows) {
         const inserted = await client.query(
@@ -680,23 +689,27 @@ export class ProgramService {
         }
       }
 
-      let taskGroupsResult;
+      let taskGroupsResult: { rows: any[] };
       let supportsTaskGroupProcessArea = true;
-      try {
-        taskGroupsResult = await client.query(
-          `SELECT id, name, process_area, description, start_date, end_date
-           FROM task_groups
-           WHERE project_id = $1`,
-          [sourceProjectId]
-        );
-      } catch {
-        supportsTaskGroupProcessArea = false;
-        taskGroupsResult = await client.query(
-          `SELECT id, name, NULL::VARCHAR AS process_area, description, start_date, end_date
-           FROM task_groups
-           WHERE project_id = $1`,
-          [sourceProjectId]
-        );
+      if (!sharedProject) {
+        try {
+          taskGroupsResult = await client.query(
+            `SELECT id, name, process_area, description, start_date, end_date
+             FROM task_groups
+             WHERE project_id = $1`,
+            [sourceProjectId]
+          );
+        } catch {
+          supportsTaskGroupProcessArea = false;
+          taskGroupsResult = await client.query(
+            `SELECT id, name, NULL::VARCHAR AS process_area, description, start_date, end_date
+             FROM task_groups
+             WHERE project_id = $1`,
+            [sourceProjectId]
+          );
+        }
+      } else {
+        taskGroupsResult = { rows: [] };
       }
 
       for (const tg of taskGroupsResult.rows) {
@@ -715,14 +728,14 @@ export class ProgramService {
         taskGroupIdMap.set(tg.id, inserted.rows[0].id);
       }
 
-      const tasksResult = await client.query(
+      const tasksResult = !sharedProject ? await client.query(
         `SELECT id, project_object_id, task_group_id, task_type, name, status,
                 start_date, end_date, assigned_to, duration, duration_unit,
                 schedule_mode_override, progress_percentage, dra_user_id, developer_user_id, notes
          FROM tasks
          WHERE project_id = $1`,
         [sourceProjectId]
-      );
+      ) : { rows: [] };
 
       for (const t of tasksResult.rows) {
         const newProjectObjectId = t.project_object_id ? projectObjectIdMap.get(t.project_object_id) || null : null;
