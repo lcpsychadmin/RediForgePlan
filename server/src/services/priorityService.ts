@@ -55,6 +55,24 @@ export class DependencyService {
 
 export class ScheduleService {
   async getScheduleByProject(projectId: string) {
+    // Backfill schedule rows from load-task dates so projects with existing load dates
+    // render on the schedule page even when explicit schedule_items were never created.
+    await db.query(
+      `INSERT INTO schedule_items (project_id, task_id, scheduled_date)
+       SELECT
+         t.project_id,
+         t.id,
+         COALESCE(t.end_date, t.start_date) AS scheduled_date
+       FROM tasks t
+       LEFT JOIN schedule_items si ON si.task_id = t.id
+       WHERE t.project_id = $1
+         AND t.task_type = 'load'
+         AND COALESCE(t.end_date, t.start_date) IS NOT NULL
+         AND si.id IS NULL
+       ON CONFLICT (task_id, scheduled_date) DO NOTHING`,
+      [projectId]
+    );
+
     const result = await db.query(
       `SELECT si.id, si.project_id, si.task_id, si.scheduled_date, si.created_at,
               t.task_type, t.name, t.status, po.id as project_object_id, go.object_id
