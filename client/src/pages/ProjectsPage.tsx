@@ -1394,6 +1394,15 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     setProcessAreaDialogOpen(true);
   };
 
+  const reloadProjectPlanData = async (projectId: string) => {
+    const [tasksRes, groupsRes] = await Promise.all([
+      apiClient.get(`/api/tasks/project/${projectId}`),
+      apiClient.get(`/api/tasks/groups/project/${projectId}`),
+    ]);
+    setProjectTasks((tasksRes.data.data || []).map((task: any) => normalizeTaskDateFields(task)));
+    setProjectTaskGroups(groupsRes.data.data || []);
+  };
+
   const handleCreatePlanGroup = () => {
     const projectId = planGroupTargetProjectId;
     const name = newPlanGroupName.trim();
@@ -1432,7 +1441,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     });
   };
 
-  const handleCreateProcessArea = () => {
+  const handleCreateProcessArea = async () => {
     const projectId = processAreaTargetProjectId;
     const name = newProcessAreaName.trim();
     if (!projectId) {
@@ -1450,64 +1459,115 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
       return;
     }
 
-    setPlanningAdditionalProcessAreas((prev) => {
-      const existing = prev[projectId] || [];
-      if (existing.some((entry) => (entry || '').trim().toLowerCase() === name.toLowerCase())) return prev;
-      return {
+    try {
+      const normalizedArea = name.toLowerCase();
+      const rootObjectsInArea = projectInventoryItems.filter((item: any) =>
+        item.projectId === projectId &&
+        !item.parentProjectObjectId &&
+        ((item.processArea || '').trim().toLowerCase() === normalizedArea)
+      );
+
+      const rootObjectsMissingPlanTasks = rootObjectsInArea.filter((item: any) =>
+        !projectTasks.some((task: any) => task.projectObjectId === item.id)
+      );
+
+      await Promise.all(
+        rootObjectsMissingPlanTasks.map((item: any) =>
+          apiClient.post(`/api/tasks/defaults/project-object/${item.id}`, { projectId })
+        )
+      );
+
+      setPlanningAdditionalProcessAreas((prev) => {
+        const existing = prev[projectId] || [];
+        if (existing.some((entry) => (entry || '').trim().toLowerCase() === normalizedArea)) return prev;
+        return {
+          ...prev,
+          [projectId]: [...existing, name],
+        };
+      });
+
+      setHiddenProcessAreas((prev) => {
+        const existing = prev[projectId] || [];
+        const next = existing.filter((entry) => (entry || '').trim().toLowerCase() !== normalizedArea);
+        return {
+          ...prev,
+          [projectId]: next,
+        };
+      });
+
+      setTreeOrder((prev) => ({
         ...prev,
-        [projectId]: [...existing, name],
-      };
-    });
+        processAreas: {
+          ...prev.processAreas,
+          [projectId]: mergeOrder(prev.processAreas[projectId] || [], [name]),
+        },
+      }));
 
-    setHiddenProcessAreas((prev) => {
-      const existing = prev[projectId] || [];
-      const next = existing.filter((entry) => (entry || '').trim().toLowerCase() !== name.toLowerCase());
-      return {
-        ...prev,
-        [projectId]: next,
-      };
-    });
+      await reloadProjectPlanData(projectId);
 
-    setTreeOrder((prev) => ({
-      ...prev,
-      processAreas: {
-        ...prev.processAreas,
-        [projectId]: mergeOrder(prev.processAreas[projectId] || [], [name]),
-      },
-    }));
-
-    setProcessAreaDialogOpen(false);
-    setProcessAreaTargetProjectId(null);
-    setNewProcessAreaName('');
+      setProcessAreaDialogOpen(false);
+      setProcessAreaTargetProjectId(null);
+      setNewProcessAreaName('');
+    } catch (error) {
+      console.error('Failed to add process area to plan:', error);
+      alert('Failed to add process area to the execution plan');
+    }
   };
 
-  const handleHideProcessAreaFromTree = (projectId: string, areaName: string) => {
+  const handleHideProcessAreaFromTree = async (projectId: string, areaName: string) => {
     const normalizedTarget = (areaName || '').trim().toLowerCase();
     if (!normalizedTarget) return;
 
-    setHiddenProcessAreas((prev) => {
-      const existing = prev[projectId] || [];
-      if (existing.some((entry) => (entry || '').trim().toLowerCase() === normalizedTarget)) return prev;
-      return {
+    try {
+      const objectIdsInArea = new Set(
+        projectInventoryItems
+          .filter((item: any) => item.projectId === projectId && ((item.processArea || '').trim().toLowerCase() === normalizedTarget))
+          .map((item: any) => item.id)
+      );
+
+      const taskGroupIdsInArea = new Set(
+        projectTaskGroups
+          .filter((group: any) => group.projectId === projectId && ((group.processArea || '').trim().toLowerCase() === normalizedTarget))
+          .map((group: any) => group.id)
+      );
+
+      const tasksToDelete = projectTasks.filter((task: any) =>
+        (task.projectObjectId && objectIdsInArea.has(task.projectObjectId)) ||
+        (task.taskGroupId && taskGroupIdsInArea.has(task.taskGroupId))
+      );
+
+      await Promise.all(tasksToDelete.map((task: any) => apiClient.delete(`/api/tasks/${task.id}`)));
+      await Promise.all(Array.from(taskGroupIdsInArea).map((groupId) => apiClient.delete(`/api/tasks/groups/${groupId}`)));
+
+      setHiddenProcessAreas((prev) => {
+        const existing = prev[projectId] || [];
+        if (existing.some((entry) => (entry || '').trim().toLowerCase() === normalizedTarget)) return prev;
+        return {
+          ...prev,
+          [projectId]: [...existing, areaName],
+        };
+      });
+
+      setPlanningAdditionalProcessAreas((prev) => ({
         ...prev,
-        [projectId]: [...existing, areaName],
-      };
-    });
+        [projectId]: (prev[projectId] || []).filter((entry) => (entry || '').trim().toLowerCase() !== normalizedTarget),
+      }));
 
-    setPlanningAdditionalProcessAreas((prev) => ({
-      ...prev,
-      [projectId]: (prev[projectId] || []).filter((entry) => (entry || '').trim().toLowerCase() !== normalizedTarget),
-    }));
+      setTreeOrder((prev) => ({
+        ...prev,
+        processAreas: {
+          ...prev.processAreas,
+          [projectId]: (prev.processAreas[projectId] || []).filter(
+            (entry) => (entry || '').trim().toLowerCase() !== normalizedTarget
+          ),
+        },
+      }));
 
-    setTreeOrder((prev) => ({
-      ...prev,
-      processAreas: {
-        ...prev.processAreas,
-        [projectId]: (prev.processAreas[projectId] || []).filter(
-          (entry) => (entry || '').trim().toLowerCase() !== normalizedTarget
-        ),
-      },
-    }));
+      await reloadProjectPlanData(projectId);
+    } catch (error) {
+      console.error('Failed to remove process area from plan:', error);
+      alert('Failed to remove process area from the execution plan');
+    }
   };
 
   // Load schedule rows for all projects in the selected cycle.
@@ -4339,12 +4399,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                       }
                       return currentObject?.id || objectId;
                     };
-                    const rootPlanObjectIds = Array.from(new Set([
-                      ...projectTasks.filter(t => t.projectObjectId).map(t => getRootInventoryObjectId(t.projectObjectId)),
-                      ...projectInventoryItems
-                        .filter((item: any) => !item.parentProjectObjectId && getSubObjectsForParent(item.id).length > 0)
-                        .map((item: any) => item.id),
-                    ]));
+                    const rootPlanObjectIds = Array.from(new Set(
+                      projectTasks
+                        .filter(t => t.projectObjectId)
+                        .map(t => getRootInventoryObjectId(t.projectObjectId))
+                    ));
                     const sortedObjectIds = (showProjectSummaryOnly ? [] : [...rootPlanObjectIds])
                       .filter((objectId: string) => {
                         return getObjectProcessArea(objectId).toLowerCase() === normalizedProcessAreaFilter;
