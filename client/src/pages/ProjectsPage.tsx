@@ -2927,10 +2927,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   };
 
   const handleCloneCycle = (cycleId: string) => {
-    const destCycle = allMaintainCycles.find((cycle) => cycle.id === cycleId) || null;
+    const sourceCycle = allMaintainCycles.find((cycle) => cycle.id === cycleId) || null;
 
-    if (!destCycle) {
-      alert('Unable to locate destination mock cycle.');
+    if (!sourceCycle) {
+      alert('Unable to locate source mock cycle.');
       return;
     }
 
@@ -2939,12 +2939,12 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
       return;
     }
 
-    // The right-clicked cycle is the DESTINATION (Copy To).
-    // Pre-select the first other available cycle as the source.
-    const defaultSource = maintainCycleRows.find((cycle: any) => cycle.id !== cycleId) || null;
+    // The right-clicked cycle is the SOURCE (Copy From).
+    // Pre-select the first other available cycle as the destination.
+    const defaultTarget = maintainCycleRows.find((cycle: any) => cycle.id !== cycleId) || null;
 
-    setCloneCycleTargetId(cycleId);
-    setCloneCycleSourceId(defaultSource?.id || null);
+    setCloneCycleSourceId(cycleId);
+    setCloneCycleTargetId(defaultTarget?.id || null);
     setCloneCycleDialogOpen(true);
   };
 
@@ -6977,7 +6977,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
             onChange={(e) => {
               const nextCycleId = e.target.value;
               setCloneCycleSourceId(nextCycleId || null);
-              // If the user picks the same cycle as the destination, auto-clear the destination.
               if (nextCycleId && cloneCycleTargetId === nextCycleId) {
                 const nextTarget = maintainCycleRows.find((cycle: any) => cycle.id !== nextCycleId) || null;
                 setCloneCycleTargetId(nextTarget?.id || null);
@@ -6987,28 +6986,18 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
             size="small"
             sx={{ mb: 2 }}
           >
-            {maintainCycleRows
-              .filter((cycle: any) => cycle.id !== cloneCycleTargetId)
-              .map((cycle: any) => (
-                <MenuItem key={cycle.id} value={cycle.id}>
-                  {`${cycle.programName} / ${cycle.name}`}
-                </MenuItem>
-              ))}
+            {maintainCycleRows.map((cycle: any) => (
+              <MenuItem key={cycle.id} value={cycle.id}>
+                {`${cycle.programName} / ${cycle.name}`}
+              </MenuItem>
+            ))}
           </TextField>
           <TextField
             select
             fullWidth
             label="Copy To Mock Cycle"
             value={cloneCycleTargetId || ''}
-            onChange={(e) => {
-              const nextCycleId = e.target.value;
-              setCloneCycleTargetId(nextCycleId || null);
-              // If the user picks the same cycle as the source, auto-clear the source.
-              if (nextCycleId && cloneCycleSourceId === nextCycleId) {
-                const nextSource = maintainCycleRows.find((cycle: any) => cycle.id !== nextCycleId) || null;
-                setCloneCycleSourceId(nextSource?.id || null);
-              }
-            }}
+            onChange={(e) => setCloneCycleTargetId(e.target.value || null)}
             variant="outlined"
             size="small"
           >
