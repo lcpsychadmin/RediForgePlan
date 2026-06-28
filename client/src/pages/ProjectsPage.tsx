@@ -5024,7 +5024,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                                             </Box>
                                                           ) : (
                                                             <Box sx={{ position: 'relative', width: '100%', minWidth: 0, '&:focus-within .date-empty': { display: 'none' } }}>
-                                                              <TextField fullWidth size="small" type="date"
+                                                              <TextField
+                                                                fullWidth
+                                                                size="small"
+                                                                type="date"
                                                                 value={task.startDate || ''}
                                                                 onChange={e => {
                                                                   const newStart = e.target.value;
@@ -5042,7 +5045,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                                                     .catch(() => {});
                                                                   e.target.blur();
                                                                 }}
-                                                                sx={{ ...taskFieldSx, ...(!task.startDate ? { '& input': { color: 'transparent' }, '& input:focus': { color: 'inherit' }, '& input::-webkit-calendar-picker-indicator': { opacity: 0 }, '& input:focus::-webkit-calendar-picker-indicator': { opacity: 1 } } : {}) }} />
+                                                                slotProps={{ htmlInput: { style: { width: '100%', minWidth: 0, boxSizing: 'border-box' } } }}
+                                                                sx={{ ...taskFieldSx, overflow: 'hidden', ...(!task.startDate ? { '& input': { color: 'transparent' }, '& input:focus': { color: 'inherit' }, '& input::-webkit-calendar-picker-indicator': { opacity: 0 }, '& input:focus::-webkit-calendar-picker-indicator': { opacity: 1 } } : {}) }} />
                                                               {!task.startDate && <Box className="date-empty" sx={{ position: 'absolute', inset: 0, pl: 1.5, display: 'flex', alignItems: 'center', pointerEvents: 'none', fontSize: '0.72rem', color: 'text.disabled' }}>—</Box>}
                                                             </Box>
                                                           )}
@@ -5291,7 +5295,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                               </Box>
                                             ) : (
                                                             <Box sx={{ position: 'relative', width: '100%', minWidth: 0, '&:focus-within .date-empty': { display: 'none' } }}>
-                                                              <TextField fullWidth size="small" type="date"
+                                                              <TextField
+                                                                fullWidth
+                                                                size="small"
+                                                                type="date"
                                                   value={task.startDate || ''}
                                                   onChange={e => {
                                                     const newStart = e.target.value;
@@ -5309,7 +5316,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                                       .catch(() => {});
                                                     e.target.blur();
                                                   }}
-                                                  sx={{ ...taskFieldSx, ...(!task.startDate ? { '& input': { color: 'transparent' }, '& input:focus': { color: 'inherit' }, '& input::-webkit-calendar-picker-indicator': { opacity: 0 }, '& input:focus::-webkit-calendar-picker-indicator': { opacity: 1 } } : {}) }} />
+                                                  slotProps={{ htmlInput: { style: { width: '100%', minWidth: 0, boxSizing: 'border-box' } } }}
+                                                  sx={{ ...taskFieldSx, overflow: 'hidden', ...(!task.startDate ? { '& input': { color: 'transparent' }, '& input:focus': { color: 'inherit' }, '& input::-webkit-calendar-picker-indicator': { opacity: 0 }, '& input:focus::-webkit-calendar-picker-indicator': { opacity: 1 } } : {}) }} />
                                                 {!task.startDate && <Box className="date-empty" sx={{ position: 'absolute', inset: 0, pl: 1.5, display: 'flex', alignItems: 'center', pointerEvents: 'none', fontSize: '0.72rem', color: 'text.disabled' }}>—</Box>}
                                               </Box>
                                             )}
@@ -5324,10 +5332,13 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                               </Box>
                                             ) : (
                                               <Box sx={{ position: 'relative', '&:focus-within .date-empty-end': { display: 'none' } }}>
-                                                <TextField size="small" type="date"
+                                                <TextField
+                                                  size="small"
+                                                  type="date"
                                                   value={task.endDate || ''}
                                                   onChange={e => { updateTaskInline(task.id, 'endDate', e.target.value); e.target.blur(); }}
-                                                  sx={{ ...taskFieldSx, '& input': { color: 'transparent' }, '& input:focus': { color: 'inherit' }, '& input::-webkit-calendar-picker-indicator': { opacity: 0 }, '& input:focus::-webkit-calendar-picker-indicator': { opacity: 1 } }} />
+                                                  slotProps={{ htmlInput: { style: { width: '100%', minWidth: 0, boxSizing: 'border-box' } } }}
+                                                  sx={{ ...taskFieldSx, overflow: 'hidden', '& input': { color: 'transparent' }, '& input:focus': { color: 'inherit' }, '& input::-webkit-calendar-picker-indicator': { opacity: 0 }, '& input:focus::-webkit-calendar-picker-indicator': { opacity: 1 } }} />
                                                 <Box className="date-empty-end" sx={{ position: 'absolute', inset: 0, pl: 1.5, display: 'flex', alignItems: 'center', pointerEvents: 'none', fontSize: '0.72rem', color: 'text.disabled' }}>—</Box>
                                               </Box>
                                             )}
