@@ -253,6 +253,7 @@ export const DraggableScheduleGrid: React.FC<DraggableScheduleGridProps> = ({
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
                       fontSize: '0.66rem',
+                      fontWeight: 400,
                       lineHeight: 1.1,
                     }}
                   >
@@ -262,46 +263,17 @@ export const DraggableScheduleGrid: React.FC<DraggableScheduleGridProps> = ({
                     variant="caption"
                     sx={{
                       display: 'block',
-                      opacity: 0.9,
+                      opacity: 0.65,
                       whiteSpace: 'normal',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
-                      fontSize: '0.64rem',
+                      fontSize: '0.60rem',
                       fontWeight: 400,
-                      lineHeight: 1.1,
+                      lineHeight: 1.2,
+                      mt: 0.25,
                     }}
                   >
-                    Program: {item.programName || 'Unassigned'}
-                  </Typography>
-                  <Typography
-                    variant="caption"
-                    sx={{
-                      display: 'block',
-                      opacity: 0.9,
-                      whiteSpace: 'normal',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      fontSize: '0.64rem',
-                      fontWeight: 400,
-                      lineHeight: 1.1,
-                    }}
-                  >
-                    Project: {item.projectName || 'Unassigned'}
-                  </Typography>
-                  <Typography
-                    variant="caption"
-                    sx={{
-                      display: 'block',
-                      opacity: 0.9,
-                      whiteSpace: 'normal',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      fontSize: '0.64rem',
-                      fontWeight: 400,
-                      lineHeight: 1.1,
-                    }}
-                  >
-                    Mock: {item.mockCycleName || 'Unassigned'}
+                    {[item.programName, item.projectName, item.mockCycleName].filter(Boolean).join('  ·  ')}
                   </Typography>
                 </Paper>
               );
