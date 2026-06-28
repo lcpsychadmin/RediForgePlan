@@ -12,6 +12,12 @@ const TASK_KEYS = {
   detail: (id: string) => [...TASK_KEYS.details(), id] as const,
 };
 
+const SCHEDULE_KEYS = {
+  all: ['schedule'] as const,
+  lists: () => [...SCHEDULE_KEYS.all, 'list'] as const,
+  listByProject: (projectId: string) => [...SCHEDULE_KEYS.lists(), projectId] as const,
+};
+
 /**
  * Fetch tasks for a project with optional filters
  */
@@ -53,6 +59,7 @@ export function useCreateTask(projectId: string) {
     },
     onSuccess: (newTask) => {
       queryClient.invalidateQueries({ queryKey: TASK_KEYS.listByProject(projectId) });
+      queryClient.invalidateQueries({ queryKey: SCHEDULE_KEYS.listByProject(projectId) });
       queryClient.setQueryData(TASK_KEYS.detail(newTask.id), newTask);
     },
   });
@@ -95,6 +102,7 @@ export function useUpdateTask(taskId: string, projectId: string) {
     onSuccess: (updatedTask) => {
       queryClient.setQueryData(TASK_KEYS.detail(taskId), updatedTask);
       queryClient.invalidateQueries({ queryKey: TASK_KEYS.listByProject(projectId) });
+      queryClient.invalidateQueries({ queryKey: SCHEDULE_KEYS.listByProject(projectId) });
     },
   });
 }
@@ -112,6 +120,7 @@ export function useDeleteTask(taskId: string, projectId: string) {
     onSuccess: () => {
       queryClient.removeQueries({ queryKey: TASK_KEYS.detail(taskId) });
       queryClient.invalidateQueries({ queryKey: TASK_KEYS.listByProject(projectId) });
+      queryClient.invalidateQueries({ queryKey: SCHEDULE_KEYS.listByProject(projectId) });
     },
   });
 }

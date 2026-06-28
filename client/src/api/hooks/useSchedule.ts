@@ -23,6 +23,8 @@ export function useSchedule(projectId: string) {
       return response.data.data || [];
     },
     enabled: !!projectId,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
   });
 }
 

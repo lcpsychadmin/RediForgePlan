@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { Box, Paper, Typography, Chip } from '@mui/material';
+import { alpha } from '@mui/material/styles';
 import { addDays, format, differenceInCalendarDays, max, min } from 'date-fns';
 import WeekHeader from './WeekHeader';
 import { ScheduleItem as ScheduleItemType } from '../../api/types';
@@ -192,7 +193,6 @@ export const DraggableScheduleGrid: React.FC<DraggableScheduleGridProps> = ({
             {positionedItems.map(({ item, startCol, endCol, lane, color }) => {
               const idLine = item.objectId || item.taskName || 'Object';
               const description = item.objectDescription || item.taskName || '';
-              const contextLine = [item.programName, item.projectName, item.mockCycleName].filter(Boolean).join(' | ');
 
               return (
                 <Paper
@@ -200,13 +200,18 @@ export const DraggableScheduleGrid: React.FC<DraggableScheduleGridProps> = ({
                   sx={{
                     gridColumn: `${startCol} / ${endCol + 1}`,
                     gridRow: lane + 1,
-                    backgroundColor: color,
+                    backgroundColor: alpha(color, 0.78),
                     color: '#fff',
                     p: 1,
                     borderRadius: 1.25,
-                    boxShadow: 2,
+                    boxShadow: 1,
                     pointerEvents: 'auto',
                     overflow: 'hidden',
+                    border: `1px dotted ${alpha('#ffffff', 0.6)}`,
+                    backdropFilter: 'blur(2px)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 0.25,
                   }}
                 >
                   <Typography
@@ -215,9 +220,11 @@ export const DraggableScheduleGrid: React.FC<DraggableScheduleGridProps> = ({
                       fontFamily: 'monospace',
                       fontWeight: 800,
                       display: 'block',
-                      whiteSpace: 'nowrap',
+                      whiteSpace: 'normal',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
+                      fontSize: '0.68rem',
+                      lineHeight: 1.1,
                     }}
                   >
                     {idLine}
@@ -227,9 +234,11 @@ export const DraggableScheduleGrid: React.FC<DraggableScheduleGridProps> = ({
                     sx={{
                       display: 'block',
                       opacity: 0.98,
-                      whiteSpace: 'nowrap',
+                      whiteSpace: 'normal',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
+                      fontSize: '0.66rem',
+                      lineHeight: 1.1,
                     }}
                   >
                     {description}
@@ -239,12 +248,42 @@ export const DraggableScheduleGrid: React.FC<DraggableScheduleGridProps> = ({
                     sx={{
                       display: 'block',
                       opacity: 0.9,
-                      whiteSpace: 'nowrap',
+                      whiteSpace: 'normal',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
+                      fontSize: '0.64rem',
+                      lineHeight: 1.1,
                     }}
                   >
-                    {contextLine}
+                    Program: {item.programName || 'Unassigned'}
+                  </Typography>
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      display: 'block',
+                      opacity: 0.9,
+                      whiteSpace: 'normal',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      fontSize: '0.64rem',
+                      lineHeight: 1.1,
+                    }}
+                  >
+                    Project: {item.projectName || 'Unassigned'}
+                  </Typography>
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      display: 'block',
+                      opacity: 0.9,
+                      whiteSpace: 'normal',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      fontSize: '0.64rem',
+                      lineHeight: 1.1,
+                    }}
+                  >
+                    Mock: {item.mockCycleName || 'Unassigned'}
                   </Typography>
                 </Paper>
               );

@@ -25,6 +25,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import SaveIcon from '@mui/icons-material/Save';
 import CancelIcon from '@mui/icons-material/Cancel';
 import { useQuery } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import apiClient from '../../api/client';
 import { TaskCommentsModal } from '../TaskCommentsModal';
 import ValidationStatsSection from '../validation/ValidationStatsSection';
@@ -34,6 +35,7 @@ import DefectsSection from '../defects/DefectsSection';
 type DisplayTask = {
   taskId?: string;
   id?: string;
+  projectId?: string;
   taskType?: string;
   taskName?: string;
   name?: string;
@@ -79,6 +81,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   accentColor = '#29b6f6',
   initialTab = 0,
 }) => {
+  const queryClient = useQueryClient();
   const [editMode, setEditMode] = useState(false);
   const [showDiscussion, setShowDiscussion] = useState(false);
   const [editData, setEditData] = useState<DisplayTask | null>(null);
@@ -143,6 +146,9 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
       };
       
       await apiClient.patch(`/api/tasks/${resolvedTask.id}`, updatePayload);
+      if (resolvedTask.projectId) {
+        queryClient.invalidateQueries({ queryKey: ['schedule', 'list', resolvedTask.projectId] });
+      }
       refetch();
       setEditMode(false);
     } catch (err: any) {
