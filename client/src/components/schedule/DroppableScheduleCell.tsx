@@ -35,9 +35,10 @@ export const DroppableScheduleCell: React.FC<DroppableScheduleCellProps> = ({
     },
   });
 
+  const activeData = active?.data?.current as { type?: string; item?: ScheduleItem } | undefined;
   const canAccept =
-    active?.data?.type === 'scheduleItem' &&
-    active?.data?.item?.scheduledDate !== dayString;
+    activeData?.type === 'scheduleItem' &&
+    activeData?.item?.scheduledDate !== dayString;
 
   return (
     <Paper

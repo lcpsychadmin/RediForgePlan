@@ -36,7 +36,7 @@ interface TopNavProps {
 }
 
 const executionSubNavItems = [
-  { label: 'Plan', icon: <GridViewIcon sx={{ fontSize: '0.95rem' }} />, tabIndex: 0 },
+  { label: 'Plan', icon: <GridViewIcon sx={{ fontSize: '0.95rem' }} />, path: '/projects', tabIndex: 0 },
   { label: 'Priorities', icon: <WarningAmberIcon sx={{ fontSize: '0.95rem' }} />, path: '/priorities' },
   { label: 'Schedule', icon: <CalendarMonthIcon sx={{ fontSize: '0.95rem' }} />, path: '/schedule' },
   { label: 'Defects', icon: <WarningAmberIcon sx={{ fontSize: '0.95rem' }} />, path: '/defects' },

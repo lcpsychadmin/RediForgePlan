@@ -87,11 +87,6 @@ const GlobalFilterBar: React.FC = () => {
             {projects.map((p: any) => (
               <MenuItem key={p.id} value={p.id} sx={{ fontSize: '0.875rem' }}>
                 {p.name}
-                {p.mockCycleName && (
-                  <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 1 }}>
-                    ({p.mockCycleName})
-                  </Typography>
-                )}
               </MenuItem>
             ))}
           </Select>
