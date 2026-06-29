@@ -1516,30 +1516,28 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
       return;
     }
 
-    const allowedOptions = getInventoryProcessAreaOptions(projectId);
-    if (!allowedOptions.some((option) => option.toLowerCase() === name.toLowerCase())) {
-      alert('Select a process area that exists in the current project inventory.');
-      return;
-    }
+    // Use cycleId as key so process areas are isolated per cycle, not shared
+    // across cycles that share the same project.
+    const cycleKey = activeCycleId || projectId;
 
     try {
       const normalizedArea = name.toLowerCase();
 
       setPlanningAdditionalProcessAreas((prev) => {
-        const existing = prev[projectId] || [];
+        const existing = prev[cycleKey] || [];
         if (existing.some((entry) => (entry || '').trim().toLowerCase() === normalizedArea)) return prev;
         return {
           ...prev,
-          [projectId]: [...existing, name],
+          [cycleKey]: [...existing, name],
         };
       });
 
       setHiddenProcessAreas((prev) => {
-        const existing = prev[projectId] || [];
+        const existing = prev[cycleKey] || [];
         const next = existing.filter((entry) => (entry || '').trim().toLowerCase() !== normalizedArea);
         return {
           ...prev,
-          [projectId]: next,
+          [cycleKey]: next,
         };
       });
 
@@ -1547,7 +1545,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         ...prev,
         processAreas: {
           ...prev.processAreas,
-          [projectId]: mergeOrder(prev.processAreas[projectId] || [], [name]),
+          [cycleKey]: mergeOrder(prev.processAreas[cycleKey] || [], [name]),
         },
       }));
 
@@ -8583,20 +8581,16 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         </DialogTitle>
         <DialogContent sx={{ pt: 2 }}>
           <TextField
-            select
             autoFocus
             fullWidth
-            label="Process Area"
+            label="Process Area Name"
             value={newProcessAreaName}
             onChange={(e) => setNewProcessAreaName(e.target.value)}
             margin="normal"
             variant="outlined"
             size="small"
-          >
-            {(processAreaTargetProjectId ? getInventoryProcessAreaOptions(processAreaTargetProjectId) : []).map((areaName) => (
-              <MenuItem key={areaName} value={areaName}>{areaName}</MenuItem>
-            ))}
-          </TextField>
+            placeholder="e.g., MDM, R2R, Finance"
+          />
         </DialogContent>
         <DialogActions sx={{ gap: 1, p: 2, borderTop: '1px solid', borderColor: 'divider' }}>
           <Button
