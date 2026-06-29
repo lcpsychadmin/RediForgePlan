@@ -3071,6 +3071,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
           };
         });
         // Key by cycleId so cycles sharing a project don't interfere.
+        const targetProjId = (copiedToCycle as any).projectId as string | undefined;
+        const sourceProjId = (selectedSourceCycle as any).projectId as string | undefined;
         if (targetProjId && sourceProjId && targetProjId !== sourceProjId) {
           const sourceKey = cloneCycleSourceId || sourceProjId;
           const targetKey = copiedToCycle.id;
