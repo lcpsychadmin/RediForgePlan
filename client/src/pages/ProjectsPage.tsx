@@ -1949,6 +1949,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hierarchyStateHydrated, expandedPrograms, programs]);
 
+  // Persist tree ordering to the server.
+  useEffect(() => {
+    if (!hierarchyStateHydrated) return;
+
     const timeout = setTimeout(() => {
       apiClient.put('/api/hierarchy-preferences/state', {
         treeOrder,
