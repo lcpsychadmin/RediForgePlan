@@ -4560,10 +4560,12 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                         .filter(t => t.projectObjectId)
                         .map(t => getRootInventoryObjectId(t.projectObjectId))
                     ));
-                    // Show only objects that have tasks in this cycle's plan.
+                    // Show all inventory objects matching the process area filter.
+                    // Tasks load asynchronously and appear under the objects as they arrive.
+                    // Using inventory as the source of truth prevents the "flash then disappear"
+                    // caused by racing between inventory and task loads.
                     const sortedObjectIds = showProjectSummaryOnly ? [] : projectInventoryItems
                       .filter((item: any) => !item.parentProjectObjectId)
-                      .filter((item: any) => rootPlanObjectIds.includes(item.id))
                       .filter((item: any) => (item.processArea || '').trim().toLowerCase() === normalizedProcessAreaFilter)
                       .map((item: any) => item.id)
                       .sort((a: string, b: string) => {
