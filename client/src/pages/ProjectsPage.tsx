@@ -191,7 +191,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   const [menuItemId, setMenuItemId] = useState<string | null>(null);
   const [processAreaMenuContext, setProcessAreaMenuContext] = useState<{ projectId: string; cycleId: string; area: string; nodeType: 'processArea' | 'planGroup' } | null>(null);
   const [processAreaSettingsDialogOpen, setProcessAreaSettingsDialogOpen] = useState(false);
-  const [editingProcessAreaContext, setEditingProcessAreaContext] = useState<{ projectId: string; area: string } | null>(null);
+  const [editingProcessAreaContext, setEditingProcessAreaContext] = useState<{ projectId: string; cycleId?: string; area: string } | null>(null);
   const [editingProcessAreaAccent, setEditingProcessAreaAccent] = useState('#64B5F6');
   const [editingProcessAreaDescription, setEditingProcessAreaDescription] = useState('');
   const [editingProcessAreaIconLevel, setEditingProcessAreaIconLevel] = useState<'processArea' | 'planGroup'>('processArea');
@@ -2019,15 +2019,19 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         if (activeCycleId) {
           // Execution planning context: load project-inventory objects (shared across cycles)
           // and tasks for this specific cycle.  Tasks reference inventory objects by ID.
+          // Loading both here atomically eliminates the race where objects show but tasks haven't loaded yet.
           const projectId = activeProjectId;
           const [objRes, taskRes] = await Promise.all([
             projectId ? apiClient.get(`/api/project-objects/project/${projectId}`) : Promise.resolve({ data: { data: [] } }),
             apiClient.get(`/api/tasks/cycle/${activeCycleId}`),
           ]);
           objects = objRes.data.data || [];
-          taskObjectIds = (taskRes.data.data || [])
-            .map((task: any) => task.projectObjectId)
-            .filter(Boolean);
+          const cycleTasks = taskRes.data.data || [];
+          taskObjectIds = cycleTasks.map((task: any) => task.projectObjectId).filter(Boolean);
+          // Set projectTasks here so tasks and inventory land in the same React batch,
+          // preventing the "No tasks" flash that occurred when the two effects raced.
+          setProjectTasks(cycleTasks.map((task: any) => normalizeTaskDateFields(task)));
+          setProjectTaskGroups(await apiClient.get(`/api/tasks/groups/cycle/${activeCycleId}`).then(r => r.data.data || []).catch(() => []));
         } else {
           // Inventory tab context: load objects scoped to the selected project.
           const selectedProjectRecord = Object.values(projectsByProgram).flat().find((project: any) => project.id === activeProjectId) || null;
@@ -7434,7 +7438,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
             if (menuType !== 'processArea' || !processAreaMenuContext) return;
             const currentAccent = getProcessAreaAccent(processAreaMenuContext.projectId, processAreaMenuContext.area, '#64B5F6', processAreaMenuContext.cycleId);
             const currentDescription = processAreaDescriptions[processAreaMenuContext.projectId]?.[processAreaMenuContext.area] || '';
-            setEditingProcessAreaContext({ projectId: processAreaMenuContext.projectId, area: processAreaMenuContext.area });
+            setEditingProcessAreaContext({ projectId: processAreaMenuContext.projectId, cycleId: processAreaMenuContext.cycleId, area: processAreaMenuContext.area });
             setEditingProcessAreaAccent(currentAccent);
             setEditingProcessAreaDescription(currentDescription);
             setEditingProcessAreaIconLevel(processAreaMenuContext.nodeType);
@@ -8704,17 +8708,19 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
           <Button
             onClick={() => {
               if (!editingProcessAreaContext) return;
-              const { projectId, area } = editingProcessAreaContext;
+              const { projectId, cycleId, area } = editingProcessAreaContext;
+              // Use cycleId as key so settings are per-cycle, not shared via the project.
+              const settingsKey = cycleId || projectId;
               const nextDescription = editingProcessAreaDescription.trim();
               setProcessAreaAccentOverrides((prev) => ({
                 ...prev,
-                [projectId]: {
-                  ...(prev[projectId] || {}),
+                [settingsKey]: {
+                  ...(prev[settingsKey] || {}),
                   [area]: editingProcessAreaAccent,
                 },
               }));
               setProcessAreaDescriptions((prev) => {
-                const currentProject = { ...(prev[projectId] || {}) };
+                const currentProject = { ...(prev[settingsKey] || {}) };
                 if (nextDescription) {
                   currentProject[area] = nextDescription;
                 } else {
@@ -8722,7 +8728,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                 }
                 return {
                   ...prev,
-                  [projectId]: currentProject,
+                  [settingsKey]: currentProject,
                 };
               });
               setProcessAreaSettingsDialogOpen(false);
