@@ -2009,12 +2009,21 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         let taskObjectIds: string[] = [];
 
         if (activeCycleId) {
-          // Execution planning context: load objects scoped to this cycle.
-          const [objRes, taskRes] = await Promise.all([
+          // Execution planning context: load objects already in this cycle's plan
+          // (cycle-scoped, mock_cycle_id set) PLUS the project's master inventory
+          // (project-scoped, mock_cycle_id = NULL) so both show in the picker.
+          const cycleProject = (projectsByMockCycle[activeCycleId] || [])[0];
+          const projectId = cycleProject?.id || activeProjectId;
+          const [cycleObjRes, projObjRes, taskRes] = await Promise.all([
             apiClient.get(`/api/project-objects/cycle/${activeCycleId}`),
+            projectId ? apiClient.get(`/api/project-objects/project/${projectId}`) : Promise.resolve({ data: { data: [] } }),
             apiClient.get(`/api/tasks/cycle/${activeCycleId}`),
           ]);
-          objects = objRes.data.data || [];
+          // Merge; deduplicate by id (cycle-scoped takes precedence over project-scoped).
+          const cycleObjs: any[] = cycleObjRes.data.data || [];
+          const projObjs: any[] = projObjRes.data.data || [];
+          const seen = new Set(cycleObjs.map((o: any) => o.id));
+          objects = [...cycleObjs, ...projObjs.filter((o: any) => !seen.has(o.id))];
           taskObjectIds = (taskRes.data.data || [])
             .map((task: any) => task.projectObjectId)
             .filter(Boolean);
