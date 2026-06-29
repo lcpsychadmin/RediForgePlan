@@ -4572,18 +4572,18 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                         .filter(t => t.projectObjectId)
                         .map(t => getRootInventoryObjectId(t.projectObjectId))
                     ));
-                    const sortedObjectIds = (showProjectSummaryOnly ? [] : [...rootPlanObjectIds])
-                      .filter((objectId: string) => {
-                        return getObjectProcessArea(objectId).toLowerCase() === normalizedProcessAreaFilter;
-                      })
+                    // Derive visible objects directly from inventory (not from tasks) so
+                    // they always show as soon as projectInventoryItems loads, regardless
+                    // of whether tasks have finished loading yet.
+                    const sortedObjectIds = showProjectSummaryOnly ? [] : projectInventoryItems
+                      .filter((item: any) => !item.parentProjectObjectId)
+                      .filter((item: any) => (item.processArea || '').trim().toLowerCase() === normalizedProcessAreaFilter)
+                      .map((item: any) => item.id)
                       .sort((a: string, b: string) => {
-                      const areaA = getObjectProcessArea(a).toLowerCase();
-                      const areaB = getObjectProcessArea(b).toLowerCase();
-                      if (areaA !== areaB) return areaA.localeCompare(areaB);
-                      const objA = (projectInventoryItems.find(obj => obj.id === a)?.objectId || '').toLowerCase();
-                      const objB = (projectInventoryItems.find(obj => obj.id === b)?.objectId || '').toLowerCase();
-                      return objA.localeCompare(objB);
-                    });
+                        const aObj = projectInventoryItems.find((o: any) => o.id === a);
+                        const bObj = projectInventoryItems.find((o: any) => o.id === b);
+                        return (aObj?.objectId || '').localeCompare(bObj?.objectId || '');
+                      });
                     const allGroupIds = projectTaskGroups.map(g => g.id);
                     const getTaskGroupProcessArea = (group: any) => (group?.processArea || '').trim();
                     const filteredGroupIds = (showProjectSummaryOnly ? [] : allGroupIds).filter((id: string) => {
