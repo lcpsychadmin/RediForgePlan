@@ -2015,23 +2015,14 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         let cycleObjIds = new Set<string>();
 
         if (activeCycleId) {
-          // Execution planning context: load objects already in this cycle's plan
-          // (cycle-scoped, mock_cycle_id set) PLUS the project's master inventory
-          // (project-scoped, mock_cycle_id = NULL) so both show in the picker.
-          // Use activeProjectId directly (it equals the cycle's project) to avoid
-          // depending on projectsByMockCycle for a simple ID lookup.
+          // Execution planning context: load project-inventory objects (shared across cycles)
+          // and tasks for this specific cycle.  Tasks reference inventory objects by ID.
           const projectId = activeProjectId;
-          const [cycleObjRes, projObjRes, taskRes] = await Promise.all([
-            apiClient.get(`/api/project-objects/cycle/${activeCycleId}`),
+          const [objRes, taskRes] = await Promise.all([
             projectId ? apiClient.get(`/api/project-objects/project/${projectId}`) : Promise.resolve({ data: { data: [] } }),
             apiClient.get(`/api/tasks/cycle/${activeCycleId}`),
           ]);
-          // Merge; deduplicate by id (cycle-scoped takes precedence over project-scoped).
-          const cycleObjs: any[] = cycleObjRes.data.data || [];
-          const projObjs: any[] = projObjRes.data.data || [];
-          const seen = new Set(cycleObjs.map((o: any) => o.id));
-          const cycleObjIds = new Set(cycleObjs.map((o: any) => o.id));
-          objects = [...cycleObjs, ...projObjs.filter((o: any) => !cycleObjIds.has(o.id))];
+          objects = objRes.data.data || [];
           taskObjectIds = (taskRes.data.data || [])
             .map((task: any) => task.projectObjectId)
             .filter(Boolean);
@@ -2072,8 +2063,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
           itemsById.set(item.id, {
             id: item.id,
             projectId: item.projectId,
-            // Mark items that belong to the cycle's own plan vs the project catalog.
-            isCycleScoped: activeCycleId ? cycleObjIds?.has(item.id) ?? false : false,
             dataObjectId: item.objectId,
             objectId: item.objectId,
             globalObjectId: item.globalObjectId,
@@ -4578,17 +4567,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                         .filter(t => t.projectObjectId)
                         .map(t => getRootInventoryObjectId(t.projectObjectId))
                     ));
-                    // Show objects that are either:
-                    // 1. Cycle-scoped (explicitly in this cycle's plan), OR
-                    // 2. Referenced by a task in this cycle (inventory objects assigned via tasks).
-                    // This avoids showing "ghost" inventory objects that belong to other cycles.
-                    const planObjectIdSet = new Set([
-                      ...projectInventoryItems.filter((item: any) => item.isCycleScoped).map((item: any) => item.id),
-                      ...rootPlanObjectIds,
-                    ]);
+                    // Show only objects that have tasks in this cycle's plan.
                     const sortedObjectIds = showProjectSummaryOnly ? [] : projectInventoryItems
                       .filter((item: any) => !item.parentProjectObjectId)
-                      .filter((item: any) => planObjectIdSet.has(item.id))
+                      .filter((item: any) => rootPlanObjectIds.includes(item.id))
                       .filter((item: any) => (item.processArea || '').trim().toLowerCase() === normalizedProcessAreaFilter)
                       .map((item: any) => item.id)
                       .sort((a: string, b: string) => {

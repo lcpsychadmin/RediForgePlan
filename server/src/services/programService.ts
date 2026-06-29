@@ -316,83 +316,8 @@ export class ProgramService {
       const taskIdMap = new Map<string, string>();
 
       if (sourceProjectIds.length > 0) {
-        const projectObjectsResult = await client.query(
-          `SELECT id, project_id, global_object_id, complexity, deployment_disposition, build_type,
-                  object_type, cutover_phase, ddm_approach, risk_security_type, migration_type,
-                  factor_type, load_method, start_date, end_date, status, dra_user_id,
-                  developer_user_id, notes
-           FROM project_objects
-           WHERE mock_cycle_id = $1
-              OR (mock_cycle_id IS NULL
-                  AND id IN (
-                    SELECT project_object_id FROM tasks
-                    WHERE mock_cycle_id = $1 AND project_object_id IS NOT NULL
-                  ))`,
-          [sourceMockCycleId]
-        );
-
-        for (const po of projectObjectsResult.rows) {
-          const newProjectId = Array.from(projectIdMap.values())[0];
-          if (!newProjectId) continue;
-          const inserted = await client.query(
-            `INSERT INTO project_objects (
-              project_id, mock_cycle_id, global_object_id, complexity, deployment_disposition, build_type,
-              object_type, cutover_phase, ddm_approach, risk_security_type, migration_type,
-              factor_type, load_method, start_date, end_date, status, dra_user_id,
-              developer_user_id, notes
-            ) VALUES (
-              $1, $2, $3, $4, $5, $6,
-              $7, $8, $9, $10, $11,
-              $12, $13, $14, $15, $16, $17,
-              $18, $19
-            ) RETURNING id`,
-            [
-              newProjectId, newCycleId,
-              po.global_object_id,
-              po.complexity,
-              po.deployment_disposition,
-              po.build_type,
-              po.object_type,
-              po.cutover_phase,
-              po.ddm_approach,
-              po.risk_security_type,
-              po.migration_type,
-              po.factor_type,
-              po.load_method,
-              po.start_date,
-              po.end_date,
-              po.status,
-              po.dra_user_id,
-              po.developer_user_id,
-              po.notes,
-            ]
-          );
-          projectObjectIdMap.set(po.id, inserted.rows[0].id);
-        }
-
-        const sourceProjectObjectIds = Array.from(projectObjectIdMap.keys());
-        if (sourceProjectObjectIds.length > 0) {
-          const objectDepsResult = await client.query(
-            `SELECT project_object_id, depends_on_project_object_id
-             FROM object_dependencies
-             WHERE project_object_id = ANY($1)
-               AND depends_on_project_object_id = ANY($1)`,
-            [sourceProjectObjectIds]
-          );
-
-          for (const dep of objectDepsResult.rows) {
-            const newObjectId = projectObjectIdMap.get(dep.project_object_id);
-            const newDependsOnId = projectObjectIdMap.get(dep.depends_on_project_object_id);
-            if (!newObjectId || !newDependsOnId) continue;
-
-            await client.query(
-              `INSERT INTO object_dependencies (project_object_id, depends_on_project_object_id)
-               VALUES ($1, $2)
-               ON CONFLICT DO NOTHING`,
-              [newObjectId, newDependsOnId]
-            );
-          }
-        }
+        // project_objects (data objects) are NOT cloned — they live in the
+        // project inventory and are shared across cycles.
 
         let taskGroupsResult;
         let supportsTaskGroupProcessArea = true;
@@ -444,7 +369,7 @@ export class ProgramService {
           const newProjectId = Array.from(projectIdMap.values())[0];
           if (!newProjectId) continue;
 
-          const newProjectObjectId = t.project_object_id ? projectObjectIdMap.get(t.project_object_id) || null : null;
+          // project_object_id kept as-is — references shared inventory object.
           const newTaskGroupId = t.task_group_id ? taskGroupIdMap.get(t.task_group_id) || null : null;
 
           const inserted = await client.query(
@@ -459,7 +384,7 @@ export class ProgramService {
             ) RETURNING id`,
             [
               newProjectId, newCycleId,
-              newProjectObjectId,
+              t.project_object_id,
               newTaskGroupId,
               t.task_type,
               t.name,
@@ -655,89 +580,13 @@ export class ProgramService {
       }
 
       // ── Copy execution data from source cycle to the effective target project ──
+      // NOTE: project_objects (data objects) are NOT copied — they live in the
+      // project inventory and are shared across cycles.  Only task_groups and
+      // tasks are cycle-specific.  Tasks keep their original project_object_id
+      // so they continue to reference the shared inventory objects.
 
-      const projectObjectIdMap = new Map<string, string>();
       const taskGroupIdMap = new Map<string, string>();
       const taskIdMap = new Map<string, string>();
-
-      // Data Objects (project_objects)
-      // Include BOTH cycle-scoped objects AND any project-inventory objects (mock_cycle_id IS NULL)
-      // that are referenced by this cycle's tasks, so all task→object mappings survive the copy.
-      const projectObjectsResult = await client.query(
-        `SELECT id, global_object_id, complexity, deployment_disposition, build_type,
-                object_type, cutover_phase, ddm_approach, risk_security_type, migration_type,
-                factor_type, load_method, start_date, end_date, status, dra_user_id,
-                developer_user_id, notes
-         FROM project_objects
-         WHERE mock_cycle_id = $1
-            OR (mock_cycle_id IS NULL
-                AND id IN (
-                  SELECT project_object_id FROM tasks
-                  WHERE mock_cycle_id = $1 AND project_object_id IS NOT NULL
-                ))`,
-        [sourceMockCycleId]
-      );
-
-      for (const po of projectObjectsResult.rows) {
-        const inserted = await client.query(
-          `INSERT INTO project_objects (
-            project_id, mock_cycle_id, global_object_id, complexity, deployment_disposition, build_type,
-            object_type, cutover_phase, ddm_approach, risk_security_type, migration_type,
-            factor_type, load_method, start_date, end_date, status, dra_user_id,
-            developer_user_id, notes
-          ) VALUES (
-            $1, $2, $3, $4, $5, $6,
-            $7, $8, $9, $10, $11,
-            $12, $13, $14, $15, $16, $17,
-            $18, $19
-          ) RETURNING id`,
-          [
-            targetProjectId, targetMockCycleId,
-            po.global_object_id,
-            po.complexity,
-            po.deployment_disposition,
-            po.build_type,
-            po.object_type,
-            po.cutover_phase,
-            po.ddm_approach,
-            po.risk_security_type,
-            po.migration_type,
-            po.factor_type,
-            po.load_method,
-            po.start_date,
-            po.end_date,
-            po.status,
-            po.dra_user_id,
-            po.developer_user_id,
-            po.notes,
-          ]
-        );
-        projectObjectIdMap.set(po.id, inserted.rows[0].id);
-      }
-
-      // Object dependencies
-      const sourceProjectObjectIds = Array.from(projectObjectIdMap.keys());
-      if (sourceProjectObjectIds.length > 0) {
-        const objectDepsResult = await client.query(
-          `SELECT project_object_id, depends_on_project_object_id
-           FROM object_dependencies
-           WHERE project_object_id = ANY($1)
-             AND depends_on_project_object_id = ANY($1)`,
-          [sourceProjectObjectIds]
-        );
-
-        for (const dep of objectDepsResult.rows) {
-          const newObjectId = projectObjectIdMap.get(dep.project_object_id);
-          const newDependsOnId = projectObjectIdMap.get(dep.depends_on_project_object_id);
-          if (!newObjectId || !newDependsOnId) continue;
-          await client.query(
-            `INSERT INTO object_dependencies (project_object_id, depends_on_project_object_id)
-             VALUES ($1, $2)
-             ON CONFLICT DO NOTHING`,
-            [newObjectId, newDependsOnId]
-          );
-        }
-      }
 
       // Process Areas + Plan Groups (task_groups)
       let taskGroupsResult: { rows: any[] };
@@ -786,7 +635,7 @@ export class ProgramService {
       );
 
       for (const t of tasksResult.rows) {
-        const newProjectObjectId = t.project_object_id ? projectObjectIdMap.get(t.project_object_id) || null : null;
+        // project_object_id is preserved as-is — it references a shared inventory object.
         const newTaskGroupId = t.task_group_id ? taskGroupIdMap.get(t.task_group_id) || null : null;
 
         const inserted = await client.query(
@@ -801,7 +650,7 @@ export class ProgramService {
           ) RETURNING id`,
           [
             targetProjectId, targetMockCycleId,
-            newProjectObjectId,
+            t.project_object_id,
             newTaskGroupId,
             t.task_type,
             t.name,
