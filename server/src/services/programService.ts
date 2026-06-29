@@ -508,76 +508,21 @@ export class ProgramService {
       }
       const sourceProject = sourceProjectResult.rows[0];
 
-      // Determine whether the target cycle's project is shared with other cycles.
-      // A "shared" project is one that belongs to more than one mock cycle, or is
-      // the exact same project as the source (which would make DELETE/INSERT on it
-      // destroy the source data before it can be read).
-      const sharedCheckResult = await client.query(
-        `SELECT COUNT(*) AS cnt FROM mock_cycles WHERE project_id = $1`,
-        [targetProjectId]
-      );
-      const targetProjectCycleCount = parseInt(sharedCheckResult.rows[0].cnt, 10);
-      const targetProjectIsShared =
-        targetProjectCycleCount > 1 || sourceProjectId === targetProjectId;
-
-      if (targetProjectIsShared) {
-        // Give the target cycle its own dedicated project so the copy is isolated.
-        // The new project lives under the same program as the source cycle.
-        const newProjectResult = await client.query(
-          `INSERT INTO projects (program_id, name, description, start_date, end_date, accent_color, progress_percentage)
-           VALUES ($1, $2, $3, $4, $5, $6, $7)
-           RETURNING id`,
-          [
-            sourceCycle.program_id,
-            sourceProject.name,
-            sourceProject.description,
-            sourceProject.start_date,
-            sourceProject.end_date,
-            sourceProject.accent_color,
-            sourceProject.progress_percentage || 0,
-          ]
-        );
-        targetProjectId = newProjectResult.rows[0].id;
-
-        // Repoint the target cycle to its new private project.
+      // Since task_groups and tasks are now cycle-scoped (mock_cycle_id), the target
+      // cycle does not need an isolated project.  Point it at the source's project so
+      // both cycles share the same project inventory.
+      if (targetProjectId !== sourceProjectId) {
+        targetProjectId = sourceProjectId;
         await client.query(
           `UPDATE mock_cycles SET project_id = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
           [targetMockCycleId, targetProjectId]
         );
-      } else {
-        // Target has its own dedicated project — update its metadata then clear it
-        // before filling with copied data.
-        await client.query(
-          `UPDATE projects
-           SET name = $2,
-               description = $3,
-               start_date = $4,
-               end_date = $5,
-               accent_color = $6,
-               progress_percentage = $7,
-               updated_at = CURRENT_TIMESTAMP
-           WHERE id = $1`,
-          [
-            targetProjectId,
-            sourceProject.name,
-            sourceProject.description,
-            sourceProject.start_date,
-            sourceProject.end_date,
-            sourceProject.accent_color,
-            sourceProject.progress_percentage || 0,
-          ]
-        );
-
-        // Delete only THIS cycle's execution data (scope by mock_cycle_id so
-        // sibling cycles that still share the project are not affected).
-        // The AND mock_cycle_id IS NOT NULL guard is belt-and-suspenders:
-        // project_objects added via the Inventory tab have mock_cycle_id = NULL
-        // and must NEVER be deleted by copy operations.
-        await client.query(`DELETE FROM tasks           WHERE mock_cycle_id = $1 AND mock_cycle_id IS NOT NULL`, [targetMockCycleId]);
-        await client.query(`DELETE FROM task_groups     WHERE mock_cycle_id = $1 AND mock_cycle_id IS NOT NULL`, [targetMockCycleId]);
-        await client.query(`DELETE FROM project_objects WHERE mock_cycle_id = $1 AND mock_cycle_id IS NOT NULL`, [targetMockCycleId]);
-        await client.query(`DELETE FROM schedule_items  WHERE mock_cycle_id = $1 AND mock_cycle_id IS NOT NULL`, [targetMockCycleId]);
       }
+
+      // Delete only THIS cycle's task data (tasks/task_groups are cycle-scoped).
+      await client.query(`DELETE FROM tasks        WHERE mock_cycle_id = $1 AND mock_cycle_id IS NOT NULL`, [targetMockCycleId]);
+      await client.query(`DELETE FROM task_groups  WHERE mock_cycle_id = $1 AND mock_cycle_id IS NOT NULL`, [targetMockCycleId]);
+      await client.query(`DELETE FROM schedule_items WHERE mock_cycle_id = $1 AND mock_cycle_id IS NOT NULL`, [targetMockCycleId]);
 
       // ── Copy execution data from source cycle to the effective target project ──
       // NOTE: project_objects (data objects) are NOT copied — they live in the

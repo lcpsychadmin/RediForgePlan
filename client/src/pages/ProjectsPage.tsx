@@ -1304,8 +1304,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     return ordered;
   };
 
-  const getProcessAreaAccent = (projectId: string, area: string, fallback: string) => {
-    return processAreaAccentOverrides[projectId]?.[area] || fallback;
+  // processAreaAccentOverrides is keyed by cycleId (set in handleCreateProcessArea and copy handler).
+  // Accept an optional cycleId so call sites that have it can pass it; fall back to projectId.
+  const getProcessAreaAccent = (projectId: string, area: string, fallback: string, cycleId?: string) => {
+    const key = cycleId || projectId;
+    return processAreaAccentOverrides[key]?.[area] || processAreaAccentOverrides[projectId]?.[area] || fallback;
   };
 
   const getProcessAreaDisplayName = (projectId: string, area: string) => {
@@ -4215,7 +4218,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                                 }).length
                                               : (cachedAreaSummary?.taskCount ?? 0);
                                             const processAreaProgressPct = getProcessAreaProgress(realProject.id, area, cycleProgressPct);
-                                            const processAreaAccent = getProcessAreaAccent(realProject.id, area, cycleColor);
+                                            const processAreaAccent = getProcessAreaAccent(realProject.id, area, cycleColor, cycle.id);
                                             const isProcessAreaSelected =
                                               selectedItem?.type === 'processArea' &&
                                               selectedItem?.projectId === realProject.id &&
@@ -4511,11 +4514,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                       ? getProcessAreaDisplayName(project.id, selectedItem.area)
                       : '';
                     const selectedAreaAccent = selectedItem.type === 'processArea'
-                      ? getProcessAreaAccent(project.id, selectedItem.area, accentColor)
+                      ? getProcessAreaAccent(project.id, selectedItem.area, accentColor, parentCycleId || undefined)
                       : accentColor;
                     const effectiveProcessArea = (selectedAreaLabel || selectedExecutionProcessArea || '').trim();
                     const planAccentColor = effectiveProcessArea
-                      ? getProcessAreaAccent(project.id, effectiveProcessArea, accentColor)
+                      ? getProcessAreaAccent(project.id, effectiveProcessArea, accentColor, parentCycleId || undefined)
                       : accentColor;
                     let parentCycleName = '';
                     let parentProgramName = '';
@@ -7424,7 +7427,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         <MenuItem
           onClick={() => {
             if (menuType !== 'processArea' || !processAreaMenuContext) return;
-            const currentAccent = getProcessAreaAccent(processAreaMenuContext.projectId, processAreaMenuContext.area, '#64B5F6');
+            const currentAccent = getProcessAreaAccent(processAreaMenuContext.projectId, processAreaMenuContext.area, '#64B5F6', processAreaMenuContext.cycleId);
             const currentDescription = processAreaDescriptions[processAreaMenuContext.projectId]?.[processAreaMenuContext.area] || '';
             setEditingProcessAreaContext({ projectId: processAreaMenuContext.projectId, area: processAreaMenuContext.area });
             setEditingProcessAreaAccent(currentAccent);
