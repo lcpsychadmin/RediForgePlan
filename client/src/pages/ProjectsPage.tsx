@@ -1422,13 +1422,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   };
 
   const handleAddProcessArea = (projectId: string) => {
-    const options = getInventoryProcessAreaOptions(projectId);
-    if (options.length === 0) {
-      alert('No process areas are available from current project inventory.');
-      return;
-    }
     setProcessAreaTargetProjectId(projectId);
-    setNewProcessAreaName(options[0]);
+    setNewProcessAreaName(processAreaOptions[0] || '');
     setProcessAreaDialogOpen(true);
   };
 
@@ -8581,16 +8576,20 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         </DialogTitle>
         <DialogContent sx={{ pt: 2 }}>
           <TextField
+            select
             autoFocus
             fullWidth
-            label="Process Area Name"
+            label="Process Area"
             value={newProcessAreaName}
             onChange={(e) => setNewProcessAreaName(e.target.value)}
             margin="normal"
             variant="outlined"
             size="small"
-            placeholder="e.g., MDM, R2R, Finance"
-          />
+          >
+            {processAreaOptions.map((areaName) => (
+              <MenuItem key={areaName} value={areaName}>{areaName}</MenuItem>
+            ))}
+          </TextField>
         </DialogContent>
         <DialogActions sx={{ gap: 1, p: 2, borderTop: '1px solid', borderColor: 'divider' }}>
           <Button
