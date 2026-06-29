@@ -1581,24 +1581,24 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
       await Promise.all(Array.from(taskGroupIdsInArea).map((groupId) => apiClient.delete(`/api/tasks/groups/${groupId}`)));
 
       setHiddenProcessAreas((prev) => {
-        const existing = prev[projectId] || [];
+        const existing = prev[activeCycleId || projectId] || [];
         if (existing.some((entry) => (entry || '').trim().toLowerCase() === normalizedTarget)) return prev;
         return {
           ...prev,
-          [projectId]: [...existing, areaName],
+          [activeCycleId || projectId]: [...existing, areaName],
         };
       });
 
       setPlanningAdditionalProcessAreas((prev) => ({
         ...prev,
-        [projectId]: (prev[projectId] || []).filter((entry) => (entry || '').trim().toLowerCase() !== normalizedTarget),
+        [activeCycleId || projectId]: (prev[activeCycleId || projectId] || []).filter((entry) => (entry || '').trim().toLowerCase() !== normalizedTarget),
       }));
 
       setTreeOrder((prev) => ({
         ...prev,
         processAreas: {
           ...prev.processAreas,
-          [projectId]: (prev.processAreas[projectId] || []).filter(
+          [activeCycleId || projectId]: (prev.processAreas[activeCycleId || projectId] || []).filter(
             (entry) => (entry || '').trim().toLowerCase() !== normalizedTarget
           ),
         },
@@ -4210,7 +4210,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                                 <Box
                                                   draggable
                                                   onDragStart={(e) => {
-                                                    const payload = JSON.stringify({ type: 'processArea', area, projectId: realProject.id });
+                                                    const payload = JSON.stringify({ type: 'processArea', area, projectId: realProject.id, cycleId: cycle.id });
                                                     e.dataTransfer.setData('text/plain', payload);
                                                     e.dataTransfer.effectAllowed = 'move';
                                                     setTreeDragItem({ type: 'processArea', area, projectId: realProject.id });
@@ -4224,9 +4224,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                                     const raw = e.dataTransfer.getData('text/plain');
                                                     let parsed: any = null;
                                                     try { parsed = raw ? JSON.parse(raw) : null; } catch { parsed = null; }
-                                                    const dragArea = parsed?.type === 'processArea' && parsed?.projectId === realProject.id
+                                                    const dragArea = parsed?.type === 'processArea' && (parsed?.cycleId === cycle.id || parsed?.projectId === realProject.id)
                                                       ? parsed.area
-                                                      : treeDragItem?.type === 'processArea' && treeDragItem.projectId === realProject.id
+                                                      : treeDragItem?.type === 'processArea' && (treeDragItem.projectId === realProject.id)
                                                         ? treeDragItem.area
                                                         : null;
                                                     if (!dragArea) return;
@@ -4235,7 +4235,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                                       ...prev,
                                                       processAreas: {
                                                         ...prev.processAreas,
-                                                        [realProject.id]: reorderByDrop(orderedAreas, dragArea, area),
+                                                        [cycle.id]: reorderByDrop(orderedAreas, dragArea, area),
                                                       },
                                                     }));
                                                     setTreeDragItem(null);
