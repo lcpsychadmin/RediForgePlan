@@ -3070,17 +3070,32 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
             },
           };
         });
-        // Key by cycleId so cycles sharing a project don't interfere.
+        // Copy all local hierarchy state from source cycle to target cycle so
+        // process areas, plan groups, ordering, and hidden-area settings transfer.
         const targetProjId = (copiedToCycle as any).projectId as string | undefined;
         const sourceProjId = (selectedSourceCycle as any).projectId as string | undefined;
-        if (targetProjId && sourceProjId && targetProjId !== sourceProjId) {
-          const sourceKey = cloneCycleSourceId || sourceProjId;
-          const targetKey = copiedToCycle.id;
-          setPlanningAdditionalGroups(prev => ({
-            ...prev,
-            [targetKey]: [...(prev[sourceKey] || [])],
-          }));
-        }
+        const sourceKey = cloneCycleSourceId as string;
+        const targetKey = copiedToCycle.id as string;
+
+        setPlanningAdditionalGroups(prev => ({
+          ...prev,
+          [targetKey]: [...(prev[sourceKey] || [])],
+        }));
+        setPlanningAdditionalProcessAreas(prev => ({
+          ...prev,
+          [targetKey]: [...(prev[sourceKey] || [])],
+        }));
+        setTreeOrder(prev => ({
+          ...prev,
+          processAreas: {
+            ...prev.processAreas,
+            [targetKey]: [...(prev.processAreas[sourceKey] || [])],
+          },
+        }));
+        setHiddenProcessAreas(prev => ({
+          ...prev,
+          [targetKey]: [...(prev[sourceKey] || [])],
+        }));
         setExpandedCycles(prev => new Set(prev).add(copiedToCycle.id));
         setSelectedItem({ type: 'cycle', id: copiedToCycle.id, programId: selectedTargetCycle.programId, projectId: copiedToCycle.projectId });
       }
