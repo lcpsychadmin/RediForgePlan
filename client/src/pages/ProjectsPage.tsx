@@ -1830,8 +1830,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     const applyExpandedState = (parsed: any) => {
       setExpandedPrograms(new Set(Array.isArray(parsed?.expandedPrograms) ? parsed.expandedPrograms : []));
       setExpandedCycles(new Set(Array.isArray(parsed?.expandedCycles) ? parsed.expandedCycles : []));
-      setExpandedProjectGroups(new Set(Array.isArray(parsed?.expandedProjectGroups) ? parsed.expandedProjectGroups : []));
-      // Object rows should start collapsed on load; users can expand them manually in-session.
+      // Restore saved project group expansion; if none saved, expand all groups
+      // so cycles are always visible without requiring an extra click.
+      const savedGroups = Array.isArray(parsed?.expandedProjectGroups) ? parsed.expandedProjectGroups : null;
+      setExpandedProjectGroups(new Set(savedGroups ?? []));
       setExpandedObjects(new Set());
     };
 
@@ -1926,8 +1928,26 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   }, [programs, mockCycles, projectsByMockCycle, projectsByProgram, projectHierarchySummaries, projectInventoryItems, planningAdditionalGroups]);
 
   // Persist tree ordering.
+  // Also ensure all project groups for expanded programs are auto-expanded so
+  // cycles are never hidden because a project group key is missing from saved state.
   useEffect(() => {
-    if (!hierarchyStateHydrated) return;
+    if (!hierarchyStateHydrated || programs.length === 0) return;
+    setExpandedProjectGroups(prev => {
+      const next = new Set(prev);
+      let changed = false;
+      programs.forEach((prog: any) => {
+        if (!expandedPrograms.has(prog.id)) return;
+        const projectList = getProjectsByProgram(prog.id);
+        projectList.forEach((project: Project) => {
+          const key = `${prog.id}:${(project.name || '').trim().toLowerCase()}`;
+          if (!next.has(key)) { next.add(key); changed = true; }
+        });
+      });
+      return changed ? next : prev;
+    });
+  // Only run when programs/expandedPrograms change, not on every projectsByProgram update
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hierarchyStateHydrated, expandedPrograms, programs]);
 
     const timeout = setTimeout(() => {
       apiClient.put('/api/hierarchy-preferences/state', {
