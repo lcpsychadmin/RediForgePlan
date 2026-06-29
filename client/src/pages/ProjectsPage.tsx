@@ -1191,14 +1191,15 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   const getOrderedCycles = (programId: string) => {
     const source = mockCycles[programId] || [];
     const existing = treeOrder.cycles[programId] || [];
-    const sourceIds = new Set(source.map((c: MockCycle) => c.id));
-    const ids = existing.filter((id: string) => sourceIds.has(id));
+    // Use treeOrder only for ordering — always show ALL in_hierarchy cycles
+    // so none can be accidentally hidden by a stale treeOrder entry.
+    const ids = mergeOrder(existing, source.map((c: MockCycle) => c.id));
     return ids.map(id => source.find((c: MockCycle) => c.id === id)).filter(Boolean) as MockCycle[];
   };
 
-  const getAttachableCyclesForProgram = (programId: string) => {
-    const visibleIds = new Set(treeOrder.cycles[programId] || []);
-    return (mockCycles[programId] || []).filter((cycle: MockCycle) => !visibleIds.has(cycle.id));
+  const getAttachableCyclesForProgram = (_programId: string) => {
+    // All cycles are always shown now; none need explicit attachment.
+    return [];
   };
 
   const getOrderedProjects = (cycleId: string) => {
@@ -3004,19 +3005,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
 
       setExpandedPrograms(prev => new Set(prev).add(selectedTargetCycle.programId));
       if (copiedToCycle?.id) {
-        // Add the target cycle to treeOrder so it appears in the execution hierarchy,
-        // while keeping all existing cycles in the list.
-        setTreeOrder(prev => {
-          const existingCycles = prev.cycles[selectedTargetCycle.programId] || [];
-          if (existingCycles.includes(copiedToCycle.id)) return prev;
-          return {
-            ...prev,
-            cycles: {
-              ...prev.cycles,
-              [selectedTargetCycle.programId]: [...existingCycles, copiedToCycle.id],
-            },
-          };
-        });
         setExpandedCycles(prev => new Set(prev).add(copiedToCycle.id));
         setSelectedItem({ type: 'cycle', id: copiedToCycle.id, programId: selectedTargetCycle.programId, projectId: copiedToCycle.projectId });
       }
