@@ -2144,6 +2144,33 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     projectInventoryLoadedRef.current = false;
   }, [activeProjectId, activeCycleId]);
 
+  // Sync any plan groups that exist only in localStorage to the DB.
+  // This handles groups created before the DB-persistence fix was deployed.
+  useEffect(() => {
+    if (!activeCycleId || !activeProjectId) return;
+    const localGroupNames: string[] = planningAdditionalGroups[activeProjectId] || [];
+    if (localGroupNames.length === 0) return;
+    const dbGroupNames = new Set(projectTaskGroups.map((g: any) => (g.name || '').trim().toLowerCase()));
+    const missing = localGroupNames.filter(n => n.trim() && !dbGroupNames.has(n.trim().toLowerCase()));
+    if (missing.length === 0) return;
+    (async () => {
+      for (const name of missing) {
+        try {
+          const response = await apiClient.post(`/api/tasks/groups/cycle/${activeCycleId}`, { name: name.trim(), processArea: null });
+          const newGroup = response.data?.data;
+          if (newGroup) {
+            setProjectTaskGroups((prev: any[]) => {
+              if (prev.some((g: any) => (g.name || '').trim().toLowerCase() === name.trim().toLowerCase())) return prev;
+              return [...prev, newGroup];
+            });
+          }
+        } catch (e) { console.error('[sync] Failed to persist plan group:', name, e); }
+      }
+    })();
+  // Only run when the cycle/project changes, not every time projectTaskGroups updates
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeCycleId, activeProjectId]);
+
   useEffect(() => {
     if (!activeProjectId) return;
     if (!projectTasksLoadedRef.current || !projectInventoryLoadedRef.current) return;
