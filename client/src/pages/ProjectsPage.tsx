@@ -5292,7 +5292,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                       </Box>
                                     );
                                   })()}
-                                  {!isHierarchyNode && isExpanded && (
+                                  {/* Non-hierarchy objects: always show their tasks (no expand required) */}
+                                  {!isHierarchyNode && (
                                     <Box sx={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
                                       {/* Object dependencies row */}
                                       {(taskDeps[objectId || ''] || []).length > 0 && (
