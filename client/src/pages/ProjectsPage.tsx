@@ -1308,7 +1308,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   // Accept an optional cycleId so call sites that have it can pass it; fall back to projectId.
   const getProcessAreaAccent = (projectId: string, area: string, fallback: string, cycleId?: string) => {
     const key = cycleId || projectId;
-    return processAreaAccentOverrides[key]?.[area] || processAreaAccentOverrides[projectId]?.[area] || fallback;
+    // Only look up by the specific key — do NOT fall back to the shared projectId
+    // because that would make cycles sharing the same project inherit each other's colours.
+    return processAreaAccentOverrides[key]?.[area] || fallback;
   };
 
   const getProcessAreaDisplayName = (projectId: string, area: string) => {
@@ -4221,7 +4223,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                             const processAreaAccent = getProcessAreaAccent(realProject.id, area, cycleColor, cycle.id);
                                             const isProcessAreaSelected =
                                               selectedItem?.type === 'processArea' &&
-                                              selectedItem?.projectId === realProject.id &&
+                                              selectedItem?.cycleId === cycle.id &&
                                               selectedItem?.area === area;
                                             const normalizedExistingArea = normalizedArea;
                                             const isAdditionalGroup = (planningAdditionalGroups[cycle.id] || []).some(
@@ -4845,7 +4847,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                               const currentArea = getObjectProcessArea(objectId || '');
                               const previousArea = objectIndex > 0 ? getObjectProcessArea(sortedObjectIds[objectIndex - 1] || '') : null;
                               const showAreaHeader = currentArea !== previousArea;
-                              const isExpanded = expandedObjects.has(objectId || '');
+                              // Default to expanded so tasks are visible without a click.
+                              // User can collapse by clicking the chevron.
+                              const isExpanded = !expandedObjects.has(`collapsed:${objectId}`);
                               const hierarchyChildTasks = isHierarchyNode
                                 ? subObjects.flatMap((subObject: any) => projectTasks.filter(t => t.projectObjectId === subObject.id))
                                 : [];
@@ -4934,10 +4938,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                   }}
                                 >
                                     <Box sx={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, backgroundColor: planAccentColor }} />
-                                  <Box onClick={() => { const next = new Set(expandedObjects); if (isExpanded) next.delete(objectId || ''); else next.add(objectId || ''); setExpandedObjects(next); apiClient.put('/api/hierarchy-preferences/state', { treeOrder, expandedPrograms: Array.from(expandedPrograms), expandedCycles: Array.from(expandedCycles), expandedProjectGroups: Array.from(expandedProjectGroups), expandedObjects: Array.from(next), planningAdditionalGroups, planningAdditionalProcessAreas, hiddenProcessAreas, processAreaAccentOverrides, processAreaDescriptions, hierarchyLevelIcons }).catch(() => {}); }}
+                                  <Box onClick={() => { const next = new Set(expandedObjects); const collapseKey = `collapsed:${objectId || ''}`; if (isExpanded) next.add(collapseKey); else next.delete(collapseKey); setExpandedObjects(next); apiClient.put('/api/hierarchy-preferences/state', { treeOrder, expandedPrograms: Array.from(expandedPrograms), expandedCycles: Array.from(expandedCycles), expandedProjectGroups: Array.from(expandedProjectGroups), expandedObjects: Array.from(next), planningAdditionalGroups, planningAdditionalProcessAreas, hiddenProcessAreas, processAreaAccentOverrides, processAreaDescriptions, hierarchyLevelIcons }).catch(() => {}); }}
                                     sx={{ pl: 2.5, pr: 1, py: 1.25, display: 'flex', alignItems: 'center', gap: { xs: 0.8, sm: 1.5 }, cursor: 'pointer', '&:hover': { backgroundColor: 'rgba(255,255,255,0.03)' } }}>
                                     <DragIndicatorIcon sx={{ fontSize: 14, color: 'text.disabled', flexShrink: 0, cursor: canReorderPlan ? 'grab' : 'not-allowed', opacity: canReorderPlan ? 1 : 0.45 }} />
-                                    <IconButton size="small" onClick={(e) => { e.stopPropagation(); const next = new Set(expandedObjects); if (isExpanded) next.delete(objectId || ''); else next.add(objectId || ''); setExpandedObjects(next); apiClient.put('/api/hierarchy-preferences/state', { treeOrder, expandedPrograms: Array.from(expandedPrograms), expandedCycles: Array.from(expandedCycles), expandedProjectGroups: Array.from(expandedProjectGroups), expandedObjects: Array.from(next), planningAdditionalGroups, planningAdditionalProcessAreas, hiddenProcessAreas, processAreaAccentOverrides, processAreaDescriptions, hierarchyLevelIcons }).catch(() => {}); }} sx={{ p: 0.2, flexShrink: 0 }}>
+                                    <IconButton size="small" onClick={(e) => { e.stopPropagation(); const next = new Set(expandedObjects); const collapseKey = `collapsed:${objectId || ''}`; if (isExpanded) next.add(collapseKey); else next.delete(collapseKey); setExpandedObjects(next); apiClient.put('/api/hierarchy-preferences/state', { treeOrder, expandedPrograms: Array.from(expandedPrograms), expandedCycles: Array.from(expandedCycles), expandedProjectGroups: Array.from(expandedProjectGroups), expandedObjects: Array.from(next), planningAdditionalGroups, planningAdditionalProcessAreas, hiddenProcessAreas, processAreaAccentOverrides, processAreaDescriptions, hierarchyLevelIcons }).catch(() => {}); }} sx={{ p: 0.2, flexShrink: 0 }}>
                                       <ChevronRightIcon sx={{ fontSize: 16, color: 'text.secondary', transition: 'transform 0.2s', transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)' }} />
                                     </IconButton>
                                     <Typography sx={{ fontFamily: 'monospace', fontWeight: 700, fontSize: { xs: '0.76rem', sm: '0.82rem' }, color: planAccentColor, flexShrink: 0, minWidth: { xs: 0, sm: 90 }, maxWidth: { xs: '38vw', sm: 'none' }, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{objectName}</Typography>
@@ -5292,8 +5296,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                       </Box>
                                     );
                                   })()}
-                                  {/* Non-hierarchy objects: always show their tasks (no expand required) */}
-                                  {!isHierarchyNode && (
+                                  {/* Non-hierarchy objects: show tasks when expanded (user clicks arrow to expand) */}
+                                  {!isHierarchyNode && isExpanded && (
                                     <Box sx={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
                                       {/* Object dependencies row */}
                                       {(taskDeps[objectId || ''] || []).length > 0 && (
