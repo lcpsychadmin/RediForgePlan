@@ -1233,9 +1233,13 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
 
   const getCyclesForProjectInProgram = (programId: string, projectName: string) => {
     const cycleList = getOrderedCycles(programId);
-    return cycleList.filter((cycle: MockCycle) =>
-      (projectsByMockCycle[cycle.id] || []).some((p: Project) => (p.name || '').trim().toLowerCase() === projectName.trim().toLowerCase())
-    );
+    return cycleList.filter((cycle: MockCycle) => {
+      const cycleProjects = projectsByMockCycle[cycle.id];
+      // If project data hasn't loaded yet, include the cycle so it's never
+      // accidentally hidden while data is still fetching.
+      if (!cycleProjects || cycleProjects.length === 0) return true;
+      return cycleProjects.some((p: Project) => (p.name || '').trim().toLowerCase() === projectName.trim().toLowerCase());
+    });
   };
 
   const getPrimaryProjectIdForCycle = (cycleId: string) => {
