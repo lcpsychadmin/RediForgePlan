@@ -640,10 +640,13 @@ export class ProgramService {
 
         // Delete only THIS cycle's execution data (scope by mock_cycle_id so
         // sibling cycles that still share the project are not affected).
-        await client.query(`DELETE FROM tasks           WHERE mock_cycle_id = $1`, [targetMockCycleId]);
-        await client.query(`DELETE FROM task_groups     WHERE mock_cycle_id = $1`, [targetMockCycleId]);
-        await client.query(`DELETE FROM project_objects WHERE mock_cycle_id = $1`, [targetMockCycleId]);
-        await client.query(`DELETE FROM schedule_items  WHERE mock_cycle_id = $1`, [targetMockCycleId]);
+        // The AND mock_cycle_id IS NOT NULL guard is belt-and-suspenders:
+        // project_objects added via the Inventory tab have mock_cycle_id = NULL
+        // and must NEVER be deleted by copy operations.
+        await client.query(`DELETE FROM tasks           WHERE mock_cycle_id = $1 AND mock_cycle_id IS NOT NULL`, [targetMockCycleId]);
+        await client.query(`DELETE FROM task_groups     WHERE mock_cycle_id = $1 AND mock_cycle_id IS NOT NULL`, [targetMockCycleId]);
+        await client.query(`DELETE FROM project_objects WHERE mock_cycle_id = $1 AND mock_cycle_id IS NOT NULL`, [targetMockCycleId]);
+        await client.query(`DELETE FROM schedule_items  WHERE mock_cycle_id = $1 AND mock_cycle_id IS NOT NULL`, [targetMockCycleId]);
       }
 
       // ── Copy execution data from source cycle to the effective target project ──
