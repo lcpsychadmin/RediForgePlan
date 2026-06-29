@@ -3055,6 +3055,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
       queryClient.invalidateQueries({ queryKey: ['mockCycles'] });
       queryClient.invalidateQueries({ queryKey: ['projectsByMockCycle'] });
       queryClient.invalidateQueries({ queryKey: ['projectsByProgram'] });
+      queryClient.invalidateQueries({ queryKey: ['allMockCyclesForMaintain'] });
 
       setExpandedPrograms(prev => new Set(prev).add(selectedTargetCycle.programId));
       if (copiedToCycle?.id) {
@@ -3070,10 +3071,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
             },
           };
         });
-        // Copy all local hierarchy state from source cycle to target cycle so
-        // process areas, plan groups, ordering, and hidden-area settings transfer.
-        const targetProjId = (copiedToCycle as any).projectId as string | undefined;
-        const sourceProjId = (selectedSourceCycle as any).projectId as string | undefined;
+        // Copy ALL local hierarchy state from source to target cycle.
         const sourceKey = cloneCycleSourceId as string;
         const targetKey = copiedToCycle.id as string;
 
@@ -3095,6 +3093,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         setHiddenProcessAreas(prev => ({
           ...prev,
           [targetKey]: [...(prev[sourceKey] || [])],
+        }));
+        // Copy accent colours so the visual style matches the source.
+        setProcessAreaAccentOverrides(prev => ({
+          ...prev,
+          [targetKey]: { ...(prev[sourceKey] || {}) },
         }));
         setExpandedCycles(prev => new Set(prev).add(copiedToCycle.id));
         setSelectedItem({ type: 'cycle', id: copiedToCycle.id, programId: selectedTargetCycle.programId, projectId: copiedToCycle.projectId });
