@@ -2015,8 +2015,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
           // Execution planning context: load objects already in this cycle's plan
           // (cycle-scoped, mock_cycle_id set) PLUS the project's master inventory
           // (project-scoped, mock_cycle_id = NULL) so both show in the picker.
-          const cycleProject = (projectsByMockCycle[activeCycleId] || [])[0];
-          const projectId = cycleProject?.id || activeProjectId;
+          // Use activeProjectId directly (it equals the cycle's project) to avoid
+          // depending on projectsByMockCycle for a simple ID lookup.
+          const projectId = activeProjectId;
           const [cycleObjRes, projObjRes, taskRes] = await Promise.all([
             apiClient.get(`/api/project-objects/cycle/${activeCycleId}`),
             projectId ? apiClient.get(`/api/project-objects/project/${projectId}`) : Promise.resolve({ data: { data: [] } }),
@@ -2103,7 +2104,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     };
 
     loadProjectInventory();
-  }, [activeProjectId, activeCycleId, projectsByMockCycle, projectsByProgram]);
+  // Only re-run when the cycle or project changes — NOT on background refetches
+  // of projectsByMockCycle/projectsByProgram (which would cause a stale-data flash).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeCycleId, activeProjectId]);
 
   useEffect(() => {
     if (selectedItem?.type === 'processArea') {
