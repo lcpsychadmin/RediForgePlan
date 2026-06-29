@@ -322,7 +322,12 @@ export class ProgramService {
                   factor_type, load_method, start_date, end_date, status, dra_user_id,
                   developer_user_id, notes
            FROM project_objects
-           WHERE mock_cycle_id = $1`,
+           WHERE mock_cycle_id = $1
+              OR (mock_cycle_id IS NULL
+                  AND id IN (
+                    SELECT project_object_id FROM tasks
+                    WHERE mock_cycle_id = $1 AND project_object_id IS NOT NULL
+                  ))`,
           [sourceMockCycleId]
         );
 
@@ -656,13 +661,20 @@ export class ProgramService {
       const taskIdMap = new Map<string, string>();
 
       // Data Objects (project_objects)
+      // Include BOTH cycle-scoped objects AND any project-inventory objects (mock_cycle_id IS NULL)
+      // that are referenced by this cycle's tasks, so all task→object mappings survive the copy.
       const projectObjectsResult = await client.query(
         `SELECT id, global_object_id, complexity, deployment_disposition, build_type,
                 object_type, cutover_phase, ddm_approach, risk_security_type, migration_type,
                 factor_type, load_method, start_date, end_date, status, dra_user_id,
                 developer_user_id, notes
          FROM project_objects
-         WHERE mock_cycle_id = $1`,
+         WHERE mock_cycle_id = $1
+            OR (mock_cycle_id IS NULL
+                AND id IN (
+                  SELECT project_object_id FROM tasks
+                  WHERE mock_cycle_id = $1 AND project_object_id IS NOT NULL
+                ))`,
         [sourceMockCycleId]
       );
 
