@@ -1432,7 +1432,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     setProjectTaskGroups(groupsRes.data.data || []);
   };
 
-  const handleCreatePlanGroup = () => {
+  const handleCreatePlanGroup = async () => {
     const projectId = planGroupTargetProjectId;
     const name = newPlanGroupName.trim();
     if (!projectId) {
@@ -1443,6 +1443,28 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
       alert('Plan Group name is required.');
       return;
     }
+
+    // Persist the plan group as a real task_group DB record so it is
+    // included in cycle copies and server-side queries.
+    if (activeCycleId) {
+      try {
+        // Infer the process area context from the current selection if available.
+        const processAreaHint = (selectedItem?.type === 'processArea' ? selectedItem.area : '').trim() || null;
+        const response = await apiClient.post(`/api/tasks/groups/cycle/${activeCycleId}`, {
+          name,
+          processArea: processAreaHint,
+        });
+        const newGroup = response.data?.data;
+        if (newGroup) {
+          setProjectTaskGroups(prev => [...prev, newGroup]);
+        }
+      } catch (error) {
+        console.error('Failed to persist plan group:', error);
+        // Proceed to add local label even if API fails so the UI is not blocked.
+      }
+    }
+
+    // Also keep the local label for display ordering in the hierarchy.
     setPlanningAdditionalGroups(prev => {
       const existing = prev[projectId] || [];
       if (existing.some(g => g.toLowerCase() === name.toLowerCase())) return prev;
