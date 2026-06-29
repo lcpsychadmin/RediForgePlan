@@ -195,7 +195,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   const [editingProcessAreaAccent, setEditingProcessAreaAccent] = useState('#64B5F6');
   const [editingProcessAreaDescription, setEditingProcessAreaDescription] = useState('');
   const [editingProcessAreaIconLevel, setEditingProcessAreaIconLevel] = useState<'processArea' | 'planGroup'>('processArea');
+  const [editingProcessAreaIcon, setEditingProcessAreaIcon] = useState<HierarchyIconChoice>('corporateFare');
   const [processAreaAccentOverrides, setProcessAreaAccentOverrides] = useState<Record<string, Record<string, string>>>({});
+  const [processAreaIconOverrides, setProcessAreaIconOverrides] = useState<Record<string, Record<string, HierarchyIconChoice>>>({});
   const [processAreaDescriptions, setProcessAreaDescriptions] = useState<Record<string, Record<string, string>>>({});
   const [settingsProcessAreaDescriptions, setSettingsProcessAreaDescriptions] = useState<Record<string, string>>({});
   const [hierarchyLevelIcons, setHierarchyLevelIcons] = useState<HierarchyLevelIcons>(DEFAULT_HIERARCHY_LEVEL_ICONS);
@@ -1318,8 +1320,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     return description || area;
   };
 
-  const renderHierarchyIcon = (level: HierarchyLevel, color: string, size: string) => {
-    const iconChoice = hierarchyLevelIcons[level];
+  const renderHierarchyIcon = (level: HierarchyLevel, color: string, size: string, overrideKey?: string, overrideArea?: string) => {
+    const iconChoice = (overrideKey && overrideArea && processAreaIconOverrides[overrideKey]?.[overrideArea])
+      || hierarchyLevelIcons[level];
     const sx = { fontSize: size, color, flexShrink: 0 };
     switch (iconChoice) {
       case 'sync':
@@ -1361,16 +1364,16 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     }
   };
 
-  const renderIconPicker = (level: HierarchyLevel, accent: string) => (
+  const renderIconPicker = (level: HierarchyLevel, accent: string, selectedValue?: HierarchyIconChoice, onSelect?: (v: HierarchyIconChoice) => void) => (
     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 0.75 }}>
       {HIERARCHY_ICON_OPTIONS.map((option) => {
-        const selected = hierarchyLevelIcons[level] === option.value;
+        const selected = (selectedValue !== undefined ? selectedValue : hierarchyLevelIcons[level]) === option.value;
         return (
           <IconButton
             key={`${level}-${option.value}`}
             size="small"
             title={option.label}
-            onClick={() => setHierarchyLevelIcons((prev) => ({ ...prev, [level]: option.value }))}
+            onClick={() => onSelect ? onSelect(option.value) : setHierarchyLevelIcons((prev) => ({ ...prev, [level]: option.value }))}
             sx={{
               width: 30,
               height: 30,
@@ -1848,6 +1851,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
           if (parsed?.planningAdditionalProcessAreas && typeof parsed.planningAdditionalProcessAreas === 'object') setPlanningAdditionalProcessAreas(parsed.planningAdditionalProcessAreas);
           if (parsed?.hiddenProcessAreas && typeof parsed.hiddenProcessAreas === 'object') setHiddenProcessAreas(parsed.hiddenProcessAreas);
           if (parsed?.processAreaAccentOverrides && typeof parsed.processAreaAccentOverrides === 'object') setProcessAreaAccentOverrides(parsed.processAreaAccentOverrides);
+          if (parsed?.processAreaIconOverrides && typeof parsed.processAreaIconOverrides === 'object') setProcessAreaIconOverrides(parsed.processAreaIconOverrides);
           if (parsed?.processAreaDescriptions && typeof parsed.processAreaDescriptions === 'object') setProcessAreaDescriptions(parsed.processAreaDescriptions);
           if (parsed?.hierarchyLevelIcons && typeof parsed.hierarchyLevelIcons === 'object') {
             setHierarchyLevelIcons({
@@ -1962,6 +1966,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         planningAdditionalProcessAreas,
         hiddenProcessAreas,
         processAreaAccentOverrides,
+        processAreaIconOverrides,
         processAreaDescriptions,
         hierarchyLevelIcons,
       }).catch(() => {
@@ -1980,6 +1985,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     planningAdditionalProcessAreas,
     hiddenProcessAreas,
     processAreaAccentOverrides,
+    processAreaIconOverrides,
     processAreaDescriptions,
     hierarchyLevelIcons,
     hierarchyStateHydrated,
@@ -2157,7 +2163,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         // Cascade dates for tasks with dependencies+duration
         await cascadeAllDates(tasks, allDeps);
 
-        // Load task groups\n        const groupUrl = activeCycleId\n          ? `/api/tasks/groups/cycle/${activeCycleId}`\n          : `/api/tasks/groups/project/${activeProjectId}`;\n        const groupsResponse = await apiClient.get(groupUrl);
+        // Load task groups
+        const groupUrl = activeCycleId
+          ? `/api/tasks/groups/cycle/${activeCycleId}`
+          : `/api/tasks/groups/project/${activeProjectId}`;
+        const groupsResponse = await apiClient.get(groupUrl);
         const groups = groupsResponse.data.data || [];
         setProjectTaskGroups(groups);
 
@@ -3104,6 +3114,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         }));
         // Copy accent colours so the visual style matches the source.
         setProcessAreaAccentOverrides(prev => ({
+          ...prev,
+          [targetKey]: { ...(prev[sourceKey] || {}) },
+        }));
+        setProcessAreaIconOverrides(prev => ({
           ...prev,
           [targetKey]: { ...(prev[sourceKey] || {}) },
         }));
@@ -4300,11 +4314,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                                   <DragIndicatorIcon sx={{ fontSize: '0.78rem', opacity: 0.45, mr: 0.35, flexShrink: 0 }} />
                                                   {isAdditionalGroup ? (
                                                     <Box sx={{ mr: 0.5, display: 'inline-flex', alignItems: 'center' }}>
-                                                      {renderHierarchyIcon('planGroup', processAreaAccent, '0.82rem')}
+                                                      {renderHierarchyIcon('planGroup', processAreaAccent, '0.82rem', cycle.id, area)}
                                                     </Box>
                                                   ) : (
                                                     <Box sx={{ mr: 0.5, display: 'inline-flex', alignItems: 'center' }}>
-                                                      {renderHierarchyIcon('processArea', processAreaAccent, '0.82rem')}
+                                                      {renderHierarchyIcon('processArea', processAreaAccent, '0.82rem', cycle.id, area)}
                                                     </Box>
                                                   )}
                                                   <Typography variant="caption" sx={{ fontWeight: isProcessAreaSelected ? 700 : 500, color: isProcessAreaSelected ? processAreaAccent : 'inherit', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -4896,7 +4910,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                   {showAreaHeader && selectedItem?.type !== 'processArea' && (
                                     <Box sx={{ px: 0.5, pt: objectIndex === 0 ? 0 : 1.25, pb: 0.25 }}>
                                       <Typography variant="caption" sx={{ color: planAccentColor, letterSpacing: '0.08em', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
-                                        {renderHierarchyIcon('processArea', planAccentColor, '0.8rem')}
+                                        {renderHierarchyIcon('processArea', planAccentColor, '0.8rem', activeCycleId || undefined, currentArea)}
                                         {getProcessAreaDisplayName(project.id, currentArea)}
                                       </Typography>
                                     </Box>
@@ -5595,7 +5609,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                   {showGroupAreaHeader && selectedItem?.type !== 'processArea' && (
                                     <Box sx={{ px: 0.5, pt: groupIndex === 0 ? 1.25 : 1.25, pb: 0.25 }}>
                                       <Typography variant="caption" sx={{ color: planAccentColor, letterSpacing: '0.08em', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
-                                        {renderHierarchyIcon('planGroup', planAccentColor, '0.8rem')}
+                                        {renderHierarchyIcon('planGroup', planAccentColor, '0.8rem', activeCycleId || undefined, groupArea || undefined)}
                                         {groupAreaHeader}
                                       </Typography>
                                     </Box>
@@ -5645,7 +5659,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                     sx={{ pl: 2.5, pr: 1, py: 1.25, display: 'flex', alignItems: 'center', gap: 1.5, cursor: 'pointer', '&:hover': { backgroundColor: 'rgba(255,255,255,0.03)' } }}>
                                     <DragIndicatorIcon sx={{ fontSize: 14, color: 'text.disabled', flexShrink: 0, cursor: canReorderPlan ? 'grab' : 'not-allowed', opacity: canReorderPlan ? 1 : 0.45 }} />
                                     <ChevronRightIcon sx={{ fontSize: 16, color: 'text.secondary', transition: 'transform 0.2s', transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)', flexShrink: 0 }} />
-                                    {renderHierarchyIcon('planGroup', planAccentColor, '0.9rem')}
+                                    {renderHierarchyIcon('planGroup', planAccentColor, '0.9rem', activeCycleId || undefined, group.name)}
                                     <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', flex: 1, color: planAccentColor }}>{group.name}</Typography>
                                     <Box sx={{ display: 'flex', gap: 0.4, alignItems: 'center', flexShrink: 0 }}>
                                       {groupTasks.slice(0, 10).map((task, i) => (<Box key={i} sx={{ width: 16, height: 4, borderRadius: 2, backgroundColor: getTaskStatusColor(task.status) }} />))}
@@ -7442,6 +7456,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
             setEditingProcessAreaAccent(currentAccent);
             setEditingProcessAreaDescription(currentDescription);
             setEditingProcessAreaIconLevel(processAreaMenuContext.nodeType);
+            const settingsKey2 = processAreaMenuContext.cycleId || processAreaMenuContext.projectId;
+            setEditingProcessAreaIcon(
+              processAreaIconOverrides[settingsKey2]?.[processAreaMenuContext.area]
+              || hierarchyLevelIcons[processAreaMenuContext.nodeType as HierarchyLevel]
+            );
             setProcessAreaSettingsDialogOpen(true);
             setMenuAnchorEl(null);
             setProcessAreaMenuContext(null);
@@ -8691,7 +8710,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
             <Typography variant="body2" sx={{ fontWeight: 600 }}>
               {editingProcessAreaIconLevel === 'planGroup' ? 'Plan Group Icon' : 'Process Area Icon'}
             </Typography>
-            {renderIconPicker(editingProcessAreaIconLevel, editingProcessAreaAccent || '#64B5F6')}
+            {renderIconPicker(editingProcessAreaIconLevel, editingProcessAreaAccent || '#64B5F6', editingProcessAreaIcon, setEditingProcessAreaIcon)}
           </Box>
         </DialogContent>
         <DialogActions sx={{ gap: 1, p: 2, borderTop: '1px solid', borderColor: 'divider' }}>
@@ -8731,6 +8750,13 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                   [settingsKey]: currentProject,
                 };
               });
+              setProcessAreaIconOverrides((prev) => ({
+                ...prev,
+                [settingsKey]: {
+                  ...(prev[settingsKey] || {}),
+                  [area]: editingProcessAreaIcon,
+                },
+              }));
               setProcessAreaSettingsDialogOpen(false);
               setEditingProcessAreaContext(null);
               setEditingProcessAreaDescription('');
