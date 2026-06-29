@@ -1191,15 +1191,20 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   const getOrderedCycles = (programId: string) => {
     const source = mockCycles[programId] || [];
     const existing = treeOrder.cycles[programId] || [];
-    // Use treeOrder only for ordering — always show ALL in_hierarchy cycles
-    // so none can be accidentally hidden by a stale treeOrder entry.
-    const ids = mergeOrder(existing, source.map((c: MockCycle) => c.id));
-    return ids.map(id => source.find((c: MockCycle) => c.id === id)).filter(Boolean) as MockCycle[];
+    // Use treeOrder for ordering; also include any cycle that has local plan groups
+    // so a cycle is never accidentally hidden by a stale treeOrder.
+    const cyclesWithLocalData = source
+      .filter((c: MockCycle) => (planningAdditionalGroups[(projectsByMockCycle[c.id]?.[0] as any)?.id || ''] || []).length > 0)
+      .map((c: MockCycle) => c.id);
+    const ids = mergeOrder(existing, source.map((c: MockCycle) => c.id)).filter(
+      (id: string) => existing.includes(id) || cyclesWithLocalData.includes(id)
+    );
+    return ids.map((id: string) => source.find((c: MockCycle) => c.id === id)).filter(Boolean) as MockCycle[];
   };
 
-  const getAttachableCyclesForProgram = (_programId: string) => {
-    // All cycles are always shown now; none need explicit attachment.
-    return [];
+  const getAttachableCyclesForProgram = (programId: string) => {
+    const visibleIds = new Set(getOrderedCycles(programId).map((c: MockCycle) => c.id));
+    return (mockCycles[programId] || []).filter((cycle: MockCycle) => !visibleIds.has(cycle.id));
   };
 
   const getOrderedProjects = (cycleId: string) => {
@@ -2142,6 +2147,22 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
               if (synced) setProjectTaskGroups(prev => prev.some((g: any) => g.id === synced.id) ? prev : [...prev, synced]);
             } catch (e) { console.error('[sync] plan group:', name, e); }
           }
+
+          // Also populate planningAdditionalGroups from DB task_groups that have no
+          // process_area — these are top-level plan group nodes in the hierarchy.
+          // This ensures cycles that received data via copy show correctly.
+          const topLevelGroupNames = groups
+            .filter((g: any) => !g.processArea)
+            .map((g: any) => (g.name || '').trim())
+            .filter(Boolean);
+          if (topLevelGroupNames.length > 0) {
+            setPlanningAdditionalGroups(prev => {
+              const existing = new Set((prev[activeProjectId] || []).map((n: string) => n.toLowerCase()));
+              const toAdd = topLevelGroupNames.filter((n: string) => !existing.has(n.toLowerCase()));
+              if (toAdd.length === 0) return prev;
+              return { ...prev, [activeProjectId]: [...(prev[activeProjectId] || []), ...toAdd] };
+            });
+          }
         }
       } catch (error) {
         console.error('Failed to load tasks:', error);
@@ -3005,6 +3026,28 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
 
       setExpandedPrograms(prev => new Set(prev).add(selectedTargetCycle.programId));
       if (copiedToCycle?.id) {
+        // Add target cycle to treeOrder so it appears in the hierarchy.
+        setTreeOrder(prev => {
+          const existing = prev.cycles[selectedTargetCycle.programId] || [];
+          if (existing.includes(copiedToCycle.id)) return prev;
+          return {
+            ...prev,
+            cycles: {
+              ...prev.cycles,
+              [selectedTargetCycle.programId]: [...existing, copiedToCycle.id],
+            },
+          };
+        });
+        // Copy source plan group labels to the target project's local state
+        // so the copied cycle's plan groups render correctly immediately.
+        const targetProjId = (copiedToCycle as any).projectId as string | undefined;
+        const sourceProjId = selectedSourceCycle.projectId as string | undefined;
+        if (targetProjId && sourceProjId && targetProjId !== sourceProjId) {
+          setPlanningAdditionalGroups(prev => ({
+            ...prev,
+            [targetProjId]: [...(prev[sourceProjId] || [])],
+          }));
+        }
         setExpandedCycles(prev => new Set(prev).add(copiedToCycle.id));
         setSelectedItem({ type: 'cycle', id: copiedToCycle.id, programId: selectedTargetCycle.programId, projectId: copiedToCycle.projectId });
       }
