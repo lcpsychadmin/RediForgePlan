@@ -1277,25 +1277,28 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     return Array.from(labels).sort((a, b) => a.localeCompare(b));
   };
 
-  const getProcessAreasForProjectCycle = (projectId: string) => {
+  // planningAdditionalGroups is now keyed by cycleId (not projectId) so that
+  // cycles sharing the same project have independent plan-group label sets.
+  const getProcessAreasForProjectCycle = (projectId: string, cycleId?: string) => {
+    const key = cycleId || projectId;
     const areas = new Set<string>();
-    const attached = treeOrder.processAreas[projectId] || [];
+    const attached = treeOrder.processAreas[key] || [];
     attached.forEach((area) => {
       const label = (area || '').trim();
       if (label) areas.add(label);
     });
-    const additional = planningAdditionalGroups[projectId] || [];
+    const additional = planningAdditionalGroups[key] || [];
     additional.forEach((groupName) => {
       const label = (groupName || '').trim();
       if (label) areas.add(label);
     });
-    const additionalProcessAreaNodes = planningAdditionalProcessAreas[projectId] || [];
+    const additionalProcessAreaNodes = planningAdditionalProcessAreas[key] || [];
     additionalProcessAreaNodes.forEach((areaName) => {
       const label = (areaName || '').trim();
       if (label) areas.add(label);
     });
 
-    const hiddenAreaSet = new Set((hiddenProcessAreas[projectId] || []).map((area) => (area || '').trim().toLowerCase()));
+    const hiddenAreaSet = new Set((hiddenProcessAreas[key] || []).map((area) => (area || '').trim().toLowerCase()));
     const allAreas = Array.from(areas).filter((area) => !hiddenAreaSet.has((area || '').trim().toLowerCase()));
     const ordered = mergeOrder(attached, allAreas);
     return ordered;
@@ -1412,8 +1415,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     return getProgressAverage(areaTasks.map((task: any) => Number(task.progressPercentage ?? 0)));
   };
 
-  const handleAddAdditionalGroup = (projectId: string) => {
-    setPlanGroupTargetProjectId(projectId);
+  const handleAddAdditionalGroup = (cycleId: string) => {
+    setPlanGroupTargetProjectId(cycleId); // store cycleId in this slot (renamed semantics)
     setNewPlanGroupName('');
     setPlanGroupDialogOpen(true);
   };
@@ -1471,12 +1474,14 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     }
 
     // Also keep the local label for display ordering in the hierarchy.
+    // Key by cycleId so cycles that share a project don't interfere.
+    const cycleKey = activeCycleId || projectId;
     setPlanningAdditionalGroups(prev => {
-      const existing = prev[projectId] || [];
+      const existing = prev[cycleKey] || [];
       if (existing.some(g => g.toLowerCase() === name.toLowerCase())) return prev;
       return {
         ...prev,
-        [projectId]: [...existing, name],
+        [cycleKey]: [...existing, name],
       };
     });
     setPlanGroupDialogOpen(false);
@@ -1484,16 +1489,17 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     setNewPlanGroupName('');
   };
 
-  const handleRemovePlanGroup = (projectId: string, areaName: string) => {
+  // cycleKey: accepts a cycleId (preferred) or projectId as fallback
+  const handleRemovePlanGroup = (cycleKey: string, areaName: string) => {
     const normalizedTarget = (areaName || '').trim().toLowerCase();
     if (!normalizedTarget) return;
 
     setPlanningAdditionalGroups((prev) => {
-      const existing = prev[projectId] || [];
+      const existing = prev[cycleKey] || [];
       const next = existing.filter((group) => (group || '').trim().toLowerCase() !== normalizedTarget);
       return {
         ...prev,
-        [projectId]: next,
+        [cycleKey]: next,
       };
     });
   };
@@ -1908,7 +1914,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
               const label = (item.processArea || '').trim();
               if (label) areaLabels.add(label);
             });
-          (planningAdditionalGroups[project.id] || []).forEach((groupName) => {
+          (planningAdditionalGroups[cycleId || project.id] || []).forEach((groupName) => {
             const label = (groupName || '').trim();
             if (label) areaLabels.add(label);
           });
@@ -2137,7 +2143,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         // Sync any localStorage-only plan groups to the DB so they are
         // included in future cycle copies.
         if (activeCycleId && activeProjectId) {
-          const localGroupNames: string[] = planningAdditionalGroups[activeProjectId] || [];
+          const localGroupNames: string[] = planningAdditionalGroups[activeCycleId || activeProjectId] || [];
           const dbGroupNames = new Set(groups.map((g: any) => (g.name || '').trim().toLowerCase()));
           const missingNames = localGroupNames.filter(n => n.trim() && !dbGroupNames.has(n.trim().toLowerCase()));
           for (const name of missingNames) {
@@ -2157,10 +2163,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
             .filter(Boolean);
           if (topLevelGroupNames.length > 0) {
             setPlanningAdditionalGroups(prev => {
-              const existing = new Set((prev[activeProjectId] || []).map((n: string) => n.toLowerCase()));
+              const existing = new Set((prev[activeCycleId || activeProjectId] || []).map((n: string) => n.toLowerCase()));
               const toAdd = topLevelGroupNames.filter((n: string) => !existing.has(n.toLowerCase()));
               if (toAdd.length === 0) return prev;
-              return { ...prev, [activeProjectId]: [...(prev[activeProjectId] || []), ...toAdd] };
+              return { ...prev, [activeCycleId || activeProjectId]: [...(prev[activeCycleId || activeProjectId] || []), ...toAdd] };
             });
           }
         }
@@ -3038,14 +3044,13 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
             },
           };
         });
-        // Copy source plan group labels to the target project's local state
-        // so the copied cycle's plan groups render correctly immediately.
-        const targetProjId = (copiedToCycle as any).projectId as string | undefined;
-        const sourceProjId = selectedSourceCycle.projectId as string | undefined;
+        // Key by cycleId so cycles sharing a project don't interfere.
         if (targetProjId && sourceProjId && targetProjId !== sourceProjId) {
+          const sourceKey = cloneCycleSourceId || sourceProjId;
+          const targetKey = copiedToCycle.id;
           setPlanningAdditionalGroups(prev => ({
             ...prev,
-            [targetProjId]: [...(prev[sourceProjId] || [])],
+            [targetKey]: [...(prev[sourceKey] || [])],
           }));
         }
         setExpandedCycles(prev => new Set(prev).add(copiedToCycle.id));
@@ -4045,7 +4050,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                     const isCycleSelected = selectedItem?.type === 'cycle' && selectedItem?.id === cycle.id && selectedItem?.projectId === realProject.id;
                                     const isCycleExpanded = expandedCycles.has(cycle.id);
                                     const cycleColor = cycle.accentColor || '#64B5F6';
-                                    const processAreas = getProcessAreasForProjectCycle(realProject.id);
+                                    const processAreas = getProcessAreasForProjectCycle(realProject.id, cycle.id);
                                     const cycleProgressPct = Number(realProject.progressPercentage || 0);
                                     return (
                                       <Box key={`pc-${project.name}-${cycle.id}`}>
@@ -4171,7 +4176,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                               selectedItem?.projectId === realProject.id &&
                                               selectedItem?.area === area;
                                             const normalizedExistingArea = normalizedArea;
-                                            const isAdditionalGroup = (planningAdditionalGroups[realProject.id] || []).some(
+                                            const isAdditionalGroup = (planningAdditionalGroups[cycle.id] || []).some(
                                               (groupName: string) => (groupName || '').trim().toLowerCase() === normalizedExistingArea
                                             );
                                             return (
@@ -4199,7 +4204,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                                         ? treeDragItem.area
                                                         : null;
                                                     if (!dragArea) return;
-                                                    const orderedAreas = mergeOrder(treeOrder.processAreas[realProject.id] || [], getProcessAreasForProjectCycle(realProject.id));
+                                                    const orderedAreas = mergeOrder(treeOrder.processAreas[cycle.id] || [], getProcessAreasForProjectCycle(realProject.id, cycle.id));
                                                     setTreeOrder(prev => ({
                                                       ...prev,
                                                       processAreas: {
@@ -4276,7 +4281,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                               size="small"
                                               variant="text"
                                               startIcon={<AddIcon sx={{ fontSize: '0.8rem !important' }} />}
-                                              onClick={() => handleAddAdditionalGroup(realProject.id)}
+                                              onClick={() => handleAddAdditionalGroup(cycle.id)}
                                               sx={{ fontSize: '0.7rem', height: 24, color: '#7C83D0', textTransform: 'none', pl: 0.5 }}
                                             >
                                               Add Additional Group
@@ -5912,7 +5917,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                   alert('No project found for this mock cycle.');
                                   return;
                                 }
-                                handleAddAdditionalGroup(targetProjectId);
+                                handleAddAdditionalGroup(selectedItem.id);
                               }}
                               sx={{ textTransform: 'none' }}
                             >
@@ -7312,7 +7317,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
               alert('No project found for this mock cycle.');
               return;
             }
-            handleAddAdditionalGroup(targetProjectId);
+            handleAddAdditionalGroup(cycle.id);
             setMenuAnchorEl(null);
           }}
           sx={{ display: menuType === 'cycle' ? 'flex' : 'none' }}
@@ -7348,7 +7353,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
           onClick={() => {
             if (menuType !== 'processArea' || !processAreaMenuContext) return;
             setMenuAnchorEl(null);
-            handleAddAdditionalGroup(processAreaMenuContext.projectId);
+            handleAddAdditionalGroup(processAreaMenuContext.cycleId);
           }}
           sx={{ display: menuType === 'processArea' ? 'flex' : 'none' }}
         >
@@ -7386,7 +7391,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
             if (menuType !== 'processArea' || !processAreaMenuContext) return;
             const isPlanGroup = processAreaMenuContext.nodeType === 'planGroup';
             if (isPlanGroup) {
-              handleRemovePlanGroup(processAreaMenuContext.projectId, processAreaMenuContext.area);
+              handleRemovePlanGroup(processAreaMenuContext.cycleId, processAreaMenuContext.area);
             } else {
               handleHideProcessAreaFromTree(processAreaMenuContext.projectId, processAreaMenuContext.area);
             }
