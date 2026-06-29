@@ -1231,15 +1231,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
       .filter(Boolean) as Project[];
   };
 
-  const getCyclesForProjectInProgram = (programId: string, projectName: string) => {
-    const cycleList = getOrderedCycles(programId);
-    return cycleList.filter((cycle: MockCycle) => {
-      const cycleProjects = projectsByMockCycle[cycle.id];
-      // If project data hasn't loaded yet, include the cycle so it's never
-      // accidentally hidden while data is still fetching.
-      if (!cycleProjects || cycleProjects.length === 0) return true;
-      return cycleProjects.some((p: Project) => (p.name || '').trim().toLowerCase() === projectName.trim().toLowerCase());
-    });
+  const getCyclesForProjectInProgram = (programId: string, _projectName: string) => {
+    // Return all ordered cycles for the program regardless of project name —
+    // all cycles share the same project name so the name filter is redundant
+    // and was causing cycles to be hidden when projectsByMockCycle wasn't cached.
+    return getOrderedCycles(programId);
   };
 
   const getPrimaryProjectIdForCycle = (cycleId: string) => {
