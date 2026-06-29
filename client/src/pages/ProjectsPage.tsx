@@ -2003,9 +2003,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
       }
 
       projectInventoryLoadedRef.current = false;
-      // Clear stale inventory immediately so no mismatched process-area lookups
-      // occur while the new cycle's data is fetching.
-      setProjectInventoryItems([]);
 
       try {
         let objects: any[] = [];
@@ -2124,10 +2121,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
       }
 
       projectTasksLoadedRef.current = false;
-      // Clear stale tasks immediately to avoid interim mismatches when
-      // getRootInventoryObjectId can't find the new cycle's object IDs.
-      setProjectTasks([]);
-      setProjectTaskGroups([]);
 
       try {
         // Load tasks — prefer cycle-scoped endpoint; fall back to project-scoped
