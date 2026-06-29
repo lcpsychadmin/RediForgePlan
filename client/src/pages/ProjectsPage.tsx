@@ -3004,6 +3004,18 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
 
       setExpandedPrograms(prev => new Set(prev).add(selectedTargetCycle.programId));
       if (copiedToCycle?.id) {
+        // Add the target cycle to treeOrder so it appears in the execution hierarchy.
+        setTreeOrder(prev => ({
+          ...prev,
+          cycles: {
+            ...prev.cycles,
+            [selectedTargetCycle.programId]: mergeOrder(
+              prev.cycles[selectedTargetCycle.programId] || [],
+              [copiedToCycle.id]
+            ),
+          },
+        }));
+        setExpandedCycles(prev => new Set(prev).add(copiedToCycle.id));
         setSelectedItem({ type: 'cycle', id: copiedToCycle.id, programId: selectedTargetCycle.programId, projectId: copiedToCycle.projectId });
       }
       setTabValue(0);
