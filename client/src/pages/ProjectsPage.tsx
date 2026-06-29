@@ -4537,10 +4537,13 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                       .filter(Boolean) as Project[];
                     const allPlanTasks = projectTasks.filter(t => t.projectObjectId || t.taskGroupId);
                     const progressPct = allPlanTasks.length > 0 ? Math.round(allPlanTasks.reduce((s, t) => s + (t.progressPercentage ?? 0), 0) / allPlanTasks.length) : 0;
-                    // Use effectiveProcessArea (already includes selectedAreaLabel fallback) so the
-                    // plan items render immediately on the first frame after a process area is clicked,
-                    // even before the selectedExecutionProcessArea state update lands.
-                    const normalizedProcessAreaFilter = effectiveProcessArea.trim().toLowerCase();
+                    // Filter by the raw area code, not the display label, so it correctly
+                    // matches global_objects.process_area values on first click (before the
+                    // selectedExecutionProcessArea state has been set by the useEffect).
+                    const rawProcessAreaFilter = selectedItem.type === 'processArea'
+                      ? (selectedItem.area || '')
+                      : (selectedExecutionProcessArea || '');
+                    const normalizedProcessAreaFilter = rawProcessAreaFilter.trim().toLowerCase();
                     const showProjectSummaryOnly = !normalizedProcessAreaFilter;
                     const getObjectProcessArea = (objectId: string) => {
                       const inventoryObject = projectInventoryItems.find(obj => obj.id === objectId);
