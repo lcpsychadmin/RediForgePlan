@@ -1765,7 +1765,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     } catch {
       setPlanRowOrder([]);
     }
-  }, [activeProjectId]);
+  }, [activeProjectId, activeCycleId]);
 
   // Keep ordering synced with available ids.
   useEffect(() => {
@@ -1944,7 +1944,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   // Fetch project inventory items when a project is selected
   useEffect(() => {
     const loadProjectInventory = async () => {
-      if (!activeProjectId) {
+      if (!activeCycleId && !activeProjectId) {
         setProjectInventoryItems([]);
         setSelectedExecutionProcessArea('');
         projectInventoryLoadedRef.current = false;
@@ -1954,37 +1954,53 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
       projectInventoryLoadedRef.current = false;
 
       try {
-        const selectedProjectRecord = Object.values(projectsByProgram).flat().find((project: any) => project.id === activeProjectId) || null;
-        const selectedProjectName = (selectedProjectRecord?.name || '').trim().toLowerCase();
-        const selectedProjectProgramId = selectedProjectRecord?.programId || '';
-        const siblingProjectIds = new Set<string>([activeProjectId]);
-        const programProjects = selectedProjectProgramId
-          ? Object.values(projectsByProgram).flat().filter((project: any) => project.programId === selectedProjectProgramId)
-          : [];
-        if (selectedProjectName) {
-          programProjects.forEach((project: any) => {
-            if ((project.name || '').trim().toLowerCase() === selectedProjectName) {
-              siblingProjectIds.add(project.id);
-            }
-          });
+        let objects: any[] = [];
+        let taskObjectIds: string[] = [];
+
+        if (activeCycleId) {
+          // Execution planning context: load objects scoped to this cycle.
+          const [objRes, taskRes] = await Promise.all([
+            apiClient.get(`/api/project-objects/cycle/${activeCycleId}`),
+            apiClient.get(`/api/tasks/cycle/${activeCycleId}`),
+          ]);
+          objects = objRes.data.data || [];
+          taskObjectIds = (taskRes.data.data || [])
+            .map((task: any) => task.projectObjectId)
+            .filter(Boolean);
+        } else {
+          // Inventory tab context: load objects scoped to the selected project.
+          const selectedProjectRecord = Object.values(projectsByProgram).flat().find((project: any) => project.id === activeProjectId) || null;
+          const selectedProjectName = (selectedProjectRecord?.name || '').trim().toLowerCase();
+          const selectedProjectProgramId = selectedProjectRecord?.programId || '';
+          const siblingProjectIds = new Set<string>([activeProjectId as string]);
+          const programProjects = selectedProjectProgramId
+            ? Object.values(projectsByProgram).flat().filter((project: any) => project.programId === selectedProjectProgramId)
+            : [];
+          if (selectedProjectName) {
+            programProjects.forEach((project: any) => {
+              if ((project.name || '').trim().toLowerCase() === selectedProjectName) {
+                siblingProjectIds.add(project.id);
+              }
+            });
+          }
+          const responses = await Promise.all(
+            Array.from(siblingProjectIds).map(async (projectId) => {
+              const response = await apiClient.get(`/api/project-objects/project/${projectId}`);
+              return response.data.data || [];
+            })
+          );
+          const taskResponses = await Promise.all(
+            Array.from(siblingProjectIds).map(async (projectId) => {
+              const response = await apiClient.get(`/api/tasks/project/${projectId}`);
+              return response.data.data || [];
+            })
+          );
+          objects = responses.flat();
+          taskObjectIds = taskResponses.flat().map((task: any) => task.projectObjectId).filter(Boolean);
         }
 
-        const responses = await Promise.all(
-          Array.from(siblingProjectIds).map(async (projectId) => {
-            const response = await apiClient.get(`/api/project-objects/project/${projectId}`);
-            return response.data.data || [];
-          })
-        );
-
-        const taskResponses = await Promise.all(
-          Array.from(siblingProjectIds).map(async (projectId) => {
-            const response = await apiClient.get(`/api/tasks/project/${projectId}`);
-            return response.data.data || [];
-          })
-        );
-
         const itemsById = new Map<string, any>();
-        responses.flat().forEach((item: any) => {
+        objects.forEach((item: any) => {
           itemsById.set(item.id, {
             id: item.id,
             projectId: item.projectId,
@@ -2013,7 +2029,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         });
 
         setProjectInventoryItems(Array.from(itemsById.values()));
-        setProjectInventoryTaskObjectIds(Array.from(new Set(taskResponses.flat().map((task: any) => task.projectObjectId).filter(Boolean))));
+        setProjectInventoryTaskObjectIds(Array.from(new Set(taskObjectIds)));
         projectInventoryLoadedRef.current = true;
       } catch (error) {
         console.error('Failed to load project inventory:', error);
@@ -2098,13 +2114,13 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     };
 
     loadTasksAndGroups();
-  }, [activeProjectId]);
+  }, [activeProjectId, activeCycleId]);
 
   useEffect(() => {
     seededDefaultTaskObjectsRef.current = new Set();
     projectTasksLoadedRef.current = false;
     projectInventoryLoadedRef.current = false;
-  }, [activeProjectId]);
+  }, [activeProjectId, activeCycleId]);
 
   useEffect(() => {
     if (!activeProjectId) return;
