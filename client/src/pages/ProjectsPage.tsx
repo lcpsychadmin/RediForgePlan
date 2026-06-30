@@ -3664,10 +3664,12 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         return aD !== bD ? aD - bD : (a.name || '').localeCompare(b.name || '');
       });
       const chainStart = sorted[0].startDate;
+      console.log('[autoSched] group chainStart:', chainStart, 'count:', sorted.length, sorted.map((t:any)=>t.name+'='+t.duration+'->'+t.endDate));
       let cumFrac = 0;
       for (const t of sorted) {
         cumFrac += Number(t.duration) || 0;
         const expectedEnd = calcEndDate(chainStart, cumFrac, t);
+        console.log('[autoSched]', t.name, 'cumFrac:', cumFrac.toFixed(3), 'expectedEnd:', expectedEnd, 'stored:', t.endDate, 'diff:', expectedEnd !== t.endDate);
         if (expectedEnd && expectedEnd !== t.endDate) {
           correctedMap[t.id] = expectedEnd;
         }
