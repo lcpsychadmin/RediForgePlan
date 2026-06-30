@@ -5382,7 +5382,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                                                   const updates: any = { duration: dur };
                                                                   if (dur && t.startDate) {
                                                                     const newEnd = calcEndDateWithContext(t.id, t.startDate, dur, t, projectTasksRef.current);
-                                                                    console.log("[onChange] task:", t.name, "objId:", t.projectObjectId, "start:", t.startDate, "dur:", dur, "->", newEnd);
                                                                     if (newEnd) updates.endDate = newEnd;
                                                                   }
                                                                   return { ...t, ...updates };
@@ -5392,7 +5391,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                                                 const dur = parseFloat(e.target.value) || 0;
                                                                 const freshStart = projectTasksRef.current.find(t => t.id === task.id)?.startDate || task.startDate;
                                                                 const newEnd = dur && freshStart ? calcEndDateWithContext(task.id, freshStart, dur, task, projectTasksRef.current) : null;
-                                                                console.log("[onBlur]", task.name, "objId:", task.projectObjectId, "start:", freshStart, "dur:", dur, "->", newEnd);
                                                                 const patch: any = { duration: dur || null, durationUnit: 'days' };
                                                                 if (newEnd) patch.endDate = newEnd;
                                                                 setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, ...patch } : t));
@@ -5464,9 +5462,13 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                                               {!task.startDate && <Box className="date-empty" sx={{ position: 'absolute', inset: 0, pl: 1.5, display: 'flex', alignItems: 'center', pointerEvents: 'none', fontSize: '0.72rem', color: 'text.disabled' }}>—</Box>}
                                                             </Box>
                                                           )}
-                                                          {!!task.duration ? (
+                                                          {task.endDate ? (
                                                             <Box title="Calculated from start date + duration" sx={{ display: 'flex', alignItems: 'center', px: 1, height: 26, minWidth: 100, border: '1px dashed rgba(255,255,255,0.2)', borderRadius: 1, backgroundColor: 'rgba(255,255,255,0.08)', cursor: 'not-allowed', fontSize: '0.72rem', color: 'rgba(255,255,255,0.75)' }}>
-                                                              {(() => { if (!task.startDate) return '—'; const c = calcEndDate(task.startDate, Number(task.duration), task); if (!c) return '—'; const [y,m,d] = c.split('-'); return `${m}/${d}/${y}`; })()}
+                                                              {(() => { const [y,m,d] = task.endDate.split('-'); return `${m}/${d}/${y}`; })()}
+                                                            </Box>
+                                                          ) : !!task.duration ? (
+                                                            <Box title="Calculated from start date + duration" sx={{ display: 'flex', alignItems: 'center', px: 1, height: 26, minWidth: 100, border: '1px dashed rgba(255,255,255,0.2)', borderRadius: 1, backgroundColor: 'rgba(255,255,255,0.08)', cursor: 'not-allowed', fontSize: '0.72rem', color: 'rgba(255,255,255,0.75)' }}>
+                                                              {task.endDate ? (() => { const [y,m,d] = task.endDate.split('-'); return `${m}/${d}/${y}`; })() : (() => { if (!task.startDate) return '—'; const c = calcEndDate(task.startDate, Number(task.duration), task); if (!c) return '—'; const [y,m,d] = c.split('-'); return `${m}/${d}/${y}`; })()}
                                                             </Box>
                                                           ) : task.endDate ? (
                                                             <Box sx={{ display: 'flex', alignItems: 'center', px: 1, height: 26, minWidth: 100, border: '1px dashed rgba(255,255,255,0.2)', borderRadius: 1, backgroundColor: 'rgba(255,255,255,0.08)', fontSize: '0.72rem', color: 'rgba(255,255,255,0.75)' }}>
@@ -5648,7 +5650,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                                     const updates: any = { duration: dur };
                                                     if (dur && t.startDate) {
                                                       const newEnd = calcEndDateWithContext(t.id, t.startDate, dur, t, projectTasksRef.current);
-                                                                    console.log("[onChange] task:", t.name, "objId:", t.projectObjectId, "start:", t.startDate, "dur:", dur, "->", newEnd);
                                                       if (newEnd) updates.endDate = newEnd;
                                                     }
                                                     return { ...t, ...updates };
@@ -5658,7 +5659,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                                   const dur = parseFloat(e.target.value) || 0;
                                                   const freshStart = projectTasksRef.current.find(t => t.id === task.id)?.startDate || task.startDate;
                                                   const newEnd = dur && freshStart ? calcEndDateWithContext(task.id, freshStart, dur, task, projectTasksRef.current) : null;
-                                                                console.log("[onBlur]", task.name, "objId:", task.projectObjectId, "start:", freshStart, "dur:", dur, "->", newEnd);
                                                   const patch: any = { duration: dur || null, durationUnit: 'days' };
                                                   if (newEnd) patch.endDate = newEnd;
                                                   setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, ...patch } : t));
@@ -5735,7 +5735,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                             {/* End Date */}
                                             {!!task.duration ? (
                                               <Box title="Calculated from start date + duration" sx={{ display: 'flex', alignItems: 'center', px: 1, height: 26, minWidth: 100, border: '1px dashed rgba(255,255,255,0.2)', borderRadius: 1, backgroundColor: 'rgba(255,255,255,0.08)', cursor: 'not-allowed', fontSize: '0.72rem', color: 'rgba(255,255,255,0.75)' }}>
-                                                {(() => { if (!task.startDate) return '—'; const c = calcEndDate(task.startDate, Number(task.duration), task); if (!c) return '—'; const [y,m,d] = c.split('-'); return `${m}/${d}/${y}`; })()}
+                                                {task.endDate ? (() => { const [y,m,d] = task.endDate.split('-'); return `${m}/${d}/${y}`; })() : (() => { if (!task.startDate) return '—'; const c = calcEndDate(task.startDate, Number(task.duration), task); if (!c) return '—'; const [y,m,d] = c.split('-'); return `${m}/${d}/${y}`; })()}
                                               </Box>
                                             ) : task.endDate ? (
                                               <Box sx={{ display: 'flex', alignItems: 'center', px: 1, height: 26, minWidth: 100, border: '1px dashed rgba(255,255,255,0.2)', borderRadius: 1, backgroundColor: 'rgba(255,255,255,0.08)', fontSize: '0.72rem', color: 'rgba(255,255,255,0.75)' }}>
@@ -6159,7 +6159,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                                     const updates: any = { duration: dur };
                                                     if (dur && t.startDate) {
                                                       const newEnd = calcEndDateWithContext(t.id, t.startDate, dur, t, projectTasksRef.current);
-                                                                    console.log("[onChange] task:", t.name, "objId:", t.projectObjectId, "start:", t.startDate, "dur:", dur, "->", newEnd);
                                                       if (newEnd) updates.endDate = newEnd;
                                                     }
                                                     return { ...t, ...updates };
@@ -6169,7 +6168,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                                   const dur = parseFloat(e.target.value) || 0;
                                                   const freshStart = projectTasksRef.current.find(t => t.id === task.id)?.startDate || task.startDate;
                                                   const newEnd = dur && freshStart ? calcEndDateWithContext(task.id, freshStart, dur, task, projectTasksRef.current) : null;
-                                                                console.log("[onBlur]", task.name, "objId:", task.projectObjectId, "start:", freshStart, "dur:", dur, "->", newEnd);
                                                   const patch: any = { duration: dur || null, durationUnit: 'days' };
                                                   if (newEnd) patch.endDate = newEnd;
                                                   setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, ...patch } : t));
@@ -6242,7 +6240,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                             {/* End Date */}
                                             {!!task.duration ? (
                                               <Box title="Calculated from start date + duration" sx={{ display: 'flex', alignItems: 'center', px: 1, height: 26, minWidth: 100, border: '1px dashed rgba(255,255,255,0.2)', borderRadius: 1, backgroundColor: 'rgba(255,255,255,0.08)', cursor: 'not-allowed', fontSize: '0.72rem', color: 'rgba(255,255,255,0.75)' }}>
-                                                {(() => { if (!task.startDate) return '—'; const c = calcEndDate(task.startDate, Number(task.duration), task); if (!c) return '—'; const [y,m,d] = c.split('-'); return `${m}/${d}/${y}`; })()}
+                                                {task.endDate ? (() => { const [y,m,d] = task.endDate.split('-'); return `${m}/${d}/${y}`; })() : (() => { if (!task.startDate) return '—'; const c = calcEndDate(task.startDate, Number(task.duration), task); if (!c) return '—'; const [y,m,d] = c.split('-'); return `${m}/${d}/${y}`; })()}
                                               </Box>
                                             ) : task.endDate ? (
                                               <Box sx={{ display: 'flex', alignItems: 'center', px: 1, height: 26, minWidth: 100, border: '1px dashed rgba(255,255,255,0.2)', borderRadius: 1, backgroundColor: 'rgba(255,255,255,0.08)', fontSize: '0.72rem', color: 'rgba(255,255,255,0.75)' }}>
