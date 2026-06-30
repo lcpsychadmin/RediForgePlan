@@ -5382,6 +5382,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                                                   const updates: any = { duration: dur };
                                                                   if (dur && t.startDate) {
                                                                     const newEnd = calcEndDateWithContext(t.id, t.startDate, dur, t, projectTasksRef.current);
+                                                                    console.log("[onChange] task:", t.name, "objId:", t.projectObjectId, "start:", t.startDate, "dur:", dur, "->", newEnd);
                                                                     if (newEnd) updates.endDate = newEnd;
                                                                   }
                                                                   return { ...t, ...updates };
@@ -5646,6 +5647,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                                     const updates: any = { duration: dur };
                                                     if (dur && t.startDate) {
                                                       const newEnd = calcEndDateWithContext(t.id, t.startDate, dur, t, projectTasksRef.current);
+                                                                    console.log("[onChange] task:", t.name, "objId:", t.projectObjectId, "start:", t.startDate, "dur:", dur, "->", newEnd);
                                                       if (newEnd) updates.endDate = newEnd;
                                                     }
                                                     return { ...t, ...updates };
@@ -6155,6 +6157,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                                     const updates: any = { duration: dur };
                                                     if (dur && t.startDate) {
                                                       const newEnd = calcEndDateWithContext(t.id, t.startDate, dur, t, projectTasksRef.current);
+                                                                    console.log("[onChange] task:", t.name, "objId:", t.projectObjectId, "start:", t.startDate, "dur:", dur, "->", newEnd);
                                                       if (newEnd) updates.endDate = newEnd;
                                                     }
                                                     return { ...t, ...updates };
