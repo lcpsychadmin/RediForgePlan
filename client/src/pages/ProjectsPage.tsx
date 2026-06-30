@@ -3724,10 +3724,12 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
       }
     }
     if (Object.keys(patches).length === 0) return;
-    await Promise.all(Object.entries(patches).map(([id, p]) =>
+    // Update UI immediately (optimistic) — don't wait for API round-trips.
+    setProjectTasks(prev => prev.map(t => patches[t.id] ? { ...t, ...patches[t.id] } : t));
+    // Persist in background.
+    Promise.all(Object.entries(patches).map(([id, p]) =>
       apiClient.patch(`/api/tasks/${id}`, p).catch(() => {})
     ));
-    setProjectTasks(prev => prev.map(t => patches[t.id] ? { ...t, ...patches[t.id] } : t));
   };
 
   const saveObjectTasks = async (taskIds: string[]) => {
@@ -5285,14 +5287,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                                                 const patch: any = { duration: dur || null, durationUnit: 'days' };
                                                                 if (newEnd) patch.endDate = newEnd;
                                                                 setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, ...patch } : t));
-                                                                apiClient.patch(`/api/tasks/${task.id}`, patch)
-                                                                  .then(() => {
-                                                                    if (newEnd) {
-                                                                      const snap = projectTasksRef.current.map(t => t.id === task.id ? { ...t, ...patch } : t);
-                                                                      cascadeAllDates(snap, taskDepsRef.current);
-                                                                    }
-                                                                  })
-                                                                  .catch(() => {});
+                                                                // Cascade immediately (optimistic) — correct chain end dates without waiting for API.
+                                                                const snap = projectTasksRef.current.map(t => t.id === task.id ? { ...t, ...patch } : t);
+                                                                cascadeAllDates(snap, taskDepsRef.current);
+                                                                apiClient.patch(`/api/tasks/${task.id}`, patch).catch(() => {});
                                                               }}
                                                               slotProps={{ htmlInput: { min: 0, step: 1 } }}
                                                               sx={{ ...taskFieldSx, '& input': { textAlign: 'center', px: 0.25, width: 32 } }} />
@@ -5552,17 +5550,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                                   const newEnd = dur && freshStart ? calcEndDate(freshStart, dur, task) : null;
                                                   const patch: any = { duration: dur || null, durationUnit: 'days' };
                                                   if (newEnd) patch.endDate = newEnd;
-                                                  // Immediate state update
                                                   setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, ...patch } : t));
-                                                  // Single PATCH, then cascade
-                                                  apiClient.patch(`/api/tasks/${task.id}`, patch)
-                                                    .then(() => {
-                                                      if (newEnd) {
-                                                        const snap = projectTasksRef.current.map(t => t.id === task.id ? { ...t, ...patch } : t);
-                                                        cascadeAllDates(snap, taskDepsRef.current);
-                                                      }
-                                                    })
-                                                    .catch(() => {});
+                                                  // Cascade immediately (optimistic) — correct chain end dates without waiting for API.
+                                                  const snap2 = projectTasksRef.current.map(t => t.id === task.id ? { ...t, ...patch } : t);
+                                                  cascadeAllDates(snap2, taskDepsRef.current);
+                                                  apiClient.patch(`/api/tasks/${task.id}`, patch).catch(() => {});
                                                 }}
                                                 slotProps={{ htmlInput: { min: 0, step: 1 } }}
                                                 sx={{ ...taskFieldSx, '& input': { textAlign: 'center', px: 0.25, width: 32 } }} />
@@ -6067,17 +6059,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                                   const newEnd = dur && freshStart ? calcEndDate(freshStart, dur, task) : null;
                                                   const patch: any = { duration: dur || null, durationUnit: 'days' };
                                                   if (newEnd) patch.endDate = newEnd;
-                                                  // Immediate state update
                                                   setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, ...patch } : t));
-                                                  // Single PATCH, then cascade
-                                                  apiClient.patch(`/api/tasks/${task.id}`, patch)
-                                                    .then(() => {
-                                                      if (newEnd) {
-                                                        const snap = projectTasksRef.current.map(t => t.id === task.id ? { ...t, ...patch } : t);
-                                                        cascadeAllDates(snap, taskDepsRef.current);
-                                                      }
-                                                    })
-                                                    .catch(() => {});
+                                                  // Cascade immediately (optimistic) — correct chain end dates without waiting for API.
+                                                  const snap2 = projectTasksRef.current.map(t => t.id === task.id ? { ...t, ...patch } : t);
+                                                  cascadeAllDates(snap2, taskDepsRef.current);
+                                                  apiClient.patch(`/api/tasks/${task.id}`, patch).catch(() => {});
                                                 }}
                                                 slotProps={{ htmlInput: { min: 0, step: 1 } }}
                                                 sx={{ ...taskFieldSx, '& input': { textAlign: 'center', px: 0.25, width: 32 } }} />
