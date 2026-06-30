@@ -84,7 +84,7 @@ const renderIconPreview = (choice: HierarchyIconChoice, color: string) => {
     'fa-table-cells': faTableCells, 'fa-chart-gantt': faChartGantt, 'fa-clipboard-list': faClipboardList,
     'fa-triangle-exclamation': faTriangleExclamation,
   };
-  if (faMap[choice]) return <FontAwesomeIcon icon={faMap[choice]} style={{ color, fontSize: '1rem' }} />;
+  if (faMap[choice]) return (\n    <span style={{ fontSize: '1rem', color, display: 'inline-flex', alignItems: 'center', lineHeight: 1 }}>\n      <FontAwesomeIcon icon={faMap[choice]} />\n    </span>\n  );
   const sx = { fontSize: '1rem', color };
   switch (choice) {
     case 'sync': return <SyncIcon sx={sx} />;

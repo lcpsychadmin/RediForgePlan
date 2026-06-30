@@ -1400,8 +1400,12 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
       'fa-triangle-exclamation': faTriangleExclamation,
     };
     if (faIconMap[choice]) {
-      const px = parseFloat(size) * 16;
-      return <FontAwesomeIcon icon={faIconMap[choice]} style={{ fontSize: size, color, flexShrink: 0, width: px || 14, height: px || 14 }} />;
+      // Wrap in a span so FA SVG inherits font-size correctly
+      return (
+        <span style={{ fontSize: size, color, display: 'inline-flex', alignItems: 'center', lineHeight: 1, flexShrink: 0 }}>
+          <FontAwesomeIcon icon={faIconMap[choice]} />
+        </span>
+      );
     }
     switch (choice) {
       case 'sync': return <SyncIcon sx={sx} />;
@@ -3734,7 +3738,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
       try {
         const [tasksRes, invRes, groupsRes] = await Promise.all([
           apiClient.get(`/api/tasks/cycle/${activeCycleId}`),
-          apiClient.get(`/api/project-objects/cycle/${activeCycleId}`),
+          // Project objects are stored at project level (mock_cycle_id=NULL)
+          // so use the project endpoint, not the cycle endpoint.
+          apiClient.get(`/api/project-objects/project/${proj.id || activeProjectId}`),
           apiClient.get(`/api/tasks/groups/cycle/${activeCycleId}`),
         ]);
         const projTasks: any[] = tasksRes.data.data || [];
