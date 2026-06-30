@@ -7523,58 +7523,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         <MenuItem
           onClick={() => {
             if (!menuItemId || !menuType) return;
-            if (menuType === 'processArea') return;
-
-            if (menuType === 'cycle') {
-              let parentProgramId: string | null = null;
-              for (const progId in mockCycles) {
-                if ((mockCycles[progId] || []).some((c) => c.id === menuItemId)) {
-                  parentProgramId = progId;
-                  break;
-                }
-              }
-              if (parentProgramId) {
-                setTreeOrder((prev) => ({
-                  ...prev,
-                  cycles: {
-                    ...prev.cycles,
-                    [parentProgramId as string]: (prev.cycles[parentProgramId as string] || []).filter((id) => id !== menuItemId),
-                  },
-                }));
-                setExpandedCycles((prev) => {
-                  const next = new Set(prev);
-                  next.delete(menuItemId);
-                  return next;
-                });
-                if (selectedItem?.type === 'cycle' && selectedItem.id === menuItemId) {
-                  setSelectedItem({ type: 'program', id: parentProgramId });
-                }
-              }
-              setMenuAnchorEl(null);
-              return;
-            }
+            if (menuType !== 'task' && menuType !== 'taskGroup') return;
             
             // Get the item name for the dialog
             let itemName = '';
-            if (menuType === 'program') {
-              itemName = programs.find(p => p.id === menuItemId)?.name || '';
-            } else if (menuType === 'cycle') {
-              for (const progId in mockCycles) {
-                const cycle = mockCycles[progId]?.find(c => c.id === menuItemId);
-                if (cycle) {
-                  itemName = cycle.name;
-                  break;
-                }
-              }
-            } else if (menuType === 'project') {
-              for (const cycleId in projectsByMockCycle) {
-                const project = projectsByMockCycle[cycleId]?.find(p => p.id === menuItemId);
-                if (project) {
-                  itemName = project.name;
-                  break;
-                }
-              }
-            } else if (menuType === 'task') {
+            if (menuType === 'task') {
               const object = projectInventoryItems.find((item: any) => item.id === menuItemId);
               itemName = object?.objectId || object?.dataObjectId || 'Data Object';
             } else if (menuType === 'taskGroup') {
@@ -7584,9 +7537,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
             
             openDeleteDialog(menuType, menuItemId, itemName);
           }}
-          sx={{ color: 'error.main', display: menuType === 'processArea' ? 'none' : 'flex' }}
+          sx={{ color: 'error.main', display: (menuType === 'task' || menuType === 'taskGroup') ? 'flex' : 'none' }}
         >
-          <DeleteIcon fontSize="small" sx={{ mr: 1 }} /> {menuType === 'cycle' ? 'Remove from Hierarchy' : 'Delete'}
+          <DeleteIcon fontSize="small" sx={{ mr: 1 }} /> Delete
         </MenuItem>
       </Menu>
 
