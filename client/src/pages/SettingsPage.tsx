@@ -380,6 +380,7 @@ const SettingsPage: React.FC = () => {
                 >
                   <ListItemText primary="Applications" />
                 </ListItem>
+              </List>
             </CardContent>
           </Card>
 
