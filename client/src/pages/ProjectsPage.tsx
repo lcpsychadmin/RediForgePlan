@@ -61,6 +61,14 @@ import SearchIcon from '@mui/icons-material/Search';
 import EventIcon from '@mui/icons-material/Event';
 import ViewListIcon from '@mui/icons-material/ViewList';
 import MenuIcon from '@mui/icons-material/Menu';
+import StorageIcon from '@mui/icons-material/Storage';
+import DashboardIcon from '@mui/icons-material/Dashboard';
+import BuildIcon from '@mui/icons-material/Build';
+import AssignmentIcon from '@mui/icons-material/Assignment';
+import SettingsIcon from '@mui/icons-material/Settings';
+import BarChartIcon from '@mui/icons-material/BarChart';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faDatabase, faServer, faCloud, faCode, faGears, faDiagramProject, faListCheck, faFileLines, faCircleNodes, faNetworkWired, faTableCells, faChartGantt, faClipboardList, faTriangleExclamation } from '@fortawesome/free-solid-svg-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Menu from '@mui/material/Menu';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -120,7 +128,12 @@ type PlanOverview = {
   timelineEnd: string | null;
 };
 
-type HierarchyIconChoice = 'corporateFare' | 'sync' | 'folderOutlined' | 'accountTree' | 'layers' | 'viewList' | 'event';
+type HierarchyIconChoice =
+  | 'corporateFare' | 'sync' | 'folderOutlined' | 'accountTree' | 'layers' | 'viewList' | 'event'
+  | 'storage' | 'dashboard' | 'build' | 'assignment' | 'settings' | 'barChart'
+  | 'fa-database' | 'fa-server' | 'fa-cloud' | 'fa-code' | 'fa-gears'
+  | 'fa-diagram-project' | 'fa-list-check' | 'fa-file-lines' | 'fa-circle-nodes'
+  | 'fa-network-wired' | 'fa-table-cells' | 'fa-chart-gantt' | 'fa-clipboard-list' | 'fa-triangle-exclamation';
 type HierarchyLevel = 'program' | 'cycle' | 'project' | 'processArea' | 'planGroup';
 type HierarchyLevelIcons = Record<HierarchyLevel, HierarchyIconChoice>;
 
@@ -132,14 +145,36 @@ const DEFAULT_HIERARCHY_LEVEL_ICONS: HierarchyLevelIcons = {
   planGroup: 'layers',
 };
 
-const HIERARCHY_ICON_OPTIONS: { value: HierarchyIconChoice; label: string }[] = [
-  { value: 'corporateFare', label: 'Corporate / Building' },
-  { value: 'sync', label: 'Cycle / Sync' },
-  { value: 'folderOutlined', label: 'Folder (Outline)' },
-  { value: 'accountTree', label: 'Hierarchy Tree' },
-  { value: 'layers', label: 'Layers' },
-  { value: 'viewList', label: 'List (Outline)' },
-  { value: 'event', label: 'Calendar' },
+const HIERARCHY_ICON_OPTIONS: { value: HierarchyIconChoice; label: string; group: string }[] = [
+  // MUI Icons
+  { value: 'corporateFare', label: 'Building', group: 'MUI' },
+  { value: 'sync', label: 'Sync', group: 'MUI' },
+  { value: 'folderOutlined', label: 'Folder', group: 'MUI' },
+  { value: 'accountTree', label: 'Hierarchy', group: 'MUI' },
+  { value: 'layers', label: 'Layers', group: 'MUI' },
+  { value: 'viewList', label: 'List', group: 'MUI' },
+  { value: 'event', label: 'Calendar', group: 'MUI' },
+  { value: 'storage', label: 'Storage', group: 'MUI' },
+  { value: 'dashboard', label: 'Dashboard', group: 'MUI' },
+  { value: 'build', label: 'Build', group: 'MUI' },
+  { value: 'assignment', label: 'Assignment', group: 'MUI' },
+  { value: 'settings', label: 'Settings', group: 'MUI' },
+  { value: 'barChart', label: 'Bar Chart', group: 'MUI' },
+  // Font Awesome Icons
+  { value: 'fa-database', label: 'Database', group: 'FA' },
+  { value: 'fa-server', label: 'Server', group: 'FA' },
+  { value: 'fa-cloud', label: 'Cloud', group: 'FA' },
+  { value: 'fa-code', label: 'Code', group: 'FA' },
+  { value: 'fa-gears', label: 'Gears', group: 'FA' },
+  { value: 'fa-diagram-project', label: 'Project Diagram', group: 'FA' },
+  { value: 'fa-list-check', label: 'Checklist', group: 'FA' },
+  { value: 'fa-file-lines', label: 'File', group: 'FA' },
+  { value: 'fa-circle-nodes', label: 'Nodes', group: 'FA' },
+  { value: 'fa-network-wired', label: 'Network', group: 'FA' },
+  { value: 'fa-table-cells', label: 'Table', group: 'FA' },
+  { value: 'fa-chart-gantt', label: 'Gantt', group: 'FA' },
+  { value: 'fa-clipboard-list', label: 'Clipboard', group: 'FA' },
+  { value: 'fa-triangle-exclamation', label: 'Warning', group: 'FA' },
 ];
 
 interface ProjectsPageProps {
@@ -1349,53 +1384,69 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
 
   const renderIconChoice = (choice: HierarchyIconChoice, color: string, size: string) => {
     const sx = { fontSize: size, color, flexShrink: 0 };
+    // Font Awesome icons
+    const faIconMap: Record<string, any> = {
+      'fa-database': faDatabase, 'fa-server': faServer, 'fa-cloud': faCloud, 'fa-code': faCode,
+      'fa-gears': faGears, 'fa-diagram-project': faDiagramProject, 'fa-list-check': faListCheck,
+      'fa-file-lines': faFileLines, 'fa-circle-nodes': faCircleNodes, 'fa-network-wired': faNetworkWired,
+      'fa-table-cells': faTableCells, 'fa-chart-gantt': faChartGantt, 'fa-clipboard-list': faClipboardList,
+      'fa-triangle-exclamation': faTriangleExclamation,
+    };
+    if (faIconMap[choice]) {
+      const px = parseFloat(size) * 16;
+      return <FontAwesomeIcon icon={faIconMap[choice]} style={{ fontSize: size, color, flexShrink: 0, width: px || 14, height: px || 14 }} />;
+    }
     switch (choice) {
-      case 'sync':
-        return <SyncIcon sx={sx} />;
-      case 'folderOutlined':
-        return <FolderOutlinedIcon sx={sx} />;
-      case 'accountTree':
-        return <AccountTreeIcon sx={sx} />;
-      case 'layers':
-        return <LayersIcon sx={sx} />;
-      case 'viewList':
-        return <ViewListIcon sx={sx} />;
-      case 'event':
-        return <EventIcon sx={sx} />;
+      case 'sync': return <SyncIcon sx={sx} />;
+      case 'folderOutlined': return <FolderOutlinedIcon sx={sx} />;
+      case 'accountTree': return <AccountTreeIcon sx={sx} />;
+      case 'layers': return <LayersIcon sx={sx} />;
+      case 'viewList': return <ViewListIcon sx={sx} />;
+      case 'event': return <EventIcon sx={sx} />;
+      case 'storage': return <StorageIcon sx={sx} />;
+      case 'dashboard': return <DashboardIcon sx={sx} />;
+      case 'build': return <BuildIcon sx={sx} />;
+      case 'assignment': return <AssignmentIcon sx={sx} />;
+      case 'settings': return <SettingsIcon sx={sx} />;
+      case 'barChart': return <BarChartIcon sx={sx} />;
       case 'corporateFare':
-      default:
-        return <CorporateFareIcon sx={sx} />;
+      default: return <CorporateFareIcon sx={sx} />;
     }
   };
 
-  const renderIconPicker = (level: HierarchyLevel, accent: string, selectedValue?: HierarchyIconChoice, onSelect?: (v: HierarchyIconChoice) => void) => (
-    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 0.75 }}>
-      {HIERARCHY_ICON_OPTIONS.map((option) => {
-        const selected = (selectedValue !== undefined ? selectedValue : hierarchyLevelIcons[level]) === option.value;
-        return (
-          <IconButton
-            key={`${level}-${option.value}`}
-            size="small"
-            title={option.label}
-            onClick={() => onSelect ? onSelect(option.value) : setHierarchyLevelIcons((prev) => ({ ...prev, [level]: option.value }))}
-            sx={{
-              width: 30,
-              height: 30,
-              border: '1px solid',
-              borderColor: selected ? accent : 'rgba(255,255,255,0.2)',
-              backgroundColor: selected ? toRgba(accent, 0.18) : 'rgba(255,255,255,0.04)',
-              borderRadius: 1,
-              '&:hover': {
-                backgroundColor: selected ? toRgba(accent, 0.24) : 'rgba(255,255,255,0.08)',
-              },
-            }}
-          >
-            {renderIconChoice(option.value, selected ? accent : 'rgba(255,255,255,0.78)', '0.95rem')}
-          </IconButton>
-        );
-      })}
-    </Box>
-  );
+  const renderIconPicker = (level: HierarchyLevel, accent: string, selectedValue?: HierarchyIconChoice, onSelect?: (v: HierarchyIconChoice) => void) => {
+    const muiOptions = HIERARCHY_ICON_OPTIONS.filter(o => o.group === 'MUI');
+    const faOptions = HIERARCHY_ICON_OPTIONS.filter(o => o.group === 'FA');
+    const current = selectedValue !== undefined ? selectedValue : hierarchyLevelIcons[level];
+    const btn = (option: typeof HIERARCHY_ICON_OPTIONS[0]) => {
+      const selected = current === option.value;
+      return (
+        <IconButton
+          key={`${level}-${option.value}`}
+          size="small"
+          title={option.label}
+          onClick={() => onSelect ? onSelect(option.value) : setHierarchyLevelIcons((prev) => ({ ...prev, [level]: option.value }))}
+          sx={{
+            width: 30, height: 30, border: '1px solid',
+            borderColor: selected ? accent : 'rgba(255,255,255,0.2)',
+            backgroundColor: selected ? toRgba(accent, 0.18) : 'rgba(255,255,255,0.04)',
+            borderRadius: 1,
+            '&:hover': { backgroundColor: selected ? toRgba(accent, 0.24) : 'rgba(255,255,255,0.08)' },
+          }}
+        >
+          {renderIconChoice(option.value, selected ? accent : 'rgba(255,255,255,0.78)', '0.85rem')}
+        </IconButton>
+      );
+    };
+    return (
+      <Box sx={{ mt: 0.75 }}>
+        <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.62rem', letterSpacing: '0.06em', display: 'block', mb: 0.4 }}>MUI ICONS</Typography>
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 0.75 }}>{muiOptions.map(btn)}</Box>
+        <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.62rem', letterSpacing: '0.06em', display: 'block', mb: 0.4 }}>FONT AWESOME</Typography>
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>{faOptions.map(btn)}</Box>
+      </Box>
+    );
+  };
 
   const getProgressAverage = (values: number[]) => {
     if (values.length === 0) return 0;
@@ -5757,7 +5808,14 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                         const memberIds: string[] = Array.isArray(group.members) ? group.members : [];
                                         const directTasks = groupTasks.filter((t: any) => !t.projectObjectId);
                                         const pickerOpen = groupObjectPickerGroupId === group.id;
-                                        const availableObjects = projectInventoryItems.filter(
+                                        // Enrich inventory items with descriptions from the global catalog
+                                        const enrichedInventory = projectInventoryItems.map((item: any) => ({
+                                          ...item,
+                                          description: inventoryObjects.find(
+                                            io => io.id === item.globalObjectId || io.objectId === item.objectId
+                                          )?.description || item.description || '',
+                                        }));
+                                        const availableObjects = enrichedInventory.filter(
                                           (item: any) => !memberIds.includes(item.id)
                                         ).filter((item: any) => {
                                           const term = groupObjectPickerSearch.toLowerCase();
@@ -5775,6 +5833,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                             {memberIds.map((memberId: string) => {
                                               const invObj = projectInventoryItems.find((o: any) => o.id === memberId);
                                               if (!invObj) return null;
+                                              const catalogDesc = inventoryObjects.find(
+                                                io => io.id === invObj.globalObjectId || io.objectId === invObj.objectId
+                                              )?.description || invObj.description || '';
                                               const memberTasks = groupTasks.filter((t: any) => t.projectObjectId === memberId);
                                               const memberStatus = memberTasks.length > 0 && memberTasks.every((t: any) => t.status === 'complete') ? 'complete'
                                                 : memberTasks.some((t: any) => t.status === 'in_progress') ? 'in_progress'
@@ -5786,9 +5847,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                                     <Typography sx={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '0.78rem', color: planAccentColor, flexShrink: 0 }}>
                                                       {invObj.objectId || invObj.dataObjectId}
                                                     </Typography>
-                                                    {invObj.description && (
+                                                    {catalogDesc && (
                                                       <Typography variant="caption" sx={{ color: 'text.secondary', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                        {invObj.description}
+                                                        {catalogDesc}
                                                       </Typography>
                                                     )}
                                                     <Box sx={{ display: 'flex', gap: 0.4, alignItems: 'center', flexShrink: 0 }}>
@@ -7588,28 +7649,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
           sx={{ display: menuType === 'processArea' ? 'flex' : 'none' }}
         >
           <AddIcon fontSize="small" sx={{ mr: 1 }} /> Add Process Area
-        </MenuItem>
-        <MenuItem
-          onClick={() => {
-            if (menuType !== 'processArea' || !processAreaMenuContext) return;
-            const currentAccent = getProcessAreaAccent(processAreaMenuContext.projectId, processAreaMenuContext.area, '#64B5F6', processAreaMenuContext.cycleId);
-            const currentDescription = processAreaDescriptions[processAreaMenuContext.projectId]?.[processAreaMenuContext.area] || '';
-            setEditingProcessAreaContext({ projectId: processAreaMenuContext.projectId, cycleId: processAreaMenuContext.cycleId, area: processAreaMenuContext.area });
-            setEditingProcessAreaAccent(currentAccent);
-            setEditingProcessAreaDescription(currentDescription);
-            setEditingProcessAreaIconLevel(processAreaMenuContext.nodeType);
-            const settingsKey2 = processAreaMenuContext.cycleId || processAreaMenuContext.projectId;
-            setEditingProcessAreaIcon(
-              processAreaIconOverrides[settingsKey2]?.[processAreaMenuContext.area]
-              || hierarchyLevelIcons[processAreaMenuContext.nodeType as HierarchyLevel]
-            );
-            setProcessAreaSettingsDialogOpen(true);
-            setMenuAnchorEl(null);
-            setProcessAreaMenuContext(null);
-          }}
-          sx={{ display: menuType === 'processArea' ? 'flex' : 'none' }}
-        >
-          <EditIcon fontSize="small" sx={{ mr: 1 }} /> {processAreaMenuContext?.nodeType === 'planGroup' ? 'Plan Group Settings' : 'Process Area Settings'}
         </MenuItem>
         <MenuItem
           onClick={() => {
