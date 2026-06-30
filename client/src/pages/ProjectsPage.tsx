@@ -5392,6 +5392,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                                                 const dur = parseFloat(e.target.value) || 0;
                                                                 const freshStart = projectTasksRef.current.find(t => t.id === task.id)?.startDate || task.startDate;
                                                                 const newEnd = dur && freshStart ? calcEndDateWithContext(task.id, freshStart, dur, task, projectTasksRef.current) : null;
+                                                                console.log("[onBlur]", task.name, "objId:", task.projectObjectId, "start:", freshStart, "dur:", dur, "->", newEnd);
                                                                 const patch: any = { duration: dur || null, durationUnit: 'days' };
                                                                 if (newEnd) patch.endDate = newEnd;
                                                                 setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, ...patch } : t));
@@ -5657,6 +5658,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                                   const dur = parseFloat(e.target.value) || 0;
                                                   const freshStart = projectTasksRef.current.find(t => t.id === task.id)?.startDate || task.startDate;
                                                   const newEnd = dur && freshStart ? calcEndDateWithContext(task.id, freshStart, dur, task, projectTasksRef.current) : null;
+                                                                console.log("[onBlur]", task.name, "objId:", task.projectObjectId, "start:", freshStart, "dur:", dur, "->", newEnd);
                                                   const patch: any = { duration: dur || null, durationUnit: 'days' };
                                                   if (newEnd) patch.endDate = newEnd;
                                                   setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, ...patch } : t));
@@ -6167,6 +6169,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                                   const dur = parseFloat(e.target.value) || 0;
                                                   const freshStart = projectTasksRef.current.find(t => t.id === task.id)?.startDate || task.startDate;
                                                   const newEnd = dur && freshStart ? calcEndDateWithContext(task.id, freshStart, dur, task, projectTasksRef.current) : null;
+                                                                console.log("[onBlur]", task.name, "objId:", task.projectObjectId, "start:", freshStart, "dur:", dur, "->", newEnd);
                                                   const patch: any = { duration: dur || null, durationUnit: 'days' };
                                                   if (newEnd) patch.endDate = newEnd;
                                                   setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, ...patch } : t));
