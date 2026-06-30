@@ -2144,9 +2144,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
           objects = objRes.data.data || [];
           const cycleTasks = taskRes.data.data || [];
           taskObjectIds = cycleTasks.map((task: any) => task.projectObjectId).filter(Boolean);
-          // Set projectTasks here so tasks and inventory land in the same React batch,
-          // preventing the "No tasks" flash that occurred when the two effects raced.
-          setProjectTasks(cycleTasks.map((task: any) => normalizeTaskDateFields(task)));
+          // Normalize dates and apply sibling-context end-date correction in one pass
+          // so the state is correct from the first render (avoids race with loadTasksAndGroups).
+          const normalizedTasks = cycleTasks.map((task: any) => normalizeTaskDateFields(task));
+          const correctedTasks = applyAutoSchedule(normalizedTasks);
+          setProjectTasks(correctedTasks);
           setProjectTaskGroups(await apiClient.get(`/api/tasks/groups/cycle/${activeCycleId}`).then(r => r.data.data || []).catch(() => []));
         } else {
           // Inventory tab context: load objects scoped to the selected project.
@@ -2275,41 +2277,13 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
 
         // Auto-schedule sibling tasks: recalculate end dates using cumulative
         // fraction even when no explicit dependency arrows exist.
-        (() => {
-          const byObject: Record<string, any[]> = {};
-          for (const t of tasks) {
-            if (t.projectObjectId && t.startDate && t.duration) {
-              (byObject[t.projectObjectId] = byObject[t.projectObjectId] || []).push(t);
-            }
-          }
-          const autoPatches: Record<string, string> = {};
-          for (const siblings of Object.values(byObject)) {
-            if (siblings.length < 2) continue;
-            const sorted = [...siblings].sort((a, b) => {
-              const aD = a.startDate ? new Date(a.startDate).getTime() : Infinity;
-              const bD = b.startDate ? new Date(b.startDate).getTime() : Infinity;
-              return aD !== bD ? aD - bD : (a.name || '').localeCompare(b.name || '');
-            });
-            const chainStart = sorted[0].startDate;
-            let cumFrac = 0;
-            for (const t of sorted) {
-              const dur = Number(t.duration) || 0;
-              cumFrac += dur;
-              const expectedEnd = calcEndDate(chainStart, cumFrac, t);
-              if (expectedEnd && expectedEnd !== t.endDate) {
-                autoPatches[t.id] = expectedEnd;
-              }
-            }
-          }
-          if (Object.keys(autoPatches).length > 0) {
-            setProjectTasks(prev => prev.map(t =>
-              autoPatches[t.id] ? { ...t, endDate: autoPatches[t.id] } : t
-            ));
-            Object.entries(autoPatches).forEach(([id, endDate]) =>
-              apiClient.patch(`/api/tasks/${id}`, { endDate }).catch(() => {})
-            );
-          }
-        })();
+        const scheduledTasks = applyAutoSchedule(tasks);
+        if (scheduledTasks !== tasks) {
+          setProjectTasks(prev => prev.map(t => {
+            const s = scheduledTasks.find(st => st.id === t.id);
+            return s ? { ...t, endDate: s.endDate } : t;
+          }));
+        }
 
         // Load task groups
         const groupUrl = activeCycleId
@@ -3631,7 +3605,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
 
   /**
    * Compute the end date for a task considering its position within the sequence of sibling
-   * tasks on the same object.  When tasks have sub-day durations and no explicit dependency
+   * tasks on the same object.
    * arrows, the cumulative fraction of all preceding siblings determines whether the end date
    * spills into the next calendar day.
    *
@@ -3666,6 +3640,44 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     cumFrac += duration; // include this task's duration for the end-date formula
 
     return calcEndDate(chainStart, cumFrac, task);
+  };
+
+  /**
+   * Apply sibling-context end-date correction to an entire task list in one pass.
+   * Returns a new array with corrected endDate values and fires background API patches
+   * for any tasks whose end date changed.
+   */
+  const applyAutoSchedule = (tasks: any[]): any[] => {
+    const byObject: Record<string, any[]> = {};
+    for (const t of tasks) {
+      if (t.projectObjectId && t.startDate && t.duration) {
+        (byObject[t.projectObjectId] = byObject[t.projectObjectId] || []).push(t);
+      }
+    }
+    const correctedMap: Record<string, string> = {};
+    for (const siblings of Object.values(byObject)) {
+      if (siblings.length < 2) continue;
+      const sorted = [...siblings].sort((a, b) => {
+        const aD = a.startDate ? new Date(a.startDate).getTime() : Infinity;
+        const bD = b.startDate ? new Date(b.startDate).getTime() : Infinity;
+        return aD !== bD ? aD - bD : (a.name || '').localeCompare(b.name || '');
+      });
+      const chainStart = sorted[0].startDate;
+      let cumFrac = 0;
+      for (const t of sorted) {
+        cumFrac += Number(t.duration) || 0;
+        const expectedEnd = calcEndDate(chainStart, cumFrac, t);
+        if (expectedEnd && expectedEnd !== t.endDate) {
+          correctedMap[t.id] = expectedEnd;
+        }
+      }
+    }
+    if (Object.keys(correctedMap).length === 0) return tasks;
+    // Persist corrections to DB in background (fire-and-forget).
+    Object.entries(correctedMap).forEach(([id, endDate]) =>
+      apiClient.patch(`/api/tasks/${id}`, { endDate }).catch(() => {})
+    );
+    return tasks.map(t => correctedMap[t.id] ? { ...t, endDate: correctedMap[t.id] } : t);
   };
 
   const updateTaskInline = async (taskId: string, field: string, value: string) => {
