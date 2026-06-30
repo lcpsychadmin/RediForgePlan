@@ -7,7 +7,6 @@ import {
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
-import Layout from '../components/Layout';
 import TaskDetailModal from '../components/tasks/TaskDetailModal';
 import { usePriorities } from '../hooks/usePriorities';
 import { useParams } from 'react-router-dom';
@@ -24,7 +23,9 @@ const parseDateOnly = (v?: string) => {
 
 const fmtDate = (v?: string) => {
   if (!v) return '—';
-  const [y, m, d] = v.split('-');
+  // Handle full ISO strings like "2026-06-29T00:00:00.000Z"
+  const clean = v.length > 10 ? v.substring(0, 10) : v;
+  const [y, m, d] = clean.split('-');
   return `${m}/${d}/${y}`;
 };
 
@@ -155,15 +156,12 @@ const PrioritiesPage: React.FC = () => {
 
   if (!projectId) {
     return (
-      <Layout>
-        <Box sx={{ p: 3 }}><Alert severity="info">Select a project using the global filter to view priorities.</Alert></Box>
-      </Layout>
+      <Box sx={{ p: 3 }}><Alert severity="info">Select a project using the global filter to view priorities.</Alert></Box>
     );
   }
 
   return (
-    <Layout>
-      <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 3 }}>
+    <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 3 }}>
         <Typography variant="h4" sx={{ fontWeight: 700 }}>Priorities</Typography>
 
         {isLoading && !rawTasks.length && (

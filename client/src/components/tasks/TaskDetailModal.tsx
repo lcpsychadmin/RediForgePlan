@@ -1,441 +1,447 @@
-import React, { useState } from 'react';
+// client/src/components/tasks/TaskDetailModal.tsx
+
+import React, { useState, useEffect, useRef } from 'react';
 import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  IconButton,
-  Box,
-  Typography,
-  Chip,
-  Grid,
-  Divider,
-  CircularProgress,
-  Button,
-  TextField,
-  MenuItem,
-  Alert,
-  Tabs,
-  Tab,
-  Stack,
+  Dialog, DialogContent, Box, Typography, IconButton, TextField, MenuItem,
+  Chip, CircularProgress, Alert, LinearProgress, Divider, Avatar,
 } from '@mui/material';
-import StatusChip from '../shared/StatusChip';
 import CloseIcon from '@mui/icons-material/Close';
-import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutline';
-import EditIcon from '@mui/icons-material/Edit';
 import SaveIcon from '@mui/icons-material/Save';
-import CancelIcon from '@mui/icons-material/Cancel';
-import { useQuery } from '@tanstack/react-query';
-import { useQueryClient } from '@tanstack/react-query';
+import SendIcon from '@mui/icons-material/Send';
+import DeleteIcon from '@mui/icons-material/Delete';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import apiClient from '../../api/client';
-import { TaskCommentsModal } from '../TaskCommentsModal';
+import { useAuth } from '../../contexts/AuthContext';
+import DefectsSection from '../defects/DefectsSection';
 import ValidationStatsSection from '../validation/ValidationStatsSection';
 import IssueTypesSection from '../validation/IssueTypesSection';
-import DefectsSection from '../defects/DefectsSection';
 
-type DisplayTask = {
-  taskId?: string;
-  id?: string;
-  projectId?: string;
-  taskType?: string;
-  taskName?: string;
-  name?: string;
-  status?: string;
-  startDate?: string;
-  endDate?: string;
-  draUserId?: string;
-  developerUserId?: string;
-  notes?: string;
-  objectId?: string;
-  taskGroupId?: string;
-  projectName?: string;
-  programName?: string;
-  mockCycleName?: string;
-  progressPercentage?: number;
+// ── helpers ──────────────────────────────────────────────────────────────────
+
+const fmtDate = (v?: string) => {
+  if (!v) return '—';
+  // Handle ISO strings like "2026-06-29T00:00:00.000Z"
+  const clean = v.length > 10 ? v.substring(0, 10) : v;
+  const [y, m, d] = clean.split('-');
+  return `${m}/${d}/${y}`;
 };
+
+const toInputDate = (v?: string) => {
+  if (!v) return '';
+  return v.length >= 10 ? v.substring(0, 10) : v;
+};
+
+const daysOverdue = (endDate?: string) => {
+  if (!endDate) return null;
+  const clean = endDate.length > 10 ? endDate.substring(0, 10) : endDate;
+  const end = new Date(clean + 'T00:00:00');
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const diff = Math.floor((today.getTime() - end.getTime()) / 86400000);
+  return diff > 0 ? diff : null;
+};
+
+const STATUS_COLORS: Record<string, string> = {
+  not_started: 'rgba(255,255,255,0.25)', in_progress: '#29b6f6', complete: '#66bb6a', blocked: '#ef5350',
+};
+
+const toRgba = (hex: string, alpha: number) => {
+  const h = hex.replace('#', '');
+  const r = parseInt(h.substring(0, 2), 16);
+  const g = parseInt(h.substring(2, 4), 16);
+  const b = parseInt(h.substring(4, 6), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+};
+
+// ── types ─────────────────────────────────────────────────────────────────────
 
 interface TaskDetailModalProps {
   open: boolean;
   onClose: () => void;
   taskId?: string;
-  task?: DisplayTask | null;
-  peopleById?: Record<string, { id: string; name: string; email?: string }>;
-  people?: Array<{ id: string; name: string; email?: string }>;
+  task?: any;
+  peopleById?: Record<string, any>;
+  people?: any[];
   accentColor?: string;
-  initialTab?: number;
+  onSaved?: (updatedTask: any) => void;
 }
 
-const formatDate = (dateValue?: string) => {
-  if (!dateValue) return 'Not set';
-  const date = new Date(dateValue);
-  if (Number.isNaN(date.getTime())) return dateValue;
-  return date.toLocaleDateString();
+// ── comment thread (inline) ───────────────────────────────────────────────────
+
+const InlineDiscussion: React.FC<{ taskId: string; accent: string; people: any[] }> = ({ taskId, accent, people }) => {
+  const { user } = useAuth();
+  const [comments, setComments] = useState<any[]>([]);
+  const [content, setContent] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [mentionCandidates, setMentionCandidates] = useState<any[]>([]);
+  const [showMentions, setShowMentions] = useState(false);
+  const [mentionFilter, setMentionFilter] = useState('');
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!taskId) return;
+    setLoading(true);
+    apiClient.get(`/api/comments/task/${taskId}`)
+      .then(r => setComments(r.data.data || []))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+    apiClient.get('/api/comments/mention-candidates')
+      .then(r => setMentionCandidates(r.data.data || []))
+      .catch(() => setMentionCandidates((people || []).map(p => ({ id: p.id, handle: (p.name || '').replace(/\s+/g, '.').toLowerCase(), email: '' }))));
+  }, [taskId]);
+
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [comments]);
+
+  const handleInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setContent(val);
+    const lastAt = val.lastIndexOf('@');
+    if (lastAt !== -1 && val.slice(lastAt).match(/^@[a-zA-Z0-9._-]*$/)) {
+      setMentionFilter(val.slice(lastAt + 1));
+      setShowMentions(true);
+    } else {
+      setShowMentions(false);
+    }
+  };
+
+  const insertMention = (handle: string) => {
+    const lastAt = content.lastIndexOf('@');
+    setContent(content.slice(0, lastAt) + `@${handle} `);
+    setShowMentions(false);
+  };
+
+  const handleSend = async () => {
+    if (!content.trim()) return;
+    try {
+      const res = await apiClient.post(`/api/comments/task/${taskId}`, { content: content.trim() });
+      setComments(prev => [...prev, res.data.data]);
+      setContent('');
+    } catch { /* ignore */ }
+  };
+
+  const handleDelete = async (id: string) => {
+    await apiClient.delete(`/api/comments/${id}`);
+    setComments(prev => prev.filter(c => c.id !== id));
+  };
+
+  const renderText = (text: string) => text.split(/(@[a-zA-Z0-9._-]+(?:\s+[a-zA-Z0-9._-]+)*)/g).map((part, i) =>
+    part.startsWith('@') ? <Box key={i} component="span" sx={{ color: accent, fontWeight: 600 }}>{part}</Box> : part
+  );
+
+  return (
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <Box sx={{ px: 1.5, py: 1, borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', gap: 0.5 }}>
+        <Box sx={{ width: 3, height: 14, borderRadius: 1, backgroundColor: accent, mr: 0.5 }} />
+        <Typography sx={{ fontWeight: 700, fontSize: '0.8rem' }}>Discussion</Typography>
+        {comments.length > 0 && <Box sx={{ px: 0.6, py: 0.05, borderRadius: 1, backgroundColor: toRgba(accent, 0.2), color: accent, fontWeight: 700, fontSize: '0.68rem' }}>{comments.length}</Box>}
+      </Box>
+
+      {/* Comment list */}
+      <Box sx={{ flex: 1, overflowY: 'auto', p: 1, display: 'flex', flexDirection: 'column', gap: 1 }}>
+        {loading && <Box sx={{ display: 'flex', justifyContent: 'center', py: 1 }}><CircularProgress size={16} /></Box>}
+        {!loading && comments.length === 0 && (
+          <Typography variant="caption" color="text.disabled" sx={{ textAlign: 'center', py: 2, display: 'block' }}>No comments yet. Start the discussion!</Typography>
+        )}
+        {comments.map(c => (
+          <Box key={c.id} sx={{ display: 'flex', gap: 0.75, alignItems: 'flex-start' }}>
+            <Avatar sx={{ width: 24, height: 24, fontSize: '0.65rem', backgroundColor: toRgba(accent, 0.3), color: accent, flexShrink: 0 }}>
+              {(c.authorName || c.authorEmail || '?')[0].toUpperCase()}
+            </Avatar>
+            <Box sx={{ flex: 1, minWidth: 0 }}>
+              <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'baseline', mb: 0.15 }}>
+                <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: accent }}>{c.authorName || c.authorEmail}</Typography>
+                <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.63rem' }}>
+                  {c.createdAt ? new Date(c.createdAt).toLocaleDateString() : ''}
+                </Typography>
+              </Box>
+              <Typography sx={{ fontSize: '0.78rem', lineHeight: 1.45, wordBreak: 'break-word' }}>{renderText(c.content)}</Typography>
+            </Box>
+            {user?.email === c.authorEmail && (
+              <IconButton size="small" onClick={() => handleDelete(c.id)} sx={{ p: 0.2, opacity: 0.5, '&:hover': { opacity: 1, color: '#ef5350' } }}>
+                <DeleteIcon sx={{ fontSize: '0.8rem' }} />
+              </IconButton>
+            )}
+          </Box>
+        ))}
+        <div ref={bottomRef} />
+      </Box>
+
+      {/* Mention dropdown */}
+      {showMentions && (
+        <Box sx={{ mx: 1, mb: 0.5, border: `1px solid ${toRgba(accent, 0.4)}`, borderRadius: 1, backgroundColor: 'rgba(10,20,45,0.98)', maxHeight: 120, overflowY: 'auto' }}>
+          {mentionCandidates.filter(c => !mentionFilter || c.handle?.toLowerCase().includes(mentionFilter.toLowerCase())).slice(0, 6).map(c => (
+            <Box key={c.id} onClick={() => insertMention(c.handle)} sx={{ px: 1, py: 0.5, cursor: 'pointer', fontSize: '0.78rem', '&:hover': { backgroundColor: toRgba(accent, 0.12) } }}>
+              @{c.handle}
+            </Box>
+          ))}
+        </Box>
+      )}
+
+      {/* Input */}
+      <Box sx={{ p: 1, borderTop: '1px solid rgba(255,255,255,0.07)', display: 'flex', gap: 0.75, alignItems: 'flex-end' }}>
+        <TextField
+          multiline maxRows={3} fullWidth size="small" placeholder="Add a comment…"
+          value={content} onChange={handleInput}
+          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !showMentions) { e.preventDefault(); handleSend(); } }}
+          sx={{ '& .MuiInputBase-root': { fontSize: '0.78rem', borderRadius: 1.5 },
+            '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': { borderColor: accent },
+            '& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: accent } }}
+        />
+        <IconButton size="small" onClick={handleSend} disabled={!content.trim()}
+          sx={{ backgroundColor: toRgba(accent, 0.18), color: accent, borderRadius: 1.5, p: 0.75, '&:hover': { backgroundColor: toRgba(accent, 0.3) }, '&:disabled': { opacity: 0.4 } }}>
+          <SendIcon sx={{ fontSize: '0.9rem' }} />
+        </IconButton>
+      </Box>
+    </Box>
+  );
 };
 
+// ── main modal ────────────────────────────────────────────────────────────────
+
 const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
-  open,
-  onClose,
-  taskId,
-  task,
-  peopleById = {},
-  people = [],
-  accentColor = '#29b6f6',
-  initialTab = 0,
+  open, onClose, taskId, task, peopleById = {}, people = [], accentColor = '#29b6f6', onSaved,
 }) => {
   const queryClient = useQueryClient();
-  const [editMode, setEditMode] = useState(false);
-  const [showDiscussion, setShowDiscussion] = useState(false);
-  const [editData, setEditData] = useState<DisplayTask | null>(null);
+  const [editData, setEditData] = useState<any>(null);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [currentTab, setCurrentTab] = useState(0);
-  
-  const { data, isLoading, refetch } = useQuery({
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [tab, setTab] = useState(0);
+
+  const { data: fetched, isLoading } = useQuery({
     queryKey: ['task-details-modal', taskId],
-    queryFn: async () => {
-      const response = await apiClient.get(`/api/tasks/${taskId}`);
-      return response.data.data as DisplayTask;
-    },
+    queryFn: async () => (await apiClient.get(`/api/tasks/${taskId}`)).data.data,
     enabled: open && !!taskId,
   });
 
-  const resolvedTask = (data || task || null) as DisplayTask | null;
-  const resolvedTaskId = resolvedTask?.id || resolvedTask?.taskId || taskId || '';
+  const resolvedTask = fetched || task || null;
+  const taskIdResolved = resolvedTask?.id || resolvedTask?.taskId || taskId || '';
   const taskType = (resolvedTask?.taskType || '').toLowerCase();
   const supportsValidation = taskType === 'preload_validation' || taskType === 'postload_validation';
 
-  // Initialize edit data when modal opens or task changes
-  React.useEffect(() => {
-    if (editMode && resolvedTask) {
-      setEditData(resolvedTask);
+  const { data: deps = [] } = useQuery({
+    queryKey: ['task-deps-modal', taskIdResolved],
+    queryFn: async () => (await apiClient.get(`/api/tasks/${taskIdResolved}/dependencies`)).data.data || [],
+    enabled: open && !!taskIdResolved,
+  });
+
+  // Reset edit data when task changes or modal opens
+  useEffect(() => {
+    if (open && resolvedTask) {
+      setEditData({
+        status: resolvedTask.status || 'not_started',
+        startDate: toInputDate(resolvedTask.startDate),
+        endDate: toInputDate(resolvedTask.endDate),
+        draUserId: resolvedTask.draUserId || '',
+        developerUserId: resolvedTask.developerUserId || '',
+        notes: resolvedTask.notes || '',
+        progressPercentage: resolvedTask.progressPercentage ?? 0,
+        duration: resolvedTask.duration ?? '',
+      });
+      setSaveError(null);
+      setTab(0);
     }
-  }, [editMode, resolvedTask]);
+  }, [open, taskIdResolved, resolvedTask?.status]);
 
-  React.useEffect(() => {
-    if (open) {
-      setCurrentTab(initialTab);
-      setEditMode(false);
-      setError(null);
-    }
-  }, [open, resolvedTaskId, initialTab]);
-
-  const personLabel = (id?: string) => {
-    if (!id) return 'Unassigned';
-    const person = peopleById[id];
-    return person?.name || person?.email || id;
-  };
-
-  const handleEditChange = (field: keyof DisplayTask, value: any) => {
-    setEditData(prev => prev ? { ...prev, [field]: value } : null);
-  };
+  const set = (field: string, value: any) => setEditData((prev: any) => prev ? { ...prev, [field]: value } : null);
 
   const handleSave = async () => {
-    if (!editData || !resolvedTask?.id) return;
-    
+    if (!editData || !taskIdResolved) return;
+    setSaving(true);
+    setSaveError(null);
     try {
-      setSaving(true);
-      setError(null);
-      
-      const updatePayload = {
+      const payload = {
         status: editData.status,
-        startDate: editData.startDate,
-        endDate: editData.endDate,
-        draUserId: editData.draUserId,
-        developerUserId: editData.developerUserId,
-        notes: editData.notes,
-        progressPercentage: editData.progressPercentage,
+        startDate: editData.startDate || null,
+        endDate: editData.endDate || null,
+        draUserId: editData.draUserId || null,
+        developerUserId: editData.developerUserId || null,
+        notes: editData.notes || null,
+        progressPercentage: Number(editData.progressPercentage) || 0,
       };
-      
-      await apiClient.patch(`/api/tasks/${resolvedTask.id}`, updatePayload);
-      if (resolvedTask.projectId) {
-        queryClient.invalidateQueries({ queryKey: ['schedule', 'list', resolvedTask.projectId] });
-      }
-      refetch();
-      setEditMode(false);
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to update task');
+      const res = await apiClient.patch(`/api/tasks/${taskIdResolved}`, payload);
+      onSaved?.(res.data.data);
+      queryClient.invalidateQueries({ queryKey: ['task-details-modal', taskId] });
+    } catch (e: any) {
+      setSaveError(e.response?.data?.error || 'Failed to save');
     } finally {
       setSaving(false);
     }
   };
 
-  const handleCancel = () => {
-    setEditMode(false);
-    setError(null);
+  const over = daysOverdue(editData?.endDate || resolvedTask?.endDate);
+  const accent = accentColor || '#29b6f6';
+
+  const fieldSx = {
+    '& .MuiInputBase-root': { fontSize: '0.82rem' },
+    '& .MuiInputLabel-root': { fontSize: '0.82rem' },
+    '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': { borderColor: accent },
+    '& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: accent },
+    '& .MuiInputLabel-root.Mui-focused': { color: accent },
+  };
+
+  const tabs = ['Details', ...(supportsValidation ? [taskType === 'preload_validation' ? 'Preload Quality' : 'Postload Quality'] : []), 'Defects'];
+
+  const personLabel = (id?: string) => {
+    if (!id) return 'Unassigned';
+    const p = peopleById[id];
+    return p?.name || p?.email || id;
   };
 
   return (
-    <>
-      <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
-        <DialogTitle sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.08)', pb: 1.5 }}>
-          <Box>
-            <Typography variant="h5" sx={{ fontWeight: 700, lineHeight: 1.2, mb: resolvedTask?.status ? 0.75 : 0 }}>
-              {resolvedTask?.taskName || resolvedTask?.name || 'Task details'}
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="lg"
+      PaperProps={{ sx: { borderRadius: 2.5, border: `1px solid ${toRgba(accent, 0.3)}`, overflow: 'hidden', maxHeight: '92vh', display: 'flex', flexDirection: 'column' } }}>
+      {/* Header */}
+      <Box sx={{ backgroundColor: toRgba(accent, 0.1), borderBottom: `1px solid ${toRgba(accent, 0.2)}`, px: 3, py: 1.75, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 2, flexShrink: 0 }}>
+        <Box sx={{ minWidth: 0 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.4 }}>
+            <Box sx={{ width: 4, height: 20, borderRadius: 1, backgroundColor: accent, flexShrink: 0 }} />
+            <Typography variant="h5" sx={{ fontWeight: 800, lineHeight: 1.2 }}>
+              {resolvedTask?.taskName || resolvedTask?.name || 'Task Details'}
             </Typography>
-            {resolvedTask?.status && (
-              <StatusChip
-                status={resolvedTask.status}
-                sx={{ fontSize: '0.78rem', fontWeight: 700, px: 0.5 }}
-              />
+            {resolvedTask?.taskType && (
+              <Chip label={(resolvedTask.taskType).replace(/_/g, ' ')} size="small"
+                sx={{ fontSize: '0.65rem', height: 18, backgroundColor: toRgba(accent, 0.18), color: accent, fontWeight: 700, textTransform: 'uppercase' }} />
             )}
           </Box>
-          <Box sx={{ display: 'flex', gap: 0.5, ml: 1, flexShrink: 0 }}>
-            {!editMode && (
-              <>
-                <IconButton
-                  onClick={() => setShowDiscussion(true)}
-                  size="small"
-                  title="Discussion"
-                  sx={{ color: accentColor }}
-                >
-                  <ChatBubbleOutlineIcon sx={{ fontSize: '1.2rem' }} />
-                </IconButton>
-                <IconButton
-                  onClick={() => setEditMode(true)}
-                  size="small"
-                  title="Edit"
-                  sx={{ color: accentColor }}
-                >
-                  <EditIcon sx={{ fontSize: '1.2rem' }} />
-                </IconButton>
-              </>
-            )}
-            <IconButton onClick={onClose} size="small">
-              <CloseIcon />
-            </IconButton>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', pl: 0.75 }}>
+            {[resolvedTask?.programName, resolvedTask?.mockCycleName, resolvedTask?.projectName, resolvedTask?.objectId].filter(Boolean).map((item, i, arr) => (
+              <React.Fragment key={i}><span>{item}</span>{i < arr.length - 1 && <span style={{ opacity: 0.4 }}>·</span>}</React.Fragment>
+            ))}
+          </Typography>
+        </Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0 }}>
+          <Box
+            component="button" onClick={handleSave} disabled={saving || !editData}
+            sx={{ display: 'flex', alignItems: 'center', gap: 0.75, px: 1.5, py: 0.6, borderRadius: 1.5, border: 'none', cursor: 'pointer', backgroundColor: toRgba(accent, 0.25), color: accent, fontWeight: 700, fontSize: '0.8rem', '&:hover': { backgroundColor: toRgba(accent, 0.4) }, '&:disabled': { opacity: 0.5, cursor: 'not-allowed' } }}>
+            <SaveIcon sx={{ fontSize: '1rem' }} />{saving ? 'Saving…' : 'Save Changes'}
           </Box>
-        </DialogTitle>
-        <DialogContent>
-          {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-          
-          {isLoading && !resolvedTask ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}>
-              <CircularProgress size={24} />
-            </Box>
-          ) : !resolvedTask ? (
-            <Typography color="text.secondary">No task details available.</Typography>
-          ) : editMode && editData ? (
-            // Edit Mode
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <TextField
-                fullWidth
-                label="Status"
-                select
-                value={editData.status || ''}
-                onChange={(e) => handleEditChange('status', e.target.value)}
-                size="small"
-              >
-                <MenuItem value="">Select status</MenuItem>
-                <MenuItem value="not_started">Not Started</MenuItem>
-                <MenuItem value="in_progress">In Progress</MenuItem>
-                <MenuItem value="blocked">Blocked</MenuItem>
-                <MenuItem value="complete">Complete</MenuItem>
-              </TextField>
+          <IconButton onClick={onClose} size="small" sx={{ ml: 0.5 }}><CloseIcon sx={{ fontSize: '1.1rem' }} /></IconButton>
+        </Box>
+      </Box>
 
-              <TextField
-                fullWidth
-                label="Start Date"
-                type="date"
-                value={editData.startDate?.split('T')[0] || ''}
-                onChange={(e) => handleEditChange('startDate', e.target.value)}
-                InputLabelProps={{ shrink: true }}
-                size="small"
-              />
+      {saveError && <Alert severity="error" sx={{ mx: 2, mt: 1, flexShrink: 0 }}>{saveError}</Alert>}
 
-              <TextField
-                fullWidth
-                label="End Date"
-                type="date"
-                value={editData.endDate?.split('T')[0] || ''}
-                onChange={(e) => handleEditChange('endDate', e.target.value)}
-                InputLabelProps={{ shrink: true }}
-                size="small"
-              />
-
-              <TextField
-                fullWidth
-                label="DRA Owner"
-                select
-                value={editData.draUserId || ''}
-                onChange={(e) => handleEditChange('draUserId', e.target.value)}
-                size="small"
-              >
-                <MenuItem value="">Unassigned</MenuItem>
-                {people.map((person) => (
-                  <MenuItem key={person.id} value={person.id}>
-                    {person.name || person.email}
-                  </MenuItem>
+      {/* Body */}
+      <DialogContent sx={{ p: 0, display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+        {(isLoading && !resolvedTask) ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1 }}><CircularProgress /></Box>
+        ) : !editData ? null : (
+          <>
+            {/* Left: Editable form */}
+            <Box sx={{ flex: '1 1 60%', overflowY: 'auto', p: 2.5, borderRight: '1px solid rgba(255,255,255,0.07)', display: 'flex', flexDirection: 'column', gap: 0 }}>
+              {/* Tabs */}
+              <Box sx={{ display: 'flex', gap: 0, borderBottom: '1px solid rgba(255,255,255,0.08)', mb: 2 }}>
+                {tabs.map((label, i) => (
+                  <Box key={label} onClick={() => setTab(i)} sx={{
+                    px: 1.5, py: 0.7, cursor: 'pointer', fontSize: '0.8rem', fontWeight: tab === i ? 700 : 400,
+                    color: tab === i ? accent : 'text.secondary',
+                    borderBottom: tab === i ? `2px solid ${accent}` : '2px solid transparent',
+                    mb: '-1px', transition: 'all 0.15s',
+                    '&:hover': { color: accent },
+                  }}>{label}</Box>
                 ))}
-              </TextField>
-
-              <TextField
-                fullWidth
-                label="Developer Owner"
-                select
-                value={editData.developerUserId || ''}
-                onChange={(e) => handleEditChange('developerUserId', e.target.value)}
-                size="small"
-              >
-                <MenuItem value="">Unassigned</MenuItem>
-                {people.map((person) => (
-                  <MenuItem key={person.id} value={person.id}>
-                    {person.name || person.email}
-                  </MenuItem>
-                ))}
-              </TextField>
-
-              <TextField
-                fullWidth
-                label="Progress %"
-                type="number"
-                inputProps={{ min: 0, max: 100 }}
-                value={editData.progressPercentage || 0}
-                onChange={(e) => handleEditChange('progressPercentage', parseInt(e.target.value) || 0)}
-                size="small"
-              />
-
-              <TextField
-                fullWidth
-                label="Notes"
-                multiline
-                rows={4}
-                value={editData.notes || ''}
-                onChange={(e) => handleEditChange('notes', e.target.value)}
-                size="small"
-              />
-
-              <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
-                <Button
-                  startIcon={<CancelIcon />}
-                  onClick={handleCancel}
-                  disabled={saving}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  variant="contained"
-                  startIcon={<SaveIcon />}
-                  onClick={handleSave}
-                  disabled={saving}
-                  sx={{ backgroundColor: accentColor }}
-                >
-                  {saving ? 'Saving...' : 'Save'}
-                </Button>
               </Box>
-            </Box>
-          ) : (
-            // View Mode
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <Tabs
-                value={currentTab}
-                onChange={(_, value) => setCurrentTab(value)}
-                variant="scrollable"
-                scrollButtons="auto"
-                sx={{ borderBottom: '1px solid rgba(255,255,255,0.08)', mb: 1 }}
-              >
-                <Tab label="Overview" />
-                {supportsValidation ? <Tab label={taskType === 'preload_validation' ? 'Preload Quality' : 'Postload Quality'} /> : null}
-                <Tab label="Defects" />
-              </Tabs>
 
-              {currentTab === 0 && (
+              {/* Tab 0: Details */}
+              {tab === 0 && (
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  {!!resolvedTask.taskType && (
-                    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                      <Chip label={resolvedTask.taskType.replace(/_/g, ' ').toUpperCase()} variant="outlined" size="small" />
+                  {/* Status + Progress row */}
+                  <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
+                    <TextField select size="small" label="Status" value={editData.status}
+                      onChange={e => { set('status', e.target.value); if (e.target.value === 'complete') set('progressPercentage', 100); else if (e.target.value !== 'in_progress') set('progressPercentage', 0); }}
+                      sx={fieldSx}>
+                      <MenuItem value="not_started">Not Started</MenuItem>
+                      <MenuItem value="in_progress">In Progress</MenuItem>
+                      <MenuItem value="blocked">Blocked</MenuItem>
+                      <MenuItem value="complete">Complete</MenuItem>
+                    </TextField>
+                    <Box>
+                      <TextField size="small" label="Progress %" type="number" value={editData.progressPercentage}
+                        disabled={editData.status !== 'in_progress'}
+                        onChange={e => set('progressPercentage', Math.min(100, Math.max(0, parseInt(e.target.value) || 0)))}
+                        slotProps={{ htmlInput: { min: 0, max: 100 } }}
+                        sx={{ ...fieldSx, width: '100%' }} />
+                      <LinearProgress variant="determinate" value={Number(editData.progressPercentage) || 0}
+                        sx={{ mt: 0.5, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.08)', '& .MuiLinearProgress-bar': { backgroundColor: STATUS_COLORS[editData.status] || accent } }} />
+                    </Box>
+                  </Box>
+
+                  {/* Owners */}
+                  <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
+                    <TextField select size="small" label="DRA Owner" value={editData.draUserId || ''} onChange={e => set('draUserId', e.target.value)} sx={fieldSx}>
+                      <MenuItem value=""><em>Unassigned</em></MenuItem>
+                      {people.map(p => <MenuItem key={p.id} value={p.id}>{p.name || p.email}</MenuItem>)}
+                    </TextField>
+                    <TextField select size="small" label="Developer Owner" value={editData.developerUserId || ''} onChange={e => set('developerUserId', e.target.value)} sx={fieldSx}>
+                      <MenuItem value=""><em>Unassigned</em></MenuItem>
+                      {people.map(p => <MenuItem key={p.id} value={p.id}>{p.name || p.email}</MenuItem>)}
+                    </TextField>
+                  </Box>
+
+                  {/* Dates */}
+                  <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
+                    <TextField size="small" label="Start Date" type="date" value={editData.startDate || ''}
+                      onChange={e => set('startDate', e.target.value)}
+                      slotProps={{ inputLabel: { shrink: true } }} sx={fieldSx} />
+                    <Box>
+                      <TextField size="small" label="End Date" type="date" value={editData.endDate || ''}
+                        onChange={e => set('endDate', e.target.value)}
+                        slotProps={{ inputLabel: { shrink: true } }} sx={{ ...fieldSx, width: '100%' }} />
+                      {over && over > 0 && (
+                        <Typography variant="caption" sx={{ color: '#ef5350', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 0.3, mt: 0.3 }}>
+                          ⚠ {over} day{over !== 1 ? 's' : ''} overdue
+                        </Typography>
+                      )}
+                    </Box>
+                  </Box>
+
+                  {/* Notes */}
+                  <TextField size="small" label="Notes / Description" multiline rows={4} value={editData.notes || ''}
+                    onChange={e => set('notes', e.target.value)} sx={fieldSx} fullWidth />
+
+                  {/* Dependencies */}
+                  {deps.length > 0 && (
+                    <Box>
+                      <Typography variant="caption" sx={{ color: 'text.disabled', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', fontSize: '0.65rem', display: 'block', mb: 0.75 }}>
+                        Dependencies ({deps.length})
+                      </Typography>
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                        {(deps as any[]).map((dep: any) => (
+                          <Box key={dep.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1.25, py: 0.6, borderRadius: 1, backgroundColor: toRgba(accent, 0.08), border: `1px solid ${toRgba(accent, 0.18)}` }}>
+                            <Box sx={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: STATUS_COLORS[(dep.status || 'not_started')] || accent, flexShrink: 0 }} />
+                            <Typography sx={{ fontWeight: 600, fontSize: '0.78rem' }}>{dep.objectId || dep.dependsOnName || dep.taskName || dep.name || 'Task'}</Typography>
+                            {dep.endDate && <Typography variant="caption" color="text.secondary" sx={{ ml: 'auto' }}>Due {fmtDate(dep.endDate)}</Typography>}
+                          </Box>
+                        ))}
+                      </Box>
                     </Box>
                   )}
-
-                  <Grid container spacing={2}>
-                    <Grid item xs={12} sm={6}>
-                      <Typography variant="caption" color="text.secondary">Start date</Typography>
-                      <Typography variant="body2">{formatDate(resolvedTask.startDate)}</Typography>
-                    </Grid>
-                    <Grid item xs={12} sm={6}>
-                      <Typography variant="caption" color="text.secondary">End date</Typography>
-                      <Typography variant="body2">{formatDate(resolvedTask.endDate)}</Typography>
-                    </Grid>
-                    <Grid item xs={12} sm={6}>
-                      <Typography variant="caption" color="text.secondary">DRA owner</Typography>
-                      <Typography variant="body2">{personLabel(resolvedTask.draUserId)}</Typography>
-                    </Grid>
-                    <Grid item xs={12} sm={6}>
-                      <Typography variant="caption" color="text.secondary">Developer owner</Typography>
-                      <Typography variant="body2">{personLabel(resolvedTask.developerUserId)}</Typography>
-                    </Grid>
-                    <Grid item xs={12} sm={6}>
-                      <Typography variant="caption" color="text.secondary">Project</Typography>
-                      <Typography variant="body2">{resolvedTask.projectName || 'N/A'}</Typography>
-                    </Grid>
-                    <Grid item xs={12} sm={6}>
-                      <Typography variant="caption" color="text.secondary">Object</Typography>
-                      <Typography variant="body2">{resolvedTask.objectId || 'N/A'}</Typography>
-                    </Grid>
-                    <Grid item xs={12} sm={6}>
-                      <Typography variant="caption" color="text.secondary">Task group</Typography>
-                      <Typography variant="body2">{resolvedTask.taskGroupId || 'N/A'}</Typography>
-                    </Grid>
-                    <Grid item xs={12} sm={6}>
-                      <Typography variant="caption" color="text.secondary">Progress</Typography>
-                      <Typography variant="body2">
-                        {typeof resolvedTask.progressPercentage === 'number'
-                          ? `${resolvedTask.progressPercentage}%`
-                          : 'N/A'}
-                      </Typography>
-                    </Grid>
-                  </Grid>
-
-                  {(resolvedTask.programName || resolvedTask.mockCycleName) && (
-                    <>
-                      <Divider />
-                      <Box>
-                        <Typography variant="caption" color="text.secondary">Program / Cycle</Typography>
-                        <Typography variant="body2">
-                          {[resolvedTask.programName, resolvedTask.mockCycleName].filter(Boolean).join(' / ')}
-                        </Typography>
-                      </Box>
-                    </>
-                  )}
-
-                  <Divider />
-                  <Box>
-                    <Typography variant="caption" color="text.secondary">Notes</Typography>
-                    <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
-                      {resolvedTask.notes || 'No notes for this task.'}
-                    </Typography>
-                  </Box>
                 </Box>
               )}
 
-              {supportsValidation && currentTab === 1 && (
-                <Stack spacing={2}>
-                  <Alert severity="info">
-                    Capture the load validation metrics for this task here. Invalid preload records and postload errors roll up into project reporting.
-                  </Alert>
-                  <ValidationStatsSection taskId={resolvedTaskId} />
-                  <IssueTypesSection taskId={resolvedTaskId} />
-                </Stack>
+              {/* Validation tab */}
+              {supportsValidation && tab === 1 && (
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <Alert severity="info" sx={{ fontSize: '0.8rem' }}>Capture load validation metrics here.</Alert>
+                  <ValidationStatsSection taskId={taskIdResolved} />
+                  <IssueTypesSection taskId={taskIdResolved} />
+                </Box>
               )}
 
-              {((supportsValidation && currentTab === 2) || (!supportsValidation && currentTab === 1)) && (
-                <DefectsSection taskId={resolvedTaskId} />
+              {/* Defects tab */}
+              {((supportsValidation && tab === 2) || (!supportsValidation && tab === 1)) && (
+                <DefectsSection taskId={taskIdResolved} />
               )}
             </Box>
-          )}
-        </DialogContent>
-      </Dialog>
 
-      {/* Discussion Modal */}
-      {resolvedTask && (
-        <TaskCommentsModal
-          open={showDiscussion}
-          onClose={() => setShowDiscussion(false)}
-          taskId={resolvedTask.id || resolvedTask.taskId || taskId || ''}
-          taskName={resolvedTask.taskName || resolvedTask.name || 'Task'}
-          accentColor={accentColor}
-          people={people}
-        />
-      )}
-    </>
+            {/* Right: Discussion */}
+            <Box sx={{ flex: '0 0 300px', display: 'flex', flexDirection: 'column', overflow: 'hidden', backgroundColor: 'rgba(0,0,0,0.15)' }}>
+              <InlineDiscussion taskId={taskIdResolved} accent={accent} people={people} />
+            </Box>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 };
 
