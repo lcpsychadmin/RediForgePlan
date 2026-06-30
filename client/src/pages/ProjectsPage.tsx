@@ -3575,15 +3575,16 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     if (!startDate || !duration) return '';
     const mode = getTaskCalendarMode(task);
     const d = adjustStartForMode(startDate, mode);
-    // Sub-day durations: end on the same calendar day as start.
-    const wholeDays = Math.floor(Number(duration) || 0);
-    if (wholeDays === 0) return formatDateOnly(d);
+    // end = start + max(0, ceil(duration) - 1) working days.
+    // ceil(0.5)-1=0 (same day), ceil(1.0)-1=0 (same day), ceil(1.6)-1=1 (+1 day), ceil(2.0)-1=1.
+    // This is consistent with the cascade formula: endDate = chainStart + (ceil(cumFrac)-1) days.
+    const daysToAdd = Math.max(0, Math.ceil(duration) - 1);
     if (mode === 'all_days') {
-      d.setDate(d.getDate() + Math.max(0, wholeDays - 1));
+      d.setDate(d.getDate() + daysToAdd);
       return formatDateOnly(d);
     }
-    let remaining = wholeDays;
-    while (remaining > 1) {
+    let remaining = daysToAdd;
+    while (remaining > 0) {
       d.setDate(d.getDate() + 1);
       if (!isWeekend(d)) remaining--;
     }
@@ -3701,8 +3702,13 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
           if (mode === 'working_days') while (isWeekend(nd)) nd.setDate(nd.getDate() + 1);
           newStart = formatDateOnly(nd);
         }
+        const newCumFrac = predCumFrac + taskDuration;
+        // End date is derived from the cumulative offset from chain start so that
+        // intraday position is reflected: endDate = chainStart + (ceil(cumFrac)-1) days.
         const newEnd = taskDuration > 0
-          ? (calcEndDate(newStart, taskDuration, task) || newStart)
+          ? (predChainStart
+              ? (calcEndDate(predChainStart, newCumFrac, task) || newStart)
+              : (calcEndDate(newStart, taskDuration, task) || newStart))
           : newStart;
         // Always propagate cumulative context downstream, even if dates don't change.
         // Without this, tasks whose dates are already correct don't update cumFracMap,
