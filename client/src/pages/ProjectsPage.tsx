@@ -203,6 +203,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   const [hierarchyLevelIcons, setHierarchyLevelIcons] = useState<HierarchyLevelIcons>(DEFAULT_HIERARCHY_LEVEL_ICONS);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [editingTaskGroupId, setEditingTaskGroupId] = useState<string | null>(null);
+
+  // Plan group object picker state
+  const [groupObjectPickerGroupId, setGroupObjectPickerGroupId] = useState<string | null>(null);
+  const [groupObjectPickerSearch, setGroupObjectPickerSearch] = useState('');
   
   // Delete confirmation dialog states
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -1505,6 +1509,30 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         [cycleKey]: next,
       };
     });
+  };
+
+  const addObjectToGroup = async (groupId: string, objectId: string) => {
+    const group = projectTaskGroups.find(g => g.id === groupId);
+    if (!group) return;
+    const currentMembers: string[] = Array.isArray(group.members) ? group.members : [];
+    if (currentMembers.includes(objectId)) return;
+    const newMembers = [...currentMembers, objectId];
+    try {
+      await apiClient.patch(`/api/tasks/groups/${groupId}`, { members: newMembers });
+      setProjectTaskGroups(prev => prev.map(g => g.id === groupId ? { ...g, members: newMembers } : g));
+    } catch (e) { console.error('[addObjectToGroup]', e); }
+    setGroupObjectPickerGroupId(null);
+    setGroupObjectPickerSearch('');
+  };
+
+  const removeObjectFromGroup = async (groupId: string, objectId: string) => {
+    const group = projectTaskGroups.find(g => g.id === groupId);
+    if (!group) return;
+    const newMembers = (Array.isArray(group.members) ? group.members : []).filter((id: string) => id !== objectId);
+    try {
+      await apiClient.patch(`/api/tasks/groups/${groupId}`, { members: newMembers });
+      setProjectTaskGroups(prev => prev.map(g => g.id === groupId ? { ...g, members: newMembers } : g));
+    } catch (e) { console.error('[removeObjectFromGroup]', e); }
   };
 
   const handleCreateProcessArea = async () => {
@@ -5724,16 +5752,127 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                   })()}
                                   {isExpanded && (
                                     <Box sx={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                                      {/* ── Member objects section ── */}
+                                      {(() => {
+                                        const memberIds: string[] = Array.isArray(group.members) ? group.members : [];
+                                        const directTasks = groupTasks.filter((t: any) => !t.projectObjectId);
+                                        const pickerOpen = groupObjectPickerGroupId === group.id;
+                                        const availableObjects = projectInventoryItems.filter(
+                                          (item: any) => !memberIds.includes(item.id)
+                                        ).filter((item: any) => {
+                                          const term = groupObjectPickerSearch.toLowerCase();
+                                          return !term
+                                            || (item.objectId || '').toLowerCase().includes(term)
+                                            || (item.description || '').toLowerCase().includes(term);
+                                        });
+                                        return (
+                                          <Box sx={{ px: 2, pt: 1, pb: memberIds.length > 0 ? 0.5 : 0 }}>
+                                            {memberIds.length > 0 && (
+                                              <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.64rem', letterSpacing: '0.06em', fontWeight: 700, display: 'block', mb: 0.75 }}>
+                                                INVENTORY OBJECTS
+                                              </Typography>
+                                            )}
+                                            {memberIds.map((memberId: string) => {
+                                              const invObj = projectInventoryItems.find((o: any) => o.id === memberId);
+                                              if (!invObj) return null;
+                                              const memberTasks = groupTasks.filter((t: any) => t.projectObjectId === memberId);
+                                              const memberStatus = memberTasks.length > 0 && memberTasks.every((t: any) => t.status === 'complete') ? 'complete'
+                                                : memberTasks.some((t: any) => t.status === 'in_progress') ? 'in_progress'
+                                                : memberTasks.some((t: any) => t.status === 'blocked') ? 'blocked'
+                                                : 'not_started';
+                                              return (
+                                                <Box key={memberId} sx={{ mb: 1, border: '1px solid rgba(255,255,255,0.08)', borderRadius: 1.5, backgroundColor: 'rgba(255,255,255,0.02)', overflow: 'hidden' }}>
+                                                  <Box sx={{ px: 1.5, py: 0.75, display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                    <Typography sx={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '0.78rem', color: planAccentColor, flexShrink: 0 }}>
+                                                      {invObj.objectId || invObj.dataObjectId}
+                                                    </Typography>
+                                                    {invObj.description && (
+                                                      <Typography variant="caption" sx={{ color: 'text.secondary', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                        {invObj.description}
+                                                      </Typography>
+                                                    )}
+                                                    <Box sx={{ display: 'flex', gap: 0.4, alignItems: 'center', flexShrink: 0 }}>
+                                                      {memberTasks.slice(0, 8).map((t: any, i: number) => (
+                                                        <Box key={i} sx={{ width: 14, height: 4, borderRadius: 2, backgroundColor: getTaskStatusColor(t.status) }} />
+                                                      ))}
+                                                    </Box>
+                                                    <Box sx={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: getTaskStatusColor(memberStatus), flexShrink: 0 }} />
+                                                    <IconButton size="small" title="Remove object from group"
+                                                      onClick={() => removeObjectFromGroup(group.id, memberId)}
+                                                      sx={{ p: 0.3, color: 'text.disabled', '&:hover': { color: 'error.main' } }}>
+                                                      <CloseIcon sx={{ fontSize: '0.8rem' }} />
+                                                    </IconButton>
+                                                  </Box>
+                                                </Box>
+                                              );
+                                            })}
+                                            {/* Add Object button / picker */}
+                                            {!pickerOpen ? (
+                                              <Button size="small" variant="text" startIcon={<AddIcon sx={{ fontSize: '0.8rem !important' }} />}
+                                                onClick={() => { setGroupObjectPickerGroupId(group.id); setGroupObjectPickerSearch(''); }}
+                                                sx={{ fontSize: '0.72rem', color: planAccentColor, textTransform: 'none', mb: memberIds.length > 0 ? 0.5 : 0 }}>
+                                                Add Object
+                                              </Button>
+                                            ) : (
+                                              <Box sx={{ mb: 1, border: '1px solid rgba(255,255,255,0.15)', borderRadius: 1.5, backgroundColor: 'rgba(0,0,0,0.25)', p: 1 }}>
+                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75 }}>
+                                                  <TextField size="small" autoFocus placeholder="Search objects…"
+                                                    value={groupObjectPickerSearch}
+                                                    onChange={e => setGroupObjectPickerSearch(e.target.value)}
+                                                    sx={{ flex: 1, '& .MuiInputBase-root': { fontSize: '0.75rem', height: 28 } }} />
+                                                  <IconButton size="small" onClick={() => { setGroupObjectPickerGroupId(null); setGroupObjectPickerSearch(''); }} sx={{ p: 0.3 }}>
+                                                    <CloseIcon sx={{ fontSize: '0.9rem' }} />
+                                                  </IconButton>
+                                                </Box>
+                                                <Box sx={{ maxHeight: 160, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 0.25 }}>
+                                                  {availableObjects.length === 0 ? (
+                                                    <Typography variant="caption" color="text.disabled" sx={{ px: 0.5, py: 0.5 }}>
+                                                      {groupObjectPickerSearch ? 'No matching objects' : 'All inventory objects already added'}
+                                                    </Typography>
+                                                  ) : availableObjects.map((obj: any) => (
+                                                    <Box key={obj.id}
+                                                      onClick={() => addObjectToGroup(group.id, obj.id)}
+                                                      sx={{ px: 1.25, py: 0.6, borderRadius: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 1,
+                                                        '&:hover': { backgroundColor: toRgba(planAccentColor, 0.15) } }}>
+                                                      <Typography sx={{ fontFamily: 'monospace', fontSize: '0.75rem', fontWeight: 700, color: planAccentColor, flexShrink: 0 }}>
+                                                        {obj.objectId || obj.dataObjectId}
+                                                      </Typography>
+                                                      {obj.processArea && (
+                                                        <Typography variant="caption" sx={{ fontSize: '0.65rem', color: 'text.disabled', flexShrink: 0 }}>
+                                                          {obj.processArea}
+                                                        </Typography>
+                                                      )}
+                                                      {obj.description && (
+                                                        <Typography variant="caption" sx={{ color: 'text.secondary', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                          {obj.description}
+                                                        </Typography>
+                                                      )}
+                                                    </Box>
+                                                  ))}
+                                                </Box>
+                                              </Box>
+                                            )}
+                                            {/* Divider between objects and direct tasks */}
+                                            {memberIds.length > 0 && directTasks.length > 0 && (
+                                              <Box sx={{ borderTop: '1px solid rgba(255,255,255,0.06)', mt: 0.5, mb: 0 }} />
+                                            )}
+                                          </Box>
+                                        );
+                                      })()}
+                                      {/* ── Direct tasks (no object) ── */}
                                       <Box sx={{ width: '100%', overflowX: 'auto' }}>
-                                        {/* Table header */}
-                                        <Box sx={{ minWidth: 930, display: 'grid', gridTemplateColumns: 'minmax(180px,1fr) 120px 60px 150px 84px 44px 100px 100px 92px', gap: 0, px: 2, py: 0.5, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                                          {['TASK', 'STATUS', '%', 'ASSIGNED TO', 'DUR', 'WKND', 'START DATE', 'END DATE', 'ACTIONS'].map(h => (
-                                            <Typography key={h} variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', letterSpacing: '0.05em', fontWeight: 600, whiteSpace: 'pre-line', lineHeight: 1.05 }}>{h}</Typography>
-                                          ))}
-                                        </Box>
-                                      {groupTasks.length === 0
-                                        ? <Typography variant="caption" color="text.disabled" sx={{ px: 2, py: 1, display: 'block', minWidth: 930 }}>No tasks</Typography>
-                                        : groupTasks.map((task) => (
+                                        {(() => {
+                                          const directTasks = groupTasks.filter((t: any) => !t.projectObjectId);
+                                          if (directTasks.length === 0) return null;
+                                          return (
+                                            <>
+                                              {/* Table header */}
+                                              <Box sx={{ minWidth: 930, display: 'grid', gridTemplateColumns: 'minmax(180px,1fr) 120px 60px 150px 84px 44px 100px 100px 92px', gap: 0, px: 2, py: 0.5, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                                                {['TASK', 'STATUS', '%', 'ASSIGNED TO', 'DUR', 'WKND', 'START DATE', 'END DATE', 'ACTIONS'].map(h => (
+                                                  <Typography key={h} variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', letterSpacing: '0.05em', fontWeight: 600, whiteSpace: 'pre-line', lineHeight: 1.05 }}>{h}</Typography>
+                                                ))}
+                                              </Box>
+                                              {groupTasks.filter((t: any) => !t.projectObjectId).map((task: any) => (
                                           <Box key={task.id} sx={{ minWidth: 930, display: 'grid', gridTemplateColumns: 'minmax(180px,1fr) 120px 60px 150px 84px 44px 100px 100px 92px', gap: 0, px: 2, py: 0.5, alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.03)', '&:hover': { backgroundColor: 'rgba(255,255,255,0.02)' } }}>
                                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
                                               <Box sx={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: getTaskStatusColor(task.status), flexShrink: 0 }} />
@@ -5899,9 +6038,13 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                               </IconButton>
                                             </Box>
                                           </Box>
-                                        ))}
-                                      {/* Add Task to group */}
-                                      <Box sx={{ px: 2, py: 0.5, minWidth: 930 }}>
+                                              ))}
+                                            </>
+                                          );
+                                        })()}
+                                      </Box>
+                                      {/* Add Task (direct, no object) */}
+                                      <Box sx={{ px: 2, py: 0.5 }}>
                                         <Button size="small" variant="text" startIcon={<AddIcon sx={{ fontSize: '0.8rem !important' }} />}
                                           onClick={async () => {
                                             try {
@@ -5912,7 +6055,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                           sx={{ fontSize: '0.72rem', color: '#7C83D0', textTransform: 'none' }}>
                                           Add Task
                                         </Button>
-                                      </Box>
                                       </Box>
                                     </Box>
                                   )}
