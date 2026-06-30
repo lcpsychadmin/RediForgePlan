@@ -161,7 +161,8 @@ const PrioritiesPage: React.FC = () => {
   }
 
   return (
-    <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 3 }}>
+    <>
+      <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 3 }}>
         <Typography variant="h4" sx={{ fontWeight: 700 }}>Priorities</Typography>
 
         {isLoading && !rawTasks.length && (
@@ -332,7 +333,7 @@ const PrioritiesPage: React.FC = () => {
         people={people}
         accentColor="#ffa726"
       />
-    </Layout>
+    </>
   );
 };
 
