@@ -167,7 +167,7 @@ export class TaskService {
   async getTasksByProject(projectId: string, filters?: { status?: string; taskType?: string; draUserId?: string; developerUserId?: string; projectObjectId?: string; taskGroupId?: string }) {
     let query = `
       SELECT t.id, t.project_id, t.project_object_id, t.task_group_id, t.task_type, t.name, t.status,
-              t.start_date, t.end_date, t.revised_start_date, t.revised_end_date, t.assigned_to, t.duration, t.duration_unit, t.schedule_mode_override, t.progress_percentage,
+              t.start_date, t.end_date, t.revised_start_date, t.revised_end_date, t.actual_start_date, t.actual_end_date, t.assigned_to, t.duration, t.duration_unit, t.schedule_mode_override, t.progress_percentage,
              t.dra_user_id, t.developer_user_id, t.notes, t.created_at, t.updated_at
       FROM tasks t
       WHERE t.project_id = $1
@@ -215,7 +215,7 @@ export class TaskService {
   async getTaskById(taskId: string) {
     const result = await db.query(
       `SELECT t.id, t.project_id, t.project_object_id, t.task_group_id, t.task_type, t.name, t.status,
-              t.start_date, t.end_date, t.revised_start_date, t.revised_end_date, t.assigned_to, t.duration, t.duration_unit, t.schedule_mode_override, t.progress_percentage,
+              t.start_date, t.end_date, t.revised_start_date, t.revised_end_date, t.actual_start_date, t.actual_end_date, t.assigned_to, t.duration, t.duration_unit, t.schedule_mode_override, t.progress_percentage,
               t.dra_user_id, t.developer_user_id, t.notes, t.created_at, t.updated_at
        FROM tasks t
        WHERE t.id = $1`,
@@ -275,6 +275,8 @@ export class TaskService {
       endDate: 'end_date',
       revisedStartDate: 'revised_start_date',
       revisedEndDate: 'revised_end_date',
+      actualStartDate: 'actual_start_date',
+      actualEndDate: 'actual_end_date',
       assignedTo: 'assigned_to',
       duration: 'duration',
       durationUnit: 'duration_unit',
@@ -478,7 +480,7 @@ export class TaskService {
   async getTasksByCycle(mockCycleId: string, filters?: { status?: string; taskType?: string; draUserId?: string; developerUserId?: string; projectObjectId?: string; taskGroupId?: string }) {
     let query = `
       SELECT t.id, t.project_id, t.project_object_id, t.task_group_id, t.task_type, t.name, t.status,
-             t.start_date, t.end_date, t.revised_start_date, t.revised_end_date, t.assigned_to, t.duration, t.duration_unit, t.schedule_mode_override, t.progress_percentage,
+             t.start_date, t.end_date, t.revised_start_date, t.revised_end_date, t.actual_start_date, t.actual_end_date, t.assigned_to, t.duration, t.duration_unit, t.schedule_mode_override, t.progress_percentage,
              t.dra_user_id, t.developer_user_id, t.notes, t.created_at, t.updated_at
       FROM tasks t
       WHERE t.mock_cycle_id = $1
@@ -571,6 +573,8 @@ export class TaskService {
       endDate: this.fmtDate(row.end_date),
       revisedStartDate: this.fmtDate(row.revised_start_date),
       revisedEndDate: this.fmtDate(row.revised_end_date),
+      actualStartDate: this.fmtDate(row.actual_start_date),
+      actualEndDate: this.fmtDate(row.actual_end_date),
       assignedTo: row.assigned_to,
       duration: row.duration,
       durationUnit: row.duration_unit,

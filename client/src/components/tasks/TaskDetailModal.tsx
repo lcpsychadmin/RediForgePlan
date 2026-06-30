@@ -231,6 +231,8 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
         status: resolvedTask.status || 'not_started',
         revisedStartDate: toInputDate(resolvedTask.revisedStartDate),
         revisedEndDate: toInputDate(resolvedTask.revisedEndDate),
+        actualStartDate: toInputDate(resolvedTask.actualStartDate),
+        actualEndDate: toInputDate(resolvedTask.actualEndDate),
         assignedTo: resolvedTask.assignedTo || '',
         notes: resolvedTask.notes || '',
         progressPercentage: resolvedTask.progressPercentage ?? 0,
@@ -251,6 +253,8 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
         status: editData.status,
         revisedStartDate: editData.revisedStartDate || null,
         revisedEndDate: editData.revisedEndDate || null,
+        actualStartDate: editData.actualStartDate || null,
+        actualEndDate: editData.actualEndDate || null,
         assignedTo: editData.assignedTo || null,
         notes: editData.notes || null,
         progressPercentage: Number(editData.progressPercentage) || 0,
@@ -265,7 +269,9 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     }
   };
 
-  const over = daysOverdue(editData?.revisedEndDate || resolvedTask?.revisedEndDate || resolvedTask?.endDate);
+  // Effective end date for overdue calc: actual → revised → plan
+  const effectiveEnd = editData?.actualEndDate || editData?.revisedEndDate || resolvedTask?.endDate;
+  const over = daysOverdue(effectiveEnd);
   const accent = accentColor || '#29b6f6';
 
   const fieldSx = {
@@ -369,32 +375,96 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                     {people.map((p: any) => <MenuItem key={p.id} value={p.name || p.email}>{p.name || p.email}</MenuItem>)}
                   </TextField>
 
-                  {/* Original (plan) dates — read-only */}
-                  <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
-                    {[['Plan Start', resolvedTask?.startDate], ['Plan End', resolvedTask?.endDate]].map(([label, val]) => (
-                      <Box key={label as string} sx={{ border: '1px solid rgba(255,255,255,0.1)', borderRadius: 1, px: 1.5, py: 0.75, backgroundColor: 'rgba(255,255,255,0.03)' }}>
-                        <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.68rem', fontWeight: 600, letterSpacing: '0.05em', display: 'block', mb: 0.2 }}>{label as string}</Typography>
-                        <Typography sx={{ fontSize: '0.82rem', color: 'text.secondary' }}>{val ? fmtDate(val as string) : '—'}</Typography>
-                      </Box>
-                    ))}
-                  </Box>
+                  {/* ── Date sections ── */}
 
-                  {/* Revised dates — editable */}
-                  <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
-                    <TextField size="small" label="Revised Start" type="date" value={editData.revisedStartDate || ''}
-                      onChange={e => set('revisedStartDate', e.target.value)}
-                      slotProps={{ inputLabel: { shrink: true } }} sx={fieldSx} />
-                    <Box>
-                      <TextField size="small" label="Revised End" type="date" value={editData.revisedEndDate || ''}
-                        onChange={e => set('revisedEndDate', e.target.value)}
-                        slotProps={{ inputLabel: { shrink: true } }} sx={{ ...fieldSx, width: '100%' }} />
-                      {over && over > 0 && (
-                        <Typography variant="caption" sx={{ color: '#ef5350', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 0.3, mt: 0.3 }}>
-                          ⚠ {over} day{over !== 1 ? 's' : ''} overdue
-                        </Typography>
-                      )}
+                  {/* Plan dates — read-only info blocks */}
+                  <Box>
+                    <Typography variant="caption" sx={{ color: 'text.disabled', fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', fontSize: '0.63rem', display: 'block', mb: 0.75 }}>
+                      Plan Dates
+                    </Typography>
+                    <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5 }}>
+                      {[['Plan Start', resolvedTask?.startDate], ['Plan End', resolvedTask?.endDate]].map(([label, val]) => (
+                        <Box key={label as string} sx={{ px: 1.5, py: 1, borderRadius: 1, backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                          <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', display: 'block', mb: 0.15 }}>{label as string}</Typography>
+                          <Typography sx={{ fontSize: '0.85rem', color: 'text.secondary' }}>{val ? fmtDate(val as string) : '—'}</Typography>
+                        </Box>
+                      ))}
                     </Box>
                   </Box>
+
+                  {/* Revised dates */}
+                  <Box>
+                    <Typography variant="caption" sx={{ color: 'text.disabled', fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', fontSize: '0.63rem', display: 'block', mb: 0.75 }}>
+                      Revised Dates
+                    </Typography>
+                    <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5 }}>
+                      <TextField size="small" label="Revised Start" type="date" value={editData.revisedStartDate || ''}
+                        onChange={e => set('revisedStartDate', e.target.value)}
+                        InputLabelProps={{ shrink: true }} sx={fieldSx} />
+                      <TextField size="small" label="Revised End" type="date" value={editData.revisedEndDate || ''}
+                        onChange={e => set('revisedEndDate', e.target.value)}
+                        InputLabelProps={{ shrink: true }} sx={fieldSx} />
+                    </Box>
+                  </Box>
+
+                  {/* Actual dates */}
+                  <Box>
+                    <Typography variant="caption" sx={{ color: 'text.disabled', fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', fontSize: '0.63rem', display: 'block', mb: 0.75 }}>
+                      Actual Dates
+                    </Typography>
+                    <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5 }}>
+                      <TextField size="small" label="Actual Start" type="date" value={editData.actualStartDate || ''}
+                        onChange={e => set('actualStartDate', e.target.value)}
+                        InputLabelProps={{ shrink: true }} sx={fieldSx} />
+                      <Box>
+                        <TextField size="small" label="Actual End" type="date" value={editData.actualEndDate || ''}
+                          onChange={e => set('actualEndDate', e.target.value)}
+                          InputLabelProps={{ shrink: true }} sx={{ ...fieldSx, width: '100%' }} />
+                        {over && over > 0 && (
+                          <Typography variant="caption" sx={{ color: '#ef5350', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 0.3, mt: 0.3 }}>
+                            ⚠ {over} day{over !== 1 ? 's' : ''} overdue
+                          </Typography>
+                        )}
+                      </Box>
+                    </Box>
+                  </Box>
+
+                  {/* Recalculate downstream */}
+                  {(editData.revisedStartDate || editData.revisedEndDate) && (
+                    <Box sx={{ pt: 0.5 }}>
+                      <Box
+                        component="button"
+                        onClick={async () => {
+                          if (!taskIdResolved) return;
+                          // Update the task's plan start/end from its revised dates so the cascade
+                          // uses the revised schedule as the new baseline.
+                          const newStart = editData.revisedStartDate || resolvedTask?.startDate;
+                          const newEnd = editData.revisedEndDate || resolvedTask?.endDate;
+                          try {
+                            await apiClient.patch(`/api/tasks/${taskIdResolved}`, {
+                              startDate: newStart,
+                              endDate: newEnd,
+                              revisedStartDate: editData.revisedStartDate || null,
+                              revisedEndDate: editData.revisedEndDate || null,
+                              actualStartDate: editData.actualStartDate || null,
+                              actualEndDate: editData.actualEndDate || null,
+                              assignedTo: editData.assignedTo || null,
+                              notes: editData.notes || null,
+                              progressPercentage: Number(editData.progressPercentage) || 0,
+                              status: editData.status,
+                            });
+                            onSaved?.({ id: taskIdResolved, startDate: newStart, endDate: newEnd });
+                            queryClient.invalidateQueries({ queryKey: ['task-details-modal', taskId] });
+                          } catch { /* ignore */ }
+                        }}
+                        sx={{ display: 'flex', alignItems: 'center', gap: 0.75, px: 1.5, py: 0.65, borderRadius: 1.5, border: `1px solid ${toRgba(accent, 0.4)}`, cursor: 'pointer', backgroundColor: toRgba(accent, 0.08), color: accent, fontWeight: 600, fontSize: '0.78rem', '&:hover': { backgroundColor: toRgba(accent, 0.18) } }}>
+                        ↻ Apply Revised Dates &amp; Recalculate Downstream
+                      </Box>
+                      <Typography variant="caption" color="text.disabled" sx={{ display: 'block', mt: 0.5, fontSize: '0.68rem' }}>
+                        Updates this task's plan dates to the revised dates and re-cascades dependent tasks.
+                      </Typography>
+                    </Box>
+                  )}
 
                   {/* Notes */}
                   <TextField size="small" label="Notes / Description" multiline rows={4} value={editData.notes || ''}
