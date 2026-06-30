@@ -253,11 +253,17 @@ const SettingsPage: React.FC = () => {
     try {
       // Read current hierarchy state to merge into (preserving all other fields like treeOrder, etc.)
       const existing = await apiClient.get('/api/hierarchy-preferences/state').then(r => r.data?.data || {}).catch(() => ({}));
+      // Clear any stale per-cycle accent/icon overrides that the old settings dialog may have
+      // written. Now that global settings are the source of truth, per-cycle overrides would
+      // block the global defaults from taking effect.
       await apiClient.put('/api/hierarchy-preferences/state', {
         ...existing,
         globalProcessAreaAccents,
         globalProcessAreaIcons,
+        processAreaAccentOverrides: {},
+        processAreaIconOverrides: {},
       });
+      localStorage.removeItem('rf-process-area-accent-overrides');
       localStorage.setItem(SETTINGS_PROCESS_AREA_DESCRIPTIONS_KEY, JSON.stringify(processAreaDescriptions));
       setSaveStatus('saved');
     } catch (e) {

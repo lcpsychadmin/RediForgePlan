@@ -1351,8 +1351,12 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   // Accept an optional cycleId so call sites that have it can pass it; fall back to projectId.
   const getProcessAreaAccent = (projectId: string, area: string, fallback: string, cycleId?: string) => {
     const key = cycleId || projectId;
-    // Per-cycle override → global settings default → fallback
-    return processAreaAccentOverrides[key]?.[area] || globalProcessAreaAccents[area] || fallback;
+    // Global settings (from Settings page) take priority.
+    // Per-cycle overrides are kept for future per-cycle customisation but only apply
+    // when no global default has been explicitly set for this area.
+    const global = globalProcessAreaAccents[area];
+    const perCycle = processAreaAccentOverrides[key]?.[area];
+    return global || perCycle || fallback;
   };
 
   const getProcessAreaDisplayName = (projectId: string, area: string) => {
@@ -1361,10 +1365,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   };
 
   const renderHierarchyIcon = (level: HierarchyLevel, color: string, size: string, overrideKey?: string, overrideArea?: string) => {
-    // Per-cycle override → global settings default → global level default
-    const iconChoice = (overrideKey && overrideArea && processAreaIconOverrides[overrideKey]?.[overrideArea])
-      || (overrideArea && globalProcessAreaIcons[overrideArea])
-      || hierarchyLevelIcons[level];
+    // Global settings (from Settings page) take priority over per-cycle overrides and defaults.
+    const globalIcon = overrideArea ? globalProcessAreaIcons[overrideArea] : undefined;
+    const perCycleIcon = (overrideKey && overrideArea && processAreaIconOverrides[overrideKey]?.[overrideArea]) || undefined;
+    const iconChoice = globalIcon || perCycleIcon || hierarchyLevelIcons[level];
     const sx = { fontSize: size, color, flexShrink: 0 };
     switch (iconChoice) {
       case 'sync':
@@ -1973,6 +1977,13 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
           }
           if (parsed.globalProcessAreaIcons && typeof parsed.globalProcessAreaIcons === 'object') {
             setGlobalProcessAreaIcons(parsed.globalProcessAreaIcons as Record<string, HierarchyIconChoice>);
+          }
+          // Also reload per-cycle overrides — Settings page may have cleared them.
+          if (typeof parsed.processAreaAccentOverrides === 'object') {
+            setProcessAreaAccentOverrides(parsed.processAreaAccentOverrides || {});
+          }
+          if (typeof parsed.processAreaIconOverrides === 'object') {
+            setProcessAreaIconOverrides(parsed.processAreaIconOverrides || {});
           }
         }).catch(() => {});
       }
