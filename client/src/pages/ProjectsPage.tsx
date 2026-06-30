@@ -2270,8 +2270,46 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         }));
         setTaskDeps(allDeps);
 
-        // Cascade dates for tasks with dependencies+duration
+        // Cascade dates for tasks with explicit dependency arrows.
         await cascadeAllDates(tasks, allDeps);
+
+        // Auto-schedule sibling tasks: recalculate end dates using cumulative
+        // fraction even when no explicit dependency arrows exist.
+        (() => {
+          const byObject: Record<string, any[]> = {};
+          for (const t of tasks) {
+            if (t.projectObjectId && t.startDate && t.duration) {
+              (byObject[t.projectObjectId] = byObject[t.projectObjectId] || []).push(t);
+            }
+          }
+          const autoPatches: Record<string, string> = {};
+          for (const siblings of Object.values(byObject)) {
+            if (siblings.length < 2) continue;
+            const sorted = [...siblings].sort((a, b) => {
+              const aD = a.startDate ? new Date(a.startDate).getTime() : Infinity;
+              const bD = b.startDate ? new Date(b.startDate).getTime() : Infinity;
+              return aD !== bD ? aD - bD : (a.name || '').localeCompare(b.name || '');
+            });
+            const chainStart = sorted[0].startDate;
+            let cumFrac = 0;
+            for (const t of sorted) {
+              const dur = Number(t.duration) || 0;
+              cumFrac += dur;
+              const expectedEnd = calcEndDate(chainStart, cumFrac, t);
+              if (expectedEnd && expectedEnd !== t.endDate) {
+                autoPatches[t.id] = expectedEnd;
+              }
+            }
+          }
+          if (Object.keys(autoPatches).length > 0) {
+            setProjectTasks(prev => prev.map(t =>
+              autoPatches[t.id] ? { ...t, endDate: autoPatches[t.id] } : t
+            ));
+            Object.entries(autoPatches).forEach(([id, endDate]) =>
+              apiClient.patch(`/api/tasks/${id}`, { endDate }).catch(() => {})
+            );
+          }
+        })();
 
         // Load task groups
         const groupUrl = activeCycleId
