@@ -371,6 +371,16 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   const [isDeletingInventoryItem, setIsDeletingInventoryItem] = useState(false);
   const [selectedProjectForInventory, setSelectedProjectForInventory] = useState<string | null>(null);
   const [catalogObjectDialogOpen, setCatalogObjectDialogOpen] = useState(false);
+  // Applications + Data Definitions
+  const [applications, setApplications] = useState<any[]>([]);
+  const [dataDefPanelObjectId, setDataDefPanelObjectId] = useState<string | null>(null);
+  const [dataDefPanelObject, setDataDefPanelObject] = useState<any | null>(null);
+  const [dataDefinitions, setDataDefinitions] = useState<any[]>([]);
+  const [selectedDataDefId, setSelectedDataDefId] = useState<string | null>(null);
+  const [dataDefFields, setDataDefFields] = useState<any[]>([]);
+  const [addingField, setAddingField] = useState(false);
+  const [newField, setNewField] = useState({ tableName: '', fieldName: '', fieldLabel: '', dataType: '', length: '', decimals: '', isKey: false, isRequired: false, description: '' });
+  const [editingFieldId, setEditingFieldId] = useState<string | null>(null);
   const [catalogObjectId, setCatalogObjectId] = useState('');
   const [catalogObjectDesc, setCatalogObjectDesc] = useState('');
   const [catalogProcessArea, setCatalogProcessArea] = useState('');
@@ -729,6 +739,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     apiClient.get('/api/tasks/templates/defaults').then(res => {
       const names = (res.data.data || []).map((t: any) => t.name as string);
       setDefaultTaskOrder(names);
+    }).catch(() => {});
+
+    apiClient.get('/api/applications').then(res => {
+      setApplications(res.data.data || []);
     }).catch(() => {});
   }, []);
 
@@ -6649,6 +6663,24 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                 </IconButton>
                                 <IconButton
                                   size="small"
+                                  title="Applications & Data Definitions"
+                                  onClick={() => {
+                                    setDataDefPanelObjectId(obj.id);
+                                    setDataDefPanelObject(obj);
+                                    setSelectedDataDefId(null);
+                                    setDataDefFields([]);
+                                    apiClient.get(`/api/applications/data-definitions/object/${obj.id}`)
+                                      .then(r => setDataDefinitions(r.data.data || []))
+                                      .catch(() => setDataDefinitions([]));
+                                  }}
+                                  sx={{ color: '#86A9E8', '&:hover': { backgroundColor: 'rgba(68, 100, 160, 0.2)' } }}
+                                >
+                                  <LayersIcon sx={{ fontSize: '1rem' }} />
+                                </IconButton>
+                                  <EditIcon sx={{ fontSize: '1rem' }} />
+                                </IconButton>
+                                <IconButton
+                                  size="small"
                                   onClick={() => handleDeleteCatalogObject(obj)}
                                   sx={{ color: '#88A0C7', '&:hover': { backgroundColor: 'rgba(68, 100, 160, 0.2)' } }}
                                   title="Delete"
@@ -9796,6 +9828,168 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
             {isDeletingInventoryItem ? 'Deleting...' : 'Delete'}
           </Button>
         </DialogActions>
+      </Dialog>
+
+      {/* ── Data Definitions Panel ──────────────────────────────────────────── */}
+      <Dialog open={!!dataDefPanelObjectId} onClose={() => { setDataDefPanelObjectId(null); setDataDefPanelObject(null); setSelectedDataDefId(null); setDataDefFields([]); setAddingField(false); }}
+        fullWidth maxWidth="lg"
+        PaperProps={{ sx: { borderRadius: 2, maxHeight: '92vh', display: 'flex', flexDirection: 'column' } }}>
+        <DialogTitle sx={{ background: 'linear-gradient(135deg, #1a2c5a 0%, #0f1e40 100%)', borderBottom: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', pb: 1.5 }}>
+          <Box>
+            <Typography sx={{ fontWeight: 700, fontSize: '1rem', fontFamily: 'monospace', color: '#DBE7FF' }}>{dataDefPanelObject?.objectId}</Typography>
+            <Typography variant="caption" color="text.secondary">Applications &amp; Data Definitions</Typography>
+          </Box>
+          <IconButton onClick={() => { setDataDefPanelObjectId(null); setDataDefPanelObject(null); setSelectedDataDefId(null); setDataDefFields([]); }} size="small"><CloseIcon /></IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ p: 0, display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+          {/* Left: application list */}
+          <Box sx={{ width: 260, flexShrink: 0, borderRight: '1px solid rgba(255,255,255,0.07)', display: 'flex', flexDirection: 'column', backgroundColor: 'rgba(0,0,0,0.15)' }}>
+            <Box sx={{ px: 1.5, py: 1, borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Typography sx={{ fontWeight: 700, fontSize: '0.8rem' }}>Linked Applications</Typography>
+              <Box component="select"
+                sx={{ fontSize: '0.72rem', backgroundColor: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 1, color: '#DBE7FF', px: 0.75, py: 0.4, cursor: 'pointer' }}
+                value=""
+                onChange={async e => {
+                  const appId = e.target.value;
+                  if (!appId || !dataDefPanelObjectId) return;
+                  const res = await apiClient.post('/api/applications/data-definitions', { globalObjectId: dataDefPanelObjectId, applicationId: appId }).catch(() => null);
+                  if (res) {
+                    const r2 = await apiClient.get(`/api/applications/data-definitions/object/${dataDefPanelObjectId}`);
+                    setDataDefinitions(r2.data.data || []);
+                  }
+                }}>
+                <option value="">+ Link app</option>
+                {applications.filter(a => !dataDefinitions.some((d: any) => d.application_id === a.id)).map((a: any) => (
+                  <option key={a.id} value={a.id}>{a.name}</option>
+                ))}
+              </Box>
+            </Box>
+            <Box sx={{ flex: 1, overflowY: 'auto' }}>
+              {dataDefinitions.length === 0 && <Typography variant="caption" color="text.disabled" sx={{ p: 1.5, display: 'block' }}>No applications linked. Use the dropdown to link one.</Typography>}
+              {dataDefinitions.map((dd: any) => (
+                <Box key={dd.id}
+                  onClick={() => {
+                    setSelectedDataDefId(dd.id);
+                    apiClient.get(`/api/applications/data-definitions/${dd.id}/fields`).then(r => setDataDefFields(r.data.data || [])).catch(() => setDataDefFields([]));
+                    setAddingField(false);
+                    setEditingFieldId(null);
+                  }}
+                  sx={{ px: 1.5, py: 1.1, cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.05)', backgroundColor: selectedDataDefId === dd.id ? 'rgba(91,103,202,0.22)' : 'transparent', '&:hover': { backgroundColor: 'rgba(255,255,255,0.04)' }, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Box>
+                    <Typography sx={{ fontWeight: 600, fontSize: '0.82rem' }}>{dd.application_name}</Typography>
+                    {(dd.vendor || dd.version) && <Typography variant="caption" color="text.secondary">{[dd.vendor, dd.version].filter(Boolean).join(' ')}</Typography>}
+                  </Box>
+                  <IconButton size="small" onClick={async e => { e.stopPropagation(); await apiClient.delete(`/api/applications/data-definitions/${dd.id}`); setDataDefinitions(prev => prev.filter((d: any) => d.id !== dd.id)); if (selectedDataDefId === dd.id) { setSelectedDataDefId(null); setDataDefFields([]); } }} sx={{ opacity: 0.5, '&:hover': { opacity: 1, color: '#ef5350' } }}>
+                    <DeleteIcon sx={{ fontSize: '0.85rem' }} />
+                  </IconButton>
+                </Box>
+              ))}
+            </Box>
+          </Box>
+
+          {/* Right: data definition fields */}
+          <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            {!selectedDataDefId ? (
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1 }}>
+                <Typography color="text.disabled" variant="body2">Select an application to manage its data definition</Typography>
+              </Box>
+            ) : (
+              <>
+                <Box sx={{ px: 2, py: 1, borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Typography sx={{ fontWeight: 700, fontSize: '0.85rem' }}>
+                    {dataDefinitions.find((d: any) => d.id === selectedDataDefId)?.application_name} — Field Definitions
+                  </Typography>
+                  <Button size="small" variant="contained" startIcon={<AddIcon />} sx={{ textTransform: 'none', fontSize: '0.75rem' }} onClick={() => { setAddingField(true); setNewField({ tableName: '', fieldName: '', fieldLabel: '', dataType: '', length: '', decimals: '', isKey: false, isRequired: false, description: '' }); }}>
+                    Add Field
+                  </Button>
+                </Box>
+
+                <Box sx={{ overflowY: 'auto', flex: 1 }}>
+                  {/* New field form */}
+                  {addingField && (
+                    <Box sx={{ p: 1.5, borderBottom: '1px solid rgba(255,255,255,0.08)', backgroundColor: 'rgba(91,103,202,0.1)', display: 'flex', flexDirection: 'column', gap: 1 }}>
+                      <Typography sx={{ fontWeight: 600, fontSize: '0.78rem', color: '#8EA3CB' }}>New Field</Typography>
+                      <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 80px 60px 60px', gap: 1 }}>
+                        {[['Table', 'tableName'], ['Field Name *', 'fieldName'], ['Label', 'fieldLabel'], ['Type', 'dataType'], ['Length', 'length'], ['Dec', 'decimals']].map(([label, key]) => (
+                          <TextField key={key} size="small" label={label} value={(newField as any)[key]}
+                            onChange={e => setNewField(p => ({ ...p, [key]: e.target.value }))}
+                            sx={{ '& .MuiInputBase-root': { fontSize: '0.78rem' } }} />
+                        ))}
+                      </Box>
+                      <TextField size="small" label="Description" value={newField.description} onChange={e => setNewField(p => ({ ...p, description: e.target.value }))} fullWidth sx={{ '& .MuiInputBase-root': { fontSize: '0.78rem' } }} />
+                      <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                        <Box component="label" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, cursor: 'pointer', fontSize: '0.78rem', color: 'text.secondary' }}>
+                          <input type="checkbox" checked={newField.isKey} onChange={e => setNewField(p => ({ ...p, isKey: e.target.checked }))} /> Key
+                        </Box>
+                        <Box component="label" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, cursor: 'pointer', fontSize: '0.78rem', color: 'text.secondary' }}>
+                          <input type="checkbox" checked={newField.isRequired} onChange={e => setNewField(p => ({ ...p, isRequired: e.target.checked }))} /> Required
+                        </Box>
+                        <Box sx={{ flex: 1 }} />
+                        <Button size="small" variant="contained" sx={{ textTransform: 'none', fontSize: '0.75rem' }} disabled={!newField.fieldName.trim()} onClick={async () => {
+                          const res = await apiClient.post(`/api/applications/data-definitions/${selectedDataDefId}/fields`, { ...newField, length: newField.length ? parseInt(newField.length) : null, decimals: newField.decimals ? parseInt(newField.decimals) : null }).catch(() => null);
+                          if (res) { setDataDefFields(prev => [...prev, res.data.data]); setAddingField(false); }
+                        }}>Save Field</Button>
+                        <Button size="small" sx={{ textTransform: 'none', fontSize: '0.75rem' }} onClick={() => setAddingField(false)}>Cancel</Button>
+                      </Box>
+                    </Box>
+                  )}
+
+                  {/* Field table */}
+                  {dataDefFields.length === 0 && !addingField && (
+                    <Box sx={{ p: 2 }}><Typography variant="body2" color="text.disabled">No fields defined yet. Click "Add Field" to start.</Typography></Box>
+                  )}
+                  {dataDefFields.length > 0 && (
+                    <Box sx={{ overflowX: 'auto' }}>
+                      <Box component="table" sx={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
+                        <Box component="thead">
+                          <Box component="tr" sx={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                            {['Table', 'Field Name', 'Label', 'Type', 'Len', 'Dec', 'Key', 'Req', 'Description', ''].map(h => (
+                              <Box component="th" key={h} sx={{ px: 1.25, py: 0.75, textAlign: 'left', fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.06em', color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase', backgroundColor: 'rgba(0,0,0,0.2)', whiteSpace: 'nowrap' }}>{h}</Box>
+                            ))}
+                          </Box>
+                        </Box>
+                        <Box component="tbody">
+                          {dataDefFields.map((f: any) => (
+                            <Box component="tr" key={f.id} sx={{ borderBottom: '1px solid rgba(255,255,255,0.04)', '&:hover': { backgroundColor: 'rgba(255,255,255,0.03)' } }}>
+                              {editingFieldId === f.id ? (
+                                <Box component="td" colSpan={10} sx={{ p: 1 }}>
+                                  <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap', alignItems: 'center' }}>
+                                    {[['Table', 'table_name'], ['Field Name', 'field_name'], ['Label', 'field_label'], ['Type', 'data_type'], ['Len', 'length'], ['Dec', 'decimals']].map(([label, key]) => (
+                                      <TextField key={key} size="small" label={label} value={f[key] || ''} onChange={e => setDataDefFields(prev => prev.map(ff => ff.id === f.id ? { ...ff, [key]: e.target.value } : ff))} sx={{ width: key === 'field_name' || key === 'field_label' ? 140 : 80, '& .MuiInputBase-root': { fontSize: '0.75rem' } }} />
+                                    ))}
+                                    <TextField size="small" label="Description" value={f.description || ''} onChange={e => setDataDefFields(prev => prev.map(ff => ff.id === f.id ? { ...ff, description: e.target.value } : ff))} sx={{ flex: 1, minWidth: 120, '& .MuiInputBase-root': { fontSize: '0.75rem' } }} />
+                                    <Button size="small" variant="contained" sx={{ textTransform: 'none', fontSize: '0.73rem' }} onClick={async () => {
+                                      await apiClient.put(`/api/applications/data-definitions/fields/${f.id}`, { tableName: f.table_name, fieldName: f.field_name, fieldLabel: f.field_label, dataType: f.data_type, length: f.length, decimals: f.decimals, isKey: f.is_key, isRequired: f.is_required, description: f.description, sortOrder: f.sort_order });
+                                      setEditingFieldId(null);
+                                    }}>Save</Button>
+                                    <Button size="small" sx={{ textTransform: 'none', fontSize: '0.73rem' }} onClick={() => setEditingFieldId(null)}>Cancel</Button>
+                                  </Box>
+                                </Box>
+                              ) : (
+                                <>
+                                  {[f.table_name, f.field_name, f.field_label, f.data_type, f.length, f.decimals].map((val, ci) => (
+                                    <Box component="td" key={ci} sx={{ px: 1.25, py: 0.75, color: ci === 1 ? '#DBE7FF' : 'text.secondary', fontFamily: ci <= 1 ? 'monospace' : 'inherit', fontWeight: ci === 1 ? 600 : 400, whiteSpace: 'nowrap' }}>{val ?? '—'}</Box>
+                                  ))}
+                                  <Box component="td" sx={{ px: 1.25, py: 0.75, textAlign: 'center' }}>{f.is_key ? <Box component="span" sx={{ color: '#ffa726', fontWeight: 700 }}>●</Box> : '—'}</Box>
+                                  <Box component="td" sx={{ px: 1.25, py: 0.75, textAlign: 'center' }}>{f.is_required ? <Box component="span" sx={{ color: '#ef5350', fontWeight: 700 }}>●</Box> : '—'}</Box>
+                                  <Box component="td" sx={{ px: 1.25, py: 0.75, color: 'text.disabled', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.description || '—'}</Box>
+                                  <Box component="td" sx={{ px: 0.75, py: 0.75, whiteSpace: 'nowrap' }}>
+                                    <IconButton size="small" onClick={() => setEditingFieldId(f.id)} sx={{ p: 0.3 }}><EditIcon sx={{ fontSize: '0.85rem' }} /></IconButton>
+                                    <IconButton size="small" onClick={async () => { await apiClient.delete(`/api/applications/data-definitions/fields/${f.id}`); setDataDefFields(prev => prev.filter(ff => ff.id !== f.id)); }} sx={{ p: 0.3, '&:hover': { color: '#ef5350' } }}><DeleteIcon sx={{ fontSize: '0.85rem' }} /></IconButton>
+                                  </Box>
+                                </>
+                              )}
+                            </Box>
+                          ))}
+                        </Box>
+                      </Box>
+                    </Box>
+                  )}
+                </Box>
+              </>
+            )}
+          </Box>
+        </DialogContent>
       </Dialog>
     </Layout>
   );

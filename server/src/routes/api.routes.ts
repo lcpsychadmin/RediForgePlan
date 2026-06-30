@@ -1,7 +1,7 @@
 // server/src/routes/api.routes.ts
 // Main API router - wires all domain routes together
 
-import { Router } from 'express';
+import applicationsRouter from './applications.routes.js';
 import programsRouter from './programs.routes.js';
 import mockCyclesRouter from './mockCycles.routes.js';
 import projectsRouter from './projects.routes.js';
@@ -45,6 +45,7 @@ apiRouter.use('/priorities', prioritiesRouter);
 // Audit routes
 apiRouter.use('/audit', auditRouter);
 apiRouter.use('/people', peopleRouter);
+apiRouter.use('/applications', applicationsRouter);
 apiRouter.use('/comments', commentsRouter);
 apiRouter.use('/reporting', reportingRouter);
 apiRouter.use('/hierarchy-preferences', hierarchyPreferencesRouter);

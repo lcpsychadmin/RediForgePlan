@@ -183,12 +183,22 @@ const SettingsPage: React.FC = () => {
   const [addRoleOpen, setAddRoleOpen] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
+  // Applications state
+  const [applications, setApplications] = useState<any[]>([]);
+  const [editingApp, setEditingApp] = useState<any | null>(null);
+  const [addAppOpen, setAddAppOpen] = useState(false);
+  const [newApp, setNewApp] = useState({ name: '', description: '', vendor: '', version: '' });
+
   useEffect(() => {
     apiClient.get('/api/tasks/templates/defaults').then(res => {
       setTemplates(res.data.data || []);
     }).catch(() => {});
     apiClient.get('/api/people/roles').then(res => {
       setRoles(res.data.data || []);
+    }).catch(() => {});
+
+    apiClient.get('/api/applications').then(res => {
+      setApplications(res.data.data || []);
     }).catch(() => {});
 
     // Load process area settings (descriptions + global accent/icon defaults) from hierarchy preferences
@@ -240,6 +250,7 @@ const SettingsPage: React.FC = () => {
   const isPicklistMode = !!selectedPicklist;
   const isPeopleRolesMode = selectedMenuItem === 'peopleRoles';
   const isTaskTemplatesMode = selectedMenuItem === 'taskTemplates';
+  const isApplicationsMode = selectedMenuItem === 'applications';
 
   const handleAddValue = () => {
     if (!selectedPicklist) return;
@@ -352,7 +363,23 @@ const SettingsPage: React.FC = () => {
                 >
                   <ListItemText primary="Default Task Templates" />
                 </ListItem>
-              </List>
+                <Divider sx={{ my: 0.75 }} />
+                <Box sx={{ px: 2, pt: 0.5, pb: 0.5 }}>
+                  <Typography variant="subtitle2" color="text.secondary">Reference Data</Typography>
+                </Box>
+                <ListItem
+                  button
+                  selected={isApplicationsMode}
+                  onClick={() => setSelectedMenuItem('applications')}
+                  sx={{
+                    backgroundColor: isApplicationsMode ? 'primary.lighter' : 'transparent',
+                    '&:hover': { backgroundColor: 'action.hover' },
+                    borderLeft: isApplicationsMode ? '4px solid' : 'none',
+                    borderColor: 'primary.main',
+                  }}
+                >
+                  <ListItemText primary="Applications" />
+                </ListItem>
             </CardContent>
           </Card>
 
@@ -363,7 +390,9 @@ const SettingsPage: React.FC = () => {
                 ? `Edit ${picklists[selectedPicklist]?.name || 'Picklist'}`
                 : isPeopleRolesMode
                   ? 'People Roles'
-                  : 'Default Task Templates'
+                  : isApplicationsMode
+                    ? 'Applications'
+                    : 'Default Task Templates'
             } />
             <Divider />
             <CardContent sx={{ overflowY: 'auto' }}>
@@ -578,12 +607,76 @@ const SettingsPage: React.FC = () => {
                   </Button>
                 </Box>
               )}
-            </CardContent>
-          </Card>
-        </Box>
-      </Box>
 
-      {/* Add Template Dialog */}
+              {/* Applications Section */}
+              {isApplicationsMode && (
+              <Box>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+                  <Box>
+                    <Typography variant="h6" sx={{ fontWeight: 600 }}>Applications</Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Define the source/target applications that objects can be linked to for data definition management.
+                    </Typography>
+                  </Box>
+                  <Button size="small" variant="contained" startIcon={<AddIcon />} onClick={() => { setNewApp({ name: '', description: '', vendor: '', version: '' }); setAddAppOpen(true); }} sx={{ textTransform: 'none', flexShrink: 0 }}>Add Application</Button>
+                </Box>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
+                  {applications.length === 0 && <Typography variant="body2" color="text.secondary">No applications yet. Add one to get started.</Typography>}
+                  {applications.map(app => (
+                    <Box key={app.id} sx={{ display: 'flex', alignItems: 'center', gap: 2, py: 1, px: 1.5, borderRadius: 1, backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 700 }}>{app.name}</Typography>
+                        {(app.vendor || app.version) && (
+                          <Typography variant="caption" color="text.secondary">{[app.vendor, app.version].filter(Boolean).join(' · ')}</Typography>
+                        )}
+                        {app.description && <Typography variant="caption" color="text.disabled" sx={{ display: 'block' }}>{app.description}</Typography>}
+                      </Box>
+                      {editingApp?.id === app.id ? (
+                        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flex: 2 }}>
+                          <TextField size="small" label="Name" value={editingApp.name} onChange={e => setEditingApp((p: any) => ({ ...p, name: e.target.value }))} sx={{ flex: 1 }} />
+                          <TextField size="small" label="Vendor" value={editingApp.vendor || ''} onChange={e => setEditingApp((p: any) => ({ ...p, vendor: e.target.value }))} sx={{ flex: 1 }} />
+                          <TextField size="small" label="Version" value={editingApp.version || ''} onChange={e => setEditingApp((p: any) => ({ ...p, version: e.target.value }))} sx={{ flex: 1 }} />
+                          <Button size="small" variant="contained" sx={{ textTransform: 'none', flexShrink: 0 }} onClick={async () => {
+                            const res = await apiClient.put(`/api/applications/${editingApp.id}`, editingApp);
+                            setApplications(prev => prev.map(a => a.id === editingApp.id ? res.data.data : a));
+                            setEditingApp(null);
+                          }}>Save</Button>
+                          <Button size="small" sx={{ textTransform: 'none' }} onClick={() => setEditingApp(null)}>Cancel</Button>
+                        </Box>
+                      ) : (
+                        <Box sx={{ display: 'flex', gap: 0.5, flexShrink: 0 }}>
+                          <Button size="small" sx={{ textTransform: 'none', minWidth: 0 }} onClick={() => setEditingApp({ ...app })}>Edit</Button>
+                          <IconButton size="small" onClick={async () => {
+                            await apiClient.delete(`/api/applications/${app.id}`);
+                            setApplications(prev => prev.filter(a => a.id !== app.id));
+                          }}><DeleteIcon sx={{ fontSize: '1rem' }} /></IconButton>
+                        </Box>
+                      )}
+                    </Box>
+                  ))}
+                </Box>
+                {addAppOpen && (
+                  <Box sx={{ mt: 2, p: 1.5, border: '1px solid rgba(255,255,255,0.12)', borderRadius: 1, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>New Application</Typography>
+                    <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5 }}>
+                      <TextField size="small" label="Name *" value={newApp.name} onChange={e => setNewApp(p => ({ ...p, name: e.target.value }))} autoFocus />
+                      <TextField size="small" label="Vendor" value={newApp.vendor} onChange={e => setNewApp(p => ({ ...p, vendor: e.target.value }))} />
+                      <TextField size="small" label="Version" value={newApp.version} onChange={e => setNewApp(p => ({ ...p, version: e.target.value }))} />
+                      <TextField size="small" label="Description" value={newApp.description} onChange={e => setNewApp(p => ({ ...p, description: e.target.value }))} />
+                    </Box>
+                    <Box sx={{ display: 'flex', gap: 1 }}>
+                      <Button size="small" variant="contained" sx={{ textTransform: 'none' }} disabled={!newApp.name.trim()} onClick={async () => {
+                        const res = await apiClient.post('/api/applications', newApp);
+                        setApplications(prev => [...prev, res.data.data]);
+                        setAddAppOpen(false);
+                        setNewApp({ name: '', description: '', vendor: '', version: '' });
+                      }}>Add</Button>
+                      <Button size="small" sx={{ textTransform: 'none' }} onClick={() => setAddAppOpen(false)}>Cancel</Button>
+                    </Box>
+                  </Box>
+                )}
+              </Box>
+              )}
       <Dialog open={addTemplateOpen} onClose={() => setAddTemplateOpen(false)} maxWidth="xs" fullWidth>
         <DialogTitle>Add Default Task</DialogTitle>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
