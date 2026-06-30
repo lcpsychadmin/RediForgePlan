@@ -2257,7 +2257,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
           : `/api/tasks/project/${activeProjectId}`;
         const tasksResponse = await apiClient.get(taskUrl);
         const tasks = (tasksResponse.data.data || []).map((task: any) => normalizeTaskDateFields(task));
-        setProjectTasks(tasks);
+        setProjectTasks(applyAutoSchedule(tasks));
 
         // Load task dependencies for all tasks in parallel
         const allDeps: Record<string, any[]> = {};
@@ -2279,10 +2279,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         // fraction even when no explicit dependency arrows exist.
         const scheduledTasks = applyAutoSchedule(tasks);
         if (scheduledTasks !== tasks) {
-          setProjectTasks(prev => prev.map(t => {
-            const s = scheduledTasks.find(st => st.id === t.id);
-            return s ? { ...t, endDate: s.endDate } : t;
-          }));
+          setProjectTasks(prev => {
+            const correctedMap: Record<string, string> = {};
+            scheduledTasks.forEach(st => { if (st !== tasks.find(t => t.id === st.id)) correctedMap[st.id] = st.endDate; });
+            return prev.map(t => correctedMap[t.id] ? { ...t, endDate: correctedMap[t.id] } : t);
+          });
         }
 
         // Load task groups
