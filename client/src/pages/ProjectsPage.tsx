@@ -3591,6 +3591,45 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     return formatDateOnly(d);
   };
 
+  /**
+   * Compute the end date for a task considering its position within the sequence of sibling
+   * tasks on the same object.  When tasks have sub-day durations and no explicit dependency
+   * arrows, the cumulative fraction of all preceding siblings determines whether the end date
+   * spills into the next calendar day.
+   *
+   * If no object context is available (task group task, or no siblings), falls back to
+   * calcEndDate(start, duration).
+   */
+  const calcEndDateWithContext = (taskId: string, startDate: string, duration: number, task: any, tasksSnapshot: any[]): string => {
+    if (!startDate || !duration) return '';
+    const objectId = task?.projectObjectId;
+    if (!objectId) return calcEndDate(startDate, duration, task);
+
+    // Collect sibling tasks for the same object, sorted by start date then default order.
+    const siblings = tasksSnapshot
+      .filter(t => t.projectObjectId === objectId && t.startDate)
+      .sort((a, b) => {
+        const aDate = a.startDate ? new Date(a.startDate).getTime() : Infinity;
+        const bDate = b.startDate ? new Date(b.startDate).getTime() : Infinity;
+        if (aDate !== bDate) return aDate - bDate;
+        return (a.name || '').localeCompare(b.name || '');
+      });
+
+    const idx = siblings.findIndex(t => t.id === taskId);
+    if (idx <= 0) return calcEndDate(startDate, duration, task); // first or not found — no chain context
+
+    // Sum durations of all siblings that start on or before this task's start.
+    // They form the "chain" up to this point.
+    const chainStart = siblings[0].startDate;
+    let cumFrac = 0;
+    for (let i = 0; i < idx; i++) {
+      cumFrac += Number(siblings[i].duration) || 0;
+    }
+    cumFrac += duration; // include this task's duration for the end-date formula
+
+    return calcEndDate(chainStart, cumFrac, task);
+  };
+
   const updateTaskInline = async (taskId: string, field: string, value: string) => {
     try {
       const numericFields = ['progressPercentage', 'duration'];
@@ -5274,7 +5313,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                                                   if (t.id !== task.id) return t;
                                                                   const updates: any = { duration: dur };
                                                                   if (dur && t.startDate) {
-                                                                    const newEnd = calcEndDate(t.startDate, dur, t);
+                                                                    const newEnd = calcEndDateWithContext(t.id, t.startDate, dur, t, projectTasksRef.current);
                                                                     if (newEnd) updates.endDate = newEnd;
                                                                   }
                                                                   return { ...t, ...updates };
@@ -5283,7 +5322,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                                               onBlur={e => {
                                                                 const dur = parseFloat(e.target.value) || 0;
                                                                 const freshStart = projectTasksRef.current.find(t => t.id === task.id)?.startDate || task.startDate;
-                                                                const newEnd = dur && freshStart ? calcEndDate(freshStart, dur, task) : null;
+                                                                const newEnd = dur && freshStart ? calcEndDateWithContext(task.id, freshStart, dur, task, projectTasksRef.current) : null;
                                                                 const patch: any = { duration: dur || null, durationUnit: 'days' };
                                                                 if (newEnd) patch.endDate = newEnd;
                                                                 setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, ...patch } : t));
@@ -5538,7 +5577,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                                     if (t.id !== task.id) return t;
                                                     const updates: any = { duration: dur };
                                                     if (dur && t.startDate) {
-                                                      const newEnd = calcEndDate(t.startDate, dur, t);
+                                                      const newEnd = calcEndDateWithContext(t.id, t.startDate, dur, t, projectTasksRef.current);
                                                       if (newEnd) updates.endDate = newEnd;
                                                     }
                                                     return { ...t, ...updates };
@@ -5547,7 +5586,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                                 onBlur={e => {
                                                   const dur = parseFloat(e.target.value) || 0;
                                                   const freshStart = projectTasksRef.current.find(t => t.id === task.id)?.startDate || task.startDate;
-                                                  const newEnd = dur && freshStart ? calcEndDate(freshStart, dur, task) : null;
+                                                  const newEnd = dur && freshStart ? calcEndDateWithContext(task.id, freshStart, dur, task, projectTasksRef.current) : null;
                                                   const patch: any = { duration: dur || null, durationUnit: 'days' };
                                                   if (newEnd) patch.endDate = newEnd;
                                                   setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, ...patch } : t));
@@ -6047,7 +6086,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                                     if (t.id !== task.id) return t;
                                                     const updates: any = { duration: dur };
                                                     if (dur && t.startDate) {
-                                                      const newEnd = calcEndDate(t.startDate, dur, t);
+                                                      const newEnd = calcEndDateWithContext(t.id, t.startDate, dur, t, projectTasksRef.current);
                                                       if (newEnd) updates.endDate = newEnd;
                                                     }
                                                     return { ...t, ...updates };
@@ -6056,7 +6095,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                                 onBlur={e => {
                                                   const dur = parseFloat(e.target.value) || 0;
                                                   const freshStart = projectTasksRef.current.find(t => t.id === task.id)?.startDate || task.startDate;
-                                                  const newEnd = dur && freshStart ? calcEndDate(freshStart, dur, task) : null;
+                                                  const newEnd = dur && freshStart ? calcEndDateWithContext(task.id, freshStart, dur, task, projectTasksRef.current) : null;
                                                   const patch: any = { duration: dur || null, durationUnit: 'days' };
                                                   if (newEnd) patch.endDate = newEnd;
                                                   setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, ...patch } : t));
