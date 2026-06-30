@@ -235,6 +235,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   const [processAreaIconOverrides, setProcessAreaIconOverrides] = useState<Record<string, Record<string, HierarchyIconChoice>>>({});
   const [processAreaDescriptions, setProcessAreaDescriptions] = useState<Record<string, Record<string, string>>>({});
   const [settingsProcessAreaDescriptions, setSettingsProcessAreaDescriptions] = useState<Record<string, string>>({});
+  const [globalProcessAreaDescriptions, setGlobalProcessAreaDescriptions] = useState<Record<string, string>>({});
   const [hierarchyLevelIcons, setHierarchyLevelIcons] = useState<HierarchyLevelIcons>(DEFAULT_HIERARCHY_LEVEL_ICONS);
   const [globalProcessAreaAccents, setGlobalProcessAreaAccents] = useState<Record<string, string>>({});
   const [globalProcessAreaIcons, setGlobalProcessAreaIcons] = useState<Record<string, HierarchyIconChoice>>({});
@@ -1360,7 +1361,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   };
 
   const getProcessAreaDisplayName = (projectId: string, area: string) => {
-    const description = (processAreaDescriptions[projectId]?.[area] || settingsProcessAreaDescriptions[area] || '').trim();
+    // Priority: per-cycle description → global API description → localStorage fallback
+    const description = (processAreaDescriptions[projectId]?.[area]
+      || globalProcessAreaDescriptions[area]
+      || settingsProcessAreaDescriptions[area]
+      || '').trim();
     return description || area;
   };
 
@@ -1939,6 +1944,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
           if (parsed?.globalProcessAreaIcons && typeof parsed.globalProcessAreaIcons === 'object') {
             setGlobalProcessAreaIcons(parsed.globalProcessAreaIcons as Record<string, HierarchyIconChoice>);
           }
+          if (parsed?.globalProcessAreaDescriptions && typeof parsed.globalProcessAreaDescriptions === 'object') {
+            setGlobalProcessAreaDescriptions(parsed.globalProcessAreaDescriptions);
+          }
           setHierarchyStateHydrated(true);
           return;
         }
@@ -1965,6 +1973,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
           }
           if (parsed.globalProcessAreaIcons && typeof parsed.globalProcessAreaIcons === 'object') {
             setGlobalProcessAreaIcons(parsed.globalProcessAreaIcons as Record<string, HierarchyIconChoice>);
+          }
+          if (parsed.globalProcessAreaDescriptions && typeof parsed.globalProcessAreaDescriptions === 'object') {
+            setGlobalProcessAreaDescriptions(parsed.globalProcessAreaDescriptions);
           }
           // Also reload per-cycle overrides — Settings page may have cleared them.
           if (typeof parsed.processAreaAccentOverrides === 'object') {

@@ -210,6 +210,9 @@ const SettingsPage: React.FC = () => {
       if (parsed.globalProcessAreaIcons && typeof parsed.globalProcessAreaIcons === 'object') {
         setGlobalProcessAreaIcons(parsed.globalProcessAreaIcons as Record<string, HierarchyIconChoice>);
       }
+      if (parsed.globalProcessAreaDescriptions && typeof parsed.globalProcessAreaDescriptions === 'object') {
+        setProcessAreaDescriptions(parsed.globalProcessAreaDescriptions);
+      }
     }).catch(() => {
       // fall back to localStorage
       try {
@@ -260,6 +263,7 @@ const SettingsPage: React.FC = () => {
       await apiClient.put('/api/hierarchy-preferences/global-process-areas', {
         globalProcessAreaAccents,
         globalProcessAreaIcons,
+        globalProcessAreaDescriptions: processAreaDescriptions,
       });
       localStorage.setItem(SETTINGS_PROCESS_AREA_DESCRIPTIONS_KEY, JSON.stringify(processAreaDescriptions));
       setSaveStatus('saved');
