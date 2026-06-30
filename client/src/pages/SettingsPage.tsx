@@ -213,6 +213,18 @@ const SettingsPage: React.FC = () => {
       if (parsed.globalProcessAreaDescriptions && typeof parsed.globalProcessAreaDescriptions === 'object') {
         setProcessAreaDescriptions(parsed.globalProcessAreaDescriptions);
       }
+      // Restore saved picklist values, merging over the hardcoded defaults
+      if (parsed.picklistValues && typeof parsed.picklistValues === 'object') {
+        setPicklists(prev => {
+          const merged = { ...prev };
+          for (const [key, savedValues] of Object.entries(parsed.picklistValues as Record<string, string[]>)) {
+            if (merged[key] && Array.isArray(savedValues) && savedValues.length > 0) {
+              merged[key] = { ...merged[key], values: savedValues };
+            }
+          }
+          return merged;
+        });
+      }
     }).catch(() => {
       // fall back to localStorage
       try {
@@ -264,6 +276,10 @@ const SettingsPage: React.FC = () => {
         globalProcessAreaAccents,
         globalProcessAreaIcons,
         globalProcessAreaDescriptions: processAreaDescriptions,
+        // Persist all picklist values so custom entries survive sessions
+        picklistValues: Object.fromEntries(
+          Object.entries(picklists).map(([key, pl]) => [key, pl.values])
+        ),
       });
       localStorage.setItem(SETTINGS_PROCESS_AREA_DESCRIPTIONS_KEY, JSON.stringify(processAreaDescriptions));
       setSaveStatus('saved');

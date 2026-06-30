@@ -299,17 +299,32 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   const [processAreaTargetProjectId, setProcessAreaTargetProjectId] = useState<string | null>(null);
 
   // Picklist constants
-  const processAreaOptions = ['A2R', 'CTRM', 'GTS', 'H2R', 'I2L', 'MDM', 'P2C', 'P2D', 'PSS', 'R2R', 'S2P', 'TM'];
-  const complexityOptions = ['1-Complex', '2-Medium', '3-Simple'];
-  const deploymentDispositionOptions = ['In Scope', 'Out of Scope', 'Pending Approval', 'Pending Confirmation'];
-  const buildTypeOptions = ['New', 'Modify'];
-  const objectTypeOptions = ['Master Data', 'Transactional', 'Document'];
-  const cutoverPhaseOptions = ['Pre-Cutover', 'Blackout', 'Post Go-Live'];
-  const ddmApproachOptions = ['Not in Scope', 'Automated', 'Manual'];
-  const riskSecurityTypeOptions = ['Standard', 'Risk & Control', 'Data Masking'];
-  const migrationTypeOptions = ['Automated', 'Manual'];
-  const factorTypeOptions = ['Conversion - Extract, Transform & Load', 'Conversion - Construct & Load', 'Conversion - Construct, Transform & Manual Load', 'Conversion - Construct, Transform & Load', 'Conversion - Extract, Transform & Manual Load', 'Manual'];
-  const loadMethodOptions = ['LTMC', 'IDOC', 'BAPI', 'LSMW', 'BODS - IDOC', 'BODS - BAPI', 'Custom ABAP Program', 'Informatica', 'Migration Cockpit', 'SAP Standard T Code', 'Manual'];
+  // Picklist values — loaded from the global settings API so custom values added
+  // in Settings persist across sessions. Falls back to hardcoded defaults.
+  const [picklists, setPicklists] = useState<Record<string, string[]>>({
+    processArea: ['A2R', 'CTRM', 'GTS', 'H2R', 'I2L', 'MDM', 'P2C', 'P2D', 'PSS', 'R2R', 'S2P', 'TM'],
+    complexity: ['1-Complex', '2-Medium', '3-Simple'],
+    deploymentDisposition: ['In Scope', 'Out of Scope', 'Pending Approval', 'Pending Confirmation'],
+    buildType: ['New', 'Modify'],
+    objectType: ['Master Data', 'Transactional', 'Document'],
+    cutoverPhase: ['Pre-Cutover', 'Blackout', 'Post Go-Live'],
+    ddmApproach: ['Not in Scope', 'Automated', 'Manual'],
+    riskSecurityType: ['Standard', 'Risk & Control', 'Data Masking'],
+    migrationType: ['Automated', 'Manual'],
+    factorType: ['Conversion - Extract, Transform & Load', 'Conversion - Construct & Load', 'Conversion - Construct, Transform & Manual Load', 'Conversion - Construct, Transform & Load', 'Conversion - Extract, Transform & Manual Load', 'Manual'],
+    loadMethod: ['LTMC', 'IDOC', 'BAPI', 'LSMW', 'BODS - IDOC', 'BODS - BAPI', 'Custom ABAP Program', 'Informatica', 'Migration Cockpit', 'SAP Standard T Code', 'Manual'],
+  });
+  const processAreaOptions = picklists.processArea;
+  const complexityOptions = picklists.complexity;
+  const deploymentDispositionOptions = picklists.deploymentDisposition;
+  const buildTypeOptions = picklists.buildType;
+  const objectTypeOptions = picklists.objectType;
+  const cutoverPhaseOptions = picklists.cutoverPhase;
+  const ddmApproachOptions = picklists.ddmApproach;
+  const riskSecurityTypeOptions = picklists.riskSecurityType;
+  const migrationTypeOptions = picklists.migrationType;
+  const factorTypeOptions = picklists.factorType;
+  const loadMethodOptions = picklists.loadMethod;
 
   // Inventory states
   const [inventorySubTab, setInventorySubTab] = useState(0);
@@ -1947,6 +1962,15 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
           if (parsed?.globalProcessAreaDescriptions && typeof parsed.globalProcessAreaDescriptions === 'object') {
             setGlobalProcessAreaDescriptions(parsed.globalProcessAreaDescriptions);
           }
+          if (parsed?.picklistValues && typeof parsed.picklistValues === 'object') {
+            setPicklists(prev => {
+              const merged = { ...prev };
+              for (const [key, vals] of Object.entries(parsed.picklistValues as Record<string, string[]>)) {
+                if (Array.isArray(vals) && vals.length > 0) merged[key] = vals;
+              }
+              return merged;
+            });
+          }
           setHierarchyStateHydrated(true);
           return;
         }
@@ -1976,6 +2000,15 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
           }
           if (parsed.globalProcessAreaDescriptions && typeof parsed.globalProcessAreaDescriptions === 'object') {
             setGlobalProcessAreaDescriptions(parsed.globalProcessAreaDescriptions);
+          }
+          if (parsed.picklistValues && typeof parsed.picklistValues === 'object') {
+            setPicklists(prev => {
+              const merged = { ...prev };
+              for (const [key, vals] of Object.entries(parsed.picklistValues as Record<string, string[]>)) {
+                if (Array.isArray(vals) && vals.length > 0) merged[key] = vals;
+              }
+              return merged;
+            });
           }
           // Also reload per-cycle overrides — Settings page may have cleared them.
           if (typeof parsed.processAreaAccentOverrides === 'object') {
