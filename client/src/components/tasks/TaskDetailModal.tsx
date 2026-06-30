@@ -229,13 +229,11 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     if (open && resolvedTask) {
       setEditData({
         status: resolvedTask.status || 'not_started',
-        startDate: toInputDate(resolvedTask.startDate),
-        endDate: toInputDate(resolvedTask.endDate),
-        draUserId: resolvedTask.draUserId || '',
-        developerUserId: resolvedTask.developerUserId || '',
+        revisedStartDate: toInputDate(resolvedTask.revisedStartDate),
+        revisedEndDate: toInputDate(resolvedTask.revisedEndDate),
+        assignedTo: resolvedTask.assignedTo || '',
         notes: resolvedTask.notes || '',
         progressPercentage: resolvedTask.progressPercentage ?? 0,
-        duration: resolvedTask.duration ?? '',
       });
       setSaveError(null);
       setTab(0);
@@ -251,10 +249,9 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     try {
       const payload = {
         status: editData.status,
-        startDate: editData.startDate || null,
-        endDate: editData.endDate || null,
-        draUserId: editData.draUserId || null,
-        developerUserId: editData.developerUserId || null,
+        revisedStartDate: editData.revisedStartDate || null,
+        revisedEndDate: editData.revisedEndDate || null,
+        assignedTo: editData.assignedTo || null,
         notes: editData.notes || null,
         progressPercentage: Number(editData.progressPercentage) || 0,
       };
@@ -268,7 +265,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     }
   };
 
-  const over = daysOverdue(editData?.endDate || resolvedTask?.endDate);
+  const over = daysOverdue(editData?.revisedEndDate || resolvedTask?.revisedEndDate || resolvedTask?.endDate);
   const accent = accentColor || '#29b6f6';
 
   const fieldSx = {
@@ -366,26 +363,30 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                     </Box>
                   </Box>
 
-                  {/* Owners */}
+                  {/* Assigned To */}
+                  <TextField select size="small" label="Assigned To" value={editData.assignedTo || ''} onChange={e => set('assignedTo', e.target.value)} sx={fieldSx} fullWidth>
+                    <MenuItem value=""><em>Unassigned</em></MenuItem>
+                    {people.map((p: any) => <MenuItem key={p.id} value={p.name || p.email}>{p.name || p.email}</MenuItem>)}
+                  </TextField>
+
+                  {/* Original (plan) dates — read-only */}
                   <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
-                    <TextField select size="small" label="DRA Owner" value={editData.draUserId || ''} onChange={e => set('draUserId', e.target.value)} sx={fieldSx}>
-                      <MenuItem value=""><em>Unassigned</em></MenuItem>
-                      {people.map(p => <MenuItem key={p.id} value={p.id}>{p.name || p.email}</MenuItem>)}
-                    </TextField>
-                    <TextField select size="small" label="Developer Owner" value={editData.developerUserId || ''} onChange={e => set('developerUserId', e.target.value)} sx={fieldSx}>
-                      <MenuItem value=""><em>Unassigned</em></MenuItem>
-                      {people.map(p => <MenuItem key={p.id} value={p.id}>{p.name || p.email}</MenuItem>)}
-                    </TextField>
+                    {[['Plan Start', resolvedTask?.startDate], ['Plan End', resolvedTask?.endDate]].map(([label, val]) => (
+                      <Box key={label as string} sx={{ border: '1px solid rgba(255,255,255,0.1)', borderRadius: 1, px: 1.5, py: 0.75, backgroundColor: 'rgba(255,255,255,0.03)' }}>
+                        <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.68rem', fontWeight: 600, letterSpacing: '0.05em', display: 'block', mb: 0.2 }}>{label as string}</Typography>
+                        <Typography sx={{ fontSize: '0.82rem', color: 'text.secondary' }}>{val ? fmtDate(val as string) : '—'}</Typography>
+                      </Box>
+                    ))}
                   </Box>
 
-                  {/* Dates */}
+                  {/* Revised dates — editable */}
                   <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
-                    <TextField size="small" label="Start Date" type="date" value={editData.startDate || ''}
-                      onChange={e => set('startDate', e.target.value)}
+                    <TextField size="small" label="Revised Start" type="date" value={editData.revisedStartDate || ''}
+                      onChange={e => set('revisedStartDate', e.target.value)}
                       slotProps={{ inputLabel: { shrink: true } }} sx={fieldSx} />
                     <Box>
-                      <TextField size="small" label="End Date" type="date" value={editData.endDate || ''}
-                        onChange={e => set('endDate', e.target.value)}
+                      <TextField size="small" label="Revised End" type="date" value={editData.revisedEndDate || ''}
+                        onChange={e => set('revisedEndDate', e.target.value)}
                         slotProps={{ inputLabel: { shrink: true } }} sx={{ ...fieldSx, width: '100%' }} />
                       {over && over > 0 && (
                         <Typography variant="caption" sx={{ color: '#ef5350', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 0.3, mt: 0.3 }}>
