@@ -268,6 +268,26 @@ export class TaskService {
     const values: any[] = [taskId];
     let paramCount = 2;
 
+    // Auto-set actual dates based on status transitions (only if not already set
+    // and the caller hasn't explicitly provided them).
+    const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    if (data.status === 'in_progress' && previousTask?.status !== 'in_progress') {
+      if (!previousTask?.actualStartDate && !('actualStartDate' in data)) {
+        (data as any).actualStartDate = today;
+      }
+    }
+    if (data.status === 'complete' && previousTask?.status !== 'complete') {
+      if (!previousTask?.actualEndDate && !('actualEndDate' in data)) {
+        (data as any).actualEndDate = today;
+      }
+    }
+    // If being moved back from complete, clear actual end date (unless caller set it)
+    if (data.status && data.status !== 'complete' && previousTask?.status === 'complete') {
+      if (!('actualEndDate' in data)) {
+        (data as any).actualEndDate = null;
+      }
+    }
+
     const fieldMap: { [key: string]: string } = {
       status: 'status',
       name: 'name',
