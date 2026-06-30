@@ -236,6 +236,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   const [processAreaDescriptions, setProcessAreaDescriptions] = useState<Record<string, Record<string, string>>>({});
   const [settingsProcessAreaDescriptions, setSettingsProcessAreaDescriptions] = useState<Record<string, string>>({});
   const [hierarchyLevelIcons, setHierarchyLevelIcons] = useState<HierarchyLevelIcons>(DEFAULT_HIERARCHY_LEVEL_ICONS);
+  const [globalProcessAreaAccents, setGlobalProcessAreaAccents] = useState<Record<string, string>>({});
+  const [globalProcessAreaIcons, setGlobalProcessAreaIcons] = useState<Record<string, HierarchyIconChoice>>({});
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [editingTaskGroupId, setEditingTaskGroupId] = useState<string | null>(null);
 
@@ -1349,9 +1351,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   // Accept an optional cycleId so call sites that have it can pass it; fall back to projectId.
   const getProcessAreaAccent = (projectId: string, area: string, fallback: string, cycleId?: string) => {
     const key = cycleId || projectId;
-    // Only look up by the specific key — do NOT fall back to the shared projectId
-    // because that would make cycles sharing the same project inherit each other's colours.
-    return processAreaAccentOverrides[key]?.[area] || fallback;
+    // Per-cycle override → global settings default → fallback
+    return processAreaAccentOverrides[key]?.[area] || globalProcessAreaAccents[area] || fallback;
   };
 
   const getProcessAreaDisplayName = (projectId: string, area: string) => {
@@ -1360,7 +1361,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   };
 
   const renderHierarchyIcon = (level: HierarchyLevel, color: string, size: string, overrideKey?: string, overrideArea?: string) => {
+    // Per-cycle override → global settings default → global level default
     const iconChoice = (overrideKey && overrideArea && processAreaIconOverrides[overrideKey]?.[overrideArea])
+      || (overrideArea && globalProcessAreaIcons[overrideArea])
       || hierarchyLevelIcons[level];
     const sx = { fontSize: size, color, flexShrink: 0 };
     switch (iconChoice) {
@@ -1937,6 +1940,12 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
               ...DEFAULT_HIERARCHY_LEVEL_ICONS,
               ...parsed.hierarchyLevelIcons,
             });
+          }
+          if (parsed?.globalProcessAreaAccents && typeof parsed.globalProcessAreaAccents === 'object') {
+            setGlobalProcessAreaAccents(parsed.globalProcessAreaAccents);
+          }
+          if (parsed?.globalProcessAreaIcons && typeof parsed.globalProcessAreaIcons === 'object') {
+            setGlobalProcessAreaIcons(parsed.globalProcessAreaIcons as Record<string, HierarchyIconChoice>);
           }
           setHierarchyStateHydrated(true);
           return;

@@ -25,6 +25,21 @@ import {
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
+import FolderOutlinedIcon from '@mui/icons-material/FolderOutlined';
+import CorporateFareIcon from '@mui/icons-material/CorporateFare';
+import SyncIcon from '@mui/icons-material/Sync';
+import AccountTreeIcon from '@mui/icons-material/AccountTree';
+import LayersIcon from '@mui/icons-material/Layers';
+import EventIcon from '@mui/icons-material/Event';
+import ViewListIcon from '@mui/icons-material/ViewList';
+import StorageIcon from '@mui/icons-material/Storage';
+import DashboardIcon from '@mui/icons-material/Dashboard';
+import BuildIcon from '@mui/icons-material/Build';
+import AssignmentIcon from '@mui/icons-material/Assignment';
+import SettingsIcon from '@mui/icons-material/Settings';
+import BarChartIcon from '@mui/icons-material/BarChart';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faDatabase, faServer, faCloud, faCode, faGears, faDiagramProject, faListCheck, faFileLines, faCircleNodes, faNetworkWired, faTableCells, faChartGantt, faClipboardList, faTriangleExclamation } from '@fortawesome/free-solid-svg-icons';
 import Layout from '../components/Layout';
 import apiClient from '../api/client';
 
@@ -34,6 +49,57 @@ interface Picklist {
 }
 
 const SETTINGS_PROCESS_AREA_DESCRIPTIONS_KEY = 'rf-settings-process-area-descriptions';
+
+type HierarchyIconChoice =
+  | 'corporateFare' | 'sync' | 'folderOutlined' | 'accountTree' | 'layers' | 'viewList' | 'event'
+  | 'storage' | 'dashboard' | 'build' | 'assignment' | 'settings' | 'barChart'
+  | 'fa-database' | 'fa-server' | 'fa-cloud' | 'fa-code' | 'fa-gears'
+  | 'fa-diagram-project' | 'fa-list-check' | 'fa-file-lines' | 'fa-circle-nodes'
+  | 'fa-network-wired' | 'fa-table-cells' | 'fa-chart-gantt' | 'fa-clipboard-list' | 'fa-triangle-exclamation';
+
+const ICON_OPTIONS: { value: HierarchyIconChoice; label: string }[] = [
+  { value: 'corporateFare', label: 'Building' }, { value: 'sync', label: 'Sync' },
+  { value: 'folderOutlined', label: 'Folder' }, { value: 'accountTree', label: 'Hierarchy' },
+  { value: 'layers', label: 'Layers' }, { value: 'viewList', label: 'List' },
+  { value: 'event', label: 'Calendar' }, { value: 'storage', label: 'Storage' },
+  { value: 'dashboard', label: 'Dashboard' }, { value: 'build', label: 'Build' },
+  { value: 'assignment', label: 'Assignment' }, { value: 'settings', label: 'Settings' },
+  { value: 'barChart', label: 'Bar Chart' },
+  { value: 'fa-database', label: 'FA: Database' }, { value: 'fa-server', label: 'FA: Server' },
+  { value: 'fa-cloud', label: 'FA: Cloud' }, { value: 'fa-code', label: 'FA: Code' },
+  { value: 'fa-gears', label: 'FA: Gears' }, { value: 'fa-diagram-project', label: 'FA: Project Diagram' },
+  { value: 'fa-list-check', label: 'FA: Checklist' }, { value: 'fa-file-lines', label: 'FA: File' },
+  { value: 'fa-circle-nodes', label: 'FA: Nodes' }, { value: 'fa-network-wired', label: 'FA: Network' },
+  { value: 'fa-table-cells', label: 'FA: Table' }, { value: 'fa-chart-gantt', label: 'FA: Gantt' },
+  { value: 'fa-clipboard-list', label: 'FA: Clipboard' }, { value: 'fa-triangle-exclamation', label: 'FA: Warning' },
+];
+
+const renderIconPreview = (choice: HierarchyIconChoice, color: string) => {
+  const faMap: Record<string, any> = {
+    'fa-database': faDatabase, 'fa-server': faServer, 'fa-cloud': faCloud, 'fa-code': faCode,
+    'fa-gears': faGears, 'fa-diagram-project': faDiagramProject, 'fa-list-check': faListCheck,
+    'fa-file-lines': faFileLines, 'fa-circle-nodes': faCircleNodes, 'fa-network-wired': faNetworkWired,
+    'fa-table-cells': faTableCells, 'fa-chart-gantt': faChartGantt, 'fa-clipboard-list': faClipboardList,
+    'fa-triangle-exclamation': faTriangleExclamation,
+  };
+  if (faMap[choice]) return <FontAwesomeIcon icon={faMap[choice]} style={{ color, fontSize: '1rem' }} />;
+  const sx = { fontSize: '1rem', color };
+  switch (choice) {
+    case 'sync': return <SyncIcon sx={sx} />;
+    case 'folderOutlined': return <FolderOutlinedIcon sx={sx} />;
+    case 'accountTree': return <AccountTreeIcon sx={sx} />;
+    case 'layers': return <LayersIcon sx={sx} />;
+    case 'viewList': return <ViewListIcon sx={sx} />;
+    case 'event': return <EventIcon sx={sx} />;
+    case 'storage': return <StorageIcon sx={sx} />;
+    case 'dashboard': return <DashboardIcon sx={sx} />;
+    case 'build': return <BuildIcon sx={sx} />;
+    case 'assignment': return <AssignmentIcon sx={sx} />;
+    case 'settings': return <SettingsIcon sx={sx} />;
+    case 'barChart': return <BarChartIcon sx={sx} />;
+    default: return <CorporateFareIcon sx={sx} />;
+  }
+};
 
 const SettingsPage: React.FC = () => {
   // Picklists state
@@ -95,6 +161,8 @@ const SettingsPage: React.FC = () => {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [newValueInput, setNewValueInput] = useState('');
   const [processAreaDescriptions, setProcessAreaDescriptions] = useState<Record<string, string>>({});
+  const [globalProcessAreaAccents, setGlobalProcessAreaAccents] = useState<Record<string, string>>({});
+  const [globalProcessAreaIcons, setGlobalProcessAreaIcons] = useState<Record<string, HierarchyIconChoice>>({});
 
   // Default task templates
   const [templates, setTemplates] = useState<any[]>([]);
@@ -116,16 +184,32 @@ const SettingsPage: React.FC = () => {
       setRoles(res.data.data || []);
     }).catch(() => {});
 
-    try {
-      const raw = localStorage.getItem(SETTINGS_PROCESS_AREA_DESCRIPTIONS_KEY);
-      if (!raw) return;
-      const parsed = JSON.parse(raw);
-      if (parsed && typeof parsed === 'object') {
-        setProcessAreaDescriptions(parsed);
+    // Load process area settings (descriptions + global accent/icon defaults) from hierarchy preferences
+    apiClient.get('/api/hierarchy-preferences/state').then(res => {
+      const parsed = res.data?.data;
+      if (!parsed) return;
+      if (parsed.processAreaDescriptions && typeof parsed.processAreaDescriptions === 'object') {
+        // Descriptions are stored keyed by area name at top level (not per-cycle) OR in legacy localStorage
+        const flat: Record<string, string> = {};
+        // Try to flatten descriptions from any key (could be stored under a projectId key)
+        Object.values(parsed.processAreaDescriptions).forEach((v: any) => {
+          if (v && typeof v === 'object') Object.assign(flat, v);
+        });
+        if (Object.keys(flat).length > 0) setProcessAreaDescriptions(flat);
       }
-    } catch {
-      // no-op
-    }
+      if (parsed.globalProcessAreaAccents && typeof parsed.globalProcessAreaAccents === 'object') {
+        setGlobalProcessAreaAccents(parsed.globalProcessAreaAccents);
+      }
+      if (parsed.globalProcessAreaIcons && typeof parsed.globalProcessAreaIcons === 'object') {
+        setGlobalProcessAreaIcons(parsed.globalProcessAreaIcons as Record<string, HierarchyIconChoice>);
+      }
+    }).catch(() => {
+      // fall back to localStorage
+      try {
+        const raw = localStorage.getItem(SETTINGS_PROCESS_AREA_DESCRIPTIONS_KEY);
+        if (raw) { const p = JSON.parse(raw); if (p) setProcessAreaDescriptions(p); }
+      } catch { /* no-op */ }
+    });
   }, []);
 
   const selectedPicklist = selectedMenuItem.startsWith('picklist:')
@@ -161,12 +245,19 @@ const SettingsPage: React.FC = () => {
     }
   };
 
-  const handleSaveChanges = () => {
-    // TODO: Implement API call to save picklist changes
-    localStorage.setItem(SETTINGS_PROCESS_AREA_DESCRIPTIONS_KEY, JSON.stringify(processAreaDescriptions));
-    localStorage.setItem('rf-settings-process-area-descriptions', JSON.stringify(processAreaDescriptions));
-    console.log('Saving picklists:', picklists);
-    alert('Picklist changes saved (TODO: implement backend integration)');
+  const handleSaveChanges = async () => {
+    try {
+      // Read current hierarchy state to merge into (preserving other fields)
+      const existing = await apiClient.get('/api/hierarchy-preferences/state').then(r => r.data?.data || {}).catch(() => ({}));
+      await apiClient.put('/api/hierarchy-preferences/state', {
+        ...existing,
+        globalProcessAreaAccents,
+        globalProcessAreaIcons,
+      });
+      localStorage.setItem(SETTINGS_PROCESS_AREA_DESCRIPTIONS_KEY, JSON.stringify(processAreaDescriptions));
+    } catch (e) {
+      console.error('Failed to save settings', e);
+    }
   };
 
   return (
@@ -302,28 +393,63 @@ const SettingsPage: React.FC = () => {
 
                   {selectedPicklist === 'processArea' && (
                     <Box sx={{ mt: 1, pt: 2, borderTop: '1px solid', borderColor: 'divider' }}>
-                      <Typography variant="subtitle2" sx={{ mb: 0.5 }}>Descriptions</Typography>
+                      <Typography variant="subtitle2" sx={{ mb: 0.5 }}>Descriptions, Colors &amp; Icons</Typography>
                       <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-                        Used on the Projects page when provided.
+                        Global defaults used in the hierarchy when no per-cycle override is set.
                       </Typography>
-                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                        {picklists.processArea.values.map((value) => (
-                          <Box key={`desc-${value}`} sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-                            <Box sx={{ width: 100, flexShrink: 0 }}>
-                              <Typography variant="body2" sx={{ fontWeight: 600 }}>{value}</Typography>
+                      {/* Column headers */}
+                      <Box sx={{ display: 'grid', gridTemplateColumns: '80px 1fr 44px 180px', gap: 1, alignItems: 'center', mb: 0.5 }}>
+                        <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.05em' }}>CODE</Typography>
+                        <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.05em' }}>DESCRIPTION</Typography>
+                        <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.05em' }}>COLOR</Typography>
+                        <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.05em' }}>ICON</Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
+                        {picklists.processArea.values.map((value) => {
+                          const accent = globalProcessAreaAccents[value] || '#64B5F6';
+                          const icon: HierarchyIconChoice = globalProcessAreaIcons[value] || 'accountTree';
+                          return (
+                            <Box key={`desc-${value}`} sx={{ display: 'grid', gridTemplateColumns: '80px 1fr 44px 180px', gap: 1, alignItems: 'center' }}>
+                              <Typography variant="body2" sx={{ fontWeight: 700, fontFamily: 'monospace', color: accent }}>{value}</Typography>
+                              <TextField
+                                size="small"
+                                fullWidth
+                                placeholder="Optional description"
+                                value={processAreaDescriptions[value] || ''}
+                                onChange={(e) => setProcessAreaDescriptions((prev) => ({ ...prev, [value]: e.target.value }))}
+                              />
+                              {/* Color swatch + picker */}
+                              <Box sx={{ position: 'relative', width: 36, height: 36 }}>
+                                <Box sx={{ width: 36, height: 36, borderRadius: 1, backgroundColor: accent, border: '2px solid rgba(255,255,255,0.15)', cursor: 'pointer', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  <input
+                                    type="color"
+                                    value={accent}
+                                    onChange={e => setGlobalProcessAreaAccents(prev => ({ ...prev, [value]: e.target.value }))}
+                                    style={{ position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer', border: 'none', padding: 0 }}
+                                  />
+                                </Box>
+                              </Box>
+                              {/* Icon select with preview */}
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                                <Box sx={{ width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                  {renderIconPreview(icon, accent)}
+                                </Box>
+                                <TextField
+                                  select
+                                  size="small"
+                                  fullWidth
+                                  value={icon}
+                                  onChange={e => setGlobalProcessAreaIcons(prev => ({ ...prev, [value]: e.target.value as HierarchyIconChoice }))}
+                                  sx={{ '& .MuiInputBase-root': { fontSize: '0.75rem' } }}
+                                >
+                                  {ICON_OPTIONS.map(opt => (
+                                    <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
+                                  ))}
+                                </TextField>
+                              </Box>
                             </Box>
-                            <TextField
-                              size="small"
-                              fullWidth
-                              placeholder="Optional description"
-                              value={processAreaDescriptions[value] || ''}
-                              onChange={(e) => setProcessAreaDescriptions((prev) => ({
-                                ...prev,
-                                [value]: e.target.value,
-                              }))}
-                            />
-                          </Box>
-                        ))}
+                          );
+                        })}
                       </Box>
                     </Box>
                   )}
