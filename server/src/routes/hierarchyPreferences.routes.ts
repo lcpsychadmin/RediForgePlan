@@ -84,4 +84,28 @@ router.put('/tree-order', requireAuth, async (req: Request, res: Response, next:
   }
 });
 
+// Dedicated endpoint for global process-area settings (color + icon).
+// Uses jsonb merge so these keys are never accidentally cleared by the
+// ProjectsPage hierarchy-state save which may have empty initial values.
+router.put('/global-process-areas', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { globalProcessAreaAccents = {}, globalProcessAreaIcons = {} } = req.body || {};
+
+    await db.query(
+      `INSERT INTO ${preferenceTable} (id, hierarchy_state, updated_at)
+       VALUES (1, jsonb_build_object('globalProcessAreaAccents', $1::jsonb, 'globalProcessAreaIcons', $2::jsonb), CURRENT_TIMESTAMP)
+       ON CONFLICT (id)
+       DO UPDATE SET
+         hierarchy_state = ${preferenceTable}.hierarchy_state
+           || jsonb_build_object('globalProcessAreaAccents', $1::jsonb, 'globalProcessAreaIcons', $2::jsonb),
+         updated_at = CURRENT_TIMESTAMP`,
+      [JSON.stringify(globalProcessAreaAccents), JSON.stringify(globalProcessAreaIcons)]
+    );
+
+    res.json(formatSingleResponse({ globalProcessAreaAccents, globalProcessAreaIcons }));
+  } catch (error) {
+    next(error);
+  }
+});
+
 export default router;
