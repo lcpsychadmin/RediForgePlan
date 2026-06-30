@@ -3704,12 +3704,15 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         const newEnd = taskDuration > 0
           ? (calcEndDate(newStart, taskDuration, task) || newStart)
           : newStart;
+        // Always propagate cumulative context downstream, even if dates don't change.
+        // Without this, tasks whose dates are already correct don't update cumFracMap,
+        // so the next task in the chain sees stale predCumFrac and collapses to day 0.
+        cumFracMap[taskId] = predCumFrac + taskDuration;
+        chainStartMap[taskId] = predChainStart;
         if (newStart !== startMap[taskId] || newEnd !== endMap[taskId]) {
           patches[taskId] = { startDate: newStart, endDate: newEnd };
           startMap[taskId] = newStart;
           endMap[taskId] = newEnd;
-          cumFracMap[taskId] = predCumFrac + taskDuration;
-          chainStartMap[taskId] = predChainStart;
           changed = true;
         }
       }
