@@ -21,6 +21,8 @@ import {
   Divider,
   Switch,
   MenuItem,
+  Snackbar,
+  Alert,
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
@@ -175,6 +177,7 @@ const SettingsPage: React.FC = () => {
   const [roles, setRoles] = useState<any[]>([]);
   const [newRoleName, setNewRoleName] = useState('');
   const [addRoleOpen, setAddRoleOpen] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
   useEffect(() => {
     apiClient.get('/api/tasks/templates/defaults').then(res => {
@@ -246,8 +249,9 @@ const SettingsPage: React.FC = () => {
   };
 
   const handleSaveChanges = async () => {
+    setSaveStatus('saving');
     try {
-      // Read current hierarchy state to merge into (preserving other fields)
+      // Read current hierarchy state to merge into (preserving all other fields like treeOrder, etc.)
       const existing = await apiClient.get('/api/hierarchy-preferences/state').then(r => r.data?.data || {}).catch(() => ({}));
       await apiClient.put('/api/hierarchy-preferences/state', {
         ...existing,
@@ -255,8 +259,10 @@ const SettingsPage: React.FC = () => {
         globalProcessAreaIcons,
       });
       localStorage.setItem(SETTINGS_PROCESS_AREA_DESCRIPTIONS_KEY, JSON.stringify(processAreaDescriptions));
+      setSaveStatus('saved');
     } catch (e) {
       console.error('Failed to save settings', e);
+      setSaveStatus('error');
     }
   };
 
@@ -535,9 +541,9 @@ const SettingsPage: React.FC = () => {
               {/* Save Button */}
               {isPicklistMode && (
                 <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end', mt: 4, pt: 2, borderTop: '1px solid', borderColor: 'divider' }}>
-                  <Button variant="text">Reset</Button>
                   <Button
                     variant="contained"
+                    disabled={saveStatus === 'saving'}
                     sx={{
                       background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                       textTransform: 'none',
@@ -545,7 +551,7 @@ const SettingsPage: React.FC = () => {
                     }}
                     onClick={handleSaveChanges}
                   >
-                    Save Changes
+                    {saveStatus === 'saving' ? 'Saving…' : 'Save Changes'}
                   </Button>
                 </Box>
               )}
@@ -578,6 +584,17 @@ const SettingsPage: React.FC = () => {
           }} disabled={!newTemplateName.trim()}>Add</Button>
         </DialogActions>
       </Dialog>
+
+      <Snackbar
+        open={saveStatus === 'saved' || saveStatus === 'error'}
+        autoHideDuration={3000}
+        onClose={() => setSaveStatus('idle')}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert severity={saveStatus === 'saved' ? 'success' : 'error'} onClose={() => setSaveStatus('idle')}>
+          {saveStatus === 'saved' ? 'Settings saved successfully.' : 'Failed to save settings. Please try again.'}
+        </Alert>
+      </Snackbar>
     </Layout>
   );
 };

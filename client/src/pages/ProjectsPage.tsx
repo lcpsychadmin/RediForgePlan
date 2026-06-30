@@ -1961,8 +1961,27 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
 
     hydrateHierarchyState();
 
+    // Re-load global process area settings when the user returns to this page
+    // (e.g. after saving on the Settings page in the same browser tab).
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        apiClient.get('/api/hierarchy-preferences/state').then(res => {
+          const parsed = res.data?.data;
+          if (!parsed) return;
+          if (parsed.globalProcessAreaAccents && typeof parsed.globalProcessAreaAccents === 'object') {
+            setGlobalProcessAreaAccents(parsed.globalProcessAreaAccents);
+          }
+          if (parsed.globalProcessAreaIcons && typeof parsed.globalProcessAreaIcons === 'object') {
+            setGlobalProcessAreaIcons(parsed.globalProcessAreaIcons as Record<string, HierarchyIconChoice>);
+          }
+        }).catch(() => {});
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
     return () => {
       cancelled = true;
+      document.removeEventListener('visibilitychange', handleVisibility);
     };
   }, []);
 
@@ -2057,6 +2076,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         processAreaIconOverrides,
         processAreaDescriptions,
         hierarchyLevelIcons,
+        globalProcessAreaAccents,
+        globalProcessAreaIcons,
       }).catch(() => {
         // No-op: hierarchy state is shared through the database.
       });
@@ -2076,6 +2097,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     processAreaIconOverrides,
     processAreaDescriptions,
     hierarchyLevelIcons,
+    globalProcessAreaAccents,
+    globalProcessAreaIcons,
     hierarchyStateHydrated,
   ]);
 
