@@ -3644,14 +3644,17 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   const cascadeAllDates = async (tasks: any[], deps: Record<string, any[]>) => {
     const endMap: Record<string, string> = {};
     const startMap: Record<string, string> = {};
-    // fractionMap: fraction of a working day consumed at end of each task (0.0–<1.0).
-    // 0.0 means the task ended at a full-day boundary → next task starts next day.
-    // 0.x means the day is only partially consumed → next task can start same day.
-    const fractionMap: Record<string, number> = {};
+    // cumFracMap[t]: cumulative duration from the chain's root through end of task t.
+    // newStart for a task = chainStart + floor(cumFracMap[pred]) working days.
+    // Example chain 0.5→0.6→0.5→0.6: starts = Day0, Day0, Day1, Day1 (pairs per day).
+    const cumFracMap: Record<string, number> = {};
+    // chainStartMap[t]: the start date of task t's chain root (YYYY-MM-DD string).
+    const chainStartMap: Record<string, string> = {};
     for (const t of tasks) {
       if (t.endDate) endMap[t.id] = t.endDate;
       if (t.startDate) startMap[t.id] = t.startDate;
-      fractionMap[t.id] = (Number(t.duration) || 0) % 1;
+      cumFracMap[t.id] = Number(t.duration) || 0;   // root tasks: cumulative = own duration
+      chainStartMap[t.id] = t.startDate || '';
     }
     const patches: Record<string, { startDate: string; endDate: string }> = {};
     let changed = true;
@@ -3664,42 +3667,39 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         const task = tasks.find((t: any) => t.id === taskId);
         const taskDuration = Number(task?.duration) || 0;
         const mode = getTaskCalendarMode(task);
+        // Pick predecessor with latest endDate; tie-break by highest cumFrac.
         let maxEnd: string | null = null;
-        let predFraction = 0;
+        let predCumFrac = 0;
+        let predChainStart = '';
         for (const dep of taskDepsArr as any[]) {
           const end = endMap[dep.dependsOnTaskId] || dep.endDate;
-          const frac = fractionMap[dep.dependsOnTaskId] ?? 0;
-          if (end && (!maxEnd || end > maxEnd || (end === maxEnd && frac > predFraction))) {
+          const frac = cumFracMap[dep.dependsOnTaskId] ?? 0;
+          const cs = chainStartMap[dep.dependsOnTaskId] || '';
+          if (end && (!maxEnd || end > maxEnd || (end === maxEnd && frac > predCumFrac))) {
             maxEnd = end;
-            predFraction = frac;
+            predCumFrac = frac;
+            predChainStart = cs;
           }
         }
         if (!maxEnd) continue;
         let newStart: string;
-        let newFraction: number;
-        if (predFraction === 0) {
-          // Predecessor ended at a full-day boundary — advance to next working day.
+        if (predChainStart) {
+          // Fraction-aware: advance exactly floor(predCumFrac) working days from chainStart.
+          // This defers the day-advance until predecessors accumulate >= 1 full day.
+          const nd = new Date(predChainStart.substring(0, 10) + 'T00:00:00');
+          if (mode === 'working_days') while (isWeekend(nd)) nd.setDate(nd.getDate() + 1);
+          let d = Math.floor(predCumFrac);
+          while (d > 0) {
+            nd.setDate(nd.getDate() + 1);
+            if (mode !== 'working_days' || !isWeekend(nd)) d--;
+          }
+          newStart = formatDateOnly(nd);
+        } else {
+          // Fallback (no chain root): old behaviour — advance 1 day from predEndDate.
           const nd = new Date(maxEnd.substring(0, 10) + 'T00:00:00');
           nd.setDate(nd.getDate() + 1);
           if (mode === 'working_days') while (isWeekend(nd)) nd.setDate(nd.getDate() + 1);
           newStart = formatDateOnly(nd);
-          newFraction = taskDuration % 1;
-        } else {
-          // Predecessor ended mid-day — accumulate fraction.
-          const accumulated = predFraction + taskDuration;
-          const daysToAdvance = Math.floor(accumulated);
-          newFraction = accumulated % 1;
-          if (daysToAdvance === 0) {
-            newStart = maxEnd; // same calendar day
-          } else {
-            const nd = new Date(maxEnd.substring(0, 10) + 'T00:00:00');
-            let d = daysToAdvance;
-            while (d > 0) {
-              nd.setDate(nd.getDate() + 1);
-              if (mode !== 'working_days' || !isWeekend(nd)) d--;
-            }
-            newStart = formatDateOnly(nd);
-          }
         }
         const newEnd = taskDuration > 0
           ? (calcEndDate(newStart, taskDuration, task) || newStart)
@@ -3708,7 +3708,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
           patches[taskId] = { startDate: newStart, endDate: newEnd };
           startMap[taskId] = newStart;
           endMap[taskId] = newEnd;
-          fractionMap[taskId] = newFraction;
+          cumFracMap[taskId] = predCumFrac + taskDuration;
+          chainStartMap[taskId] = predChainStart;
           changed = true;
         }
       }
