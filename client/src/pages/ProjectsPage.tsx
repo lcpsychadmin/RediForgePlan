@@ -226,9 +226,34 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
     currentDate: string; indicatorX: number;
     origStart: string; origEnd: string;
   } | null>(null);
-  // Vertical row drag
+  // Vertical row drag — uses mouse events (not HTML5 draggable) to avoid conflicts
   const [rowDrag, setRowDrag] = React.useState<{ projectKey: string; rowId: string } | null>(null);
   const [rowDragOver, setRowDragOver] = React.useState<{ projectKey: string; rowId: string; side: 'before' | 'after' } | null>(null);
+  const rowDragRef = React.useRef<typeof rowDrag>(null);
+  const rowDragOverRef = React.useRef<typeof rowDragOver>(null);
+  const rowAllIdsRef = React.useRef<Record<string, string[]>>({});
+  React.useEffect(() => { rowDragRef.current = rowDrag; }, [rowDrag]);
+  React.useEffect(() => { rowDragOverRef.current = rowDragOver; }, [rowDragOver]);
+
+  // Commit vertical drag on mouseup
+  React.useEffect(() => {
+    if (!rowDrag) return;
+    const onUp = () => {
+      const rd = rowDragRef.current;
+      const rdo = rowDragOverRef.current;
+      if (rd && rdo && rd.rowId !== rdo.rowId && rd.projectKey === rdo.projectKey) {
+        const allIds = rowAllIdsRef.current[rd.projectKey] || [];
+        dropRow(rd.projectKey, rd.rowId, rdo.rowId, rdo.side, allIds);
+      }
+      rowDragRef.current = null;
+      rowDragOverRef.current = null;
+      setRowDrag(null);
+      setRowDragOver(null);
+    };
+    document.addEventListener('mouseup', onUp);
+    return () => document.removeEventListener('mouseup', onUp);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rowDrag]);
   const timelineRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
@@ -554,22 +579,24 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
             const milestones = projItems.filter(x => x.type === 'milestone');
             const orderedRows = buildRows(proj, phases, cycles, testCycles, milestones);
             const allRowIds = orderedRows.map(r => r.id);
+            rowAllIdsRef.current[proj.name] = allRowIds; // keep ref in sync for mouseup handler
 
+            // Grip: mousedown starts vertical drag (no HTML5 draggable to avoid conflicts)
             const GripHandle = ({ rowId }: { rowId: string }) => (
-              <Box draggable
-                onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; setRowDrag({ projectKey: proj.name, rowId }); }}
-                onDragEnd={() => { setRowDrag(null); setRowDragOver(null); }}
-                sx={{ position: 'absolute', left: -16, top: '50%', transform: 'translateY(-50%)', width: 14, cursor: 'grab', color: 'rgba(255,255,255,0.25)', fontSize: '0.75rem', lineHeight: 1, userSelect: 'none', '&:hover': { color: 'rgba(255,255,255,0.6)' }, zIndex: 3 }}>
+              <Box
+                onMouseDown={e => { e.stopPropagation(); e.preventDefault(); setRowDrag({ projectKey: proj.name, rowId }); }}
+                sx={{ position: 'absolute', left: -18, top: '50%', transform: 'translateY(-50%)', width: 14, cursor: rowDrag ? 'grabbing' : 'grab', color: 'rgba(255,255,255,0.25)', fontSize: '0.8rem', lineHeight: 1, userSelect: 'none', '&:hover': { color: 'rgba(255,255,255,0.6)' }, zIndex: 3 }}>
                 ⠿
               </Box>
             );
 
+            // Drop zone: uses onMouseEnter (works during mousedown-drag without draggable attr)
             const DropZone = ({ rowId, side }: { rowId: string; side: 'before' | 'after' }) => {
               const isOver = rowDragOver?.projectKey === proj.name && rowDragOver?.rowId === rowId && rowDragOver?.side === side;
               return (
-                <Box sx={{ position: 'absolute', left: 0, right: 0, height: side === 'before' ? '50%' : '50%', top: side === 'before' ? 0 : '50%', zIndex: 5 }}
-                  onDragOver={e => { e.preventDefault(); setRowDragOver({ projectKey: proj.name, rowId, side }); }}
-                  onDrop={e => { e.preventDefault(); if (rowDrag && rowDrag.rowId !== rowId) dropRow(proj.name, rowDrag.rowId, rowId, side, allRowIds); setRowDrag(null); setRowDragOver(null); }}>
+                <Box
+                  onMouseEnter={() => { if (rowDragRef.current?.projectKey === proj.name) setRowDragOver({ projectKey: proj.name, rowId, side }); }}
+                  sx={{ position: 'absolute', left: 0, right: 0, height: '50%', top: side === 'before' ? 0 : '50%', zIndex: 5, pointerEvents: rowDrag ? 'auto' : 'none' }}>
                   {isOver && <Box sx={{ position: 'absolute', left: 0, right: 0, height: 2, backgroundColor: '#667eea', [side === 'before' ? 'top' : 'bottom']: 0, borderRadius: 1 }} />}
                 </Box>
               );
