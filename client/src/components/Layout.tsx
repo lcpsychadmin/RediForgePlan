@@ -37,11 +37,18 @@ const Layout: React.FC<LayoutProps> = ({
     location.pathname.startsWith('/admin') ||
     location.pathname === '/dashboard' ||
     ['/projects', '/priorities', '/schedule', '/defects', '/my-tasks'].includes(location.pathname);
-  // Show global filter bar on standalone content pages (NOT on the Plan hierarchy page or Planning workspace)
+  // Pages that should NOT show the global filter bar or the sub-nav pills
+  const isNoFilterPage =
+    location.pathname.startsWith('/settings') ||
+    location.pathname.startsWith('/admin') ||
+    location.pathname === '/dashboard' ||
+    location.pathname.startsWith('/planning');
+  // Show global filter bar on standalone content pages (NOT on Plan hierarchy, Planning workspace, or utility pages)
   const isProjectWorkspace = location.pathname.startsWith('/programs/');
-  const showFilterBar = isWorkspacePage
-    ? !['/projects', '/planning'].includes(location.pathname)  // show on exec sub-pages, not on Plan
-    : !isProjectWorkspace && location.pathname !== '/dashboard';
+  const showFilterBar = isNoFilterPage ? false
+    : isWorkspacePage
+      ? !['/projects'].includes(location.pathname)
+      : !isProjectWorkspace;
 
   const now = new Date();
   const dateStr = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
