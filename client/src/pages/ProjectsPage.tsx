@@ -1601,14 +1601,21 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     const normalizedTarget = (areaName || '').trim().toLowerCase();
     if (!normalizedTarget) return;
 
+    // Remove from local state immediately
     setPlanningAdditionalGroups((prev) => {
       const existing = prev[cycleKey] || [];
       const next = existing.filter((group) => (group || '').trim().toLowerCase() !== normalizedTarget);
-      return {
-        ...prev,
-        [cycleKey]: next,
-      };
+      return { ...prev, [cycleKey]: next };
     });
+
+    // Also delete the DB task group record so it doesn't re-appear on next load
+    const dbGroup = projectTaskGroups.find(
+      (g: any) => !g.processArea && (g.name || '').trim().toLowerCase() === normalizedTarget
+    );
+    if (dbGroup) {
+      setProjectTaskGroups((prev: any[]) => prev.filter((g: any) => g.id !== dbGroup.id));
+      apiClient.delete(`/api/tasks/groups/${dbGroup.id}`).catch(() => {});
+    }
   };
 
   const addObjectToGroup = async (groupId: string, objectId: string) => {
@@ -2214,12 +2221,33 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
           // Execution planning context: load project-inventory objects (shared across cycles)
           // and tasks for this specific cycle.  Tasks reference inventory objects by ID.
           // Loading both here atomically eliminates the race where objects show but tasks haven't loaded yet.
+          // Load from ALL project instances with the same name (sibling projects across cycles)
+          // so inventory items added via the Inventory tab are visible here regardless of which
+          // project ID was used when adding them.
           const projectId = activeProjectId;
-          const [objRes, taskRes] = await Promise.all([
-            projectId ? apiClient.get(`/api/project-objects/project/${projectId}`) : Promise.resolve({ data: { data: [] } }),
+          const siblingProjectIds = new Set<string>();
+          if (projectId) {
+            siblingProjectIds.add(projectId);
+            const projectRecord = Object.values(projectsByProgram).flat().find((p: any) => p.id === projectId);
+            const projectName = (projectRecord?.name || '').trim().toLowerCase();
+            const projectProgramId = projectRecord?.programId || '';
+            if (projectName && projectProgramId) {
+              Object.values(projectsByProgram).flat().forEach((p: any) => {
+                if (p.programId === projectProgramId && (p.name || '').trim().toLowerCase() === projectName) {
+                  siblingProjectIds.add(p.id);
+                }
+              });
+            }
+          }
+          const [objResponses, taskRes] = await Promise.all([
+            Promise.all(Array.from(siblingProjectIds).map(pid =>
+              apiClient.get(`/api/project-objects/project/${pid}`).then(r => r.data.data || []).catch(() => [])
+            )),
             apiClient.get(`/api/tasks/cycle/${activeCycleId}`),
           ]);
-          objects = objRes.data.data || [];
+          // Deduplicate objects by ID in case they appear across project instances
+          const seenIds = new Set<string>();
+          objects = objResponses.flat().filter((obj: any) => { if (seenIds.has(obj.id)) return false; seenIds.add(obj.id); return true; });
           const cycleTasks = taskRes.data.data || [];
           taskObjectIds = cycleTasks.map((task: any) => task.projectObjectId).filter(Boolean);
           // Normalize dates and apply sibling-context end-date correction in one pass
