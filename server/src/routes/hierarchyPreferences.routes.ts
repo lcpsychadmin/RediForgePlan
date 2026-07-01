@@ -94,35 +94,39 @@ router.put('/global-process-areas', requireAuth, async (req: Request, res: Respo
       globalProcessAreaIcons = {},
       globalProcessAreaDescriptions = {},
       picklistValues = {},
+      roadmapItems = undefined,
     } = req.body || {};
+
+    // Build the merge object dynamically so roadmapItems is only included when provided
+    const mergeKeys = [
+      'globalProcessAreaAccents', 'globalProcessAreaIcons',
+      'globalProcessAreaDescriptions', 'picklistValues',
+    ];
+    const mergeValues: string[] = [
+      JSON.stringify(globalProcessAreaAccents),
+      JSON.stringify(globalProcessAreaIcons),
+      JSON.stringify(globalProcessAreaDescriptions),
+      JSON.stringify(picklistValues),
+    ];
+    if (roadmapItems !== undefined) {
+      mergeKeys.push('roadmapItems');
+      mergeValues.push(JSON.stringify(roadmapItems));
+    }
+
+    const keyValuePairs = mergeKeys.map((k, i) => `'${k}', $${i + 1}::jsonb`).join(', ');
 
     await db.query(
       `INSERT INTO ${preferenceTable} (id, hierarchy_state, updated_at)
-       VALUES (1, jsonb_build_object(
-         'globalProcessAreaAccents', $1::jsonb,
-         'globalProcessAreaIcons', $2::jsonb,
-         'globalProcessAreaDescriptions', $3::jsonb,
-         'picklistValues', $4::jsonb
-       ), CURRENT_TIMESTAMP)
+       VALUES (1, jsonb_build_object(${keyValuePairs}), CURRENT_TIMESTAMP)
        ON CONFLICT (id)
        DO UPDATE SET
          hierarchy_state = ${preferenceTable}.hierarchy_state
-           || jsonb_build_object(
-             'globalProcessAreaAccents', $1::jsonb,
-             'globalProcessAreaIcons', $2::jsonb,
-             'globalProcessAreaDescriptions', $3::jsonb,
-             'picklistValues', $4::jsonb
-           ),
+           || jsonb_build_object(${keyValuePairs}),
          updated_at = CURRENT_TIMESTAMP`,
-      [
-        JSON.stringify(globalProcessAreaAccents),
-        JSON.stringify(globalProcessAreaIcons),
-        JSON.stringify(globalProcessAreaDescriptions),
-        JSON.stringify(picklistValues),
-      ]
+      mergeValues
     );
 
-    res.json(formatSingleResponse({ globalProcessAreaAccents, globalProcessAreaIcons, globalProcessAreaDescriptions, picklistValues }));
+    res.json(formatSingleResponse({ globalProcessAreaAccents, globalProcessAreaIcons, globalProcessAreaDescriptions, picklistValues, ...(roadmapItems !== undefined ? { roadmapItems } : {}) }));
   } catch (error) {
     next(error);
   }
