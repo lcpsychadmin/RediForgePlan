@@ -9246,6 +9246,19 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                   [area]: editingProcessAreaIcon,
                 },
               }));
+              // Also persist the description globally so all users/computers see it
+              setGlobalProcessAreaDescriptions((prev) => {
+                const updated = { ...prev };
+                if (nextDescription) {
+                  updated[area] = nextDescription;
+                } else {
+                  delete updated[area];
+                }
+                apiClient.put('/api/hierarchy-preferences/global-process-areas', {
+                  globalProcessAreaDescriptions: updated,
+                }).catch(() => {});
+                return updated;
+              });
               setProcessAreaSettingsDialogOpen(false);
               setEditingProcessAreaContext(null);
               setEditingProcessAreaDescription('');
