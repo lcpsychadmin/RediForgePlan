@@ -3061,18 +3061,15 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
       } else if (deleteItemType === 'project') {
         await apiClient.delete(`/api/projects/${deleteItemId}`);
       } else if (deleteItemType === 'task') {
-        // Remove object and all descendants from inventory + delete their tasks.
+        // Remove object from plan: delete its tasks (and sub-object tasks) for this cycle.
+        // The inventory item itself is kept so the object can be re-added to the plan later.
         const objectIdsToRemove = getObjectAndDescendantIds(deleteItemId);
         const tasksForObjects = projectTasks.filter((task) => task.projectObjectId && objectIdsToRemove.has(task.projectObjectId));
-        // Delete tasks first (if any)
         await Promise.all(tasksForObjects.map((task) => apiClient.delete(`/api/tasks/${task.id}`)));
         setProjectTasks((prev) => prev.filter((task) => !(task.projectObjectId && objectIdsToRemove.has(task.projectObjectId))));
-        // Delete the inventory objects themselves (sub-objects before parent to satisfy FK constraints)
-        const parentId = deleteItemId;
-        const childIds = Array.from(objectIdsToRemove).filter(id => id !== parentId);
-        await Promise.all(childIds.map(id => apiClient.delete(`/api/project-objects/${id}`).catch(() => {})));
-        await apiClient.delete(`/api/project-objects/${parentId}`).catch(() => {});
-        setProjectInventoryItems((prev: any[]) => prev.filter((item: any) => !objectIdsToRemove.has(item.id)));
+        // Clear the seeded-tasks ref so the object can be re-added with fresh defaults
+        objectIdsToRemove.forEach(id => seededDefaultTaskObjectsRef.current.delete(id));
+        setProjectInventoryTaskObjectIds((prev: string[]) => prev.filter(id => !objectIdsToRemove.has(id)));
       } else if ((deleteItemType as any) === 'taskSingle') {
         // Delete a single task row
         await apiClient.delete(`/api/tasks/${deleteItemId}`);
@@ -5052,6 +5049,15 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                     const sortedObjectIds = showProjectSummaryOnly ? [] : projectInventoryItems
                       .filter((item: any) => !item.parentProjectObjectId)
                       .filter((item: any) => (item.processArea || '').trim().toLowerCase() === normalizedProcessAreaFilter)
+                      .filter((item: any) => {
+                        // Only show objects that have been explicitly added to this cycle's plan
+                        // (i.e., have at least one task, or have a sub-object with a task)
+                        const subObjs = getSubObjectsForParent(item.id);
+                        if (subObjs.length > 0) {
+                          return subObjs.some((sub: any) => projectTasks.some((t: any) => t.projectObjectId === sub.id));
+                        }
+                        return projectTasks.some((t: any) => t.projectObjectId === item.id);
+                      })
                       .map((item: any) => item.id)
                       .sort((a: string, b: string) => {
                         const aObj = projectInventoryItems.find((o: any) => o.id === a);
@@ -8122,7 +8128,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
       {/* Delete Confirmation Dialog */}
       <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle sx={{ color: 'error.main', fontWeight: 'bold' }}>
-          {deleteItemType === 'task' ? 'Remove object from inventory & plan?' : `Delete ${deleteItemType}?`}
+          {deleteItemType === 'task' ? 'Remove object from plan?' : `Delete ${deleteItemType}?`}
         </DialogTitle>
         <DialogContent sx={{ pt: 2 }}>
           <Typography variant="body1" sx={{ mb: 2 }}>
@@ -8130,9 +8136,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
           </Typography>
 
           {deleteItemType === 'task' && (
-            <Alert severity="warning" sx={{ mb: 2 }}>
+            <Alert severity="info" sx={{ mb: 2 }}>
               <Typography variant="body2">
-                This removes the object (and any sub-objects) from the Project Inventory and deletes all associated tasks. The object remains in the Object Catalog.
+                This removes the object's tasks from this cycle's plan. The object stays in the Project Inventory and can be re-added later.
               </Typography>
             </Alert>
           )}
