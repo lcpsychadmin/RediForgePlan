@@ -209,6 +209,7 @@ const MILESTONE_COLOR = '#FFD54F';
 
 const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, projectsByMockCycle, onSaveCycleDates }) => {
   const [roadmapItems, setRoadmapItems] = React.useState<RoadmapItem[]>([]);
+  const [rowOrder, setRowOrder] = React.useState<Record<string, string[]>>({});
   const [filterProgram, setFilterProgram] = React.useState('');
   const [filterProject, setFilterProject] = React.useState('');
   const [editCycle, setEditCycle] = React.useState<any | null>(null);
@@ -219,24 +220,58 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
   const [editingItem, setEditingItem] = React.useState<RoadmapItem | null>(null);
   const [form, setForm] = React.useState<Partial<RoadmapItem & { subtype: string }>>({});
   const [savingItem, setSavingItem] = React.useState(false);
-  // Drag state
+  // Horizontal date drag
   const [drag, setDrag] = React.useState<{
     id: string; entityType: 'cycle' | 'roadmap'; handle: 'start' | 'end' | 'date';
     currentDate: string; indicatorX: number;
     origStart: string; origEnd: string;
   } | null>(null);
+  // Vertical row drag
+  const [rowDrag, setRowDrag] = React.useState<{ projectKey: string; rowId: string } | null>(null);
+  const [rowDragOver, setRowDragOver] = React.useState<{ projectKey: string; rowId: string; side: 'before' | 'after' } | null>(null);
   const timelineRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
     apiClient.get('/api/hierarchy-preferences/state').then(res => {
       const d = res.data?.data || res.data?.preferences || res.data;
       if (Array.isArray(d?.roadmapItems)) setRoadmapItems(d.roadmapItems);
+      if (d?.roadmapRowOrder && typeof d.roadmapRowOrder === 'object') setRowOrder(d.roadmapRowOrder);
     }).catch(() => {});
   }, []);
 
   const persistItems = (items: RoadmapItem[]) => {
     setRoadmapItems(items);
     apiClient.put('/api/hierarchy-preferences/global-process-areas', { roadmapItems: items }).catch(() => {});
+  };
+
+  const persistRowOrder = (order: Record<string, string[]>) => {
+    setRowOrder(order);
+    apiClient.put('/api/hierarchy-preferences/global-process-areas', { roadmapRowOrder: order }).catch(() => {});
+  };
+
+  // Build ordered rows for a project applying saved row order
+  const buildRows = (proj: { name: string; cycleIds: string[] }, phases: RoadmapItem[], cycles: any[], testCycles: RoadmapItem[], milestones: RoadmapItem[]) => {
+    const defaults: { id: string; kind: string }[] = [
+      ...phases.map(ph => ({ id: ph.id, kind: 'phase' })),
+      ...cycles.map(c => ({ id: c.id, kind: 'cycle' })),
+      ...testCycles.map(tc => ({ id: tc.id, kind: 'test-cycle' })),
+      ...(milestones.length > 0 ? [{ id: '__milestones__', kind: 'milestones' }] : []),
+    ];
+    const savedOrder = rowOrder[proj.name];
+    if (!savedOrder?.length) return defaults;
+    const byId = new Map(defaults.map(r => [r.id, r]));
+    const ordered: typeof defaults = [];
+    savedOrder.forEach(id => { const r = byId.get(id); if (r) { ordered.push(r); byId.delete(id); } });
+    byId.forEach(r => ordered.push(r)); // append new rows not yet in saved order
+    return ordered;
+  };
+
+  const dropRow = (projectKey: string, dragId: string, overId: string, side: 'before' | 'after', allRowIds: string[]) => {
+    const without = allRowIds.filter(id => id !== dragId);
+    const targetIdx = without.indexOf(overId);
+    const insertAt = side === 'after' ? targetIdx + 1 : targetIdx;
+    const next = [...without.slice(0, insertAt), dragId, ...without.slice(insertAt)];
+    persistRowOrder({ ...rowOrder, [projectKey]: next });
   };
 
   const allCyclesById = React.useMemo(() => {
@@ -509,7 +544,6 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
 
           {/* Rows — grouped by project */}
           {filteredProjects.map(proj => {
-            // Collect all mock cycles for this project (across all cycles)
             const cycles = proj.cycleIds
               .map(cid => Object.values(mockCycles).flat().find((c: any) => c.id === cid))
               .filter(Boolean) as any[];
@@ -518,9 +552,31 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
             const phases = projItems.filter(x => x.type === 'phase');
             const testCycles = projItems.filter(x => x.type === 'test-cycle');
             const milestones = projItems.filter(x => x.type === 'milestone');
+            const orderedRows = buildRows(proj, phases, cycles, testCycles, milestones);
+            const allRowIds = orderedRows.map(r => r.id);
+
+            const GripHandle = ({ rowId }: { rowId: string }) => (
+              <Box draggable
+                onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; setRowDrag({ projectKey: proj.name, rowId }); }}
+                onDragEnd={() => { setRowDrag(null); setRowDragOver(null); }}
+                sx={{ position: 'absolute', left: -16, top: '50%', transform: 'translateY(-50%)', width: 14, cursor: 'grab', color: 'rgba(255,255,255,0.25)', fontSize: '0.75rem', lineHeight: 1, userSelect: 'none', '&:hover': { color: 'rgba(255,255,255,0.6)' }, zIndex: 3 }}>
+                ⠿
+              </Box>
+            );
+
+            const DropZone = ({ rowId, side }: { rowId: string; side: 'before' | 'after' }) => {
+              const isOver = rowDragOver?.projectKey === proj.name && rowDragOver?.rowId === rowId && rowDragOver?.side === side;
+              return (
+                <Box sx={{ position: 'absolute', left: 0, right: 0, height: side === 'before' ? '50%' : '50%', top: side === 'before' ? 0 : '50%', zIndex: 5 }}
+                  onDragOver={e => { e.preventDefault(); setRowDragOver({ projectKey: proj.name, rowId, side }); }}
+                  onDrop={e => { e.preventDefault(); if (rowDrag && rowDrag.rowId !== rowId) dropRow(proj.name, rowDrag.rowId, rowId, side, allRowIds); setRowDrag(null); setRowDragOver(null); }}>
+                  {isOver && <Box sx={{ position: 'absolute', left: 0, right: 0, height: 2, backgroundColor: '#667eea', [side === 'before' ? 'top' : 'bottom']: 0, borderRadius: 1 }} />}
+                </Box>
+              );
+            };
 
             return (
-              <Box key={proj.name} sx={{ mb: 1.5 }}>
+              <Box key={proj.name} sx={{ mb: 1.5, pl: 2 }}>
                 {/* Project header */}
                 <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, py: 0.4, px: 0.5, mb: 0.25 }}>
                   <Box sx={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: projAccent, flexShrink: 0, mt: 0.25 }} />
@@ -528,80 +584,93 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
                   <Typography sx={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.3)', fontWeight: 500 }}>{proj.programName}</Typography>
                 </Box>
 
-                {/* Phase rows */}
-                {phases.map(ph => {
-                  const isBeingDragged = drag?.id === ph.id;
-                  const dispStart = isBeingDragged && drag?.handle === 'start' ? drag.currentDate : ph.startDate;
-                  const dispEnd   = isBeingDragged && drag?.handle === 'end'   ? drag.currentDate : ph.endDate;
-                  return (
-                    <Box key={ph.id} sx={{ ...rowSx, mb: 0.25 }}>
-                      <Box sx={trackSx} />
-                      <TimelineBar startDate={dispStart} endDate={dispEnd} color={ph.color} label={`▐ ${ph.name}`} onClick={() => openEditItem(ph)}
-                        subtitle={`${proj.programName} · ${proj.name}`}
-                        onStartDrag={e => setDrag({ id: ph.id, entityType: 'roadmap', handle: 'start', currentDate: ph.startDate || '', indicatorX: getIndicatorX(e.clientX), origStart: ph.startDate || '', origEnd: ph.endDate || '' })}
-                        onEndDrag={e => setDrag({ id: ph.id, entityType: 'roadmap', handle: 'end', currentDate: ph.endDate || '', indicatorX: getIndicatorX(e.clientX), origStart: ph.startDate || '', origEnd: ph.endDate || '' })}
-                      />
-                    </Box>
-                  );
+                {orderedRows.map(row => {
+                  if (row.kind === 'phase') {
+                    const ph = phases.find(p => p.id === row.id)!;
+                    if (!ph) return null;
+                    const dispStart = drag?.id === ph.id && drag?.handle === 'start' ? drag.currentDate : ph.startDate;
+                    const dispEnd   = drag?.id === ph.id && drag?.handle === 'end'   ? drag.currentDate : ph.endDate;
+                    return (
+                      <Box key={ph.id} sx={{ ...rowSx, mb: 0.25, position: 'relative' }}>
+                        <DropZone rowId={ph.id} side="before" />
+                        <DropZone rowId={ph.id} side="after" />
+                        <GripHandle rowId={ph.id} />
+                        <Box sx={trackSx} />
+                        <TimelineBar startDate={dispStart} endDate={dispEnd} color={ph.color} label={`▐ ${ph.name}`} onClick={() => openEditItem(ph)}
+                          subtitle={`${proj.programName} · ${proj.name}`}
+                          onStartDrag={e => setDrag({ id: ph.id, entityType: 'roadmap', handle: 'start', currentDate: ph.startDate || '', indicatorX: getIndicatorX(e.clientX), origStart: ph.startDate || '', origEnd: ph.endDate || '' })}
+                          onEndDrag={e => setDrag({ id: ph.id, entityType: 'roadmap', handle: 'end', currentDate: ph.endDate || '', indicatorX: getIndicatorX(e.clientX), origStart: ph.startDate || '', origEnd: ph.endDate || '' })}
+                        />
+                      </Box>
+                    );
+                  }
+                  if (row.kind === 'cycle') {
+                    const c = cycles.find(x => x.id === row.id);
+                    if (!c) return null;
+                    const accent = c.accentColor || projAccent;
+                    const dispStart = drag?.id === c.id && drag?.handle === 'start' ? drag.currentDate : c.startDate?.substring(0, 10);
+                    const dispEnd   = drag?.id === c.id && drag?.handle === 'end'   ? drag.currentDate : c.endDate?.substring(0, 10);
+                    return (
+                      <Box key={c.id} sx={{ ...rowSx, mb: 0.25, position: 'relative' }}>
+                        <DropZone rowId={c.id} side="before" />
+                        <DropZone rowId={c.id} side="after" />
+                        <GripHandle rowId={c.id} />
+                        <Box sx={trackSx} />
+                        <TimelineBar startDate={dispStart} endDate={dispEnd} color={accent} label={c.name}
+                          subtitle={`${proj.programName} · ${proj.name}`}
+                          onClick={() => { setEditCycle(c); setEditStart(c.startDate?.substring(0, 10) || ''); setEditEnd(c.endDate?.substring(0, 10) || ''); }}
+                          onStartDrag={e => setDrag({ id: c.id, entityType: 'cycle', handle: 'start', currentDate: c.startDate?.substring(0, 10) || '', indicatorX: getIndicatorX(e.clientX), origStart: c.startDate?.substring(0, 10) || '', origEnd: c.endDate?.substring(0, 10) || '' })}
+                          onEndDrag={e => setDrag({ id: c.id, entityType: 'cycle', handle: 'end', currentDate: c.endDate?.substring(0, 10) || '', indicatorX: getIndicatorX(e.clientX), origStart: c.startDate?.substring(0, 10) || '', origEnd: c.endDate?.substring(0, 10) || '' })}
+                        />
+                      </Box>
+                    );
+                  }
+                  if (row.kind === 'test-cycle') {
+                    const tc = testCycles.find(x => x.id === row.id)!;
+                    if (!tc) return null;
+                    const dispStart = drag?.id === tc.id && drag?.handle === 'start' ? drag.currentDate : tc.startDate;
+                    const dispEnd   = drag?.id === tc.id && drag?.handle === 'end'   ? drag.currentDate : tc.endDate;
+                    return (
+                      <Box key={tc.id} sx={{ ...rowSx, mb: 0.25, position: 'relative' }}>
+                        <DropZone rowId={tc.id} side="before" />
+                        <DropZone rowId={tc.id} side="after" />
+                        <GripHandle rowId={tc.id} />
+                        <Box sx={trackSx} />
+                        <TimelineBar startDate={dispStart} endDate={dispEnd} color={tc.color} label={`◆ ${tc.name}`} onClick={() => openEditItem(tc)} dashed
+                          subtitle={`${proj.programName} · ${proj.name}`}
+                          onStartDrag={e => setDrag({ id: tc.id, entityType: 'roadmap', handle: 'start', currentDate: tc.startDate || '', indicatorX: getIndicatorX(e.clientX), origStart: tc.startDate || '', origEnd: tc.endDate || '' })}
+                          onEndDrag={e => setDrag({ id: tc.id, entityType: 'roadmap', handle: 'end', currentDate: tc.endDate || '', indicatorX: getIndicatorX(e.clientX), origStart: tc.startDate || '', origEnd: tc.endDate || '' })}
+                        />
+                      </Box>
+                    );
+                  }
+                  if (row.kind === 'milestones') {
+                    return (
+                      <Box key="__milestones__" sx={{ ...rowSx, mb: 0.25, position: 'relative' }}>
+                        <DropZone rowId="__milestones__" side="before" />
+                        <DropZone rowId="__milestones__" side="after" />
+                        <GripHandle rowId="__milestones__" />
+                        <Box sx={trackSx} />
+                        {milestones.map(ms => {
+                          const dispDate = drag?.id === ms.id && drag?.handle === 'date' ? drag.currentDate : ms.date;
+                          const x = dispDate ? dateToX(new Date(dispDate)) : null;
+                          if (x === null) return null;
+                          return (
+                            <Box key={ms.id}
+                              onMouseDown={e => { e.stopPropagation(); e.preventDefault(); setDrag({ id: ms.id, entityType: 'roadmap', handle: 'date', currentDate: ms.date || '', indicatorX: getIndicatorX(e.clientX), origStart: ms.date || '', origEnd: ms.date || '' }); }}
+                              onClick={() => { if (!drag) openEditItem(ms); }}
+                              title={ms.name}
+                              sx={{ position: 'absolute', left: `${x}%`, top: '50%', transform: 'translate(-50%, -50%)', cursor: 'ew-resize', display: 'flex', flexDirection: 'column', alignItems: 'center', userSelect: 'none' }}>
+                              <Typography sx={{ fontSize: '1.1rem', color: ms.color, lineHeight: 1, filter: 'drop-shadow(0 0 4px currentColor)', pointerEvents: 'none' }}>★</Typography>
+                              <Typography sx={{ fontSize: '0.58rem', color: ms.color, whiteSpace: 'nowrap', fontWeight: 700, mt: -0.25, pointerEvents: 'none' }}>{ms.name}</Typography>
+                            </Box>
+                          );
+                        })}
+                      </Box>
+                    );
+                  }
+                  return null;
                 })}
-
-                {/* Mock cycle rows */}
-                {cycles.map((c: any) => {
-                  const accent = c.accentColor || projAccent;
-                  const isBeingDragged = drag?.id === c.id;
-                  const dispStart = isBeingDragged && drag?.handle === 'start' ? drag.currentDate : c.startDate?.substring(0, 10);
-                  const dispEnd   = isBeingDragged && drag?.handle === 'end'   ? drag.currentDate : c.endDate?.substring(0, 10);
-                  return (
-                    <Box key={c.id} sx={{ ...rowSx, mb: 0.25 }}>
-                      <Box sx={trackSx} />
-                      <TimelineBar startDate={dispStart} endDate={dispEnd} color={accent} label={c.name}
-                        subtitle={`${proj.programName} · ${proj.name}`}
-                        onClick={() => { setEditCycle(c); setEditStart(c.startDate?.substring(0, 10) || ''); setEditEnd(c.endDate?.substring(0, 10) || ''); }}
-                        onStartDrag={e => setDrag({ id: c.id, entityType: 'cycle', handle: 'start', currentDate: c.startDate?.substring(0, 10) || '', indicatorX: getIndicatorX(e.clientX), origStart: c.startDate?.substring(0, 10) || '', origEnd: c.endDate?.substring(0, 10) || '' })}
-                        onEndDrag={e => setDrag({ id: c.id, entityType: 'cycle', handle: 'end', currentDate: c.endDate?.substring(0, 10) || '', indicatorX: getIndicatorX(e.clientX), origStart: c.startDate?.substring(0, 10) || '', origEnd: c.endDate?.substring(0, 10) || '' })}
-                      />
-                    </Box>
-                  );
-                })}
-
-                {/* Test cycle rows */}
-                {testCycles.map(tc => {
-                  const isBeingDragged = drag?.id === tc.id;
-                  const dispStart = isBeingDragged && drag?.handle === 'start' ? drag.currentDate : tc.startDate;
-                  const dispEnd   = isBeingDragged && drag?.handle === 'end'   ? drag.currentDate : tc.endDate;
-                  return (
-                    <Box key={tc.id} sx={{ ...rowSx, mb: 0.25 }}>
-                      <Box sx={trackSx} />
-                      <TimelineBar startDate={dispStart} endDate={dispEnd} color={tc.color} label={`◆ ${tc.name}`} onClick={() => openEditItem(tc)} dashed
-                        subtitle={`${proj.programName} · ${proj.name}`}
-                        onStartDrag={e => setDrag({ id: tc.id, entityType: 'roadmap', handle: 'start', currentDate: tc.startDate || '', indicatorX: getIndicatorX(e.clientX), origStart: tc.startDate || '', origEnd: tc.endDate || '' })}
-                        onEndDrag={e => setDrag({ id: tc.id, entityType: 'roadmap', handle: 'end', currentDate: tc.endDate || '', indicatorX: getIndicatorX(e.clientX), origStart: tc.startDate || '', origEnd: tc.endDate || '' })}
-                      />
-                    </Box>
-                  );
-                })}
-
-                {/* Milestone row */}
-                {milestones.length > 0 && (
-                  <Box sx={{ ...rowSx, mb: 0.25 }}>
-                    <Box sx={trackSx} />
-                    {milestones.map(ms => {
-                      const dispDate = drag?.id === ms.id && drag?.handle === 'date' ? drag.currentDate : ms.date;
-                      const x = dispDate ? dateToX(new Date(dispDate)) : null;
-                      if (x === null) return null;
-                      return (
-                        <Box key={ms.id}
-                          onMouseDown={e => { e.stopPropagation(); e.preventDefault(); setDrag({ id: ms.id, entityType: 'roadmap', handle: 'date', currentDate: ms.date || '', indicatorX: getIndicatorX(e.clientX), origStart: ms.date || '', origEnd: ms.date || '' }); }}
-                          onClick={() => { if (!drag) openEditItem(ms); }}
-                          title={ms.name}
-                          sx={{ position: 'absolute', left: `${x}%`, top: '50%', transform: 'translate(-50%, -50%)', cursor: 'ew-resize', display: 'flex', flexDirection: 'column', alignItems: 'center', userSelect: 'none' }}>
-                          <Typography sx={{ fontSize: '1.1rem', color: ms.color, lineHeight: 1, filter: 'drop-shadow(0 0 4px currentColor)', pointerEvents: 'none' }}>★</Typography>
-                          <Typography sx={{ fontSize: '0.58rem', color: ms.color, whiteSpace: 'nowrap', fontWeight: 700, mt: -0.25, pointerEvents: 'none' }}>{ms.name}</Typography>
-                        </Box>
-                      );
-                    })}
-                  </Box>
-                )}
               </Box>
             );
           })}

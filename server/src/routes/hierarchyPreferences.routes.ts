@@ -105,6 +105,7 @@ router.put('/global-process-areas', requireAuth, async (req: Request, res: Respo
       globalProcessAreaDescriptions = {},
       picklistValues = {},
       roadmapItems = undefined,
+      roadmapRowOrder = undefined,
     } = req.body || {};
 
     // Build the merge object dynamically so roadmapItems is only included when provided
@@ -121,6 +122,10 @@ router.put('/global-process-areas', requireAuth, async (req: Request, res: Respo
     if (roadmapItems !== undefined) {
       mergeKeys.push('roadmapItems');
       mergeValues.push(JSON.stringify(roadmapItems));
+    }
+    if (roadmapRowOrder !== undefined) {
+      mergeKeys.push('roadmapRowOrder');
+      mergeValues.push(JSON.stringify(roadmapRowOrder));
     }
 
     const keyValuePairs = mergeKeys.map((k, i) => `'${k}', $${i + 1}::jsonb`).join(', ');
