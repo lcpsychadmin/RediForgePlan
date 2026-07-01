@@ -3410,7 +3410,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         const subRes = await apiClient.post(`/api/project-objects/project/${addToInvProjectId}`, {
           parentProjectObjectId: parent.id,
           subObjectSuffix: so.name,
-          subObjectDescription: so.description,
+          subObjectDescription: so.description || so.name,
         });
         const sub = subRes.data.data;
         newItems.push({
@@ -9842,7 +9842,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                       const subRes = await apiClient.post(`/api/project-objects/project/${selectedProjectForInventory}`, {
                         parentProjectObjectId: apiData.id,
                         subObjectSuffix: so.name,
-                        subObjectDescription: so.description,
+                        subObjectDescription: so.description || so.name,
                       });
                       const sub = subRes.data.data;
                       newItems.push({
