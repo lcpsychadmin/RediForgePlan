@@ -1289,20 +1289,25 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   });
 
   // Fetch global objects for inventory dropdown
-  useQuery({
+  // Note: queryFn alone can't populate local state reliably because React Query
+  // skips the fn when returning cached data. Using returned `data` + useEffect ensures
+  // cached data is also applied on every new component mount.
+  const { data: _globalObjectsRaw } = useQuery({
     queryKey: ['globalObjects'],
     queryFn: async () => {
       const response = await apiClient.get('/api/global-objects');
-      const objects = response.data.data || [];
-      setInventoryObjects(objects.map((obj: any) => ({
-        id: obj.id,
-        objectId: obj.objectId,
-        description: obj.description || '',
-        processArea: obj.processArea || '',
-      })));
-      return objects;
+      return response.data.data || [];
     },
   });
+  useEffect(() => {
+    if (!_globalObjectsRaw) return;
+    setInventoryObjects((_globalObjectsRaw as any[]).map((obj: any) => ({
+      id: obj.id,
+      objectId: obj.objectId,
+      description: obj.description || '',
+      processArea: obj.processArea || '',
+    })));
+  }, [_globalObjectsRaw]);
 
   // Fetch default task template order
   useEffect(() => {
