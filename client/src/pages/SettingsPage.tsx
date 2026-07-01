@@ -678,6 +678,12 @@ const SettingsPage: React.FC = () => {
                 )}
               </Box>
               )}
+            </CardContent>
+          </Card>
+        </Box>
+      </Box>
+
+      {/* Add Template Dialog */}
       <Dialog open={addTemplateOpen} onClose={() => setAddTemplateOpen(false)} maxWidth="xs" fullWidth>
         <DialogTitle>Add Default Task</DialogTitle>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
