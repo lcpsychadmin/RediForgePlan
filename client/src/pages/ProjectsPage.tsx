@@ -404,6 +404,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   const [addToInvProjectId, setAddToInvProjectId] = useState('');
   const [addToInvLoading, setAddToInvLoading] = useState(false);
   const [isAddingToInv, setIsAddingToInv] = useState(false);
+  // Application picker for Project Inventory dialog
+  const [invDialogAppId, setInvDialogAppId] = useState('');
+  const [invDialogAppOptions, setInvDialogAppOptions] = useState<{id: string; name: string}[]>([]);
 
   // Project Inventory item dialog states
   const [projectInventoryDialogOpen, setProjectInventoryDialogOpen] = useState(false);
@@ -9408,6 +9411,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         setProjectInventoryDialogOpen(false);
         setEditingInventoryItemId(null);
         setProjectInventoryItem(getEmptyProjectInventoryItem());
+        setInvDialogAppId('');
+        setInvDialogAppOptions([]);
       }} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 2 } }}>
         <DialogTitle sx={{ 
           background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
@@ -9425,7 +9430,22 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
               fullWidth
               label="Data Object ID"
               value={projectInventoryItem.dataObjectId}
-              onChange={(e) => setProjectInventoryItem({ ...projectInventoryItem, dataObjectId: e.target.value })}
+              onChange={async (e) => {
+                const objectId = e.target.value;
+                setProjectInventoryItem({ ...projectInventoryItem, dataObjectId: objectId });
+                setInvDialogAppId('');
+                setInvDialogAppOptions([]);
+                if (objectId) {
+                  const globalObj = inventoryObjects.find(obj => obj.objectId === objectId);
+                  if (globalObj) {
+                    try {
+                      const ddRes = await apiClient.get(`/api/applications/data-definitions/object/${globalObj.id}`);
+                      const defs: any[] = ddRes.data.data || [];
+                      setInvDialogAppOptions(defs.map((d: any) => ({ id: d.id, name: d.application_name })));
+                    } catch (_e) { setInvDialogAppOptions([]); }
+                  }
+                }
+              }}
               disabled={editingInventoryItemId !== null}
               variant="outlined"
               size="small"
@@ -9434,6 +9454,23 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                 <MenuItem key={obj.id} value={obj.objectId}>
                   {obj.objectId}
                 </MenuItem>
+              ))}
+            </TextField>
+
+            <TextField
+              select
+              fullWidth
+              label={invDialogAppOptions.length === 0 ? 'Application (none linked)' : 'Application'}
+              value={invDialogAppId}
+              onChange={(e) => setInvDialogAppId(e.target.value)}
+              disabled={editingInventoryItemId !== null || invDialogAppOptions.length === 0}
+              variant="outlined"
+              size="small"
+              helperText={invDialogAppOptions.length > 0 ? 'Scopes sub-objects to this application' : undefined}
+            >
+              <MenuItem value=""><em>All applications</em></MenuItem>
+              {invDialogAppOptions.map((a) => (
+                <MenuItem key={a.id} value={a.id}>{a.name}</MenuItem>
               ))}
             </TextField>
 
@@ -9650,6 +9687,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
               setProjectInventoryDialogOpen(false);
               setEditingInventoryItemId(null);
               setProjectInventoryItem(getEmptyProjectInventoryItem());
+              setInvDialogAppId('');
+              setInvDialogAppOptions([]);
             }}
             sx={{ textTransform: 'none' }}
           >
@@ -9751,9 +9790,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                   try {
                     const ddRes = await apiClient.get(`/api/applications/data-definitions/object/${globalObj.id}`);
                     const defs: any[] = ddRes.data.data || [];
+                    const filteredDefs = invDialogAppId ? defs.filter((d: any) => d.id === invDialogAppId) : defs;
                     const seenNames = new Set<string>();
                     const allSubs: {name: string; description: string}[] = [];
-                    await Promise.all(defs.map(async (dd: any) => {
+                    await Promise.all(filteredDefs.map(async (dd: any) => {
                       const soRes = await apiClient.get(`/api/applications/data-definitions/${dd.id}/sub-objects`).catch(() => ({ data: { data: [] } }));
                       for (const so of (soRes.data.data || [])) {
                         if (!seenNames.has(so.name)) { seenNames.add(so.name); allSubs.push({ name: so.name, description: so.description || '' }); }
@@ -9785,6 +9825,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                 }
                 setProjectInventoryDialogOpen(false);
                 setProjectInventoryItem(getEmptyProjectInventoryItem());
+                setInvDialogAppId('');
+                setInvDialogAppOptions([]);
               } catch (error) {
                 console.error('Failed to save item:', error);
                 const errorMessage = (error as any)?.response?.data?.message || 'Failed to save item. Please try again.';
