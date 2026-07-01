@@ -9410,7 +9410,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         setProjectInventoryItem(getEmptyProjectInventoryItem());
       }} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 2 } }}>
         <DialogTitle sx={{ 
-          background: theme => `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark || theme.palette.primary.main} 100%)`,
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
           color: 'white',
           fontWeight: 600,
           fontSize: '1.1rem',
@@ -9419,77 +9419,14 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
           {editingInventoryItemId ? 'Edit Project Inventory Item' : 'Add Project Inventory Item'}
         </DialogTitle>
         <DialogContent sx={{ pt: 2, maxHeight: '70vh', overflowY: 'auto', px: 3 }}>
-          <Box sx={{ mt: 2 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <Checkbox
-                checked={!!projectInventoryItem.isSubObject}
-                onChange={(e) => {
-                  const checked = e.target.checked;
-                  if (checked && editingInventoryItemId) {
-                    const editingItem = projectInventoryItems.find((entry: any) => entry.id === editingInventoryItemId);
-                    if (editingItem) {
-                      if (editingItem.parentProjectObjectId) {
-                        alert('Sub-objects cannot contain nested sub-objects. Select a parent data object.');
-                        return;
-                      }
-                      startSubObjectCreateFromParent(editingItem);
-                      return;
-                    }
-                  }
-                  const parentOptions = getParentInventoryObjects();
-                  const nextParent = checked ? (projectInventoryItem.parentProjectObjectId || parentOptions[0]?.id || '') : '';
-                  const parentItem = parentOptions.find((entry: any) => entry.id === nextParent) || null;
-                  setProjectInventoryItem({
-                    ...projectInventoryItem,
-                    isSubObject: checked,
-                    parentProjectObjectId: nextParent,
-                    dataObjectId: checked ? (parentItem?.objectId || '') : projectInventoryItem.dataObjectId,
-                    processArea: checked ? (parentItem?.processArea || projectInventoryItem.processArea) : projectInventoryItem.processArea,
-                  });
-                }}
-              />
-              <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                Create as sub-object
-              </Typography>
-            </Box>
-          </Box>
-
-          <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, mt: 3 }}>
-            {projectInventoryItem.isSubObject && (
-              <TextField
-                select
-                fullWidth
-                label="Parent Object"
-                value={projectInventoryItem.parentProjectObjectId}
-                onChange={(e) => {
-                  const parentId = e.target.value;
-                  const parent = getParentInventoryObjects().find((entry: any) => entry.id === parentId) || null;
-                  setProjectInventoryItem({
-                    ...projectInventoryItem,
-                    parentProjectObjectId: parentId,
-                    dataObjectId: parent?.objectId || '',
-                    processArea: parent?.processArea || projectInventoryItem.processArea,
-                  });
-                }}
-                disabled={editingInventoryItemId !== null}
-                variant="outlined"
-                size="small"
-              >
-                {getParentInventoryObjects().map((obj: any) => (
-                  <MenuItem key={obj.id} value={obj.id}>
-                    {obj.objectId}
-                  </MenuItem>
-                ))}
-              </TextField>
-            )}
-
+          <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, mt: 2 }}>
             <TextField
               select
               fullWidth
-              label={projectInventoryItem.isSubObject ? 'Parent Data Object ID' : 'Data Object ID'}
+              label="Data Object ID"
               value={projectInventoryItem.dataObjectId}
               onChange={(e) => setProjectInventoryItem({ ...projectInventoryItem, dataObjectId: e.target.value })}
-              disabled={editingInventoryItemId !== null || projectInventoryItem.isSubObject}
+              disabled={editingInventoryItemId !== null}
               variant="outlined"
               size="small"
             >
@@ -9500,37 +9437,12 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
               ))}
             </TextField>
 
-            {projectInventoryItem.isSubObject && (
-              <>
-                <TextField
-                  fullWidth
-                  label="Sub-object ID Suffix"
-                  value={projectInventoryItem.subObjectSuffix}
-                  onChange={(e) => setProjectInventoryItem({ ...projectInventoryItem, subObjectSuffix: e.target.value })}
-                  variant="outlined"
-                  size="small"
-                  placeholder="e.g., 01"
-                  helperText="This suffix is appended to the parent object ID."
-                />
-                <TextField
-                  fullWidth
-                  label="Sub-object Description"
-                  value={projectInventoryItem.subObjectDescription}
-                  onChange={(e) => setProjectInventoryItem({ ...projectInventoryItem, subObjectDescription: e.target.value })}
-                  variant="outlined"
-                  size="small"
-                  placeholder="Describe this sub-object"
-                />
-              </>
-            )}
-
             <TextField
               select
               fullWidth
               label="Process Area"
               value={projectInventoryItem.processArea}
               onChange={(e) => setProjectInventoryItem({ ...projectInventoryItem, processArea: e.target.value })}
-              disabled={projectInventoryItem.isSubObject}
               variant="outlined"
               size="small"
             >
@@ -9755,33 +9667,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                 
                 // Find the global object ID from the selected dataObjectId
                 const globalObj = inventoryObjects.find(obj => obj.objectId === projectInventoryItem.dataObjectId);
-                if (!projectInventoryItem.isSubObject && !globalObj) {
+                if (!globalObj) {
                   alert('Selected object not found');
                   return;
                 }
-
-                if (projectInventoryItem.isSubObject) {
-                  if (!projectInventoryItem.parentProjectObjectId) {
-                    alert('Parent object is required for sub-objects.');
-                    return;
-                  }
-                  if (!projectInventoryItem.subObjectSuffix.trim()) {
-                    alert('Sub-object ID suffix is required.');
-                    return;
-                  }
-                  if (!projectInventoryItem.subObjectDescription.trim()) {
-                    alert('Sub-object description is required.');
-                    return;
-                  }
-                  const normalizedSuffix = projectInventoryItem.subObjectSuffix.trim().replace(/^[-\s]+/, '');
-                  if (!normalizedSuffix) {
-                    alert('Sub-object ID suffix is required.');
-                    return;
-                  }
-                }
-
-                const addingSubObject = !editingInventoryItemId && projectInventoryItem.isSubObject;
-                const parentIdForAdditionalSubObjects = projectInventoryItem.parentProjectObjectId;
 
                 if (editingInventoryItemId) {
                   // Update existing item
@@ -9830,10 +9719,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                 } else {
                   // Add new item
                   const response = await apiClient.post(`/api/project-objects/project/${selectedProjectForInventory}`, {
-                    globalObjectId: projectInventoryItem.isSubObject ? undefined : globalObj.id,
-                    parentProjectObjectId: projectInventoryItem.isSubObject ? projectInventoryItem.parentProjectObjectId : undefined,
-                    subObjectSuffix: projectInventoryItem.isSubObject ? projectInventoryItem.subObjectSuffix.trim() : undefined,
-                    subObjectDescription: projectInventoryItem.isSubObject ? projectInventoryItem.subObjectDescription.trim() : undefined,
+                    globalObjectId: globalObj.id,
                     complexity: projectInventoryItem.complexity || null,
                     deploymentDisposition: projectInventoryItem.deploymentDisposition || null,
                     buildType: projectInventoryItem.buildType || null,
@@ -9845,50 +9731,60 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                     factorType: projectInventoryItem.factorType || null,
                     loadMethod: projectInventoryItem.loadMethod || null,
                   });
-                  
-                  // Map the API response to frontend format
                   const apiData = response.data.data;
-                  const newItem = {
-                    id: apiData.id,
-                    projectId: apiData.projectId,
-                    dataObjectId: apiData.objectId,
-                    objectId: apiData.objectId,
+                  const newItem: any = {
+                    id: apiData.id, projectId: apiData.projectId,
+                    dataObjectId: apiData.objectId, objectId: apiData.objectId,
                     globalObjectId: apiData.globalObjectId,
-                    parentProjectObjectId: apiData.parentProjectObjectId || '',
-                    parentObjectId: apiData.parentObjectId || '',
-                    subObjectSuffix: apiData.subObjectSuffix || '',
-                    subObjectDescription: apiData.subObjectDescription || '',
-                    isSubObject: !!apiData.parentProjectObjectId,
-                    processArea: apiData.processArea,
-                    complexity: apiData.complexity,
-                    deploymentDisposition: apiData.deploymentDisposition,
-                    buildType: apiData.buildType,
-                    objectType: apiData.objectType,
-                    cutoverPhase: apiData.cutoverPhase,
-                    ddmApproach: apiData.ddmApproach,
-                    riskSecurityType: apiData.riskSecurityType,
-                    migrationType: apiData.migrationType,
-                    factorType: apiData.factorType,
-                    loadMethod: apiData.loadMethod,
-                    startDate: apiData.startDate,
-                    endDate: apiData.endDate,
+                    parentProjectObjectId: '', parentObjectId: '',
+                    subObjectSuffix: '', subObjectDescription: '',
+                    isSubObject: false,
+                    processArea: apiData.processArea, complexity: apiData.complexity,
+                    deploymentDisposition: apiData.deploymentDisposition, buildType: apiData.buildType,
+                    objectType: apiData.objectType, cutoverPhase: apiData.cutoverPhase,
+                    ddmApproach: apiData.ddmApproach, riskSecurityType: apiData.riskSecurityType,
+                    migrationType: apiData.migrationType, factorType: apiData.factorType,
+                    loadMethod: apiData.loadMethod, startDate: apiData.startDate, endDate: apiData.endDate,
                   };
-                  setProjectInventoryItems([...projectInventoryItems, newItem]);
+                  const newItems: any[] = [newItem];
+                  // Auto-create sub-objects from Object Catalog data definitions
+                  try {
+                    const ddRes = await apiClient.get(`/api/applications/data-definitions/object/${globalObj.id}`);
+                    const defs: any[] = ddRes.data.data || [];
+                    const seenNames = new Set<string>();
+                    const allSubs: {name: string; description: string}[] = [];
+                    await Promise.all(defs.map(async (dd: any) => {
+                      const soRes = await apiClient.get(`/api/applications/data-definitions/${dd.id}/sub-objects`).catch(() => ({ data: { data: [] } }));
+                      for (const so of (soRes.data.data || [])) {
+                        if (!seenNames.has(so.name)) { seenNames.add(so.name); allSubs.push({ name: so.name, description: so.description || '' }); }
+                      }
+                    }));
+                    for (const so of allSubs) {
+                      const subRes = await apiClient.post(`/api/project-objects/project/${selectedProjectForInventory}`, {
+                        parentProjectObjectId: apiData.id,
+                        subObjectSuffix: so.name,
+                        subObjectDescription: so.description,
+                      });
+                      const sub = subRes.data.data;
+                      newItems.push({
+                        id: sub.id, projectId: sub.projectId,
+                        dataObjectId: sub.objectId, objectId: sub.objectId,
+                        globalObjectId: sub.globalObjectId,
+                        parentProjectObjectId: apiData.id, isSubObject: true,
+                        subObjectSuffix: sub.subObjectSuffix || so.name,
+                        subObjectDescription: sub.subObjectDescription || so.description,
+                        processArea: sub.processArea,
+                        complexity: null, deploymentDisposition: null, buildType: null,
+                        objectType: null, cutoverPhase: null, ddmApproach: null,
+                        riskSecurityType: null, migrationType: null, factorType: null, loadMethod: null,
+                        startDate: null, endDate: null,
+                      });
+                    }
+                  } catch (_e) { /* no data definitions defined - fine */ }
+                  setProjectInventoryItems([...projectInventoryItems, ...newItems]);
                 }
-
-                if (addingSubObject && parentIdForAdditionalSubObjects) {
-                  const parentItem = projectInventoryItems.find((entry: any) => entry.id === parentIdForAdditionalSubObjects);
-                  setProjectInventoryItem({
-                    ...getEmptyProjectInventoryItem(),
-                    isSubObject: true,
-                    parentProjectObjectId: parentIdForAdditionalSubObjects,
-                    dataObjectId: parentItem?.objectId || parentItem?.dataObjectId || '',
-                    processArea: parentItem?.processArea || '',
-                  });
-                } else {
-                  setProjectInventoryDialogOpen(false);
-                  setProjectInventoryItem(getEmptyProjectInventoryItem());
-                }
+                setProjectInventoryDialogOpen(false);
+                setProjectInventoryItem(getEmptyProjectInventoryItem());
               } catch (error) {
                 console.error('Failed to save item:', error);
                 const errorMessage = (error as any)?.response?.data?.message || 'Failed to save item. Please try again.';
@@ -9901,9 +9797,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
             disabled={
               isCreatingProjectInventoryItem ||
               !selectedProjectForInventory ||
-              (projectInventoryItem.isSubObject
-                ? !projectInventoryItem.parentProjectObjectId.trim() || !projectInventoryItem.subObjectSuffix.trim() || !projectInventoryItem.subObjectDescription.trim()
-                : !projectInventoryItem.dataObjectId.trim())
+              !projectInventoryItem.dataObjectId.trim()
             }
             sx={{ textTransform: 'none' }}
           >
