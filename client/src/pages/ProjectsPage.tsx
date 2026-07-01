@@ -9846,10 +9846,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
       <Dialog open={!!dataDefPanelObjectId} onClose={() => { setDataDefPanelObjectId(null); setDataDefPanelObject(null); setSelectedDataDefId(null); setDataDefFields([]); setDataDefSubObjects([]); setEditingFieldRow(null); setAddingFieldToSubObj(null); setCollapsedSubObjs(new Set()); setEditingSubObjId(null); }}
         fullWidth maxWidth="xl"
         PaperProps={{ sx: { borderRadius: 2, maxHeight: '94vh', display: 'flex', flexDirection: 'column', background: 'linear-gradient(160deg, #141e35 0%, #0c1527 100%)', border: '1px solid rgba(255,255,255,0.1)' } }}>
-        <DialogTitle sx={{ background: 'linear-gradient(135deg, #1a2c5a 0%, #0f1e40 100%)', borderBottom: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', pb: 1.5, flexShrink: 0 }}>
+        <DialogTitle sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', borderBottom: '1px solid rgba(255,255,255,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', pb: 1.5, flexShrink: 0 }}>
           <Box>
-            <Typography sx={{ fontWeight: 700, fontSize: '1rem', fontFamily: 'monospace', color: '#DBE7FF' }}>{dataDefPanelObject?.objectId}</Typography>
-            <Typography variant="caption" color="text.secondary">Applications &amp; Data Definitions</Typography>
+            <Typography sx={{ fontWeight: 700, fontSize: '1rem', fontFamily: 'monospace', color: '#fff' }}>{dataDefPanelObject?.objectId}</Typography>
+            <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.7)' }}>Applications &amp; Data Definitions</Typography>
           </Box>
           <IconButton onClick={() => { setDataDefPanelObjectId(null); setDataDefPanelObject(null); setSelectedDataDefId(null); setDataDefFields([]); setDataDefSubObjects([]); setEditingFieldRow(null); setAddingFieldToSubObj(null); }} size="small"><CloseIcon /></IconButton>
         </DialogTitle>
@@ -9890,7 +9890,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                       setCollapsedSubObjs(new Set(subObjs.map((s: any) => s.id)));
                     }).catch(() => {});
                   }}
-                  sx={{ px: 1.5, py: 1, cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.04)', backgroundColor: selectedDataDefId === dd.id ? 'rgba(91,103,202,0.22)' : 'transparent', '&:hover': { backgroundColor: 'rgba(255,255,255,0.03)' }, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  sx={{ px: 1.5, py: 1, cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.04)', backgroundColor: selectedDataDefId === dd.id ? 'rgba(102,126,234,0.28)' : 'transparent', borderLeft: selectedDataDefId === dd.id ? '3px solid #667eea' : '3px solid transparent', '&:hover': { backgroundColor: selectedDataDefId === dd.id ? 'rgba(102,126,234,0.32)' : 'rgba(255,255,255,0.04)' }, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <Box sx={{ minWidth: 0 }}>
                     <Typography sx={{ fontWeight: 600, fontSize: '0.8rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{dd.application_name}</Typography>
                     {(dd.vendor || dd.version) && <Typography variant="caption" color="text.secondary">{[dd.vendor, dd.version].filter(Boolean).join(' ')}</Typography>}
