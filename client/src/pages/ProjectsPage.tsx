@@ -407,6 +407,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   // Application picker for Project Inventory dialog
   const [invDialogAppId, setInvDialogAppId] = useState('');
   const [invDialogAppOptions, setInvDialogAppOptions] = useState<{id: string; name: string}[]>([]);
+  const [invDialogSubObjects, setInvDialogSubObjects] = useState<{name: string; description: string}[]>([]);
+  const [invDialogSubLoading, setInvDialogSubLoading] = useState(false);
 
   // Project Inventory item dialog states
   const [projectInventoryDialogOpen, setProjectInventoryDialogOpen] = useState(false);
@@ -9413,6 +9415,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         setProjectInventoryItem(getEmptyProjectInventoryItem());
         setInvDialogAppId('');
         setInvDialogAppOptions([]);
+        setInvDialogSubObjects([]);
       }} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 2 } }}>
         <DialogTitle sx={{ 
           background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
@@ -9432,18 +9435,27 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
               value={projectInventoryItem.dataObjectId}
               onChange={async (e) => {
                 const objectId = e.target.value;
-                setProjectInventoryItem({ ...projectInventoryItem, dataObjectId: objectId });
+                const globalObj = inventoryObjects.find(obj => obj.objectId === objectId);
+                setProjectInventoryItem({ ...projectInventoryItem, dataObjectId: objectId, processArea: globalObj?.processArea || '' });
                 setInvDialogAppId('');
                 setInvDialogAppOptions([]);
-                if (objectId) {
-                  const globalObj = inventoryObjects.find(obj => obj.objectId === objectId);
-                  if (globalObj) {
-                    try {
-                      const ddRes = await apiClient.get(`/api/applications/data-definitions/object/${globalObj.id}`);
-                      const defs: any[] = ddRes.data.data || [];
-                      setInvDialogAppOptions(defs.map((d: any) => ({ id: d.id, name: d.application_name })));
-                    } catch (_e) { setInvDialogAppOptions([]); }
-                  }
+                setInvDialogSubObjects([]);
+                if (objectId && globalObj) {
+                  try {
+                    const ddRes = await apiClient.get(`/api/applications/data-definitions/object/${globalObj.id}`);
+                    const defs: any[] = ddRes.data.data || [];
+                    setInvDialogAppOptions(defs.map((d: any) => ({ id: d.id, name: d.application_name })));
+                    // Pre-load all sub-objects (shown when "All applications" stays selected)
+                    const seenNames = new Set<string>();
+                    const allSubs: {name: string; description: string}[] = [];
+                    await Promise.all(defs.map(async (dd: any) => {
+                      const soRes = await apiClient.get(`/api/applications/data-definitions/${dd.id}/sub-objects`).catch(() => ({ data: { data: [] } }));
+                      for (const so of (soRes.data.data || [])) {
+                        if (!seenNames.has(so.name)) { seenNames.add(so.name); allSubs.push({ name: so.name, description: so.description || '' }); }
+                      }
+                    }));
+                    setInvDialogSubObjects(allSubs);
+                  } catch (_e) { setInvDialogAppOptions([]); setInvDialogSubObjects([]); }
                 }
               }}
               disabled={editingInventoryItemId !== null}
@@ -9462,11 +9474,37 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
               fullWidth
               label={invDialogAppOptions.length === 0 ? 'Application (none linked)' : 'Application'}
               value={invDialogAppId}
-              onChange={(e) => setInvDialogAppId(e.target.value)}
+              onChange={async (e) => {
+                const appDefId = e.target.value;
+                setInvDialogAppId(appDefId);
+                setInvDialogSubLoading(true);
+                try {
+                  if (appDefId) {
+                    // Load sub-objects for the selected application's data definition
+                    const soRes = await apiClient.get(`/api/applications/data-definitions/${appDefId}/sub-objects`);
+                    setInvDialogSubObjects(soRes.data.data || []);
+                  } else {
+                    // "All applications" — reload merged sub-objects
+                    const globalObj = inventoryObjects.find(obj => obj.objectId === projectInventoryItem.dataObjectId);
+                    if (globalObj) {
+                      const ddRes = await apiClient.get(`/api/applications/data-definitions/object/${globalObj.id}`);
+                      const defs: any[] = ddRes.data.data || [];
+                      const seenNames = new Set<string>();
+                      const allSubs: {name: string; description: string}[] = [];
+                      await Promise.all(defs.map(async (dd: any) => {
+                        const soRes = await apiClient.get(`/api/applications/data-definitions/${dd.id}/sub-objects`).catch(() => ({ data: { data: [] } }));
+                        for (const so of (soRes.data.data || [])) {
+                          if (!seenNames.has(so.name)) { seenNames.add(so.name); allSubs.push({ name: so.name, description: so.description || '' }); }
+                        }
+                      }));
+                      setInvDialogSubObjects(allSubs);
+                    }
+                  }
+                } catch (_e) { setInvDialogSubObjects([]); } finally { setInvDialogSubLoading(false); }
+              }}
               disabled={editingInventoryItemId !== null || invDialogAppOptions.length === 0}
               variant="outlined"
               size="small"
-              helperText={invDialogAppOptions.length > 0 ? 'Scopes sub-objects to this application' : undefined}
             >
               <MenuItem value=""><em>All applications</em></MenuItem>
               {invDialogAppOptions.map((a) => (
@@ -9475,20 +9513,14 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
             </TextField>
 
             <TextField
-              select
               fullWidth
               label="Process Area"
-              value={projectInventoryItem.processArea}
-              onChange={(e) => setProjectInventoryItem({ ...projectInventoryItem, processArea: e.target.value })}
+              value={projectInventoryItem.processArea || '—'}
+              InputProps={{ readOnly: true }}
               variant="outlined"
               size="small"
-            >
-              {processAreaOptions.map((option) => (
-                <MenuItem key={option} value={option}>
-                  {option}
-                </MenuItem>
-              ))}
-            </TextField>
+              helperText="From Object Catalog"
+            />
 
             <TextField
               select
@@ -9680,6 +9712,23 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
               ))}
             </TextField>
           </Box>
+          {/* Sub-objects preview */}
+          {!editingInventoryItemId && projectInventoryItem.dataObjectId && (
+            <Box sx={{ mt: 2, p: 1.5, borderRadius: 1.5, border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'rgba(255,255,255,0.03)' }}>
+              <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.06em', mb: 0.75 }}>Sub-objects to create</Typography>
+              {invDialogSubLoading ? (
+                <Typography variant="caption" color="text.disabled">Loading...</Typography>
+              ) : invDialogSubObjects.length === 0 ? (
+                <Typography variant="caption" color="text.disabled">None defined — object will be added without sub-objects</Typography>
+              ) : (
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
+                  {invDialogSubObjects.map((s, i) => (
+                    <Box key={i} sx={{ px: 1, py: 0.35, borderRadius: 1, backgroundColor: 'rgba(102,126,234,0.18)', border: '1px solid rgba(102,126,234,0.35)', fontSize: '0.72rem', fontFamily: 'monospace', fontWeight: 700, color: '#C0D0F0' }}>{s.name}</Box>
+                  ))}
+                </Box>
+              )}
+            </Box>
+          )}
         </DialogContent>
         <DialogActions sx={{ gap: 1, p: 2, borderTop: '1px solid', borderColor: 'divider' }}>
           <Button 
@@ -9689,6 +9738,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
               setProjectInventoryItem(getEmptyProjectInventoryItem());
               setInvDialogAppId('');
               setInvDialogAppOptions([]);
+              setInvDialogSubObjects([]);
             }}
             sx={{ textTransform: 'none' }}
           >
@@ -9787,19 +9837,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                   };
                   const newItems: any[] = [newItem];
                   // Auto-create sub-objects from Object Catalog data definitions
-                  try {
-                    const ddRes = await apiClient.get(`/api/applications/data-definitions/object/${globalObj.id}`);
-                    const defs: any[] = ddRes.data.data || [];
-                    const filteredDefs = invDialogAppId ? defs.filter((d: any) => d.id === invDialogAppId) : defs;
-                    const seenNames = new Set<string>();
-                    const allSubs: {name: string; description: string}[] = [];
-                    await Promise.all(filteredDefs.map(async (dd: any) => {
-                      const soRes = await apiClient.get(`/api/applications/data-definitions/${dd.id}/sub-objects`).catch(() => ({ data: { data: [] } }));
-                      for (const so of (soRes.data.data || [])) {
-                        if (!seenNames.has(so.name)) { seenNames.add(so.name); allSubs.push({ name: so.name, description: so.description || '' }); }
-                      }
-                    }));
-                    for (const so of allSubs) {
+                  for (const so of invDialogSubObjects) {
+                    try {
                       const subRes = await apiClient.post(`/api/project-objects/project/${selectedProjectForInventory}`, {
                         parentProjectObjectId: apiData.id,
                         subObjectSuffix: so.name,
@@ -9819,14 +9858,17 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                         riskSecurityType: null, migrationType: null, factorType: null, loadMethod: null,
                         startDate: null, endDate: null,
                       });
+                    } catch (subErr: any) {
+                      console.error('Failed to create sub-object:', so.name, subErr);
                     }
-                  } catch (_e) { /* no data definitions defined - fine */ }
+                  }
                   setProjectInventoryItems([...projectInventoryItems, ...newItems]);
                 }
                 setProjectInventoryDialogOpen(false);
                 setProjectInventoryItem(getEmptyProjectInventoryItem());
                 setInvDialogAppId('');
                 setInvDialogAppOptions([]);
+                setInvDialogSubObjects([]);
               } catch (error) {
                 console.error('Failed to save item:', error);
                 const errorMessage = (error as any)?.response?.data?.message || 'Failed to save item. Please try again.';
