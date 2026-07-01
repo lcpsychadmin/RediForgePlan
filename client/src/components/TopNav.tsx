@@ -80,12 +80,15 @@ const TopNav: React.FC<TopNavProps> = ({
   const isExecutionPage = location.pathname === '/projects';
   const isPlanningPage = location.pathname.startsWith('/planning');
   const isDashboardPage = location.pathname === '/dashboard';
+  const isSettingsPage = location.pathname.startsWith('/settings') || location.pathname.startsWith('/admin');
   // All pages that share the execution workspace header + sub-nav pills
   const executionRelatedPaths = ['/projects', '/priorities', '/schedule', '/defects', '/my-tasks'];
   const isExecutionRelated = executionRelatedPaths.includes(location.pathname);
-  const isWorkspacePage = isExecutionRelated || isPlanningPage || isDashboardPage;
-  const sectionTitle = isPlanningPage ? 'Planning Workspace' : isDashboardPage ? 'Dashboard' : 'Mock/Cutover Execution';
+  const isWorkspacePage = isExecutionRelated || isPlanningPage || isDashboardPage || isSettingsPage;
+  const sectionTitle = isPlanningPage ? 'Planning Workspace' : isDashboardPage ? 'Dashboard' : isSettingsPage ? 'Settings' : 'Mock/Cutover Execution';
   const activeSubNavItems = isPlanningPage ? planningSubNavItems : executionSubNavItems;
+  // Sub-nav pills only shown on planning and execution pages (not dashboard/settings)
+  const showSubNav = isPlanningPage || isExecutionRelated;
 
   const loadNotifications = React.useCallback(() => {
     return apiClient.get('/api/comments/notifications/me').then(r => {
@@ -213,6 +216,9 @@ const TopNav: React.FC<TopNavProps> = ({
                 </Menu>
               </Box>
 
+              {/* Stats — only shown on execution pages */}
+              {isExecutionRelated && (
+              <>
               {/* Stats Divider */}
               <Box sx={{ width: '1px', height: '24px', backgroundColor: 'rgba(255, 255, 255, 0.2)' }} />
 
@@ -258,6 +264,8 @@ const TopNav: React.FC<TopNavProps> = ({
                   </Typography>
                 </Box>
               </Box>
+              </>
+              )}
             </Box>
 
             {/* Spacer */}
@@ -399,8 +407,8 @@ const TopNav: React.FC<TopNavProps> = ({
         </Box>
       </Toolbar>
 
-      {/* Sub-nav for Projects page */}
-      {isWorkspacePage && (
+      {/* Sub-nav pills — only on planning and execution pages */}
+      {showSubNav && (
         <Box
           sx={{
             display: 'flex',
