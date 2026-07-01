@@ -6677,6 +6677,12 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                 >
                                   <LayersIcon sx={{ fontSize: '1rem' }} />
                                 </IconButton>
+                                <IconButton
+                                  size="small"
+                                  onClick={() => handleEditCatalogObject(obj)}
+                                  sx={{ color: '#86A9E8', '&:hover': { backgroundColor: 'rgba(68, 100, 160, 0.2)' } }}
+                                  title="Edit"
+                                >
                                   <EditIcon sx={{ fontSize: '1rem' }} />
                                 </IconButton>
                                 <IconButton
