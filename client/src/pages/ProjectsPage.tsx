@@ -57,6 +57,7 @@ import CorporateFareIcon from '@mui/icons-material/CorporateFare';
 import SyncIcon from '@mui/icons-material/Sync';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
 import LayersIcon from '@mui/icons-material/Layers';
+import PlaylistAddIcon from '@mui/icons-material/PlaylistAdd';
 import SearchIcon from '@mui/icons-material/Search';
 import EventIcon from '@mui/icons-material/Event';
 import ViewListIcon from '@mui/icons-material/ViewList';
@@ -395,6 +396,14 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   const [deletingCatalogObjectId, setDeletingCatalogObjectId] = useState<string | null>(null);
   const [deletingCatalogObjectName, setDeletingCatalogObjectName] = useState('');
   const [isDeletingCatalogObject, setIsDeletingCatalogObject] = useState(false);
+  // Add-to-Inventory from Object Catalog
+  const [addToInvOpen, setAddToInvOpen] = useState(false);
+  const [addToInvObj, setAddToInvObj] = useState<any>(null);
+  const [addToInvSubObjects, setAddToInvSubObjects] = useState<{name: string; description: string}[]>([]);
+  const [addToInvSelectedSubs, setAddToInvSelectedSubs] = useState<Set<string>>(new Set());
+  const [addToInvProjectId, setAddToInvProjectId] = useState('');
+  const [addToInvLoading, setAddToInvLoading] = useState(false);
+  const [isAddingToInv, setIsAddingToInv] = useState(false);
 
   // Project Inventory item dialog states
   const [projectInventoryDialogOpen, setProjectInventoryDialogOpen] = useState(false);
@@ -3339,7 +3348,91 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   };
 
   const handleCatalogProcessAreaChange = async (objectId: string, processArea: string) => {
+
+  const handleOpenAddToInv = async (obj: any) => {
+    setAddToInvObj(obj);
+    setAddToInvProjectId(selectedProjectForInventory || inventoryProjects[0]?.id || '');
+    setAddToInvSubObjects([]);
+    setAddToInvSelectedSubs(new Set());
+    setAddToInvOpen(true);
+    setAddToInvLoading(true);
     try {
+      const ddRes = await apiClient.get(`/api/applications/data-definitions/object/${obj.id}`);
+      const defs: any[] = ddRes.data.data || [];
+      const seenNames = new Set<string>();
+      const allSubs: {name: string; description: string}[] = [];
+      await Promise.all(defs.map(async (dd: any) => {
+        const soRes = await apiClient.get(`/api/applications/data-definitions/${dd.id}/sub-objects`).catch(() => ({ data: { data: [] } }));
+        for (const so of (soRes.data.data || [])) {
+          if (!seenNames.has(so.name)) {
+            seenNames.add(so.name);
+            allSubs.push({ name: so.name, description: so.description || '' });
+          }
+        }
+      }));
+      setAddToInvSubObjects(allSubs);
+      setAddToInvSelectedSubs(new Set(allSubs.map(s => s.name)));
+    } catch (_e) {
+      // proceed with no sub-objects
+    } finally {
+      setAddToInvLoading(false);
+    }
+  };
+
+  const confirmAddToInv = async () => {
+    if (!addToInvObj || !addToInvProjectId) return;
+    setIsAddingToInv(true);
+    try {
+      const res = await apiClient.post(`/api/project-objects/project/${addToInvProjectId}`, {
+        globalObjectId: addToInvObj.id,
+        processArea: addToInvObj.processArea || null,
+      });
+      const parent = res.data.data;
+      const parentItem: any = {
+        id: parent.id, projectId: parent.projectId,
+        dataObjectId: parent.objectId, objectId: parent.objectId,
+        globalObjectId: parent.globalObjectId,
+        parentProjectObjectId: '', isSubObject: false,
+        processArea: parent.processArea,
+        complexity: null, deploymentDisposition: null, buildType: null,
+        objectType: null, cutoverPhase: null, ddmApproach: null,
+        riskSecurityType: null, migrationType: null, factorType: null, loadMethod: null,
+        startDate: null, endDate: null, subObjectSuffix: '', subObjectDescription: '',
+      };
+      const newItems: any[] = [parentItem];
+      const selectedSubs = addToInvSubObjects.filter(s => addToInvSelectedSubs.has(s.name));
+      for (const so of selectedSubs) {
+        const subRes = await apiClient.post(`/api/project-objects/project/${addToInvProjectId}`, {
+          parentProjectObjectId: parent.id,
+          subObjectSuffix: so.name,
+          subObjectDescription: so.description,
+        });
+        const sub = subRes.data.data;
+        newItems.push({
+          id: sub.id, projectId: sub.projectId,
+          dataObjectId: sub.objectId, objectId: sub.objectId,
+          globalObjectId: sub.globalObjectId,
+          parentProjectObjectId: parent.id,
+          isSubObject: true,
+          subObjectSuffix: sub.subObjectSuffix || so.name,
+          subObjectDescription: sub.subObjectDescription || so.description,
+          processArea: sub.processArea,
+          complexity: null, deploymentDisposition: null, buildType: null,
+          objectType: null, cutoverPhase: null, ddmApproach: null,
+          riskSecurityType: null, migrationType: null, factorType: null, loadMethod: null,
+          startDate: null, endDate: null,
+        });
+      }
+      setProjectInventoryItems(prev => [...prev, ...newItems]);
+      setSelectedProjectForInventory(addToInvProjectId);
+      setInventorySubTab(1);
+      setAddToInvOpen(false);
+    } catch (e: any) {
+      alert(e?.response?.data?.message || 'Failed to add to inventory');
+    } finally {
+      setIsAddingToInv(false);
+    }
+  };    try {
       await apiClient.patch(`/api/global-objects/${objectId}`, {
         processArea,
       });
@@ -4095,7 +4188,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     >
       {/* Main Content Area */}
       <Box sx={{ display: 'flex', flex: 1, overflow: 'hidden', position: 'relative' }}>
-        {isMobile && isHierarchySidebarOpen && (
+        {isMobile && isHierarchySidebarOpen && tabValue !== 1 && (
           <Box
             onClick={() => setIsHierarchySidebarOpen(false)}
             sx={{
@@ -4122,7 +4215,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
             borderTop: 'none',
             borderLeft: 'none',
             borderRadius: 0,
-            display: 'flex',
+            display: tabValue === 1 ? 'none' : 'flex',
             flexDirection: 'column',
             position: { xs: 'fixed', md: 'relative' },
             top: { xs: '112px', md: 'auto' },
@@ -6682,6 +6775,14 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                   sx={{ color: 'rgba(255,255,255,0.5)', '&:hover': { color: 'white', backgroundColor: 'rgba(255,255,255,0.08)' } }}
                                 >
                                   <LayersIcon sx={{ fontSize: '1rem' }} />
+                                </IconButton>
+                                <IconButton
+                                  size="small"
+                                  title="Add to Project Inventory"
+                                  onClick={() => handleOpenAddToInv(obj)}
+                                  sx={{ color: 'rgba(255,255,255,0.5)', '&:hover': { color: '#66bb6a', backgroundColor: 'rgba(102,187,106,0.1)' } }}
+                                >
+                                  <PlaylistAddIcon sx={{ fontSize: '1rem' }} />
                                 </IconButton>
                                 <IconButton
                                   size="small"
