@@ -4067,15 +4067,35 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
     const enriched: any[] = [];
     await Promise.all(allProjects.map(async (proj: any) => {
       try {
-        const [tasksRes, invRes, groupsRes] = await Promise.all([
+        const projId = proj.id || activeProjectId;
+        // Build sibling project IDs (same name in same program) so sub-objects added
+        // via the inventory tab are visible regardless of which project ID was used.
+        const siblingIds = new Set<string>();
+        if (projId) {
+          siblingIds.add(projId);
+          const projRecord = Object.values(projectsByProgram).flat().find((p: any) => p.id === projId);
+          const projName = (projRecord?.name || proj.name || '').trim().toLowerCase();
+          const projProgramId = projRecord?.programId || proj.programId || '';
+          if (projName && projProgramId) {
+            Object.values(projectsByProgram).flat().forEach((p: any) => {
+              if (p.programId === projProgramId && (p.name || '').trim().toLowerCase() === projName) {
+                siblingIds.add(p.id);
+              }
+            });
+          }
+        }
+        const [tasksRes, invResponses, groupsRes] = await Promise.all([
           apiClient.get(`/api/tasks/cycle/${activeCycleId}`),
-          // Project objects are stored at project level (mock_cycle_id=NULL)
-          // so use the project endpoint, not the cycle endpoint.
-          apiClient.get(`/api/project-objects/project/${proj.id || activeProjectId}`),
+          // Load from all sibling project IDs so sub-objects are found
+          Promise.all(Array.from(siblingIds).map(pid =>
+            apiClient.get(`/api/project-objects/project/${pid}`).then(r => r.data.data || []).catch(() => [])
+          )),
           apiClient.get(`/api/tasks/groups/cycle/${activeCycleId}`),
         ]);
         const projTasks: any[] = tasksRes.data.data || [];
-        const projInv: any[] = invRes.data.data || [];
+        // Deduplicate inventory items by ID across sibling projects
+        const seenInvIds = new Set<string>();
+        const projInv: any[] = invResponses.flat().filter((o: any) => { if (seenInvIds.has(o.id)) return false; seenInvIds.add(o.id); return true; });
         const projGroups: any[] = groupsRes.data.data || [];
         projTasks.forEach(t => {
           const invItem = projInv.find(o => o.id === t.projectObjectId);
