@@ -6562,7 +6562,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
 
               {/* Object Catalog Sub-Tab */}
               {inventorySubTab === 0 && (
-                <Card sx={{ backgroundColor: 'rgba(9, 19, 47, 0.9)', border: '1px solid rgba(80,115,181,0.35)', borderRadius: 2 }}>
+                <Card sx={{ backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 2 }}>
                   <CardContent sx={{ p: 2 }}>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                       <Typography variant="h6" sx={{ color: '#DCE6FF', fontWeight: 700, fontSize: '1rem' }}>
@@ -6571,7 +6571,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                       <Button
                         variant="contained"
                         sx={{
-                          background: 'linear-gradient(135deg, #6A7DFF 0%, #6B8BFF 100%)',
+                          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                           textTransform: 'none',
                           fontWeight: 600,
                           borderRadius: '10px',
@@ -6594,50 +6594,50 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                         mb: 2,
                         '& .MuiOutlinedInput-root': {
                           borderRadius: '10px',
-                          backgroundColor: 'rgba(13, 27, 60, 0.7)',
+                          backgroundColor: 'rgba(255,255,255,0.05)',
                           color: '#D6E2FF',
                         },
                         '& .MuiOutlinedInput-notchedOutline': {
-                          borderColor: 'rgba(96, 127, 189, 0.45)',
+                          borderColor: 'rgba(255,255,255,0.15)',
                         },
                         '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': {
-                          borderColor: 'rgba(114, 153, 227, 0.6)',
+                          borderColor: 'rgba(255,255,255,0.3)',
                         },
                       }}
-                      slotProps={{ input: { startAdornment: <SearchIcon sx={{ mr: 0.75, color: '#7F95C6', fontSize: '1rem' }} /> } }}
+                      slotProps={{ input: { startAdornment: <SearchIcon sx={{ mr: 0.75, color: 'rgba(255,255,255,0.4)', fontSize: '1rem' }} /> } }}
                     />
 
                     <Box sx={{ overflowX: 'auto' }}>
-                      <Box sx={{ display: 'grid', gridTemplateColumns: '0.95fr 2fr 0.85fr 0.6fr', gap: 0, borderRadius: 1.25, overflow: 'hidden', border: '1px solid rgba(92, 127, 194, 0.45)' }}>
+                      <Box sx={{ display: 'grid', gridTemplateColumns: '0.95fr 2fr 0.85fr 0.6fr', gap: 0, borderRadius: 1.25, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)' }}>
                         {/* Header Row */}
-                        <Box sx={{ backgroundColor: 'rgba(22, 39, 78, 0.95)', p: 1, fontWeight: 700, color: '#A9BCDF', fontSize: '0.72rem', letterSpacing: '0.4px' }}>
+                        <Box sx={{ backgroundColor: 'rgba(255,255,255,0.07)', p: 1, fontWeight: 700, color: 'rgba(255,255,255,0.5)', fontSize: '0.72rem', letterSpacing: '0.4px' }}>
                           OBJECT ID
                         </Box>
-                        <Box sx={{ backgroundColor: 'rgba(22, 39, 78, 0.95)', p: 1, fontWeight: 700, color: '#A9BCDF', fontSize: '0.72rem', letterSpacing: '0.4px' }}>
+                        <Box sx={{ backgroundColor: 'rgba(255,255,255,0.07)', p: 1, fontWeight: 700, color: 'rgba(255,255,255,0.5)', fontSize: '0.72rem', letterSpacing: '0.4px' }}>
                           DESCRIPTION
                         </Box>
-                        <Box sx={{ backgroundColor: 'rgba(22, 39, 78, 0.95)', p: 1, fontWeight: 700, color: '#A9BCDF', fontSize: '0.72rem', letterSpacing: '0.4px' }}>
+                        <Box sx={{ backgroundColor: 'rgba(255,255,255,0.07)', p: 1, fontWeight: 700, color: 'rgba(255,255,255,0.5)', fontSize: '0.72rem', letterSpacing: '0.4px' }}>
                           PROCESS AREA
                         </Box>
-                        <Box sx={{ backgroundColor: 'rgba(22, 39, 78, 0.95)', p: 1, fontWeight: 700, color: '#A9BCDF', fontSize: '0.72rem', letterSpacing: '0.4px', textAlign: 'center' }}>
+                        <Box sx={{ backgroundColor: 'rgba(255,255,255,0.07)', p: 1, fontWeight: 700, color: 'rgba(255,255,255,0.5)', fontSize: '0.72rem', letterSpacing: '0.4px', textAlign: 'center' }}>
                           ACTIONS
                         </Box>
 
                         {/* Catalog Data Rows */}
                         {getFilteredSortedCatalogObjects().length === 0 ? (
-                          <Box sx={{ gridColumn: '1 / -1', p: 2, textAlign: 'center', color: '#8EA3CB', fontSize: '0.85rem', backgroundColor: 'rgba(17, 30, 63, 0.82)' }}>
+                          <Box sx={{ gridColumn: '1 / -1', p: 2, textAlign: 'center', color: 'rgba(255,255,255,0.35)', fontSize: '0.85rem', backgroundColor: 'rgba(255,255,255,0.02)' }}>
                             {inventoryObjects.length === 0 ? 'No objects in catalog yet' : 'No results matching your search'}
                           </Box>
                         ) : (
                           getFilteredSortedCatalogObjects().map((obj, idx) => (
                             <React.Fragment key={obj.id}>
-                              <Box sx={{ p: 1, borderBottom: '1px solid rgba(83,110,165,0.26)', backgroundColor: idx % 2 === 0 ? 'rgba(20, 35, 70, 0.9)' : 'rgba(16, 30, 60, 0.9)', fontFamily: 'monospace', fontSize: '0.8rem', color: '#D6E2FF', fontWeight: 700 }}>
+                              <Box sx={{ p: 1, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: idx % 2 === 0 ? 'rgba(255,255,255,0.03)' : 'transparent', fontFamily: 'monospace', fontSize: '0.8rem', color: '#D6E2FF', fontWeight: 700 }}>
                                 {obj.objectId}
                               </Box>
-                              <Box sx={{ p: 1, borderBottom: '1px solid rgba(83,110,165,0.26)', backgroundColor: idx % 2 === 0 ? 'rgba(20, 35, 70, 0.9)' : 'rgba(16, 30, 60, 0.9)', color: '#BFD0F3', fontSize: '0.8rem' }}>
+                              <Box sx={{ p: 1, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: idx % 2 === 0 ? 'rgba(255,255,255,0.03)' : 'transparent', color: 'rgba(255,255,255,0.7)', fontSize: '0.8rem' }}>
                                 {obj.description}
                               </Box>
-                              <Box sx={{ p: 0.75, borderBottom: '1px solid rgba(83,110,165,0.26)', backgroundColor: idx % 2 === 0 ? 'rgba(20, 35, 70, 0.9)' : 'rgba(16, 30, 60, 0.9)' }}>
+                              <Box sx={{ p: 0.75, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: idx % 2 === 0 ? 'rgba(255,255,255,0.03)' : 'transparent' }}>
                                 <Box
                                   component="select"
                                   value={obj.processArea || ''}
@@ -6645,11 +6645,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                   sx={{
                                     width: '100%',
                                     p: '4px 8px',
-                                    border: '1px solid rgba(94,123,180,0.45)',
+                                    border: '1px solid rgba(255,255,255,0.15)',
                                     borderRadius: '6px',
                                     fontSize: '0.78rem',
                                     color: '#DBE7FF',
-                                    backgroundColor: 'rgba(10, 22, 49, 0.9)',
+                                    backgroundColor: 'rgba(255,255,255,0.06)',
                                   }}
                                 >
                                   <option value="">-</option>
@@ -6658,11 +6658,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                   ))}
                                 </Box>
                               </Box>
-                              <Box sx={{ p: 0.75, borderBottom: '1px solid rgba(83,110,165,0.26)', backgroundColor: idx % 2 === 0 ? 'rgba(20, 35, 70, 0.9)' : 'rgba(16, 30, 60, 0.9)', display: 'flex', gap: 0.25, justifyContent: 'center', alignItems: 'center' }}>
+                              <Box sx={{ p: 0.75, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: idx % 2 === 0 ? 'rgba(255,255,255,0.03)' : 'transparent', display: 'flex', gap: 0.25, justifyContent: 'center', alignItems: 'center' }}>
                                 <IconButton
                                   size="small"
                                   onClick={() => handleEditCatalogObject(obj)}
-                                  sx={{ color: '#86A9E8', '&:hover': { backgroundColor: 'rgba(68, 100, 160, 0.2)' } }}
+                                  sx={{ color: 'rgba(255,255,255,0.5)', '&:hover': { color: 'white', backgroundColor: 'rgba(255,255,255,0.08)' } }}
                                   title="Edit"
                                 >
                                   <EditIcon sx={{ fontSize: '1rem' }} />
@@ -6679,22 +6679,14 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                       .then(r => setDataDefinitions(r.data.data || []))
                                       .catch(() => setDataDefinitions([]));
                                   }}
-                                  sx={{ color: '#86A9E8', '&:hover': { backgroundColor: 'rgba(68, 100, 160, 0.2)' } }}
+                                  sx={{ color: 'rgba(255,255,255,0.5)', '&:hover': { color: 'white', backgroundColor: 'rgba(255,255,255,0.08)' } }}
                                 >
                                   <LayersIcon sx={{ fontSize: '1rem' }} />
                                 </IconButton>
                                 <IconButton
                                   size="small"
-                                  onClick={() => handleEditCatalogObject(obj)}
-                                  sx={{ color: '#86A9E8', '&:hover': { backgroundColor: 'rgba(68, 100, 160, 0.2)' } }}
-                                  title="Edit"
-                                >
-                                  <EditIcon sx={{ fontSize: '1rem' }} />
-                                </IconButton>
-                                <IconButton
-                                  size="small"
                                   onClick={() => handleDeleteCatalogObject(obj)}
-                                  sx={{ color: '#88A0C7', '&:hover': { backgroundColor: 'rgba(68, 100, 160, 0.2)' } }}
+                                  sx={{ color: 'rgba(255,255,255,0.4)', '&:hover': { color: '#ef5350', backgroundColor: 'rgba(239,83,80,0.1)' } }}
                                   title="Delete"
                                 >
                                   <DeleteIcon sx={{ fontSize: '1rem' }} />
@@ -9174,7 +9166,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         setCatalogProcessArea('');
       }} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 2 } }}>
         <DialogTitle sx={{ 
-          background: theme => `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark || theme.palette.primary.main} 100%)`,
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
           color: 'white',
           fontWeight: 600,
           fontSize: '1.1rem',
@@ -9207,13 +9199,18 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
           />
           <TextField
             fullWidth
+            select
             label="Process Area"
             value={catalogProcessArea}
             onChange={(e) => setCatalogProcessArea(e.target.value)}
-            placeholder="e.g., H2R, Finance, HR"
             variant="outlined"
             size="small"
-          />
+          >
+            <MenuItem value=""><em>None</em></MenuItem>
+            {processAreaOptions.map((area) => (
+              <MenuItem key={area} value={area}>{area}</MenuItem>
+            ))}
+          </TextField>
         </DialogContent>
         <DialogActions sx={{ gap: 1, p: 2, borderTop: '1px solid', borderColor: 'divider' }}>
           <Button onClick={() => {
