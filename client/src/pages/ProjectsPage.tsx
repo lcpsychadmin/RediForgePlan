@@ -9884,8 +9884,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                       apiClient.get(`/api/applications/data-definitions/${dd.id}/sub-objects`),
                       apiClient.get(`/api/applications/data-definitions/${dd.id}/fields`),
                     ]).then(([sr, fr]) => {
-                      setDataDefSubObjects(sr.data.data || []);
+                      const subObjs = sr.data.data || [];
+                      setDataDefSubObjects(subObjs);
                       setDataDefFields(fr.data.data || []);
+                      setCollapsedSubObjs(new Set(subObjs.map((s: any) => s.id)));
                     }).catch(() => {});
                   }}
                   sx={{ px: 1.5, py: 1, cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.04)', backgroundColor: selectedDataDefId === dd.id ? 'rgba(91,103,202,0.22)' : 'transparent', '&:hover': { backgroundColor: 'rgba(255,255,255,0.03)' }, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -9936,10 +9938,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                   {(() => {
                     const hasSubObjects = dataDefSubObjects.length > 0;
                     const sections: { label: string | null; subObjId: string | null; fields: any[] }[] = hasSubObjects
-                      ? [
-                          ...dataDefSubObjects.map((so: any) => ({ label: so.name, subObjId: so.id, fields: dataDefFields.filter((f: any) => f.sub_object_id === so.id) })),
-                          { label: 'Unassigned', subObjId: null, fields: dataDefFields.filter((f: any) => !f.sub_object_id) },
-                        ]
+                      ? dataDefSubObjects.map((so: any) => ({ label: so.name, subObjId: so.id, fields: dataDefFields.filter((f: any) => f.sub_object_id === so.id) }))
                       : [{ label: null, subObjId: null, fields: dataDefFields }];
 
                     const addFieldRow = (subObjId: string | null) => {
@@ -9997,7 +9996,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                               {/* Sub-object section header */}
                               {label && (
                                 <Box component="tr">
-                                  <Box component="td" colSpan={10} sx={{ px: 1, py: 0, backgroundColor: 'rgba(255,255,255,0.05)', borderTop: '1px solid rgba(255,255,255,0.1)', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                                  <Box component="td" colSpan={10} sx={{ px: 1, py: 0, backgroundColor: 'rgba(255,255,255,0.09)', borderTop: '1px solid rgba(255,255,255,0.14)', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
                                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minHeight: 32 }}>
                                       <IconButton size="small" sx={{ p: 0.3, color: 'rgba(255,255,255,0.5)', '&:hover': { color: 'white' } }} onClick={() => toggleCollapse(subObjId!)}>
                                         {isCollapsed
@@ -10025,7 +10024,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                           <IconButton size="small" sx={{ p: 0.2 }} onClick={() => setEditingSubObjId(null)}><CloseIcon sx={{ fontSize: '0.8rem' }} /></IconButton>
                                         </>
                                       ) : (
-                                        <Typography sx={{ fontFamily: 'monospace', fontWeight: 800, fontSize: '0.78rem', color: '#A8BCDB', flex: 1 }}>{label}</Typography>
+                                        <Typography sx={{ fontFamily: 'monospace', fontWeight: 800, fontSize: '0.78rem', color: '#C8DAEF', flex: 1 }}>{label}</Typography>
                                       )}
                                       {editingSubObjId !== subObjId && (
                                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, ml: 'auto' }}>
