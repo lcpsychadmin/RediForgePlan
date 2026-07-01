@@ -184,6 +184,18 @@ interface ProjectsPageProps {
 }
 
 // ── Roadmap component ──────────────────────────────────────────────────────
+interface RoadmapItem {
+  id: string;
+  type: 'phase' | 'test-cycle' | 'milestone';
+  programId: string;
+  name: string;
+  startDate?: string;
+  endDate?: string;
+  date?: string;
+  color: string;
+  subtype?: 'planning' | 'design' | 'build';
+}
+
 interface RoadmapViewProps {
   programs: any[];
   mockCycles: Record<string, any[]>;
@@ -191,7 +203,404 @@ interface RoadmapViewProps {
   onSaveCycleDates: (cycleId: string, startDate: string, endDate: string) => Promise<void>;
 }
 
-const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, onSaveCycleDates }) => {
+const PHASE_COLORS: Record<string, string> = { planning: '#4FC3F7', design: '#CE93D8', build: '#A5D6A7' };
+const TEST_CYCLE_COLOR = '#FFB74D';
+const MILESTONE_COLOR = '#FFD54F';
+
+const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, projectsByMockCycle, onSaveCycleDates }) => {
+  const [roadmapItems, setRoadmapItems] = React.useState<RoadmapItem[]>([]);
+  const [filterProgram, setFilterProgram] = React.useState('');
+  const [filterProject, setFilterProject] = React.useState('');
+  const [editCycle, setEditCycle] = React.useState<any | null>(null);
+  const [editStart, setEditStart] = React.useState('');
+  const [editEnd, setEditEnd] = React.useState('');
+  const [savingCycle, setSavingCycle] = React.useState(false);
+  const [addDialog, setAddDialog] = React.useState<'phase' | 'test-cycle' | 'milestone' | null>(null);
+  const [editingItem, setEditingItem] = React.useState<RoadmapItem | null>(null);
+  const [form, setForm] = React.useState<Partial<RoadmapItem & { subtype: string }>>({});
+  const [savingItem, setSavingItem] = React.useState(false);
+
+  React.useEffect(() => {
+    apiClient.get('/api/hierarchy-preferences/state').then(res => {
+      const d = res.data?.preferences || res.data;
+      if (Array.isArray(d?.roadmapItems)) setRoadmapItems(d.roadmapItems);
+    }).catch(() => {});
+  }, []);
+
+  const persistItems = (items: RoadmapItem[]) => {
+    setRoadmapItems(items);
+    apiClient.put('/api/hierarchy-preferences/global-process-areas', { roadmapItems: items }).catch(() => {});
+  };
+
+  // All unique projects across cycles
+  const allProjects: { id: string; name: string }[] = React.useMemo(() => {
+    const seen = new Set<string>();
+    const out: { id: string; name: string }[] = [];
+    Object.values(projectsByMockCycle).flat().forEach((p: any) => {
+      if (!seen.has(p.id)) { seen.add(p.id); out.push({ id: p.id, name: p.name || p.id }); }
+    });
+    return out.sort((a, b) => a.name.localeCompare(b.name));
+  }, [projectsByMockCycle]);
+
+  // Filtered programs
+  const filteredPrograms = React.useMemo(() => {
+    let progs = filterProgram ? programs.filter(p => p.id === filterProgram) : programs;
+    if (filterProject) {
+      progs = progs.filter(prog =>
+        (mockCycles[prog.id] || []).some((c: any) =>
+          (projectsByMockCycle[c.id] || []).some((p: any) => p.id === filterProject)
+        )
+      );
+    }
+    return progs;
+  }, [programs, mockCycles, projectsByMockCycle, filterProgram, filterProject]);
+
+  // Collect all date-able items for range calculation
+  const allDates: Date[] = React.useMemo(() => {
+    const dates: Date[] = [];
+    filteredPrograms.forEach(prog => {
+      (mockCycles[prog.id] || []).forEach((c: any) => {
+        if (c.startDate) dates.push(new Date(c.startDate));
+        if (c.endDate) dates.push(new Date(c.endDate));
+      });
+    });
+    roadmapItems.forEach(item => {
+      if (item.startDate) dates.push(new Date(item.startDate));
+      if (item.endDate) dates.push(new Date(item.endDate));
+      if (item.date) dates.push(new Date(item.date));
+    });
+    return dates;
+  }, [filteredPrograms, mockCycles, roadmapItems]);
+
+  const today = React.useMemo(() => new Date(), []);
+  const rangeStart = React.useMemo(() => {
+    if (!allDates.length) { const d = new Date(today); d.setMonth(d.getMonth() - 1); return d; }
+    const d = new Date(Math.min(...allDates.map(x => x.getTime())));
+    d.setDate(d.getDate() - 21); return d;
+  }, [allDates, today]);
+  const rangeEnd = React.useMemo(() => {
+    if (!allDates.length) { const d = new Date(today); d.setMonth(d.getMonth() + 7); return d; }
+    const d = new Date(Math.max(...allDates.map(x => x.getTime())));
+    d.setDate(d.getDate() + 21); return d;
+  }, [allDates, today]);
+  const totalDays = Math.max(1, (rangeEnd.getTime() - rangeStart.getTime()) / 86400000);
+  const dateToX = (d: Date) => Math.max(0, Math.min(100, ((d.getTime() - rangeStart.getTime()) / 86400000 / totalDays) * 100));
+
+  const months: { label: string; left: number }[] = React.useMemo(() => {
+    const out: { label: string; left: number }[] = [];
+    const cur = new Date(rangeStart.getFullYear(), rangeStart.getMonth(), 1);
+    while (cur <= rangeEnd) {
+      out.push({ label: cur.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }), left: dateToX(cur) });
+      cur.setMonth(cur.getMonth() + 1);
+    }
+    return out;
+  }, [rangeStart, rangeEnd]);
+
+  const todayX = dateToX(today);
+
+  const TimelineBar = ({ startDate, endDate, color, label, onClick, dashed = false }: { startDate?: string; endDate?: string; color: string; label: string; onClick?: () => void; dashed?: boolean }) => {
+    const hasS = !!startDate, hasE = !!endDate;
+    if (!hasS && !hasE) return (
+      <Box onClick={onClick} sx={{ position: 'absolute', left: '4px', top: '50%', transform: 'translateY(-50%)', height: 26, px: 1.25, borderRadius: 1.5, border: `1px dashed rgba(255,255,255,0.2)`, cursor: 'pointer', display: 'flex', alignItems: 'center', '&:hover': { borderColor: color } }}>
+        <Typography sx={{ fontSize: '0.7rem', color: 'text.disabled' }}>{label} — click to set dates</Typography>
+      </Box>
+    );
+    const xS = hasS ? dateToX(new Date(startDate!)) : dateToX(new Date(endDate!)) - 2;
+    const xE = hasE ? dateToX(new Date(endDate!)) : dateToX(new Date(startDate!)) + 2;
+    const w = Math.max(1.5, xE - xS);
+    return (
+      <Box onClick={onClick} sx={{ position: 'absolute', left: `${xS}%`, width: `${w}%`, top: '50%', transform: 'translateY(-50%)', height: 26, borderRadius: 1.5, cursor: onClick ? 'pointer' : 'default', backgroundColor: `${color}28`, border: `1.5px ${dashed ? 'dashed' : 'solid'} ${color}88`, display: 'flex', alignItems: 'center', px: 1, overflow: 'hidden', '&:hover': onClick ? { backgroundColor: `${color}44`, borderColor: color } : {}, transition: 'all 0.12s' }}>
+        <Typography sx={{ fontWeight: 600, fontSize: '0.7rem', color, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</Typography>
+      </Box>
+    );
+  };
+
+  const rowSx = { position: 'relative' as const, height: 38 };
+  const trackSx = { position: 'absolute' as const, left: 0, right: 0, top: '50%', transform: 'translateY(-50%)', height: '1px', backgroundColor: 'rgba(255,255,255,0.04)' };
+
+  const openAdd = (type: 'phase' | 'test-cycle' | 'milestone', programId?: string) => {
+    const defaultColor = type === 'phase' ? PHASE_COLORS.planning : type === 'test-cycle' ? TEST_CYCLE_COLOR : MILESTONE_COLOR;
+    setForm({ type, programId: programId || programs[0]?.id || '', color: defaultColor, subtype: type === 'phase' ? 'planning' : undefined });
+    setEditingItem(null);
+    setAddDialog(type);
+  };
+
+  const openEditItem = (item: RoadmapItem) => {
+    setForm({ ...item });
+    setEditingItem(item);
+    setAddDialog(item.type);
+  };
+
+  const saveItem = async () => {
+    if (!form.programId || !form.name?.trim() || !form.type) return;
+    setSavingItem(true);
+    try {
+      if (editingItem) {
+        const updated = roadmapItems.map(x => x.id === editingItem.id ? { ...x, ...form, name: form.name!.trim() } as RoadmapItem : x);
+        persistItems(updated);
+      } else {
+        const newItem: RoadmapItem = { id: `rm-${Date.now()}`, type: form.type!, programId: form.programId!, name: form.name!.trim(), color: form.color || '#667eea', startDate: form.startDate, endDate: form.endDate, date: form.date, subtype: form.subtype as any };
+        persistItems([...roadmapItems, newItem]);
+      }
+      setAddDialog(null); setEditingItem(null); setForm({});
+    } finally { setSavingItem(false); }
+  };
+
+  const deleteItem = (id: string) => persistItems(roadmapItems.filter(x => x.id !== id));
+
+  return (
+    <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+      {/* Header */}
+      <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1.5 }}>
+        <Box>
+          <Typography variant="h5" sx={{ fontWeight: 700 }}>Roadmap</Typography>
+          <Typography variant="caption" color="text.secondary">High-level timeline. Click any bar to edit dates.</Typography>
+        </Box>
+        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+          {(['phase', 'test-cycle', 'milestone'] as const).map(t => (
+            <Button key={t} size="small" variant="outlined" startIcon={t === 'milestone' ? <span>★</span> : <AddIcon sx={{ fontSize: '0.9rem !important' }} />}
+              onClick={() => openAdd(t)}
+              sx={{ textTransform: 'none', fontSize: '0.75rem', borderColor: 'rgba(255,255,255,0.2)', color: 'rgba(255,255,255,0.7)', '&:hover': { borderColor: 'white', color: 'white' } }}>
+              {t === 'phase' ? 'Add Phase' : t === 'test-cycle' ? 'Add Test Cycle' : 'Add Milestone'}
+            </Button>
+          ))}
+        </Box>
+      </Box>
+
+      {/* Filters */}
+      <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
+        <Box component="select" value={filterProgram} onChange={(e: any) => { setFilterProgram(e.target.value); setFilterProject(''); }}
+          sx={{ fontSize: '0.78rem', px: 1, py: 0.6, borderRadius: 1, border: '1px solid rgba(255,255,255,0.15)', backgroundColor: 'rgba(255,255,255,0.06)', color: '#DBE7FF', minWidth: 160, cursor: 'pointer' }}>
+          <option value="">All Programs</option>
+          {programs.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </Box>
+        <Box component="select" value={filterProject} onChange={(e: any) => setFilterProject(e.target.value)}
+          sx={{ fontSize: '0.78rem', px: 1, py: 0.6, borderRadius: 1, border: '1px solid rgba(255,255,255,0.15)', backgroundColor: 'rgba(255,255,255,0.06)', color: '#DBE7FF', minWidth: 160, cursor: 'pointer' }}>
+          <option value="">All Projects</option>
+          {allProjects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </Box>
+        {(filterProgram || filterProject) && (
+          <Button size="small" variant="text" onClick={() => { setFilterProgram(''); setFilterProject(''); }} sx={{ textTransform: 'none', color: 'text.secondary', fontSize: '0.75rem' }}>Clear</Button>
+        )}
+      </Box>
+
+      {/* Timeline card */}
+      <Box sx={{ backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 2, p: 2, overflowX: 'auto' }}>
+        <Box sx={{ minWidth: 900, position: 'relative' }}>
+          {/* Month header */}
+          <Box sx={{ position: 'relative', height: 24, mb: 1, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+            {months.map((m, i) => (
+              <React.Fragment key={i}>
+                <Typography sx={{ position: 'absolute', left: `${m.left}%`, fontSize: '0.62rem', color: 'rgba(255,255,255,0.38)', fontWeight: 600, whiteSpace: 'nowrap' }}>{m.label}</Typography>
+                <Box sx={{ position: 'absolute', left: `${m.left}%`, top: 0, bottom: -9999, width: '1px', backgroundColor: 'rgba(255,255,255,0.05)', zIndex: 0 }} />
+              </React.Fragment>
+            ))}
+            {todayX >= 0 && todayX <= 100 && (
+              <Box sx={{ position: 'absolute', left: `${todayX}%`, top: 0, bottom: -9999, width: '2px', backgroundColor: 'rgba(102,126,234,0.55)', zIndex: 1 }}>
+                <Box sx={{ position: 'absolute', top: 0, left: -10, fontSize: '0.6rem', color: '#667eea', fontWeight: 700, whiteSpace: 'nowrap', background: 'rgba(20,30,53,0.9)', px: 0.5, borderRadius: 0.5 }}>Today</Box>
+              </Box>
+            )}
+          </Box>
+
+          {/* Rows */}
+          {filteredPrograms.map(prog => {
+            const cycles = (mockCycles[prog.id] || []).filter((c: any) => {
+              if (!filterProject) return true;
+              return (projectsByMockCycle[c.id] || []).some((p: any) => p.id === filterProject);
+            });
+            const progAccent = prog.accentColor || '#5B67CA';
+            const progItems = roadmapItems.filter(x => x.programId === prog.id);
+            const phases = progItems.filter(x => x.type === 'phase');
+            const testCycles = progItems.filter(x => x.type === 'test-cycle');
+            const milestones = progItems.filter(x => x.type === 'milestone');
+
+            return (
+              <Box key={prog.id} sx={{ mb: 1.5 }}>
+                {/* Program label */}
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, py: 0.4, px: 0.5, mb: 0.25 }}>
+                  <Box sx={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: progAccent, flexShrink: 0 }} />
+                  <Typography sx={{ fontWeight: 800, color: progAccent, fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{prog.name}</Typography>
+                </Box>
+
+                {/* Phase rows */}
+                {phases.map(ph => (
+                  <Box key={ph.id} sx={{ ...rowSx, mb: 0.25 }}>
+                    <Box sx={trackSx} />
+                    <TimelineBar startDate={ph.startDate} endDate={ph.endDate} color={ph.color} label={`▐ ${ph.name}`} onClick={() => openEditItem(ph)} />
+                    <Box onClick={() => deleteItem(ph.id)} sx={{ position: 'absolute', right: 2, top: '50%', transform: 'translateY(-50%)', opacity: 0, width: 16, height: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', '&:hover': { color: '#ef5350' }, '.roadmap-row:hover &': { opacity: 1 } }} className="del-btn">
+                      <span style={{ fontSize: '0.7rem' }}>✕</span>
+                    </Box>
+                  </Box>
+                ))}
+
+                {/* Mock cycle rows */}
+                {cycles.map((c: any) => {
+                  const accent = c.accentColor || progAccent;
+                  return (
+                    <Box key={c.id} sx={{ ...rowSx, mb: 0.25 }} className="roadmap-row"
+                      onMouseEnter={e => { const btn = e.currentTarget.querySelector('.del-btn') as HTMLElement; if (btn) btn.style.opacity = '1'; }}
+                      onMouseLeave={e => { const btn = e.currentTarget.querySelector('.del-btn') as HTMLElement; if (btn) btn.style.opacity = '0'; }}>
+                      <Box sx={trackSx} />
+                      <TimelineBar startDate={c.startDate?.substring(0, 10)} endDate={c.endDate?.substring(0, 10)} color={accent} label={c.name}
+                        onClick={() => { setEditCycle(c); setEditStart(c.startDate?.substring(0, 10) || ''); setEditEnd(c.endDate?.substring(0, 10) || ''); }} />
+                    </Box>
+                  );
+                })}
+
+                {/* Test cycle rows */}
+                {testCycles.map(tc => (
+                  <Box key={tc.id} sx={{ ...rowSx, mb: 0.25 }}>
+                    <Box sx={trackSx} />
+                    <TimelineBar startDate={tc.startDate} endDate={tc.endDate} color={tc.color} label={`◆ ${tc.name}`} onClick={() => openEditItem(tc)} dashed />
+                  </Box>
+                ))}
+
+                {/* Milestone row */}
+                {milestones.length > 0 && (
+                  <Box sx={{ ...rowSx, mb: 0.25 }}>
+                    <Box sx={trackSx} />
+                    {milestones.map(ms => {
+                      const x = ms.date ? dateToX(new Date(ms.date)) : null;
+                      if (x === null) return null;
+                      return (
+                        <Box key={ms.id} onClick={() => openEditItem(ms)} title={ms.name}
+                          sx={{ position: 'absolute', left: `${x}%`, top: '50%', transform: 'translate(-50%, -50%)', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0 }}>
+                          <Typography sx={{ fontSize: '1.1rem', color: ms.color, lineHeight: 1, filter: 'drop-shadow(0 0 4px currentColor)' }}>★</Typography>
+                          <Typography sx={{ fontSize: '0.58rem', color: ms.color, whiteSpace: 'nowrap', fontWeight: 700, mt: -0.25 }}>{ms.name}</Typography>
+                        </Box>
+                      );
+                    })}
+                  </Box>
+                )}
+              </Box>
+            );
+          })}
+
+          {filteredPrograms.length === 0 && (
+            <Box sx={{ py: 6, textAlign: 'center', color: 'text.disabled' }}>
+              <Typography variant="body2">No programs match the selected filters.</Typography>
+            </Box>
+          )}
+        </Box>
+      </Box>
+
+      {/* Edit mock cycle dates dialog */}
+      {editCycle && (
+        <Box sx={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.55)', zIndex: 1400, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={e => { if (e.target === e.currentTarget) setEditCycle(null); }}>
+          <Box sx={{ backgroundColor: '#141e35', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 2, width: 360 }}>
+            <Box sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', px: 3, py: 1.75, borderRadius: '8px 8px 0 0' }}>
+              <Typography sx={{ fontWeight: 700 }}>Edit Mock Cycle Dates</Typography>
+              <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.7)' }}>{editCycle.name}</Typography>
+            </Box>
+            <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {[['Start Date', editStart, setEditStart], ['End Date', editEnd, setEditEnd]].map(([label, val, setter]: any) => (
+                <Box key={label as string}>
+                  <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>{label as string}</Typography>
+                  <input type="date" value={val as string} onChange={e => setter(e.target.value)}
+                    style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.2)', backgroundColor: 'rgba(255,255,255,0.06)', color: '#DBE7FF', fontSize: '0.9rem', boxSizing: 'border-box' }} />
+                </Box>
+              ))}
+              <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
+                <Button size="small" onClick={() => setEditCycle(null)} sx={{ textTransform: 'none' }}>Cancel</Button>
+                <Button size="small" variant="contained" disabled={savingCycle}
+                  onClick={async () => { setSavingCycle(true); try { await onSaveCycleDates(editCycle.id, editStart, editEnd); setEditCycle(null); } finally { setSavingCycle(false); } }}
+                  sx={{ textTransform: 'none', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
+                  {savingCycle ? 'Saving…' : 'Save'}
+                </Button>
+              </Box>
+            </Box>
+          </Box>
+        </Box>
+      )}
+
+      {/* Add/Edit phase, test-cycle, milestone dialog */}
+      {addDialog && (
+        <Box sx={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.55)', zIndex: 1400, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={e => { if (e.target === e.currentTarget) { setAddDialog(null); setEditingItem(null); setForm({}); } }}>
+          <Box sx={{ backgroundColor: '#141e35', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 2, width: 400 }}>
+            <Box sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', px: 3, py: 1.75, borderRadius: '8px 8px 0 0' }}>
+              <Typography sx={{ fontWeight: 700 }}>{editingItem ? 'Edit' : 'Add'} {addDialog === 'phase' ? 'Phase' : addDialog === 'test-cycle' ? 'Test Cycle' : 'Milestone'}</Typography>
+            </Box>
+            <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 1.75 }}>
+              {/* Program */}
+              <Box>
+                <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>Program</Typography>
+                <Box component="select" value={form.programId || ''} onChange={(e: any) => setForm(p => ({ ...p, programId: e.target.value }))}
+                  style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.2)', backgroundColor: 'rgba(255,255,255,0.06)', color: '#DBE7FF', fontSize: '0.85rem' }}>
+                  {programs.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </Box>
+              </Box>
+              {/* Name / Subtype */}
+              {addDialog === 'phase' ? (
+                <Box>
+                  <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>Phase Type</Typography>
+                  <Box sx={{ display: 'flex', gap: 1 }}>
+                    {(['planning', 'design', 'build'] as const).map(st => (
+                      <Box key={st} onClick={() => setForm(p => ({ ...p, subtype: st, name: st.charAt(0).toUpperCase() + st.slice(1), color: PHASE_COLORS[st] }))}
+                        sx={{ flex: 1, py: 0.75, textAlign: 'center', borderRadius: 1, cursor: 'pointer', border: `1.5px solid ${form.subtype === st ? PHASE_COLORS[st] : 'rgba(255,255,255,0.15)'}`, backgroundColor: form.subtype === st ? `${PHASE_COLORS[st]}22` : 'transparent', color: form.subtype === st ? PHASE_COLORS[st] : 'rgba(255,255,255,0.5)', fontSize: '0.8rem', fontWeight: 600 }}>
+                        {st.charAt(0).toUpperCase() + st.slice(1)}
+                      </Box>
+                    ))}
+                  </Box>
+                </Box>
+              ) : (
+                <Box>
+                  <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>Name</Typography>
+                  <input value={form.name || ''} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder={addDialog === 'milestone' ? 'e.g. Go Live' : 'e.g. UAT'}
+                    style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.2)', backgroundColor: 'rgba(255,255,255,0.06)', color: '#DBE7FF', fontSize: '0.85rem', boxSizing: 'border-box' }} />
+                </Box>
+              )}
+              {/* Dates */}
+              {addDialog === 'milestone' ? (
+                <Box>
+                  <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>Date</Typography>
+                  <input type="date" value={form.date || ''} onChange={e => setForm(p => ({ ...p, date: e.target.value }))}
+                    style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.2)', backgroundColor: 'rgba(255,255,255,0.06)', color: '#DBE7FF', fontSize: '0.85rem', boxSizing: 'border-box' }} />
+                </Box>
+              ) : (
+                <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5 }}>
+                  {[['Start Date', 'startDate'], ['End Date', 'endDate']].map(([label, key]) => (
+                    <Box key={key}>
+                      <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>{label}</Typography>
+                      <input type="date" value={(form as any)[key] || ''} onChange={e => setForm(p => ({ ...p, [key]: e.target.value }))}
+                        style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.2)', backgroundColor: 'rgba(255,255,255,0.06)', color: '#DBE7FF', fontSize: '0.85rem', boxSizing: 'border-box' }} />
+                    </Box>
+                  ))}
+                </Box>
+              )}
+              {/* Color */}
+              {addDialog !== 'phase' && (
+                <Box>
+                  <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>Color</Typography>
+                  <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                    <input type="color" value={form.color || '#667eea'} onChange={e => setForm(p => ({ ...p, color: e.target.value }))} style={{ width: 40, height: 32, border: 'none', borderRadius: 4, cursor: 'pointer', backgroundColor: 'transparent' }} />
+                    <Typography variant="caption" sx={{ color: 'text.secondary', fontFamily: 'monospace' }}>{form.color}</Typography>
+                  </Box>
+                </Box>
+              )}
+              <Box sx={{ display: 'flex', gap: 1, justifyContent: 'space-between', pt: 0.5 }}>
+                {editingItem && (
+                  <Button size="small" onClick={() => { deleteItem(editingItem.id); setAddDialog(null); setEditingItem(null); setForm({}); }} sx={{ textTransform: 'none', color: '#ef5350' }}>Delete</Button>
+                )}
+                <Box sx={{ display: 'flex', gap: 1, ml: 'auto' }}>
+                  <Button size="small" onClick={() => { setAddDialog(null); setEditingItem(null); setForm({}); }} sx={{ textTransform: 'none' }}>Cancel</Button>
+                  <Button size="small" variant="contained" disabled={savingItem || !form.name?.trim() || !form.programId}
+                    onClick={saveItem} sx={{ textTransform: 'none', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
+                    {savingItem ? 'Saving…' : editingItem ? 'Update' : 'Add'}
+                  </Button>
+                </Box>
+              </Box>
+            </Box>
+          </Box>
+        </Box>
+      )}
+    </Box>
+  );
+};
+// ─────────────────────────────────────────────────────────────────────────────
+
+const planningViewToTab: Record<string, number> = {
   const [editingId, setEditingId] = React.useState<string | null>(null);
   const [editStart, setEditStart] = React.useState('');
   const [editEnd, setEditEnd] = React.useState('');
