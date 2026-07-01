@@ -4995,9 +4995,12 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                     const selectedAreaAccent = selectedItem.type === 'processArea'
                       ? getProcessAreaAccent(project.id, selectedItem.area, accentColor, parentCycleId || undefined)
                       : accentColor;
-                    const effectiveProcessArea = (selectedAreaLabel || selectedExecutionProcessArea || '').trim();
-                    const planAccentColor = effectiveProcessArea
-                      ? getProcessAreaAccent(project.id, effectiveProcessArea, accentColor, parentCycleId || undefined)
+                    // Use the raw area code (selectedItem.area) for accent lookup, not the display label.
+                    // The display label may be a user-defined description (e.g. "Master Data Management")
+                    // which won't match the processAreaAccentOverrides key (e.g. "MDM").
+                    const rawEffectiveArea = (selectedItem.type === 'processArea' ? selectedItem.area : selectedExecutionProcessArea || '').trim();
+                    const planAccentColor = rawEffectiveArea
+                      ? getProcessAreaAccent(project.id, rawEffectiveArea, accentColor, parentCycleId || undefined)
                       : accentColor;
                     let parentCycleName = '';
                     let parentProgramName = '';
