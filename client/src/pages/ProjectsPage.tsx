@@ -2450,10 +2450,13 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
           })
         );
 
-        // Deduplicate schedule items by composite key (objectId + projectId + cycleId)
+        // Deduplicate schedule items by object name + sub-object suffix (not DB id)
+        // This handles the case where two project instances have the same logical object
         const seen = new Set<string>();
         const deduped = all.flat().filter(item => {
-          const key = `${item.scheduleEntityType}:${item.id || item.taskGroupName}:${item.projectId}:${item.cycleId || ''}`;
+          const key = item.scheduleEntityType === 'object'
+            ? `obj:${item.objectId || item.entityLabel}:${item.subObjectSuffix || ''}:${item.cycleId || ''}`
+            : `grp:${item.taskGroupName}:${item.projectId}:${item.cycleId || ''}`;
           if (seen.has(key)) return false;
           seen.add(key);
           return true;

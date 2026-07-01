@@ -87,10 +87,15 @@ const PrioritiesPage: React.FC = () => {
     queryFn: async () => (await apiClient.get(`/api/tasks/project/${projectId}`)).data.data || [],
     enabled: !!projectId,
   });
-  // Deduplicate tasks by ID to avoid showing duplicates when multiple project instances exist
+  // Deduplicate tasks by name+objectId (not DB id) — guards against duplicate seeding
   const rawTasks = useMemo(() => {
     const seen = new Set<string>();
-    return (rawTasksRaw as any[]).filter(t => { const id = t.id; if (!id || seen.has(id)) return false; seen.add(id); return true; });
+    return (rawTasksRaw as any[]).filter(t => {
+      const key = `${(t.name || t.taskName || '').toLowerCase()}:${t.projectObjectId || t.project_object_id || ''}:${t.taskType || ''}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
   }, [rawTasksRaw]);
 
   const taskIds = useMemo(() => (rawTasks || []).map((t: any) => t.taskId || t.id).filter(Boolean), [rawTasks]);
@@ -129,8 +134,9 @@ const PrioritiesPage: React.FC = () => {
     const seen = new Set<string>();
     const result: any[] = [];
     const add = (arr: any[], cat: string) => merge(arr || []).forEach(t => {
-      const id = t.taskId || t.id;
-      if (!seen.has(id)) { seen.add(id); result.push({ ...t, _category: cat }); }
+      // Deduplicate by task name + object — prevents duplicate-seeded tasks from showing twice
+      const key = `${(t.taskName || t.name || '').toLowerCase()}:${t.projectObjectId || ''}:${t.taskType || ''}`;
+      if (!seen.has(key)) { seen.add(key); result.push({ ...t, _category: cat }); }
     });
     add((source as any).late || [], 'overdue');
     add((source as any).due_this_week || [], 'due_this_week');
