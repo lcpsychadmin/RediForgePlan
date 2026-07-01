@@ -219,6 +219,13 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
   const [editingItem, setEditingItem] = React.useState<RoadmapItem | null>(null);
   const [form, setForm] = React.useState<Partial<RoadmapItem & { subtype: string }>>({});
   const [savingItem, setSavingItem] = React.useState(false);
+  // Drag state
+  const [drag, setDrag] = React.useState<{
+    id: string; entityType: 'cycle' | 'roadmap'; handle: 'start' | 'end' | 'date';
+    currentDate: string; indicatorX: number;
+    origStart: string; origEnd: string;
+  } | null>(null);
+  const timelineRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
     apiClient.get('/api/hierarchy-preferences/state').then(res => {
@@ -231,6 +238,65 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
     setRoadmapItems(items);
     apiClient.put('/api/hierarchy-preferences/global-process-areas', { roadmapItems: items }).catch(() => {});
   };
+
+  const allCyclesById = React.useMemo(() => {
+    const m = new Map<string, any>();
+    Object.values(mockCycles).flat().forEach((c: any) => m.set(c.id, c));
+    return m;
+  }, [mockCycles]);
+
+  const xToDate = React.useCallback((clientX: number): string => {
+    const el = timelineRef.current;
+    if (!el) return '';
+    const rect = el.getBoundingClientRect();
+    const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    const ms = rangeStart.getTime() + pct * (rangeEnd.getTime() - rangeStart.getTime());
+    const d = new Date(ms);
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rangeStart, rangeEnd]);
+
+  const getIndicatorX = React.useCallback((clientX: number): number => {
+    const el = timelineRef.current;
+    if (!el) return 0;
+    const rect = el.getBoundingClientRect();
+    return Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100));
+  }, []);
+
+  // Global mousemove/mouseup for drag
+  React.useEffect(() => {
+    if (!drag) return;
+    const onMove = (e: MouseEvent) => {
+      const date = xToDate(e.clientX);
+      const ix = getIndicatorX(e.clientX);
+      setDrag(prev => prev ? { ...prev, currentDate: date, indicatorX: ix } : null);
+    };
+    const onUp = async (e: MouseEvent) => {
+      if (!drag) return;
+      const finalDate = xToDate(e.clientX);
+      if (drag.entityType === 'cycle') {
+        const newStart = drag.handle === 'start' ? finalDate : drag.origStart;
+        const newEnd   = drag.handle === 'end'   ? finalDate : drag.origEnd;
+        await onSaveCycleDates(drag.id, newStart, newEnd);
+      } else {
+        setRoadmapItems(prev => {
+          const updated = prev.map(x => x.id === drag.id ? {
+            ...x,
+            ...(drag.handle === 'start' ? { startDate: finalDate } : {}),
+            ...(drag.handle === 'end'   ? { endDate:   finalDate } : {}),
+            ...(drag.handle === 'date'  ? { date:      finalDate } : {}),
+          } : x);
+          apiClient.put('/api/hierarchy-preferences/global-process-areas', { roadmapItems: updated }).catch(() => {});
+          return updated;
+        });
+      }
+      setDrag(null);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    return () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drag]);
 
   // Deduplicated projects by name, annotated with their program
   const uniqueProjects: { name: string; programName: string; programAccent: string; cycleIds: string[] }[] = React.useMemo(() => {
@@ -304,7 +370,12 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
 
   const todayX = dateToX(today);
 
-  const TimelineBar = ({ startDate, endDate, color, label, onClick, dashed = false }: { startDate?: string; endDate?: string; color: string; label: string; onClick?: () => void; dashed?: boolean }) => {
+  const TimelineBar = ({ startDate, endDate, color, label, onClick, dashed = false, onStartDrag, onEndDrag }: {
+    startDate?: string; endDate?: string; color: string; label: string;
+    onClick?: () => void; dashed?: boolean;
+    onStartDrag?: (e: React.MouseEvent) => void;
+    onEndDrag?: (e: React.MouseEvent) => void;
+  }) => {
     const hasS = !!startDate, hasE = !!endDate;
     if (!hasS && !hasE) return (
       <Box onClick={onClick} sx={{ position: 'absolute', left: '4px', top: '50%', transform: 'translateY(-50%)', height: 26, px: 1.25, borderRadius: 1.5, border: `1px dashed rgba(255,255,255,0.2)`, cursor: 'pointer', display: 'flex', alignItems: 'center', '&:hover': { borderColor: color } }}>
@@ -314,9 +385,28 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
     const xS = hasS ? dateToX(new Date(startDate!)) : dateToX(new Date(endDate!)) - 2;
     const xE = hasE ? dateToX(new Date(endDate!)) : dateToX(new Date(startDate!)) + 2;
     const w = Math.max(1.5, xE - xS);
+    const HANDLE = 8; // handle width px — use a fixed pixel handle via padding tricks
     return (
-      <Box onClick={onClick} sx={{ position: 'absolute', left: `${xS}%`, width: `${w}%`, top: '50%', transform: 'translateY(-50%)', height: 26, borderRadius: 1.5, cursor: onClick ? 'pointer' : 'default', backgroundColor: `${color}28`, border: `1.5px ${dashed ? 'dashed' : 'solid'} ${color}88`, display: 'flex', alignItems: 'center', px: 1, overflow: 'hidden', '&:hover': onClick ? { backgroundColor: `${color}44`, borderColor: color } : {}, transition: 'all 0.12s' }}>
-        <Typography sx={{ fontWeight: 600, fontSize: '0.7rem', color, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</Typography>
+      <Box sx={{ position: 'absolute', left: `${xS}%`, width: `${w}%`, top: '50%', transform: 'translateY(-50%)', height: 26, borderRadius: 1.5, backgroundColor: `${color}28`, border: `1.5px ${dashed ? 'dashed' : 'solid'} ${color}88`, display: 'flex', alignItems: 'center', overflow: 'hidden', userSelect: 'none', '&:hover': { borderColor: color }, transition: 'border-color 0.12s' }}>
+        {/* Left drag handle */}
+        {onStartDrag && (
+          <Box onMouseDown={e => { e.stopPropagation(); e.preventDefault(); onStartDrag(e); }}
+            sx={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: HANDLE, cursor: 'ew-resize', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2, '&:hover > div': { backgroundColor: color } }}>
+            <Box sx={{ width: 2, height: 12, backgroundColor: `${color}80`, borderRadius: 1, transition: 'background 0.1s' }} />
+          </Box>
+        )}
+        {/* Label — click opens modal */}
+        <Box onClick={e => { e.stopPropagation(); onClick?.(); }}
+          sx={{ flex: 1, px: onStartDrag ? `${HANDLE+4}px` : '8px', cursor: onClick ? 'pointer' : 'default', overflow: 'hidden' }}>
+          <Typography sx={{ fontWeight: 600, fontSize: '0.7rem', color, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</Typography>
+        </Box>
+        {/* Right drag handle */}
+        {onEndDrag && (
+          <Box onMouseDown={e => { e.stopPropagation(); e.preventDefault(); onEndDrag(e); }}
+            sx={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: HANDLE, cursor: 'ew-resize', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2, '&:hover > div': { backgroundColor: color } }}>
+            <Box sx={{ width: 2, height: 12, backgroundColor: `${color}80`, borderRadius: 1, transition: 'background 0.1s' }} />
+          </Box>
+        )}
       </Box>
     );
   };
@@ -392,7 +482,7 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
 
       {/* Timeline card */}
       <Box sx={{ backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 2, p: 2, overflowX: 'auto' }}>
-        <Box sx={{ minWidth: 900, position: 'relative' }}>
+        <Box ref={timelineRef} sx={{ minWidth: 900, position: 'relative' }}>
           {/* Month header */}
           <Box sx={{ position: 'relative', height: 24, mb: 1, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
             {months.map((m, i) => (
@@ -404,6 +494,14 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
             {todayX >= 0 && todayX <= 100 && (
               <Box sx={{ position: 'absolute', left: `${todayX}%`, top: 0, bottom: -9999, width: '2px', backgroundColor: 'rgba(102,126,234,0.55)', zIndex: 1 }}>
                 <Box sx={{ position: 'absolute', top: 0, left: -10, fontSize: '0.6rem', color: '#667eea', fontWeight: 700, whiteSpace: 'nowrap', background: 'rgba(20,30,53,0.9)', px: 0.5, borderRadius: 0.5 }}>Today</Box>
+              </Box>
+            )}
+            {/* Drag indicator */}
+            {drag && (
+              <Box sx={{ position: 'absolute', left: `${drag.indicatorX}%`, top: 0, bottom: 0, width: '2px', backgroundColor: '#ffa726', zIndex: 20, pointerEvents: 'none' }}>
+                <Box sx={{ position: 'absolute', top: 2, left: 4, backgroundColor: '#ffa726', color: '#000', fontSize: '0.62rem', fontWeight: 800, px: 0.6, py: 0.2, borderRadius: 0.5, whiteSpace: 'nowrap' }}>
+                  {drag.currentDate}
+                </Box>
               </Box>
             )}
           </Box>
@@ -430,45 +528,71 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
                 </Box>
 
                 {/* Phase rows */}
-                {phases.map(ph => (
-                  <Box key={ph.id} sx={{ ...rowSx, mb: 0.25 }}>
-                    <Box sx={trackSx} />
-                    <TimelineBar startDate={ph.startDate} endDate={ph.endDate} color={ph.color} label={`▐ ${ph.name}`} onClick={() => openEditItem(ph)} />
-                  </Box>
-                ))}
+                {phases.map(ph => {
+                  const isBeingDragged = drag?.id === ph.id;
+                  const dispStart = isBeingDragged && drag?.handle === 'start' ? drag.currentDate : ph.startDate;
+                  const dispEnd   = isBeingDragged && drag?.handle === 'end'   ? drag.currentDate : ph.endDate;
+                  return (
+                    <Box key={ph.id} sx={{ ...rowSx, mb: 0.25 }}>
+                      <Box sx={trackSx} />
+                      <TimelineBar startDate={dispStart} endDate={dispEnd} color={ph.color} label={`▐ ${ph.name}`} onClick={() => openEditItem(ph)}
+                        onStartDrag={e => setDrag({ id: ph.id, entityType: 'roadmap', handle: 'start', currentDate: ph.startDate || '', indicatorX: getIndicatorX(e.clientX), origStart: ph.startDate || '', origEnd: ph.endDate || '' })}
+                        onEndDrag={e => setDrag({ id: ph.id, entityType: 'roadmap', handle: 'end', currentDate: ph.endDate || '', indicatorX: getIndicatorX(e.clientX), origStart: ph.startDate || '', origEnd: ph.endDate || '' })}
+                      />
+                    </Box>
+                  );
+                })}
 
                 {/* Mock cycle rows */}
                 {cycles.map((c: any) => {
                   const accent = c.accentColor || projAccent;
+                  const isBeingDragged = drag?.id === c.id;
+                  const dispStart = isBeingDragged && drag?.handle === 'start' ? drag.currentDate : c.startDate?.substring(0, 10);
+                  const dispEnd   = isBeingDragged && drag?.handle === 'end'   ? drag.currentDate : c.endDate?.substring(0, 10);
                   return (
                     <Box key={c.id} sx={{ ...rowSx, mb: 0.25 }}>
                       <Box sx={trackSx} />
-                      <TimelineBar startDate={c.startDate?.substring(0, 10)} endDate={c.endDate?.substring(0, 10)} color={accent} label={c.name}
-                        onClick={() => { setEditCycle(c); setEditStart(c.startDate?.substring(0, 10) || ''); setEditEnd(c.endDate?.substring(0, 10) || ''); }} />
+                      <TimelineBar startDate={dispStart} endDate={dispEnd} color={accent} label={c.name}
+                        onClick={() => { setEditCycle(c); setEditStart(c.startDate?.substring(0, 10) || ''); setEditEnd(c.endDate?.substring(0, 10) || ''); }}
+                        onStartDrag={e => setDrag({ id: c.id, entityType: 'cycle', handle: 'start', currentDate: c.startDate?.substring(0, 10) || '', indicatorX: getIndicatorX(e.clientX), origStart: c.startDate?.substring(0, 10) || '', origEnd: c.endDate?.substring(0, 10) || '' })}
+                        onEndDrag={e => setDrag({ id: c.id, entityType: 'cycle', handle: 'end', currentDate: c.endDate?.substring(0, 10) || '', indicatorX: getIndicatorX(e.clientX), origStart: c.startDate?.substring(0, 10) || '', origEnd: c.endDate?.substring(0, 10) || '' })}
+                      />
                     </Box>
                   );
                 })}
 
                 {/* Test cycle rows */}
-                {testCycles.map(tc => (
-                  <Box key={tc.id} sx={{ ...rowSx, mb: 0.25 }}>
-                    <Box sx={trackSx} />
-                    <TimelineBar startDate={tc.startDate} endDate={tc.endDate} color={tc.color} label={`◆ ${tc.name}`} onClick={() => openEditItem(tc)} dashed />
-                  </Box>
-                ))}
+                {testCycles.map(tc => {
+                  const isBeingDragged = drag?.id === tc.id;
+                  const dispStart = isBeingDragged && drag?.handle === 'start' ? drag.currentDate : tc.startDate;
+                  const dispEnd   = isBeingDragged && drag?.handle === 'end'   ? drag.currentDate : tc.endDate;
+                  return (
+                    <Box key={tc.id} sx={{ ...rowSx, mb: 0.25 }}>
+                      <Box sx={trackSx} />
+                      <TimelineBar startDate={dispStart} endDate={dispEnd} color={tc.color} label={`◆ ${tc.name}`} onClick={() => openEditItem(tc)} dashed
+                        onStartDrag={e => setDrag({ id: tc.id, entityType: 'roadmap', handle: 'start', currentDate: tc.startDate || '', indicatorX: getIndicatorX(e.clientX), origStart: tc.startDate || '', origEnd: tc.endDate || '' })}
+                        onEndDrag={e => setDrag({ id: tc.id, entityType: 'roadmap', handle: 'end', currentDate: tc.endDate || '', indicatorX: getIndicatorX(e.clientX), origStart: tc.startDate || '', origEnd: tc.endDate || '' })}
+                      />
+                    </Box>
+                  );
+                })}
 
                 {/* Milestone row */}
                 {milestones.length > 0 && (
                   <Box sx={{ ...rowSx, mb: 0.25 }}>
                     <Box sx={trackSx} />
                     {milestones.map(ms => {
-                      const x = ms.date ? dateToX(new Date(ms.date)) : null;
+                      const dispDate = drag?.id === ms.id && drag?.handle === 'date' ? drag.currentDate : ms.date;
+                      const x = dispDate ? dateToX(new Date(dispDate)) : null;
                       if (x === null) return null;
                       return (
-                        <Box key={ms.id} onClick={() => openEditItem(ms)} title={ms.name}
-                          sx={{ position: 'absolute', left: `${x}%`, top: '50%', transform: 'translate(-50%, -50%)', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                          <Typography sx={{ fontSize: '1.1rem', color: ms.color, lineHeight: 1, filter: 'drop-shadow(0 0 4px currentColor)' }}>★</Typography>
-                          <Typography sx={{ fontSize: '0.58rem', color: ms.color, whiteSpace: 'nowrap', fontWeight: 700, mt: -0.25 }}>{ms.name}</Typography>
+                        <Box key={ms.id}
+                          onMouseDown={e => { e.stopPropagation(); e.preventDefault(); setDrag({ id: ms.id, entityType: 'roadmap', handle: 'date', currentDate: ms.date || '', indicatorX: getIndicatorX(e.clientX), origStart: ms.date || '', origEnd: ms.date || '' }); }}
+                          onClick={() => { if (!drag) openEditItem(ms); }}
+                          title={ms.name}
+                          sx={{ position: 'absolute', left: `${x}%`, top: '50%', transform: 'translate(-50%, -50%)', cursor: 'ew-resize', display: 'flex', flexDirection: 'column', alignItems: 'center', userSelect: 'none' }}>
+                          <Typography sx={{ fontSize: '1.1rem', color: ms.color, lineHeight: 1, filter: 'drop-shadow(0 0 4px currentColor)', pointerEvents: 'none' }}>★</Typography>
+                          <Typography sx={{ fontSize: '0.58rem', color: ms.color, whiteSpace: 'nowrap', fontWeight: 700, mt: -0.25, pointerEvents: 'none' }}>{ms.name}</Typography>
                         </Box>
                       );
                     })}
