@@ -100,7 +100,39 @@ const AppRoutes: React.FC = () => {
         path="/planning"
         element={
           <ProtectedRoute>
-            <ProjectsPage sectionMode="planning" />
+            <ProjectsPage sectionMode="planning" planningView="strategy" />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/planning/strategy"
+        element={
+          <ProtectedRoute>
+            <ProjectsPage sectionMode="planning" planningView="strategy" />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/planning/inventory"
+        element={
+          <ProtectedRoute>
+            <ProjectsPage sectionMode="planning" planningView="inventory" />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/planning/structure"
+        element={
+          <ProtectedRoute>
+            <ProjectsPage sectionMode="planning" planningView="structure" />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/planning/roadmap"
+        element={
+          <ProtectedRoute>
+            <ProjectsPage sectionMode="planning" planningView="roadmap" />
           </ProtectedRoute>
         }
       />

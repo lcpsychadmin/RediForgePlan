@@ -20,6 +20,8 @@ import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 import AssignmentTurnedInIcon from '@mui/icons-material/AssignmentTurnedIn';
 import MenuIcon from '@mui/icons-material/Menu';
+import TimelineIcon from '@mui/icons-material/Timeline';
+import AccountTreeIcon from '@mui/icons-material/AccountTree';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import apiClient from '../api/client';
@@ -44,9 +46,10 @@ const executionSubNavItems = [
 ];
 
 const planningSubNavItems = [
-  { label: 'Strategy', icon: <GridViewIcon sx={{ fontSize: '0.95rem' }} />, tabIndex: 0 },
-  { label: 'Inventory', icon: <TableChartIcon sx={{ fontSize: '0.95rem' }} />, tabIndex: 1 },
-  { label: 'Maintain', icon: <FolderOpenIcon sx={{ fontSize: '0.95rem' }} />, tabIndex: 6 },
+  { label: 'Strategy', icon: <GridViewIcon sx={{ fontSize: '0.95rem' }} />, path: '/planning/strategy' },
+  { label: 'Object Inventory', icon: <TableChartIcon sx={{ fontSize: '0.95rem' }} />, path: '/planning/inventory' },
+  { label: 'Structure', icon: <AccountTreeIcon sx={{ fontSize: '0.95rem' }} />, path: '/planning/structure' },
+  { label: 'Roadmap', icon: <TimelineIcon sx={{ fontSize: '0.95rem' }} />, path: '/planning/roadmap' },
 ];
 
 const TopNav: React.FC<TopNavProps> = ({ 
@@ -73,7 +76,7 @@ const TopNav: React.FC<TopNavProps> = ({
     return localUnread > 0 ? localUnread : unreadCount;
   }, [notifications, unreadCount]);
   const isExecutionPage = location.pathname === '/projects';
-  const isPlanningPage = location.pathname === '/planning';
+  const isPlanningPage = location.pathname.startsWith('/planning');
   // All pages that share the execution workspace header + sub-nav pills
   const executionRelatedPaths = ['/projects', '/priorities', '/schedule', '/defects', '/my-tasks'];
   const isExecutionRelated = executionRelatedPaths.includes(location.pathname);
