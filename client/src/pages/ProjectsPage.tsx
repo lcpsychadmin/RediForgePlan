@@ -187,7 +187,7 @@ interface ProjectsPageProps {
 interface RoadmapItem {
   id: string;
   type: 'phase' | 'test-cycle' | 'milestone';
-  programId: string;
+  projectKey: string; // project name (stable key across cycles)
   name: string;
   startDate?: string;
   endDate?: string;
@@ -232,36 +232,42 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
     apiClient.put('/api/hierarchy-preferences/global-process-areas', { roadmapItems: items }).catch(() => {});
   };
 
-  // All unique projects across cycles
-  const allProjects: { id: string; name: string }[] = React.useMemo(() => {
-    const seen = new Set<string>();
-    const out: { id: string; name: string }[] = [];
-    Object.values(projectsByMockCycle).flat().forEach((p: any) => {
-      if (!seen.has(p.id)) { seen.add(p.id); out.push({ id: p.id, name: p.name || p.id }); }
+  // Deduplicated projects by name, annotated with their program
+  const uniqueProjects: { name: string; programName: string; programAccent: string; cycleIds: string[] }[] = React.useMemo(() => {
+    const map = new Map<string, { name: string; programName: string; programAccent: string; cycleIds: string[] }>();
+    programs.forEach(prog => {
+      (mockCycles[prog.id] || []).forEach((c: any) => {
+        (projectsByMockCycle[c.id] || []).forEach((p: any) => {
+          const key = (p.name || p.id || '').trim();
+          if (!map.has(key)) {
+            map.set(key, { name: key, programName: prog.name, programAccent: prog.accentColor || '#5B67CA', cycleIds: [] });
+          }
+          if (!map.get(key)!.cycleIds.includes(c.id)) map.get(key)!.cycleIds.push(c.id);
+        });
+      });
     });
-    return out.sort((a, b) => a.name.localeCompare(b.name));
-  }, [projectsByMockCycle]);
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [programs, mockCycles, projectsByMockCycle]);
 
-  // Filtered programs
-  const filteredPrograms = React.useMemo(() => {
-    let progs = filterProgram ? programs.filter(p => p.id === filterProgram) : programs;
-    if (filterProject) {
-      progs = progs.filter(prog =>
-        (mockCycles[prog.id] || []).some((c: any) =>
-          (projectsByMockCycle[c.id] || []).some((p: any) => p.id === filterProject)
-        )
-      );
+  // Filtered projects
+  const filteredProjects = React.useMemo(() => {
+    let projs = uniqueProjects;
+    if (filterProgram) {
+      const prog = programs.find((p: any) => p.id === filterProgram);
+      if (prog) projs = projs.filter(p => p.programName === prog.name);
     }
-    return progs;
-  }, [programs, mockCycles, projectsByMockCycle, filterProgram, filterProject]);
+    if (filterProject) projs = projs.filter(p => p.name === filterProject);
+    return projs;
+  }, [uniqueProjects, filterProgram, filterProject, programs]);
 
   // Collect all date-able items for range calculation
   const allDates: Date[] = React.useMemo(() => {
     const dates: Date[] = [];
-    filteredPrograms.forEach(prog => {
-      (mockCycles[prog.id] || []).forEach((c: any) => {
-        if (c.startDate) dates.push(new Date(c.startDate));
-        if (c.endDate) dates.push(new Date(c.endDate));
+    filteredProjects.forEach(proj => {
+      proj.cycleIds.forEach(cid => {
+        const c = Object.values(mockCycles).flat().find((x: any) => x.id === cid) as any;
+        if (c?.startDate) dates.push(new Date(c.startDate));
+        if (c?.endDate) dates.push(new Date(c.endDate));
       });
     });
     roadmapItems.forEach(item => {
@@ -270,7 +276,7 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
       if (item.date) dates.push(new Date(item.date));
     });
     return dates;
-  }, [filteredPrograms, mockCycles, roadmapItems]);
+  }, [filteredProjects, mockCycles, roadmapItems]);
 
   const today = React.useMemo(() => new Date(), []);
   const rangeStart = React.useMemo(() => {
@@ -318,9 +324,9 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
   const rowSx = { position: 'relative' as const, height: 38 };
   const trackSx = { position: 'absolute' as const, left: 0, right: 0, top: '50%', transform: 'translateY(-50%)', height: '1px', backgroundColor: 'rgba(255,255,255,0.04)' };
 
-  const openAdd = (type: 'phase' | 'test-cycle' | 'milestone', programId?: string) => {
+  const openAdd = (type: 'phase' | 'test-cycle' | 'milestone', projectKey?: string) => {
     const defaultColor = type === 'phase' ? PHASE_COLORS.planning : type === 'test-cycle' ? TEST_CYCLE_COLOR : MILESTONE_COLOR;
-    setForm({ type, programId: programId || programs[0]?.id || '', color: defaultColor, subtype: type === 'phase' ? 'planning' : undefined });
+    setForm({ type, projectKey: projectKey || uniqueProjects[0]?.name || '', color: defaultColor, subtype: type === 'phase' ? 'planning' : undefined });
     setEditingItem(null);
     setAddDialog(type);
   };
@@ -332,14 +338,14 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
   };
 
   const saveItem = async () => {
-    if (!form.programId || !form.name?.trim() || !form.type) return;
+    if (!form.projectKey || !form.name?.trim() || !form.type) return;
     setSavingItem(true);
     try {
       if (editingItem) {
         const updated = roadmapItems.map(x => x.id === editingItem.id ? { ...x, ...form, name: form.name!.trim() } as RoadmapItem : x);
         persistItems(updated);
       } else {
-        const newItem: RoadmapItem = { id: `rm-${Date.now()}`, type: form.type!, programId: form.programId!, name: form.name!.trim(), color: form.color || '#667eea', startDate: form.startDate, endDate: form.endDate, date: form.date, subtype: form.subtype as any };
+        const newItem: RoadmapItem = { id: `rm-${Date.now()}`, type: form.type!, projectKey: form.projectKey!, name: form.name!.trim(), color: form.color || '#667eea', startDate: form.startDate, endDate: form.endDate, date: form.date, subtype: form.subtype as any };
         persistItems([...roadmapItems, newItem]);
       }
       setAddDialog(null); setEditingItem(null); setForm({});
@@ -377,7 +383,7 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
         <Box component="select" value={filterProject} onChange={(e: any) => setFilterProject(e.target.value)}
           sx={{ fontSize: '0.78rem', px: 1, py: 0.6, borderRadius: 1, border: '1px solid rgba(255,255,255,0.15)', backgroundColor: 'rgba(255,255,255,0.06)', color: '#DBE7FF', minWidth: 160, cursor: 'pointer' }}>
           <option value="">All Projects</option>
-          {allProjects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+          {uniqueProjects.map(p => <option key={p.name} value={p.name}>{p.name}</option>)}
         </Box>
         {(filterProgram || filterProject) && (
           <Button size="small" variant="text" onClick={() => { setFilterProgram(''); setFilterProject(''); }} sx={{ textTransform: 'none', color: 'text.secondary', fontSize: '0.75rem' }}>Clear</Button>
@@ -402,24 +408,25 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
             )}
           </Box>
 
-          {/* Rows */}
-          {filteredPrograms.map(prog => {
-            const cycles = (mockCycles[prog.id] || []).filter((c: any) => {
-              if (!filterProject) return true;
-              return (projectsByMockCycle[c.id] || []).some((p: any) => p.id === filterProject);
-            });
-            const progAccent = prog.accentColor || '#5B67CA';
-            const progItems = roadmapItems.filter(x => x.programId === prog.id);
-            const phases = progItems.filter(x => x.type === 'phase');
-            const testCycles = progItems.filter(x => x.type === 'test-cycle');
-            const milestones = progItems.filter(x => x.type === 'milestone');
+          {/* Rows — grouped by project */}
+          {filteredProjects.map(proj => {
+            // Collect all mock cycles for this project (across all cycles)
+            const cycles = proj.cycleIds
+              .map(cid => Object.values(mockCycles).flat().find((c: any) => c.id === cid))
+              .filter(Boolean) as any[];
+            const projAccent = proj.programAccent;
+            const projItems = roadmapItems.filter(x => x.projectKey === proj.name);
+            const phases = projItems.filter(x => x.type === 'phase');
+            const testCycles = projItems.filter(x => x.type === 'test-cycle');
+            const milestones = projItems.filter(x => x.type === 'milestone');
 
             return (
-              <Box key={prog.id} sx={{ mb: 1.5 }}>
-                {/* Program label */}
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, py: 0.4, px: 0.5, mb: 0.25 }}>
-                  <Box sx={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: progAccent, flexShrink: 0 }} />
-                  <Typography sx={{ fontWeight: 800, color: progAccent, fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{prog.name}</Typography>
+              <Box key={proj.name} sx={{ mb: 1.5 }}>
+                {/* Project header */}
+                <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, py: 0.4, px: 0.5, mb: 0.25 }}>
+                  <Box sx={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: projAccent, flexShrink: 0, mt: 0.25 }} />
+                  <Typography sx={{ fontWeight: 800, color: projAccent, fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{proj.name}</Typography>
+                  <Typography sx={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.3)', fontWeight: 500 }}>{proj.programName}</Typography>
                 </Box>
 
                 {/* Phase rows */}
@@ -427,19 +434,14 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
                   <Box key={ph.id} sx={{ ...rowSx, mb: 0.25 }}>
                     <Box sx={trackSx} />
                     <TimelineBar startDate={ph.startDate} endDate={ph.endDate} color={ph.color} label={`▐ ${ph.name}`} onClick={() => openEditItem(ph)} />
-                    <Box onClick={() => deleteItem(ph.id)} sx={{ position: 'absolute', right: 2, top: '50%', transform: 'translateY(-50%)', opacity: 0, width: 16, height: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', '&:hover': { color: '#ef5350' }, '.roadmap-row:hover &': { opacity: 1 } }} className="del-btn">
-                      <span style={{ fontSize: '0.7rem' }}>✕</span>
-                    </Box>
                   </Box>
                 ))}
 
                 {/* Mock cycle rows */}
                 {cycles.map((c: any) => {
-                  const accent = c.accentColor || progAccent;
+                  const accent = c.accentColor || projAccent;
                   return (
-                    <Box key={c.id} sx={{ ...rowSx, mb: 0.25 }} className="roadmap-row"
-                      onMouseEnter={e => { const btn = e.currentTarget.querySelector('.del-btn') as HTMLElement; if (btn) btn.style.opacity = '1'; }}
-                      onMouseLeave={e => { const btn = e.currentTarget.querySelector('.del-btn') as HTMLElement; if (btn) btn.style.opacity = '0'; }}>
+                    <Box key={c.id} sx={{ ...rowSx, mb: 0.25 }}>
                       <Box sx={trackSx} />
                       <TimelineBar startDate={c.startDate?.substring(0, 10)} endDate={c.endDate?.substring(0, 10)} color={accent} label={c.name}
                         onClick={() => { setEditCycle(c); setEditStart(c.startDate?.substring(0, 10) || ''); setEditEnd(c.endDate?.substring(0, 10) || ''); }} />
@@ -464,7 +466,7 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
                       if (x === null) return null;
                       return (
                         <Box key={ms.id} onClick={() => openEditItem(ms)} title={ms.name}
-                          sx={{ position: 'absolute', left: `${x}%`, top: '50%', transform: 'translate(-50%, -50%)', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0 }}>
+                          sx={{ position: 'absolute', left: `${x}%`, top: '50%', transform: 'translate(-50%, -50%)', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                           <Typography sx={{ fontSize: '1.1rem', color: ms.color, lineHeight: 1, filter: 'drop-shadow(0 0 4px currentColor)' }}>★</Typography>
                           <Typography sx={{ fontSize: '0.58rem', color: ms.color, whiteSpace: 'nowrap', fontWeight: 700, mt: -0.25 }}>{ms.name}</Typography>
                         </Box>
@@ -476,9 +478,9 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
             );
           })}
 
-          {filteredPrograms.length === 0 && (
+          {filteredProjects.length === 0 && (
             <Box sx={{ py: 6, textAlign: 'center', color: 'text.disabled' }}>
-              <Typography variant="body2">No programs match the selected filters.</Typography>
+              <Typography variant="body2">No projects match the selected filters.</Typography>
             </Box>
           )}
         </Box>
@@ -523,12 +525,12 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
               <Typography sx={{ fontWeight: 700 }}>{editingItem ? 'Edit' : 'Add'} {addDialog === 'phase' ? 'Phase' : addDialog === 'test-cycle' ? 'Test Cycle' : 'Milestone'}</Typography>
             </Box>
             <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 1.75 }}>
-              {/* Program */}
+              {/* Project */}
               <Box>
-                <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>Program</Typography>
-                <Box component="select" value={form.programId || ''} onChange={(e: any) => setForm(p => ({ ...p, programId: e.target.value }))}
+                <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>Project</Typography>
+                <Box component="select" value={form.projectKey || ''} onChange={(e: any) => setForm(p => ({ ...p, projectKey: e.target.value }))}
                   style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.2)', backgroundColor: 'rgba(255,255,255,0.06)', color: '#DBE7FF', fontSize: '0.85rem' }}>
-                  {programs.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  {uniqueProjects.map(p => <option key={p.name} value={p.name}>{p.name}</option>)}
                 </Box>
               </Box>
               {/* Name / Subtype */}
@@ -585,7 +587,7 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
                 )}
                 <Box sx={{ display: 'flex', gap: 1, ml: 'auto' }}>
                   <Button size="small" onClick={() => { setAddDialog(null); setEditingItem(null); setForm({}); }} sx={{ textTransform: 'none' }}>Cancel</Button>
-                  <Button size="small" variant="contained" disabled={savingItem || !form.name?.trim() || !form.programId}
+                  <Button size="small" variant="contained" disabled={savingItem || !form.name?.trim() || !form.projectKey}
                     onClick={saveItem} sx={{ textTransform: 'none', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
                     {savingItem ? 'Saving…' : editingItem ? 'Update' : 'Add'}
                   </Button>
