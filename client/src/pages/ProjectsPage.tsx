@@ -7053,218 +7053,163 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
 
           {/* Planning Maintain Tab Content */}
           {sectionMode === 'planning' && tabValue === 6 && (
-            <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <Box
-                sx={{
-                  border: '1px solid rgba(255,255,255,0.2)',
-                  borderRadius: 2,
-                  backgroundColor: 'rgba(255,255,255,0.06)',
-                  p: 2,
-                }}
-              >
-                <Typography variant="h5" sx={{ fontWeight: 700, color: '#DCE6FF', mb: 0.75 }}>
-                  Maintain Planning Hierarchy
-                </Typography>
-                <Typography variant="body2" sx={{ color: '#9FB0D8' }}>
-                  View existing records, edit or delete them, and add new records via modal dialogs.
-                </Typography>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, p: 2 }}>
+              {/* Tab pills — same style as Inventory sub-tabs */}
+              <Box sx={{ display: 'flex', gap: 1 }}>
+                {(['program', 'project', 'cycle'] as const).map((view) => {
+                  const labels = { program: 'Programs', project: 'Projects', cycle: 'Mock Cycles' };
+                  const active = maintainFormView === view;
+                  return (
+                    <Button key={view} variant={active ? 'contained' : 'text'} onClick={() => setMaintainFormView(view)}
+                      sx={{
+                        textTransform: 'none', fontWeight: 700, fontSize: '0.8rem',
+                        borderRadius: '999px', px: 1.8, py: 0.55, minHeight: 34,
+                        background: active ? 'linear-gradient(135deg, #4C8DFF 0%, #5FA2FF 100%)' : 'rgba(29,45,76,0.72)',
+                        color: active ? '#F5FAFF' : '#9FB0D8',
+                        border: active ? '1px solid rgba(102,163,255,0.7)' : '1px solid rgba(89,112,160,0.35)',
+                        '&:hover': { background: active ? 'linear-gradient(135deg, #4C8DFF 0%, #5FA2FF 100%)' : 'rgba(35,54,90,0.9)' },
+                      }}>
+                      {labels[view]}
+                    </Button>
+                  );
+                })}
               </Box>
 
               {!canManageHierarchy ? (
                 <Alert severity="info">You have read-only access. Admin role is required to submit hierarchy forms.</Alert>
               ) : (
-                <Card sx={{ backgroundColor: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.18)', borderRadius: 2 }}>
-                  <CardHeader
-                    title={maintainFormView === 'program' ? 'Programs' : maintainFormView === 'cycle' ? 'Mock Cycles' : 'Projects'}
-                    titleTypographyProps={{ sx: { color: '#E8F0FF', fontWeight: 800, fontSize: '1.02rem' } }}
-                    action={
+                <Card sx={{ backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 2 }}>
+                  <CardContent sx={{ p: 2 }}>
+                    {/* Header row: title left, controls + Add button right */}
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, gap: 1.5, flexWrap: 'wrap' }}>
+                      <Typography variant="h6" sx={{ color: '#DCE6FF', fontWeight: 700, fontSize: '1rem' }}>
+                        {maintainFormView === 'program' ? 'Programs' : maintainFormView === 'project' ? 'Projects' : 'Mock Cycles'}
+                      </Typography>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         {maintainFormView === 'cycle' && (
-                          <TextField
-                            select
-                            size="small"
-                            label="Parent Project"
-                            value={maintainCycleParentProjectId}
-                            onChange={(e) => setMaintainCycleParentProjectId(e.target.value)}
-                            sx={{ minWidth: 200 }}
-                          >
-                            {maintainCycleParentProjectOptions.map((project) => (
-                              <MenuItem key={project.id} value={project.id}>{project.name}</MenuItem>
-                            ))}
-                          </TextField>
+                          <>
+                            <TextField select size="small" label="Show Program" value={maintainCycleFilterProgramId}
+                              onChange={(e) => setMaintainCycleFilterProgramId(e.target.value as 'all' | string)} sx={{ minWidth: 180 }}>
+                              <MenuItem value="all">All Programs</MenuItem>
+                              {programs.map((program) => <MenuItem key={program.id} value={program.id}>{program.name}</MenuItem>)}
+                            </TextField>
+                            <TextField select size="small" label="Parent Project" value={maintainCycleParentProjectId}
+                              onChange={(e) => setMaintainCycleParentProjectId(e.target.value)} sx={{ minWidth: 180 }}>
+                              {maintainCycleParentProjectOptions.map((project) => <MenuItem key={project.id} value={project.id}>{project.name}</MenuItem>)}
+                            </TextField>
+                          </>
                         )}
                         {maintainFormView === 'project' && (
-                          <TextField
-                            select
-                            size="small"
-                            label="Parent Program"
-                            value={maintainProjectParentProgramId}
-                            onChange={(e) => {
-                              setMaintainProjectParentProgramId(e.target.value);
-                            }}
-                            sx={{ minWidth: 220 }}
-                          >
-                            {programs.map((program) => (
-                              <MenuItem key={program.id} value={program.id}>{program.name}</MenuItem>
-                            ))}
+                          <TextField select size="small" label="Parent Program" value={maintainProjectParentProgramId}
+                            onChange={(e) => setMaintainProjectParentProgramId(e.target.value)} sx={{ minWidth: 200 }}>
+                            {programs.map((program) => <MenuItem key={program.id} value={program.id}>{program.name}</MenuItem>)}
                           </TextField>
                         )}
-                        <Button
-                          variant="contained"
-                          startIcon={<AddIcon />}
+                        <Button variant="contained" startIcon={<AddIcon />}
                           onClick={() => {
                             if (maintainFormView === 'program') {
                               openCreateDialog('program');
                             } else if (maintainFormView === 'cycle') {
                               setMaintainPendingCycleProjectId(maintainCycleParentProjectId || null);
                               openCreateDialog('cycle', maintainCycleParentProgramId);
-                            } else if (maintainFormView === 'project') {
+                            } else {
                               const targetProgramId = maintainProjectParentProgramId || programs[0]?.id || '';
-                              if (!targetProgramId) {
-                                alert('Create a program first before adding a project.');
-                                return;
-                              }
+                              if (!targetProgramId) { alert('Create a program first before adding a project.'); return; }
                               openCreateDialog('project', targetProgramId);
                             }
                           }}
                           disabled={(maintainFormView === 'cycle' && !maintainCycleParentProjectId) || (maintainFormView === 'project' && programs.length === 0)}
-                          sx={{ textTransform: 'none', fontWeight: 700 }}
-                        >
+                          sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', textTransform: 'none', fontWeight: 600, borderRadius: '10px', boxShadow: 'none' }}>
                           Add New
                         </Button>
                       </Box>
-                    }
-                  />
-                  <CardContent sx={{ pt: 0 }}>
-                    {maintainFormView === 'program' && (
-                      <TableContainer sx={{ border: '1px solid rgba(255,255,255,0.18)', borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.07)' }}>
-                        <Table size="small">
-                          <TableHead>
-                            <TableRow sx={{ backgroundColor: 'rgba(255,255,255,0.14)' }}>
-                              <TableCell sx={{ color: '#E6EFFF', fontWeight: 700 }}>Program</TableCell>
-                              <TableCell sx={{ color: '#E6EFFF', fontWeight: 700 }}>Description</TableCell>
-                              <TableCell sx={{ color: '#E6EFFF', fontWeight: 700 }}>Accent</TableCell>
-                              <TableCell sx={{ color: '#E6EFFF', fontWeight: 700, width: 130 }}>Actions</TableCell>
-                            </TableRow>
-                          </TableHead>
-                          <TableBody>
+                    </Box>
+
+                    {/* Table */}
+                    <Box sx={{ overflowX: 'auto' }}>
+                      {maintainFormView === 'program' && (
+                        <Box sx={{ borderRadius: 1.25, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)' }}>
+                          <Box sx={{ display: 'grid', gridTemplateColumns: '1.5fr 2fr 1fr 0.5fr' }}>
+                            {['PROGRAM', 'DESCRIPTION', 'ACCENT', 'ACTIONS'].map(h => (
+                              <Box key={h} sx={{ backgroundColor: 'rgba(255,255,255,0.07)', p: 1, fontWeight: 700, color: 'rgba(255,255,255,0.5)', fontSize: '0.72rem', letterSpacing: '0.4px' }}>{h}</Box>
+                            ))}
                             {programs.length === 0 ? (
-                              <TableRow>
-                                <TableCell colSpan={4} sx={{ color: '#9FB0D8' }}>No programs found.</TableCell>
-                              </TableRow>
+                              <Box sx={{ gridColumn: '1 / -1', p: 2, textAlign: 'center', color: 'rgba(255,255,255,0.35)', fontSize: '0.85rem' }}>No programs found.</Box>
                             ) : programs.map((program, idx) => (
-                              <TableRow key={program.id} sx={{ backgroundColor: idx % 2 === 0 ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.02)' }}>
-                                <TableCell sx={{ color: '#DCE7FF', fontWeight: 700 }}>{program.name}</TableCell>
-                                <TableCell sx={{ color: '#BFD0F3' }}>{program.description || '—'}</TableCell>
-                                <TableCell sx={{ color: '#BFD0F3' }}>{program.accentColor || '—'}</TableCell>
-                                <TableCell>
-                                  <IconButton size="small" onClick={() => openEditDialog('program', program.id)} sx={{ color: '#8FB7FF' }}><EditIcon sx={{ fontSize: '1rem' }} /></IconButton>
-                                  <IconButton size="small" onClick={() => openDeleteDialog('program', program.id, program.name)} sx={{ color: '#FF9AA8' }}><DeleteIcon sx={{ fontSize: '1rem' }} /></IconButton>
-                                </TableCell>
-                              </TableRow>
+                              <React.Fragment key={program.id}>
+                                <Box sx={{ p: 1, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: idx % 2 === 0 ? 'rgba(255,255,255,0.03)' : 'transparent', color: '#DCE7FF', fontWeight: 700, fontSize: '0.85rem' }}>{program.name}</Box>
+                                <Box sx={{ p: 1, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: idx % 2 === 0 ? 'rgba(255,255,255,0.03)' : 'transparent', color: 'rgba(255,255,255,0.7)', fontSize: '0.85rem' }}>{program.description || '—'}</Box>
+                                <Box sx={{ p: 1, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: idx % 2 === 0 ? 'rgba(255,255,255,0.03)' : 'transparent', display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                                  {program.accentColor && <Box sx={{ width: 14, height: 14, borderRadius: '50%', backgroundColor: program.accentColor, flexShrink: 0 }} />}
+                                  <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.6)', fontFamily: 'monospace' }}>{program.accentColor || '—'}</Typography>
+                                </Box>
+                                <Box sx={{ p: 0.75, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: idx % 2 === 0 ? 'rgba(255,255,255,0.03)' : 'transparent', display: 'flex', gap: 0.25 }}>
+                                  <IconButton size="small" onClick={() => openEditDialog('program', program.id)} sx={{ color: 'rgba(255,255,255,0.5)', '&:hover': { color: 'white' } }}><EditIcon sx={{ fontSize: '1rem' }} /></IconButton>
+                                  <IconButton size="small" onClick={() => openDeleteDialog('program', program.id, program.name)} sx={{ color: 'rgba(255,255,255,0.4)', '&:hover': { color: '#ef5350' } }}><DeleteIcon sx={{ fontSize: '1rem' }} /></IconButton>
+                                </Box>
+                              </React.Fragment>
                             ))}
-                          </TableBody>
-                        </Table>
-                      </TableContainer>
-                    )}
-
-                    {maintainFormView === 'cycle' && (
-                      <>
-                        <Box sx={{ mb: 1.2, display: 'flex', justifyContent: 'flex-end' }}>
-                          <TextField
-                            select
-                            size="small"
-                            label="Show Program"
-                            value={maintainCycleFilterProgramId}
-                            onChange={(e) => setMaintainCycleFilterProgramId(e.target.value as 'all' | string)}
-                            sx={{ minWidth: 220 }}
-                          >
-                            <MenuItem value="all">All Programs</MenuItem>
-                            {programs.map((program) => (
-                              <MenuItem key={program.id} value={program.id}>{program.name}</MenuItem>
-                            ))}
-                          </TextField>
+                          </Box>
                         </Box>
-                        <TableContainer sx={{ border: '1px solid rgba(255,255,255,0.18)', borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.07)' }}>
-                          <Table size="small">
-                            <TableHead>
-                              <TableRow sx={{ backgroundColor: 'rgba(255,255,255,0.14)' }}>
-                                <TableCell sx={{ color: '#E6EFFF', fontWeight: 700 }}>Mock Cycle</TableCell>
-                                <TableCell sx={{ color: '#E6EFFF', fontWeight: 700 }}>Project</TableCell>
-                                <TableCell sx={{ color: '#E6EFFF', fontWeight: 700 }}>Program</TableCell>
-                                <TableCell sx={{ color: '#E6EFFF', fontWeight: 700 }}>Date Range</TableCell>
-                                <TableCell sx={{ color: '#E6EFFF', fontWeight: 700 }}>Mode</TableCell>
-                                <TableCell sx={{ color: '#E6EFFF', fontWeight: 700, width: 130 }}>Actions</TableCell>
-                              </TableRow>
-                            </TableHead>
-                            <TableBody>
-                              {visibleMaintainCycleRows.length === 0 ? (
-                                <TableRow>
-                                  <TableCell colSpan={6} sx={{ color: '#9FB0D8' }}>No mock cycles found.</TableCell>
-                                </TableRow>
-                              ) : visibleMaintainCycleRows.map((cycle, idx) => (
-                                <TableRow key={cycle.id} sx={{ backgroundColor: idx % 2 === 0 ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.02)' }}>
-                                  <TableCell sx={{ color: '#DCE7FF', fontWeight: 700 }}>{cycle.name}</TableCell>
-                                  <TableCell sx={{ color: '#BFD0F3' }}>{cycle.linkedProjectName}</TableCell>
-                                  <TableCell sx={{ color: '#BFD0F3' }}>{cycle.programName}</TableCell>
-                                  <TableCell sx={{ color: '#BFD0F3' }}>{toDateInputValue(cycle.startDate)} to {toDateInputValue(cycle.endDate)}</TableCell>
-                                  <TableCell sx={{ color: '#BFD0F3' }}>{cycle.scheduleMode === 'working_days' ? 'Working Days' : 'All Days'}</TableCell>
-                                  <TableCell>
-                                    <IconButton size="small" onClick={() => openEditDialog('cycle', cycle.id)} sx={{ color: '#8FB7FF' }}><EditIcon sx={{ fontSize: '1rem' }} /></IconButton>
-                                    <IconButton size="small" onClick={() => openDeleteDialog('cycle', cycle.id, cycle.name)} sx={{ color: '#FF9AA8' }}><DeleteIcon sx={{ fontSize: '1rem' }} /></IconButton>
-                                  </TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
-                        </TableContainer>
-                      </>
-                    )}
+                      )}
 
-                    {maintainFormView === 'project' && (
-                      <>
-                        <TableContainer sx={{ border: '1px solid rgba(255,255,255,0.18)', borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.07)' }}>
-                          <Table size="small">
-                            <TableHead>
-                              <TableRow sx={{ backgroundColor: 'rgba(255,255,255,0.14)' }}>
-                                <TableCell sx={{ color: '#E6EFFF', fontWeight: 700 }}>Project</TableCell>
-                                <TableCell sx={{ color: '#E6EFFF', fontWeight: 700 }}>Program</TableCell>
-                                <TableCell sx={{ color: '#E6EFFF', fontWeight: 700 }}>Date Range</TableCell>
-                                <TableCell sx={{ color: '#E6EFFF', fontWeight: 700, width: 130 }}>Actions</TableCell>
-                              </TableRow>
-                            </TableHead>
-                            <TableBody>
-                              {visibleMaintainProjectRows.length === 0 ? (
-                                <TableRow>
-                                  <TableCell colSpan={4} sx={{ color: '#9FB0D8' }}>No projects found.</TableCell>
-                                </TableRow>
-                              ) : visibleMaintainProjectRows.map((project, idx) => (
-                                <TableRow key={project.id} sx={{ backgroundColor: idx % 2 === 0 ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.02)' }}>
-                                  <TableCell sx={{ color: '#DCE7FF', fontWeight: 700 }}>{project.name}</TableCell>
-                                  <TableCell sx={{ color: '#BFD0F3' }}>{project.programName}</TableCell>
-                                  <TableCell sx={{ color: '#BFD0F3' }}>{toDateInputValue(project.startDate) || '—'} to {toDateInputValue(project.endDate) || '—'}</TableCell>
-                                  <TableCell>
-                                    <IconButton size="small" onClick={() => openEditDialog('project', project.id)} sx={{ color: '#8FB7FF' }}><EditIcon sx={{ fontSize: '1rem' }} /></IconButton>
-                                    <IconButton size="small" onClick={() => openDeleteDialog('project', project.id, project.name)} sx={{ color: '#FF9AA8' }}><DeleteIcon sx={{ fontSize: '1rem' }} /></IconButton>
-                                  </TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
-                        </TableContainer>
-                      </>
-                    )}
+                      {maintainFormView === 'cycle' && (
+                        <Box sx={{ borderRadius: 1.25, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)' }}>
+                          <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 0.6fr 0.4fr' }}>
+                            {['MOCK CYCLE', 'PROJECT', 'PROGRAM', 'DATE RANGE', 'MODE', 'ACTIONS'].map(h => (
+                              <Box key={h} sx={{ backgroundColor: 'rgba(255,255,255,0.07)', p: 1, fontWeight: 700, color: 'rgba(255,255,255,0.5)', fontSize: '0.72rem', letterSpacing: '0.4px' }}>{h}</Box>
+                            ))}
+                            {visibleMaintainCycleRows.length === 0 ? (
+                              <Box sx={{ gridColumn: '1 / -1', p: 2, textAlign: 'center', color: 'rgba(255,255,255,0.35)', fontSize: '0.85rem' }}>No mock cycles found.</Box>
+                            ) : visibleMaintainCycleRows.map((cycle, idx) => (
+                              <React.Fragment key={cycle.id}>
+                                <Box sx={{ p: 1, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: idx % 2 === 0 ? 'rgba(255,255,255,0.03)' : 'transparent', color: '#DCE7FF', fontWeight: 700, fontSize: '0.85rem' }}>{cycle.name}</Box>
+                                <Box sx={{ p: 1, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: idx % 2 === 0 ? 'rgba(255,255,255,0.03)' : 'transparent', color: 'rgba(255,255,255,0.7)', fontSize: '0.85rem' }}>{cycle.linkedProjectName}</Box>
+                                <Box sx={{ p: 1, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: idx % 2 === 0 ? 'rgba(255,255,255,0.03)' : 'transparent', color: 'rgba(255,255,255,0.7)', fontSize: '0.85rem' }}>{cycle.programName}</Box>
+                                <Box sx={{ p: 1, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: idx % 2 === 0 ? 'rgba(255,255,255,0.03)' : 'transparent', color: 'rgba(255,255,255,0.6)', fontSize: '0.82rem' }}>{toDateInputValue(cycle.startDate) || '—'} → {toDateInputValue(cycle.endDate) || '—'}</Box>
+                                <Box sx={{ p: 1, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: idx % 2 === 0 ? 'rgba(255,255,255,0.03)' : 'transparent', color: 'rgba(255,255,255,0.6)', fontSize: '0.82rem' }}>{cycle.scheduleMode === 'working_days' ? 'Working Days' : 'All Days'}</Box>
+                                <Box sx={{ p: 0.75, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: idx % 2 === 0 ? 'rgba(255,255,255,0.03)' : 'transparent', display: 'flex', gap: 0.25 }}>
+                                  <IconButton size="small" onClick={() => openEditDialog('cycle', cycle.id)} sx={{ color: 'rgba(255,255,255,0.5)', '&:hover': { color: 'white' } }}><EditIcon sx={{ fontSize: '1rem' }} /></IconButton>
+                                  <IconButton size="small" onClick={() => openDeleteDialog('cycle', cycle.id, cycle.name)} sx={{ color: 'rgba(255,255,255,0.4)', '&:hover': { color: '#ef5350' } }}><DeleteIcon sx={{ fontSize: '1rem' }} /></IconButton>
+                                </Box>
+                              </React.Fragment>
+                            ))}
+                          </Box>
+                        </Box>
+                      )}
+
+                      {maintainFormView === 'project' && (
+                        <Box sx={{ borderRadius: 1.25, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)' }}>
+                          <Box sx={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr 0.5fr' }}>
+                            {['PROJECT', 'PROGRAM', 'DATE RANGE', 'ACTIONS'].map(h => (
+                              <Box key={h} sx={{ backgroundColor: 'rgba(255,255,255,0.07)', p: 1, fontWeight: 700, color: 'rgba(255,255,255,0.5)', fontSize: '0.72rem', letterSpacing: '0.4px' }}>{h}</Box>
+                            ))}
+                            {visibleMaintainProjectRows.length === 0 ? (
+                              <Box sx={{ gridColumn: '1 / -1', p: 2, textAlign: 'center', color: 'rgba(255,255,255,0.35)', fontSize: '0.85rem' }}>No projects found.</Box>
+                            ) : visibleMaintainProjectRows.map((project, idx) => (
+                              <React.Fragment key={project.id}>
+                                <Box sx={{ p: 1, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: idx % 2 === 0 ? 'rgba(255,255,255,0.03)' : 'transparent', color: '#DCE7FF', fontWeight: 700, fontSize: '0.85rem' }}>{project.name}</Box>
+                                <Box sx={{ p: 1, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: idx % 2 === 0 ? 'rgba(255,255,255,0.03)' : 'transparent', color: 'rgba(255,255,255,0.7)', fontSize: '0.85rem' }}>{project.programName}</Box>
+                                <Box sx={{ p: 1, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: idx % 2 === 0 ? 'rgba(255,255,255,0.03)' : 'transparent', color: 'rgba(255,255,255,0.6)', fontSize: '0.82rem' }}>{toDateInputValue(project.startDate) || '—'} → {toDateInputValue(project.endDate) || '—'}</Box>
+                                <Box sx={{ p: 0.75, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: idx % 2 === 0 ? 'rgba(255,255,255,0.03)' : 'transparent', display: 'flex', gap: 0.25 }}>
+                                  <IconButton size="small" onClick={() => openEditDialog('project', project.id)} sx={{ color: 'rgba(255,255,255,0.5)', '&:hover': { color: 'white' } }}><EditIcon sx={{ fontSize: '1rem' }} /></IconButton>
+                                  <IconButton size="small" onClick={() => openDeleteDialog('project', project.id, project.name)} sx={{ color: 'rgba(255,255,255,0.4)', '&:hover': { color: '#ef5350' } }}><DeleteIcon sx={{ fontSize: '1rem' }} /></IconButton>
+                                </Box>
+                              </React.Fragment>
+                            ))}
+                          </Box>
+                        </Box>
+                      )}
+                    </Box>
                   </CardContent>
                 </Card>
               )}
 
-              <Card sx={{ backgroundColor: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.18)', borderRadius: 2 }}>
-                <CardContent sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5 }}>
-                  <Chip size="small" label={`Programs: ${programs.length}`} variant="outlined" sx={{ color: '#E7EEFF', borderColor: 'rgba(255,255,255,0.28)' }} />
-                  <Chip size="small" label={`Mock Cycles: ${allMaintainCycles.length}`} variant="outlined" sx={{ color: '#E7EEFF', borderColor: 'rgba(255,255,255,0.28)' }} />
-                  <Chip size="small" label={`Projects: ${allMaintainProjects.length}`} variant="outlined" sx={{ color: '#E7EEFF', borderColor: 'rgba(255,255,255,0.28)' }} />
-                </CardContent>
-              </Card>
+              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                {[`Programs: ${programs.length}`, `Mock Cycles: ${allMaintainCycles.length}`, `Projects: ${allMaintainProjects.length}`].map(label => (
+                  <Box key={label} sx={{ px: 1.25, py: 0.5, borderRadius: 1, border: '1px solid rgba(255,255,255,0.15)', backgroundColor: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.6)', fontSize: '0.78rem', fontWeight: 600 }}>{label}</Box>
+                ))}
+              </Box>
             </Box>
           )}
 
