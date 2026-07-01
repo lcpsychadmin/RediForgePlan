@@ -1,6 +1,7 @@
 // server/src/routes/api.routes.ts
 // Main API router - wires all domain routes together
 
+import { Router } from 'express';
 import applicationsRouter from './applications.routes.js';
 import programsRouter from './programs.routes.js';
 import mockCyclesRouter from './mockCycles.routes.js';
