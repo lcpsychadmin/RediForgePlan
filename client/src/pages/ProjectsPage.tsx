@@ -245,59 +245,6 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
     return m;
   }, [mockCycles]);
 
-  const xToDate = React.useCallback((clientX: number): string => {
-    const el = timelineRef.current;
-    if (!el) return '';
-    const rect = el.getBoundingClientRect();
-    const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-    const ms = rangeStart.getTime() + pct * (rangeEnd.getTime() - rangeStart.getTime());
-    const d = new Date(ms);
-    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rangeStart, rangeEnd]);
-
-  const getIndicatorX = React.useCallback((clientX: number): number => {
-    const el = timelineRef.current;
-    if (!el) return 0;
-    const rect = el.getBoundingClientRect();
-    return Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100));
-  }, []);
-
-  // Global mousemove/mouseup for drag
-  React.useEffect(() => {
-    if (!drag) return;
-    const onMove = (e: MouseEvent) => {
-      const date = xToDate(e.clientX);
-      const ix = getIndicatorX(e.clientX);
-      setDrag(prev => prev ? { ...prev, currentDate: date, indicatorX: ix } : null);
-    };
-    const onUp = async (e: MouseEvent) => {
-      if (!drag) return;
-      const finalDate = xToDate(e.clientX);
-      if (drag.entityType === 'cycle') {
-        const newStart = drag.handle === 'start' ? finalDate : drag.origStart;
-        const newEnd   = drag.handle === 'end'   ? finalDate : drag.origEnd;
-        await onSaveCycleDates(drag.id, newStart, newEnd);
-      } else {
-        setRoadmapItems(prev => {
-          const updated = prev.map(x => x.id === drag.id ? {
-            ...x,
-            ...(drag.handle === 'start' ? { startDate: finalDate } : {}),
-            ...(drag.handle === 'end'   ? { endDate:   finalDate } : {}),
-            ...(drag.handle === 'date'  ? { date:      finalDate } : {}),
-          } : x);
-          apiClient.put('/api/hierarchy-preferences/global-process-areas', { roadmapItems: updated }).catch(() => {});
-          return updated;
-        });
-      }
-      setDrag(null);
-    };
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
-    return () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [drag]);
-
   // Deduplicated projects by name, annotated with their program
   const uniqueProjects: { name: string; programName: string; programAccent: string; cycleIds: string[] }[] = React.useMemo(() => {
     const map = new Map<string, { name: string; programName: string; programAccent: string; cycleIds: string[] }>();
@@ -357,6 +304,59 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
   }, [allDates, today]);
   const totalDays = Math.max(1, (rangeEnd.getTime() - rangeStart.getTime()) / 86400000);
   const dateToX = (d: Date) => Math.max(0, Math.min(100, ((d.getTime() - rangeStart.getTime()) / 86400000 / totalDays) * 100));
+
+  // These helpers depend on rangeStart/rangeEnd — must be declared after them
+  const xToDate = React.useCallback((clientX: number): string => {
+    const el = timelineRef.current;
+    if (!el) return '';
+    const rect = el.getBoundingClientRect();
+    const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    const ms = rangeStart.getTime() + pct * (rangeEnd.getTime() - rangeStart.getTime());
+    const d = new Date(ms);
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }, [rangeStart, rangeEnd]);
+
+  const getIndicatorX = React.useCallback((clientX: number): number => {
+    const el = timelineRef.current;
+    if (!el) return 0;
+    const rect = el.getBoundingClientRect();
+    return Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100));
+  }, []);
+
+  // Global mousemove/mouseup for drag
+  React.useEffect(() => {
+    if (!drag) return;
+    const onMove = (e: MouseEvent) => {
+      const date = xToDate(e.clientX);
+      const ix = getIndicatorX(e.clientX);
+      setDrag(prev => prev ? { ...prev, currentDate: date, indicatorX: ix } : null);
+    };
+    const onUp = async (e: MouseEvent) => {
+      if (!drag) return;
+      const finalDate = xToDate(e.clientX);
+      if (drag.entityType === 'cycle') {
+        const newStart = drag.handle === 'start' ? finalDate : drag.origStart;
+        const newEnd   = drag.handle === 'end'   ? finalDate : drag.origEnd;
+        await onSaveCycleDates(drag.id, newStart, newEnd);
+      } else {
+        setRoadmapItems(prev => {
+          const updated = prev.map(x => x.id === drag.id ? {
+            ...x,
+            ...(drag.handle === 'start' ? { startDate: finalDate } : {}),
+            ...(drag.handle === 'end'   ? { endDate:   finalDate } : {}),
+            ...(drag.handle === 'date'  ? { date:      finalDate } : {}),
+          } : x);
+          apiClient.put('/api/hierarchy-preferences/global-process-areas', { roadmapItems: updated }).catch(() => {});
+          return updated;
+        });
+      }
+      setDrag(null);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    return () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drag]);
 
   const months: { label: string; left: number }[] = React.useMemo(() => {
     const out: { label: string; left: number }[] = [];
