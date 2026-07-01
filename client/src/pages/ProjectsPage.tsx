@@ -326,7 +326,7 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
 
   const openAdd = (type: 'phase' | 'test-cycle' | 'milestone', projectKey?: string) => {
     const defaultColor = type === 'phase' ? PHASE_COLORS.planning : type === 'test-cycle' ? TEST_CYCLE_COLOR : MILESTONE_COLOR;
-    setForm({ type, projectKey: projectKey || uniqueProjects[0]?.name || '', color: defaultColor, subtype: type === 'phase' ? 'planning' : undefined });
+    setForm({ type, projectKey: projectKey || uniqueProjects[0]?.name || '', color: defaultColor, subtype: type === 'phase' ? 'planning' : undefined, name: type === 'phase' ? 'Planning' : '' });
     setEditingItem(null);
     setAddDialog(type);
   };
