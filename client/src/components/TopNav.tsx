@@ -271,7 +271,8 @@ const TopNav: React.FC<TopNavProps> = ({
             {/* Spacer */}
             <Box sx={{ flex: 1 }} />
 
-            {/* Action Buttons */}
+            {/* Action Buttons — hidden on settings/admin pages */}
+            {!isSettingsPage && (
             <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
               <Button
                 variant="contained"
@@ -298,6 +299,7 @@ const TopNav: React.FC<TopNavProps> = ({
                 Export CSV
               </Button>
             </Box>
+            )}
           </>
           )
         ) : (
