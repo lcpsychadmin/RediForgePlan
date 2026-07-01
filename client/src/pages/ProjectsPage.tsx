@@ -4272,7 +4272,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
             borderTop: 'none',
             borderLeft: 'none',
             borderRadius: 0,
-            display: tabValue === 1 ? 'none' : 'flex',
+            display: (tabValue === 1 || tabValue === 6) ? 'none' : 'flex',
             flexDirection: 'column',
             position: { xs: 'fixed', md: 'relative' },
             top: { xs: '112px', md: 'auto' },
@@ -6873,12 +6873,12 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
 
               {/* Project Inventory Sub-Tab */}
               {inventorySubTab === 1 && (
-                <Card sx={{ backgroundColor: 'rgba(9, 19, 47, 0.9)', border: '1px solid rgba(80,115,181,0.35)', borderRadius: 2 }}>
+                <Card sx={{ backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 2 }}>
                   <CardContent sx={{ p: 2 }}>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1.5, mb: 2, flexWrap: 'wrap' }}>
                       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
                         {inventoryProjects.length === 0 ? (
-                          <Typography variant="caption" sx={{ color: '#8EA3CB' }}>
+                          <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.4)' }}>
                             No projects available
                           </Typography>
                         ) : (
@@ -6888,20 +6888,12 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                               component="button"
                               onClick={() => setSelectedProjectForInventory(project.id)}
                               sx={{
-                                px: 1.6,
-                                py: 0.5,
-                                borderRadius: '999px',
-                                border: selectedProjectForInventory === project.id ? '1px solid rgba(122,164,248,0.9)' : '1px solid rgba(89,112,160,0.35)',
-                                background: selectedProjectForInventory === project.id ? 'linear-gradient(135deg, #6E7BFF 0%, #6A8BFF 100%)' : 'rgba(30, 46, 79, 0.72)',
-                                color: selectedProjectForInventory === project.id ? '#EFF4FF' : '#9FB0D8',
-                                cursor: 'pointer',
-                                fontWeight: 700,
-                                fontSize: '0.78rem',
-                                lineHeight: 1.3,
-                                transition: 'all 0.16s ease',
-                                '&:hover': {
-                                  background: selectedProjectForInventory === project.id ? 'linear-gradient(135deg, #6E7BFF 0%, #6A8BFF 100%)' : 'rgba(35,54,90,0.9)',
-                                },
+                                px: 1.6, py: 0.5, borderRadius: '999px',
+                                border: selectedProjectForInventory === project.id ? '1px solid rgba(102,163,255,0.7)' : '1px solid rgba(255,255,255,0.15)',
+                                background: selectedProjectForInventory === project.id ? 'linear-gradient(135deg, #4C8DFF 0%, #5FA2FF 100%)' : 'rgba(255,255,255,0.05)',
+                                color: selectedProjectForInventory === project.id ? '#F5FAFF' : 'rgba(255,255,255,0.6)',
+                                cursor: 'pointer', fontWeight: 700, fontSize: '0.78rem', lineHeight: 1.3,
+                                '&:hover': { background: selectedProjectForInventory === project.id ? 'linear-gradient(135deg, #4C8DFF 0%, #5FA2FF 100%)' : 'rgba(255,255,255,0.1)' },
                               }}
                             >
                               {project.name}
@@ -6912,13 +6904,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
 
                       <Button
                         variant="contained"
-                        sx={{
-                          background: 'linear-gradient(135deg, #6A7DFF 0%, #6B8BFF 100%)',
-                          textTransform: 'none',
-                          fontWeight: 700,
-                          borderRadius: '10px',
-                          boxShadow: 'none',
-                        }}
+                        sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', textTransform: 'none', fontWeight: 600, borderRadius: '10px', boxShadow: 'none' }}
                         startIcon={<AddIcon />}
                         onClick={() => {
                           setEditingInventoryItemId(null);
@@ -6932,20 +6918,20 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                     </Box>
 
                     <Box sx={{ overflowX: 'auto' }}>
-                      <Box sx={{ minWidth: 1120, display: 'grid', gridTemplateColumns: '2.2fr 0.9fr 0.9fr 1.05fr 0.75fr 0.75fr 0.55fr', gap: 0, borderRadius: 1.25, overflow: 'hidden', border: '1px solid rgba(92,127,194,0.45)' }}>
+                      <Box sx={{ minWidth: 1120, display: 'grid', gridTemplateColumns: '2.2fr 0.9fr 0.9fr 1.05fr 0.75fr 0.75fr 0.55fr', gap: 0, borderRadius: 1.25, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)' }}>
                         {['DATA OBJECT', 'PROCESS AREA', 'COMPLEXITY', 'DEPLOY. DISPOSITION', 'BUILD TYPE', 'OBJECT TYPE', 'ACTIONS'].map((header) => (
-                          <Box key={header} sx={{ backgroundColor: 'rgba(22,39,78,0.95)', p: 1, fontWeight: 700, color: '#A9BCDF', fontSize: '0.72rem', letterSpacing: '0.4px' }}>
+                          <Box key={header} sx={{ backgroundColor: 'rgba(255,255,255,0.07)', p: 1, fontWeight: 700, color: 'rgba(255,255,255,0.5)', fontSize: '0.72rem', letterSpacing: '0.4px' }}>
                             {header}
                           </Box>
                         ))}
 
                         {getFilteredSortedInventoryItems().length === 0 ? (
-                          <Box sx={{ gridColumn: '1 / -1', p: 2, textAlign: 'center', color: '#8EA3CB', fontSize: '0.85rem', backgroundColor: 'rgba(17, 30, 63, 0.82)' }}>
+                          <Box sx={{ gridColumn: '1 / -1', p: 2, textAlign: 'center', color: 'rgba(255,255,255,0.35)', fontSize: '0.85rem', backgroundColor: 'rgba(255,255,255,0.02)' }}>
                             No items in project inventory yet
                           </Box>
                         ) : (
                           getFilteredSortedInventoryItems().map((item, idx) => {
-                            const rowBg = idx % 2 === 0 ? 'rgba(20, 35, 70, 0.9)' : 'rgba(16, 30, 60, 0.9)';
+                            const rowBg = idx % 2 === 0 ? 'rgba(255,255,255,0.03)' : 'transparent';
                             const catalogObj = inventoryObjects.find(obj => obj.objectId === item.dataObjectId);
                             const description = item.subObjectDescription || catalogObj?.description || '';
                             const inPlan = projectTasks.some(task => task.projectObjectId === item.id);
@@ -6958,25 +6944,25 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                             const selectSx = {
                               width: '100%',
                               p: '4px 8px',
-                              border: '1px solid rgba(94,123,180,0.45)',
+                              border: '1px solid rgba(255,255,255,0.15)',
                               borderRadius: '6px',
                               fontSize: '0.78rem',
                               color: '#DBE7FF',
-                              backgroundColor: 'rgba(10, 22, 49, 0.9)',
+                              backgroundColor: 'rgba(255,255,255,0.06)',
                             } as const;
 
                             return (
                               <React.Fragment key={item.id}>
-                                <Box sx={{ p: 0.85, borderBottom: '1px solid rgba(83,110,165,0.26)', backgroundColor: rowBg, display: 'flex', alignItems: 'center', gap: 0.75, minHeight: 36 }}>
+                                <Box sx={{ p: 0.85, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: rowBg, display: 'flex', alignItems: 'center', gap: 0.75, minHeight: 36 }}>
                                   {isSubObject && (
-                                    <Box sx={{ width: 12, textAlign: 'center', color: '#8FA6D4', fontSize: '0.72rem', lineHeight: 1 }}>
+                                    <Box sx={{ width: 12, textAlign: 'center', color: 'rgba(255,255,255,0.4)', fontSize: '0.72rem', lineHeight: 1 }}>
                                       ↳
                                     </Box>
                                   )}
-                                  <Box sx={{ px: 0.7, py: 0.22, borderRadius: 0.8, backgroundColor: 'rgba(92,118,204,0.35)', color: '#BFD2FF', fontFamily: 'monospace', fontWeight: 700, fontSize: '0.8rem', lineHeight: 1.1, whiteSpace: 'nowrap' }}>
+                                  <Box sx={{ px: 0.7, py: 0.22, borderRadius: 0.8, backgroundColor: 'rgba(255,255,255,0.08)', color: '#D6E2FF', fontFamily: 'monospace', fontWeight: 700, fontSize: '0.8rem', lineHeight: 1.1, whiteSpace: 'nowrap' }}>
                                     {item.dataObjectId}
                                   </Box>
-                                  <Typography sx={{ color: '#CBD9F7', fontSize: '0.79rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>
+                                  <Typography sx={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.79rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>
                                     {description || 'No description'}
                                   </Typography>
                                   {isSubObject && parentObject && (
@@ -6996,46 +6982,46 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                   )}
                                 </Box>
 
-                                <Box sx={{ p: 0.6, borderBottom: '1px solid rgba(83,110,165,0.26)', backgroundColor: rowBg }}>
+                                <Box sx={{ p: 0.6, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: rowBg }}>
                                   <Box component="select" value={item.processArea || ''} onChange={(e) => handleProjectInventoryInlineChange(item.id, 'processArea', e.target.value)} sx={selectSx}>
                                     <option value="">—</option>
                                     {processAreaOptions.map((option) => <option key={option} value={option}>{option}</option>)}
                                   </Box>
                                 </Box>
 
-                                <Box sx={{ p: 0.6, borderBottom: '1px solid rgba(83,110,165,0.26)', backgroundColor: rowBg }}>
+                                <Box sx={{ p: 0.6, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: rowBg }}>
                                   <Box component="select" value={item.complexity || ''} onChange={(e) => handleProjectInventoryInlineChange(item.id, 'complexity', e.target.value)} sx={selectSx}>
                                     <option value="">—</option>
                                     {complexityOptions.map((option) => <option key={option} value={option}>{option}</option>)}
                                   </Box>
                                 </Box>
 
-                                <Box sx={{ p: 0.6, borderBottom: '1px solid rgba(83,110,165,0.26)', backgroundColor: rowBg }}>
+                                <Box sx={{ p: 0.6, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: rowBg }}>
                                   <Box component="select" value={item.deploymentDisposition || ''} onChange={(e) => handleProjectInventoryInlineChange(item.id, 'deploymentDisposition', e.target.value)} sx={selectSx}>
                                     <option value="">—</option>
                                     {deploymentDispositionOptions.map((option) => <option key={option} value={option}>{option}</option>)}
                                   </Box>
                                 </Box>
 
-                                <Box sx={{ p: 0.6, borderBottom: '1px solid rgba(83,110,165,0.26)', backgroundColor: rowBg }}>
+                                <Box sx={{ p: 0.6, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: rowBg }}>
                                   <Box component="select" value={item.buildType || ''} onChange={(e) => handleProjectInventoryInlineChange(item.id, 'buildType', e.target.value)} sx={selectSx}>
                                     <option value="">—</option>
                                     {buildTypeOptions.map((option) => <option key={option} value={option}>{option}</option>)}
                                   </Box>
                                 </Box>
 
-                                <Box sx={{ p: 0.6, borderBottom: '1px solid rgba(83,110,165,0.26)', backgroundColor: rowBg }}>
+                                <Box sx={{ p: 0.6, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: rowBg }}>
                                   <Box component="select" value={item.objectType || ''} onChange={(e) => handleProjectInventoryInlineChange(item.id, 'objectType', e.target.value)} sx={selectSx}>
                                     <option value="">—</option>
                                     {objectTypeOptions.map((option) => <option key={option} value={option}>{option}</option>)}
                                   </Box>
                                 </Box>
 
-                                <Box sx={{ p: 0.45, borderBottom: '1px solid rgba(83,110,165,0.26)', backgroundColor: rowBg, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 0.2 }}>
-                                  <IconButton size="small" title="Edit" onClick={() => handleEditInventoryItem(item)} sx={{ color: '#86A9E8', '&:hover': { backgroundColor: 'rgba(68,100,160,0.2)' } }}>
+                                <Box sx={{ p: 0.45, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: rowBg, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 0.2 }}>
+                                  <IconButton size="small" title="Edit" onClick={() => handleEditInventoryItem(item)} sx={{ color: 'rgba(255,255,255,0.5)', '&:hover': { color: 'white', backgroundColor: 'rgba(255,255,255,0.08)' } }}>
                                     <EditIcon sx={{ fontSize: '0.95rem' }} />
                                   </IconButton>
-                                  <IconButton size="small" title="Delete" onClick={() => handleDeleteInventoryItem(item)} sx={{ color: '#88A0C7', '&:hover': { backgroundColor: 'rgba(68,100,160,0.2)' } }}>
+                                  <IconButton size="small" title="Delete" onClick={() => handleDeleteInventoryItem(item)} sx={{ color: 'rgba(255,255,255,0.4)', '&:hover': { color: '#ef5350', backgroundColor: 'rgba(239,83,80,0.1)' } }}>
                                     <DeleteIcon sx={{ fontSize: '0.95rem' }} />
                                   </IconButton>
                                 </Box>
