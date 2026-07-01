@@ -114,11 +114,14 @@ router.delete('/data-definitions/:id', requireAuth, requireRole('analyst', 'admi
 router.get('/data-definitions/:definitionId/fields', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const result = await db.query(
-      `SELECT id, data_definition_id, table_name, field_name, field_label, data_type,
-              length, decimals, is_key, is_required, description, sort_order, created_at, updated_at
-       FROM data_definition_fields
-       WHERE data_definition_id = $1
-       ORDER BY sort_order ASC, field_name ASC`,
+      `SELECT f.id, f.data_definition_id, f.sub_object_id, f.table_name, f.field_name, f.field_label,
+              f.data_type, f.length, f.decimals, f.is_key, f.is_required, f.description, f.sort_order,
+              f.created_at, f.updated_at,
+              s.name as sub_object_name
+       FROM data_definition_fields f
+       LEFT JOIN data_definition_sub_objects s ON s.id = f.sub_object_id
+       WHERE f.data_definition_id = $1
+       ORDER BY COALESCE(s.sort_order, -1) ASC, f.sort_order ASC, f.field_name ASC`,
       [req.params.definitionId]
     );
     res.json(formatListResponse(result.rows, result.rows.length));
@@ -127,14 +130,14 @@ router.get('/data-definitions/:definitionId/fields', requireAuth, async (req: Re
 
 router.post('/data-definitions/:definitionId/fields', requireAuth, requireRole('analyst', 'admin'), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { tableName, fieldName, fieldLabel, dataType, length, decimals, isKey, isRequired, description, sortOrder } = req.body;
+    const { tableName, fieldName, fieldLabel, dataType, length, decimals, isKey, isRequired, description, sortOrder, subObjectId } = req.body;
     if (!fieldName?.trim()) throw new ApiError(400, 'fieldName is required', 'MISSING_FIELD');
     const result = await db.query(
       `INSERT INTO data_definition_fields
-         (data_definition_id, table_name, field_name, field_label, data_type, length, decimals, is_key, is_required, description, sort_order)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+         (data_definition_id, sub_object_id, table_name, field_name, field_label, data_type, length, decimals, is_key, is_required, description, sort_order)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
        RETURNING *`,
-      [req.params.definitionId, tableName || null, fieldName.trim(), fieldLabel || null, dataType || null,
+      [req.params.definitionId, subObjectId || null, tableName || null, fieldName.trim(), fieldLabel || null, dataType || null,
        length || null, decimals || null, isKey || false, isRequired || false, description || null, sortOrder || 0]
     );
     res.status(201).json(formatSingleResponse(result.rows[0]));
@@ -143,13 +146,13 @@ router.post('/data-definitions/:definitionId/fields', requireAuth, requireRole('
 
 router.put('/data-definitions/fields/:fieldId', requireAuth, requireRole('analyst', 'admin'), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { tableName, fieldName, fieldLabel, dataType, length, decimals, isKey, isRequired, description, sortOrder } = req.body;
+    const { tableName, fieldName, fieldLabel, dataType, length, decimals, isKey, isRequired, description, sortOrder, subObjectId } = req.body;
     const result = await db.query(
       `UPDATE data_definition_fields
-       SET table_name=$1, field_name=$2, field_label=$3, data_type=$4, length=$5, decimals=$6,
-           is_key=$7, is_required=$8, description=$9, sort_order=$10, updated_at=CURRENT_TIMESTAMP
-       WHERE id=$11 RETURNING *`,
-      [tableName || null, fieldName || '', fieldLabel || null, dataType || null,
+       SET sub_object_id=$1, table_name=$2, field_name=$3, field_label=$4, data_type=$5, length=$6, decimals=$7,
+           is_key=$8, is_required=$9, description=$10, sort_order=$11, updated_at=CURRENT_TIMESTAMP
+       WHERE id=$12 RETURNING *`,
+      [subObjectId || null, tableName || null, fieldName || '', fieldLabel || null, dataType || null,
        length || null, decimals || null, isKey || false, isRequired || false, description || null, sortOrder || 0, req.params.fieldId]
     );
     if (!result.rows.length) throw new ApiError(404, 'Field not found', 'NOT_FOUND');
@@ -160,6 +163,54 @@ router.put('/data-definitions/fields/:fieldId', requireAuth, requireRole('analys
 router.delete('/data-definitions/fields/:fieldId', requireAuth, requireRole('analyst', 'admin'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     await db.query('DELETE FROM data_definition_fields WHERE id=$1', [req.params.fieldId]);
+    res.json({ success: true });
+  } catch (err) { next(err); }
+});
+
+// ── Sub-objects ───────────────────────────────────────────────────────────────
+
+router.get('/data-definitions/:definitionId/sub-objects', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const result = await db.query(
+      `SELECT id, data_definition_id, name, description, sort_order, created_at, updated_at
+       FROM data_definition_sub_objects
+       WHERE data_definition_id = $1
+       ORDER BY sort_order ASC, name ASC`,
+      [req.params.definitionId]
+    );
+    res.json(formatListResponse(result.rows, result.rows.length));
+  } catch (err) { next(err); }
+});
+
+router.post('/data-definitions/:definitionId/sub-objects', requireAuth, requireRole('analyst', 'admin'), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { name, description, sortOrder } = req.body;
+    if (!name?.trim()) throw new ApiError(400, 'Sub-object name is required', 'MISSING_FIELD');
+    const result = await db.query(
+      `INSERT INTO data_definition_sub_objects (data_definition_id, name, description, sort_order)
+       VALUES ($1, $2, $3, $4) RETURNING *`,
+      [req.params.definitionId, name.trim(), description || null, sortOrder || 0]
+    );
+    res.status(201).json(formatSingleResponse(result.rows[0]));
+  } catch (err) { next(err); }
+});
+
+router.put('/data-definitions/sub-objects/:subObjectId', requireAuth, requireRole('analyst', 'admin'), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { name, description, sortOrder } = req.body;
+    const result = await db.query(
+      `UPDATE data_definition_sub_objects SET name=$1, description=$2, sort_order=$3, updated_at=CURRENT_TIMESTAMP
+       WHERE id=$4 RETURNING *`,
+      [name || '', description || null, sortOrder || 0, req.params.subObjectId]
+    );
+    if (!result.rows.length) throw new ApiError(404, 'Sub-object not found', 'NOT_FOUND');
+    res.json(formatSingleResponse(result.rows[0]));
+  } catch (err) { next(err); }
+});
+
+router.delete('/data-definitions/sub-objects/:subObjectId', requireAuth, requireRole('analyst', 'admin'), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    await db.query('DELETE FROM data_definition_sub_objects WHERE id=$1', [req.params.subObjectId]);
     res.json({ success: true });
   } catch (err) { next(err); }
 });

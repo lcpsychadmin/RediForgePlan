@@ -377,10 +377,13 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   const [dataDefPanelObject, setDataDefPanelObject] = useState<any | null>(null);
   const [dataDefinitions, setDataDefinitions] = useState<any[]>([]);
   const [selectedDataDefId, setSelectedDataDefId] = useState<string | null>(null);
+  const [dataDefSubObjects, setDataDefSubObjects] = useState<any[]>([]);
   const [dataDefFields, setDataDefFields] = useState<any[]>([]);
-  const [addingField, setAddingField] = useState(false);
+  const [editingFieldRow, setEditingFieldRow] = useState<Record<string, any> | null>(null);
+  const [addingFieldToSubObj, setAddingFieldToSubObj] = useState<string | 'root' | null>(null);
   const [newField, setNewField] = useState({ tableName: '', fieldName: '', fieldLabel: '', dataType: '', length: '', decimals: '', isKey: false, isRequired: false, description: '' });
-  const [editingFieldId, setEditingFieldId] = useState<string | null>(null);
+  const [addingSubObj, setAddingSubObj] = useState(false);
+  const [newSubObjName, setNewSubObjName] = useState('');
   const [catalogObjectId, setCatalogObjectId] = useState('');
   const [catalogObjectDesc, setCatalogObjectDesc] = useState('');
   const [catalogProcessArea, setCatalogProcessArea] = useState('');
@@ -9837,9 +9840,245 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
       </Dialog>
 
       {/* ── Data Definitions Panel ──────────────────────────────────────────── */}
-      <Dialog open={!!dataDefPanelObjectId} onClose={() => { setDataDefPanelObjectId(null); setDataDefPanelObject(null); setSelectedDataDefId(null); setDataDefFields([]); setAddingField(false); }}
-        fullWidth maxWidth="lg"
-        PaperProps={{ sx: { borderRadius: 2, maxHeight: '92vh', display: 'flex', flexDirection: 'column' } }}>
+      <Dialog open={!!dataDefPanelObjectId} onClose={() => { setDataDefPanelObjectId(null); setDataDefPanelObject(null); setSelectedDataDefId(null); setDataDefFields([]); setDataDefSubObjects([]); setEditingFieldRow(null); setAddingFieldToSubObj(null); }}
+        fullWidth maxWidth="xl"
+        PaperProps={{ sx: { borderRadius: 2, maxHeight: '94vh', display: 'flex', flexDirection: 'column' } }}>
+        <DialogTitle sx={{ background: 'linear-gradient(135deg, #1a2c5a 0%, #0f1e40 100%)', borderBottom: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', pb: 1.5, flexShrink: 0 }}>
+          <Box>
+            <Typography sx={{ fontWeight: 700, fontSize: '1rem', fontFamily: 'monospace', color: '#DBE7FF' }}>{dataDefPanelObject?.objectId}</Typography>
+            <Typography variant="caption" color="text.secondary">Applications &amp; Data Definitions</Typography>
+          </Box>
+          <IconButton onClick={() => { setDataDefPanelObjectId(null); setDataDefPanelObject(null); setSelectedDataDefId(null); setDataDefFields([]); setDataDefSubObjects([]); setEditingFieldRow(null); setAddingFieldToSubObj(null); }} size="small"><CloseIcon /></IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ p: 0, display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+          {/* Left: application list */}
+          <Box sx={{ width: 240, flexShrink: 0, borderRight: '1px solid rgba(255,255,255,0.07)', display: 'flex', flexDirection: 'column', backgroundColor: 'rgba(0,0,0,0.15)' }}>
+            <Box sx={{ px: 1.5, py: 1, borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Typography sx={{ fontWeight: 700, fontSize: '0.78rem' }}>Applications</Typography>
+              <Box component="select" sx={{ fontSize: '0.7rem', backgroundColor: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 1, color: '#DBE7FF', px: 0.5, py: 0.3, cursor: 'pointer' }} value=""
+                onChange={async e => {
+                  const appId = e.target.value;
+                  if (!appId || !dataDefPanelObjectId) return;
+                  await apiClient.post('/api/applications/data-definitions', { globalObjectId: dataDefPanelObjectId, applicationId: appId }).catch(() => {});
+                  const r = await apiClient.get(`/api/applications/data-definitions/object/${dataDefPanelObjectId}`);
+                  setDataDefinitions(r.data.data || []);
+                }}>
+                <option value="">+ Link</option>
+                {applications.filter((a: any) => !dataDefinitions.some((d: any) => d.application_id === a.id)).map((a: any) => (
+                  <option key={a.id} value={a.id}>{a.name}</option>
+                ))}
+              </Box>
+            </Box>
+            <Box sx={{ flex: 1, overflowY: 'auto' }}>
+              {dataDefinitions.length === 0 && <Typography variant="caption" color="text.disabled" sx={{ p: 1.5, display: 'block' }}>No applications linked.</Typography>}
+              {dataDefinitions.map((dd: any) => (
+                <Box key={dd.id}
+                  onClick={() => {
+                    setSelectedDataDefId(dd.id);
+                    setEditingFieldRow(null);
+                    setAddingFieldToSubObj(null);
+                    Promise.all([
+                      apiClient.get(`/api/applications/data-definitions/${dd.id}/sub-objects`),
+                      apiClient.get(`/api/applications/data-definitions/${dd.id}/fields`),
+                    ]).then(([sr, fr]) => {
+                      setDataDefSubObjects(sr.data.data || []);
+                      setDataDefFields(fr.data.data || []);
+                    }).catch(() => {});
+                  }}
+                  sx={{ px: 1.5, py: 1, cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.04)', backgroundColor: selectedDataDefId === dd.id ? 'rgba(91,103,202,0.22)' : 'transparent', '&:hover': { backgroundColor: 'rgba(255,255,255,0.03)' }, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography sx={{ fontWeight: 600, fontSize: '0.8rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{dd.application_name}</Typography>
+                    {(dd.vendor || dd.version) && <Typography variant="caption" color="text.secondary">{[dd.vendor, dd.version].filter(Boolean).join(' ')}</Typography>}
+                  </Box>
+                  <IconButton size="small" onClick={async e => { e.stopPropagation(); await apiClient.delete(`/api/applications/data-definitions/${dd.id}`); setDataDefinitions(prev => prev.filter((d: any) => d.id !== dd.id)); if (selectedDataDefId === dd.id) { setSelectedDataDefId(null); setDataDefFields([]); setDataDefSubObjects([]); } }} sx={{ opacity: 0.4, flexShrink: 0, '&:hover': { opacity: 1, color: '#ef5350' } }}>
+                    <DeleteIcon sx={{ fontSize: '0.8rem' }} />
+                  </IconButton>
+                </Box>
+              ))}
+            </Box>
+          </Box>
+
+          {/* Right: definition content */}
+          <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            {!selectedDataDefId ? (
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1 }}>
+                <Typography color="text.disabled" variant="body2">Select an application to manage its data definition</Typography>
+              </Box>
+            ) : (
+              <>
+                {/* Sub-objects header */}
+                <Box sx={{ px: 2, py: 0.75, borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', flexShrink: 0 }}>
+                  <Typography sx={{ fontWeight: 700, fontSize: '0.78rem', color: 'text.secondary', mr: 0.5 }}>Sub-objects:</Typography>
+                  {dataDefSubObjects.map((so: any) => (
+                    <Box key={so.id} sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.25, px: 0.75, py: 0.2, borderRadius: 1, backgroundColor: 'rgba(91,103,202,0.15)', border: '1px solid rgba(91,103,202,0.3)', fontSize: '0.72rem' }}>
+                      <span style={{ fontFamily: 'monospace', fontWeight: 700 }}>{so.name}</span>
+                      <IconButton size="small" sx={{ p: 0, ml: 0.25, opacity: 0.5, '&:hover': { opacity: 1, color: '#ef5350' } }} onClick={async () => {
+                        await apiClient.delete(`/api/applications/data-definitions/sub-objects/${so.id}`);
+                        setDataDefSubObjects(prev => prev.filter((s: any) => s.id !== so.id));
+                        setDataDefFields(prev => prev.filter((f: any) => f.sub_object_id !== so.id));
+                      }}><CloseIcon sx={{ fontSize: '0.7rem' }} /></IconButton>
+                    </Box>
+                  ))}
+                  {addingSubObj ? (
+                    <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
+                      <input autoFocus value={newSubObjName} onChange={e => setNewSubObjName(e.target.value)}
+                        onKeyDown={async e => {
+                          if (e.key === 'Enter' && newSubObjName.trim()) {
+                            const res = await apiClient.post(`/api/applications/data-definitions/${selectedDataDefId}/sub-objects`, { name: newSubObjName.trim(), sortOrder: dataDefSubObjects.length });
+                            setDataDefSubObjects(prev => [...prev, res.data.data]);
+                            setNewSubObjName(''); setAddingSubObj(false);
+                          } else if (e.key === 'Escape') { setAddingSubObj(false); setNewSubObjName(''); }
+                        }}
+                        style={{ fontSize: '0.75rem', fontFamily: 'monospace', fontWeight: 700, width: 120, padding: '2px 6px', borderRadius: 4, border: '1px solid rgba(91,103,202,0.5)', backgroundColor: 'rgba(0,0,0,0.3)', color: '#DBE7FF' }} placeholder="Name + Enter" />
+                      <IconButton size="small" sx={{ p: 0.2 }} onClick={() => { setAddingSubObj(false); setNewSubObjName(''); }}><CloseIcon sx={{ fontSize: '0.75rem' }} /></IconButton>
+                    </Box>
+                  ) : (
+                    <Box component="button" onClick={() => setAddingSubObj(true)} sx={{ fontSize: '0.7rem', px: 0.75, py: 0.2, borderRadius: 1, border: '1px dashed rgba(255,255,255,0.2)', backgroundColor: 'transparent', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', '&:hover': { borderColor: 'rgba(255,255,255,0.5)', color: 'white' } }}>+ Add Sub-object</Box>
+                  )}
+                </Box>
+
+                {/* Field table */}
+                <Box sx={{ flex: 1, overflowY: 'auto' }}>
+                  {(() => {
+                    const hasSubObjects = dataDefSubObjects.length > 0;
+                    const sections: { label: string | null; subObjId: string | null; fields: any[] }[] = hasSubObjects
+                      ? [
+                          ...dataDefSubObjects.map((so: any) => ({ label: so.name, subObjId: so.id, fields: dataDefFields.filter((f: any) => f.sub_object_id === so.id) })),
+                          { label: 'Unassigned', subObjId: null, fields: dataDefFields.filter((f: any) => !f.sub_object_id) },
+                        ]
+                      : [{ label: null, subObjId: null, fields: dataDefFields }];
+
+                    const addFieldRow = (subObjId: string | null) => {
+                      const key = subObjId || 'root';
+                      if (addingFieldToSubObj === key) return (
+                        <Box component="tr" key="add-row" sx={{ backgroundColor: 'rgba(91,103,202,0.1)' }}>
+                          {['table_name', 'field_name', 'field_label', 'data_type', 'length', 'decimals'].map(col => (
+                            <Box component="td" key={col} sx={{ px: 0.75, py: 0.5 }}>
+                              <input value={(newField as any)[col === 'table_name' ? 'tableName' : col === 'field_name' ? 'fieldName' : col === 'field_label' ? 'fieldLabel' : col === 'data_type' ? 'dataType' : col] || ''}
+                                onChange={e => setNewField(p => ({ ...p, [col === 'table_name' ? 'tableName' : col === 'field_name' ? 'fieldName' : col === 'field_label' ? 'fieldLabel' : col === 'data_type' ? 'dataType' : col]: e.target.value }))}
+                                style={{ width: '100%', fontSize: '0.75rem', fontFamily: ['field_name', 'table_name'].includes(col) ? 'monospace' : 'inherit', padding: '2px 4px', borderRadius: 3, border: '1px solid rgba(255,255,255,0.2)', backgroundColor: 'rgba(0,0,0,0.3)', color: '#DBE7FF', boxSizing: 'border-box' }} />
+                            </Box>
+                          ))}
+                          <Box component="td" sx={{ px: 0.75, py: 0.5, textAlign: 'center' }}>
+                            <input type="checkbox" checked={newField.isKey} onChange={e => setNewField(p => ({ ...p, isKey: e.target.checked }))} style={{ cursor: 'pointer' }} />
+                          </Box>
+                          <Box component="td" sx={{ px: 0.75, py: 0.5, textAlign: 'center' }}>
+                            <input type="checkbox" checked={newField.isRequired} onChange={e => setNewField(p => ({ ...p, isRequired: e.target.checked }))} style={{ cursor: 'pointer' }} />
+                          </Box>
+                          <Box component="td" sx={{ px: 0.75, py: 0.5 }}>
+                            <input value={newField.description} onChange={e => setNewField(p => ({ ...p, description: e.target.value }))}
+                              style={{ width: '100%', fontSize: '0.75rem', padding: '2px 4px', borderRadius: 3, border: '1px solid rgba(255,255,255,0.2)', backgroundColor: 'rgba(0,0,0,0.3)', color: '#DBE7FF', boxSizing: 'border-box' }} />
+                          </Box>
+                          <Box component="td" sx={{ px: 0.5, py: 0.5, whiteSpace: 'nowrap' }}>
+                            <IconButton size="small" disabled={!newField.fieldName.trim()} sx={{ p: 0.3, color: '#66bb6a' }} onClick={async () => {
+                              const res = await apiClient.post(`/api/applications/data-definitions/${selectedDataDefId}/fields`, { ...newField, length: newField.length ? parseInt(newField.length) : null, decimals: newField.decimals ? parseInt(newField.decimals) : null, subObjectId: subObjId, sortOrder: dataDefFields.filter((f: any) => f.sub_object_id === subObjId).length }).catch(() => null);
+                              if (res) { setDataDefFields(prev => [...prev, res.data.data]); setAddingFieldToSubObj(null); setNewField({ tableName: '', fieldName: '', fieldLabel: '', dataType: '', length: '', decimals: '', isKey: false, isRequired: false, description: '' }); }
+                            }}><SaveIcon sx={{ fontSize: '0.9rem' }} /></IconButton>
+                            <IconButton size="small" sx={{ p: 0.3 }} onClick={() => setAddingFieldToSubObj(null)}><CloseIcon sx={{ fontSize: '0.9rem' }} /></IconButton>
+                          </Box>
+                        </Box>
+                      );
+                      return null;
+                    };
+
+                    const TH = ({ children }: { children: React.ReactNode }) => (
+                      <Box component="th" sx={{ px: 1, py: 0.6, textAlign: 'left', fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.07em', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', backgroundColor: 'rgba(0,0,0,0.25)', whiteSpace: 'nowrap', borderBottom: '1px solid rgba(255,255,255,0.08)', position: 'sticky', top: 0, zIndex: 1 }}>{children}</Box>
+                    );
+
+                    return (
+                      <Box component="table" sx={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
+                        <Box component="thead">
+                          <Box component="tr">
+                            <TH>Table</TH><TH>Field Name</TH><TH>Label</TH><TH>Type</TH><TH>Len</TH><TH>Dec</TH><TH>Key</TH><TH>Req</TH><TH>Description</TH><TH></TH>
+                          </Box>
+                        </Box>
+                        <Box component="tbody">
+                          {sections.map(({ label, subObjId, fields }) => (
+                            <React.Fragment key={subObjId || '__root__'}>
+                              {/* Sub-object section header */}
+                              {label && (
+                                <Box component="tr">
+                                  <Box component="td" colSpan={10} sx={{ px: 1, py: 0.5, backgroundColor: 'rgba(91,103,202,0.12)', borderTop: '1px solid rgba(91,103,202,0.25)', borderBottom: '1px solid rgba(91,103,202,0.15)' }}>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                      <Typography sx={{ fontFamily: 'monospace', fontWeight: 800, fontSize: '0.75rem', color: '#8EA3CB' }}>{label}</Typography>
+                                      <Box component="button" onClick={() => { setAddingFieldToSubObj(subObjId || 'root'); setNewField({ tableName: '', fieldName: '', fieldLabel: '', dataType: '', length: '', decimals: '', isKey: false, isRequired: false, description: '' }); }}
+                                        sx={{ fontSize: '0.65rem', px: 0.6, py: 0.1, borderRadius: 1, border: '1px dashed rgba(255,255,255,0.2)', backgroundColor: 'transparent', color: 'rgba(255,255,255,0.45)', cursor: 'pointer', '&:hover': { borderColor: 'white', color: 'white' } }}>+ Add Field</Box>
+                                    </Box>
+                                  </Box>
+                                </Box>
+                              )}
+                              {!label && (
+                                <Box component="tr">
+                                  <Box component="td" colSpan={10} sx={{ px: 1, py: 0.4, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                                    <Box component="button" onClick={() => { setAddingFieldToSubObj('root'); setNewField({ tableName: '', fieldName: '', fieldLabel: '', dataType: '', length: '', decimals: '', isKey: false, isRequired: false, description: '' }); }}
+                                      sx={{ fontSize: '0.7rem', px: 0.75, py: 0.2, borderRadius: 1, border: '1px dashed rgba(255,255,255,0.15)', backgroundColor: 'transparent', color: 'rgba(255,255,255,0.4)', cursor: 'pointer', '&:hover': { borderColor: 'white', color: 'white' } }}>+ Add Field</Box>
+                                  </Box>
+                                </Box>
+                              )}
+                              {addFieldRow(subObjId)}
+                              {fields.map((f: any) => (
+                                editingFieldRow?.id === f.id ? (
+                                  <Box component="tr" key={f.id} sx={{ backgroundColor: 'rgba(91,103,202,0.08)' }}>
+                                    {['table_name', 'field_name', 'field_label', 'data_type', 'length', 'decimals'].map(col => {
+                                      const stateKey = col === 'table_name' ? 'table_name' : col;
+                                      return (
+                                        <Box component="td" key={col} sx={{ px: 0.75, py: 0.4 }}>
+                                          <input value={editingFieldRow[col] ?? ''}
+                                            onChange={e => setEditingFieldRow((p: any) => ({ ...p, [col]: e.target.value }))}
+                                            style={{ width: '100%', fontSize: '0.75rem', fontFamily: ['field_name', 'table_name'].includes(col) ? 'monospace' : 'inherit', padding: '2px 4px', borderRadius: 3, border: '1px solid rgba(91,103,202,0.4)', backgroundColor: 'rgba(0,0,0,0.3)', color: '#DBE7FF', boxSizing: 'border-box' }} />
+                                        </Box>
+                                      );
+                                    })}
+                                    <Box component="td" sx={{ px: 0.75, textAlign: 'center' }}>
+                                      <input type="checkbox" checked={!!editingFieldRow.is_key} onChange={e => setEditingFieldRow((p: any) => ({ ...p, is_key: e.target.checked }))} style={{ cursor: 'pointer' }} />
+                                    </Box>
+                                    <Box component="td" sx={{ px: 0.75, textAlign: 'center' }}>
+                                      <input type="checkbox" checked={!!editingFieldRow.is_required} onChange={e => setEditingFieldRow((p: any) => ({ ...p, is_required: e.target.checked }))} style={{ cursor: 'pointer' }} />
+                                    </Box>
+                                    <Box component="td" sx={{ px: 0.75 }}>
+                                      <input value={editingFieldRow.description ?? ''} onChange={e => setEditingFieldRow((p: any) => ({ ...p, description: e.target.value }))}
+                                        style={{ width: '100%', fontSize: '0.75rem', padding: '2px 4px', borderRadius: 3, border: '1px solid rgba(91,103,202,0.4)', backgroundColor: 'rgba(0,0,0,0.3)', color: '#DBE7FF', boxSizing: 'border-box' }} />
+                                    </Box>
+                                    <Box component="td" sx={{ px: 0.5, whiteSpace: 'nowrap' }}>
+                                      <IconButton size="small" sx={{ p: 0.3, color: '#66bb6a' }} onClick={async () => {
+                                        await apiClient.put(`/api/applications/data-definitions/fields/${f.id}`, { tableName: editingFieldRow.table_name, fieldName: editingFieldRow.field_name, fieldLabel: editingFieldRow.field_label, dataType: editingFieldRow.data_type, length: editingFieldRow.length, decimals: editingFieldRow.decimals, isKey: editingFieldRow.is_key, isRequired: editingFieldRow.is_required, description: editingFieldRow.description, sortOrder: f.sort_order, subObjectId: f.sub_object_id });
+                                        setDataDefFields(prev => prev.map((ff: any) => ff.id === f.id ? { ...ff, ...editingFieldRow } : ff));
+                                        setEditingFieldRow(null);
+                                      }}><SaveIcon sx={{ fontSize: '0.9rem' }} /></IconButton>
+                                      <IconButton size="small" sx={{ p: 0.3 }} onClick={() => setEditingFieldRow(null)}><CloseIcon sx={{ fontSize: '0.9rem' }} /></IconButton>
+                                    </Box>
+                                  </Box>
+                                ) : (
+                                  <Box component="tr" key={f.id} onClick={() => setEditingFieldRow({ ...f })}
+                                    sx={{ borderBottom: '1px solid rgba(255,255,255,0.03)', cursor: 'pointer', '&:hover': { backgroundColor: 'rgba(255,255,255,0.04)' } }}>
+                                    {[f.table_name, f.field_name, f.field_label, f.data_type, f.length, f.decimals].map((val: any, ci: number) => (
+                                      <Box component="td" key={ci} sx={{ px: 1, py: 0.65, color: ci === 1 ? '#DBE7FF' : 'text.secondary', fontFamily: ci <= 1 ? 'monospace' : 'inherit', fontWeight: ci === 1 ? 600 : 400, whiteSpace: 'nowrap' }}>{val ?? '—'}</Box>
+                                    ))}
+                                    <Box component="td" sx={{ px: 1, py: 0.65, textAlign: 'center' }}>{f.is_key ? <Box component="span" sx={{ color: '#ffa726', fontWeight: 700 }}>●</Box> : <Box component="span" sx={{ color: 'rgba(255,255,255,0.15)' }}>○</Box>}</Box>
+                                    <Box component="td" sx={{ px: 1, py: 0.65, textAlign: 'center' }}>{f.is_required ? <Box component="span" sx={{ color: '#ef5350', fontWeight: 700 }}>●</Box> : <Box component="span" sx={{ color: 'rgba(255,255,255,0.15)' }}>○</Box>}</Box>
+                                    <Box component="td" sx={{ px: 1, py: 0.65, color: 'text.disabled', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.description || '—'}</Box>
+                                    <Box component="td" sx={{ px: 0.5, py: 0.65, whiteSpace: 'nowrap' }} onClick={e => e.stopPropagation()}>
+                                      <IconButton size="small" onClick={async () => { await apiClient.delete(`/api/applications/data-definitions/fields/${f.id}`); setDataDefFields(prev => prev.filter((ff: any) => ff.id !== f.id)); }} sx={{ p: 0.25, opacity: 0.4, '&:hover': { opacity: 1, color: '#ef5350' } }}><DeleteIcon sx={{ fontSize: '0.8rem' }} /></IconButton>
+                                    </Box>
+                                  </Box>
+                                )
+                              ))}
+                            </React.Fragment>
+                          ))}
+                        </Box>
+                      </Box>
+                    );
+                  })()}
+                </Box>
+                <Box sx={{ px: 2, py: 0.75, borderTop: '1px solid rgba(255,255,255,0.06)', flexShrink: 0 }}>
+                  <Typography variant="caption" color="text.disabled">Click any row to edit inline. Click row again or Escape to cancel.</Typography>
+                </Box>
+              </>
+            )}
+          </Box>
+        </DialogContent>
+      </Dialog>
+    </Layout>
         <DialogTitle sx={{ background: 'linear-gradient(135deg, #1a2c5a 0%, #0f1e40 100%)', borderBottom: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', pb: 1.5 }}>
           <Box>
             <Typography sx={{ fontWeight: 700, fontSize: '1rem', fontFamily: 'monospace', color: '#DBE7FF' }}>{dataDefPanelObject?.objectId}</Typography>
