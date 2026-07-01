@@ -384,6 +384,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
   const [newField, setNewField] = useState({ tableName: '', fieldName: '', fieldLabel: '', dataType: '', length: '', decimals: '', isKey: false, isRequired: false, description: '' });
   const [addingSubObj, setAddingSubObj] = useState(false);
   const [newSubObjName, setNewSubObjName] = useState('');
+  const [collapsedSubObjs, setCollapsedSubObjs] = useState<Set<string>>(new Set());
+  const [editingSubObjId, setEditingSubObjId] = useState<string | null>(null);
+  const [editingSubObjName, setEditingSubObjName] = useState('');
   const [catalogObjectId, setCatalogObjectId] = useState('');
   const [catalogObjectDesc, setCatalogObjectDesc] = useState('');
   const [catalogProcessArea, setCatalogProcessArea] = useState('');
@@ -9840,9 +9843,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
       </Dialog>
 
       {/* ── Data Definitions Panel ──────────────────────────────────────────── */}
-      <Dialog open={!!dataDefPanelObjectId} onClose={() => { setDataDefPanelObjectId(null); setDataDefPanelObject(null); setSelectedDataDefId(null); setDataDefFields([]); setDataDefSubObjects([]); setEditingFieldRow(null); setAddingFieldToSubObj(null); }}
+      <Dialog open={!!dataDefPanelObjectId} onClose={() => { setDataDefPanelObjectId(null); setDataDefPanelObject(null); setSelectedDataDefId(null); setDataDefFields([]); setDataDefSubObjects([]); setEditingFieldRow(null); setAddingFieldToSubObj(null); setCollapsedSubObjs(new Set()); setEditingSubObjId(null); }}
         fullWidth maxWidth="xl"
-        PaperProps={{ sx: { borderRadius: 2, maxHeight: '94vh', display: 'flex', flexDirection: 'column' } }}>
+        PaperProps={{ sx: { borderRadius: 2, maxHeight: '94vh', display: 'flex', flexDirection: 'column', background: 'linear-gradient(160deg, #141e35 0%, #0c1527 100%)', border: '1px solid rgba(255,255,255,0.1)' } }}>
         <DialogTitle sx={{ background: 'linear-gradient(135deg, #1a2c5a 0%, #0f1e40 100%)', borderBottom: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', pb: 1.5, flexShrink: 0 }}>
           <Box>
             <Typography sx={{ fontWeight: 700, fontSize: '1rem', fontFamily: 'monospace', color: '#DBE7FF' }}>{dataDefPanelObject?.objectId}</Typography>
@@ -9852,7 +9855,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
         </DialogTitle>
         <DialogContent sx={{ p: 0, display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden' }}>
           {/* Left: application list */}
-          <Box sx={{ width: 240, flexShrink: 0, borderRight: '1px solid rgba(255,255,255,0.07)', display: 'flex', flexDirection: 'column', backgroundColor: 'rgba(0,0,0,0.15)' }}>
+          <Box sx={{ width: 240, flexShrink: 0, borderRight: '1px solid rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column', backgroundColor: 'rgba(0,0,0,0.2)' }}>
             <Box sx={{ px: 1.5, py: 1, borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <Typography sx={{ fontWeight: 700, fontSize: '0.78rem' }}>Applications</Typography>
               <Box component="select" sx={{ fontSize: '0.7rem', backgroundColor: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 1, color: '#DBE7FF', px: 0.5, py: 0.3, cursor: 'pointer' }} value=""
@@ -9906,19 +9909,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
               </Box>
             ) : (
               <>
-                {/* Sub-objects header */}
-                <Box sx={{ px: 2, py: 0.75, borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', flexShrink: 0 }}>
-                  <Typography sx={{ fontWeight: 700, fontSize: '0.78rem', color: 'text.secondary', mr: 0.5 }}>Sub-objects:</Typography>
-                  {dataDefSubObjects.map((so: any) => (
-                    <Box key={so.id} sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.25, px: 0.75, py: 0.2, borderRadius: 1, backgroundColor: 'rgba(91,103,202,0.15)', border: '1px solid rgba(91,103,202,0.3)', fontSize: '0.72rem' }}>
-                      <span style={{ fontFamily: 'monospace', fontWeight: 700 }}>{so.name}</span>
-                      <IconButton size="small" sx={{ p: 0, ml: 0.25, opacity: 0.5, '&:hover': { opacity: 1, color: '#ef5350' } }} onClick={async () => {
-                        await apiClient.delete(`/api/applications/data-definitions/sub-objects/${so.id}`);
-                        setDataDefSubObjects(prev => prev.filter((s: any) => s.id !== so.id));
-                        setDataDefFields(prev => prev.filter((f: any) => f.sub_object_id !== so.id));
-                      }}><CloseIcon sx={{ fontSize: '0.7rem' }} /></IconButton>
-                    </Box>
-                  ))}
+                {/* Sub-objects toolbar */}
+                <Box sx={{ px: 2, py: 0.6, borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0, backgroundColor: 'rgba(255,255,255,0.02)' }}>
+                  <Typography sx={{ fontWeight: 700, fontSize: '0.72rem', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Sub-objects</Typography>
+                  <Box sx={{ flex: 1 }} />
                   {addingSubObj ? (
                     <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
                       <input autoFocus value={newSubObjName} onChange={e => setNewSubObjName(e.target.value)}
@@ -9929,11 +9923,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                             setNewSubObjName(''); setAddingSubObj(false);
                           } else if (e.key === 'Escape') { setAddingSubObj(false); setNewSubObjName(''); }
                         }}
-                        style={{ fontSize: '0.75rem', fontFamily: 'monospace', fontWeight: 700, width: 120, padding: '2px 6px', borderRadius: 4, border: '1px solid rgba(91,103,202,0.5)', backgroundColor: 'rgba(0,0,0,0.3)', color: '#DBE7FF' }} placeholder="Name + Enter" />
+                        style={{ fontSize: '0.75rem', fontFamily: 'monospace', fontWeight: 700, width: 130, padding: '2px 6px', borderRadius: 4, border: '1px solid rgba(91,103,202,0.5)', backgroundColor: 'rgba(0,0,0,0.3)', color: '#DBE7FF' }} placeholder="Name + Enter" />
                       <IconButton size="small" sx={{ p: 0.2 }} onClick={() => { setAddingSubObj(false); setNewSubObjName(''); }}><CloseIcon sx={{ fontSize: '0.75rem' }} /></IconButton>
                     </Box>
                   ) : (
-                    <Box component="button" onClick={() => setAddingSubObj(true)} sx={{ fontSize: '0.7rem', px: 0.75, py: 0.2, borderRadius: 1, border: '1px dashed rgba(255,255,255,0.2)', backgroundColor: 'transparent', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', '&:hover': { borderColor: 'rgba(255,255,255,0.5)', color: 'white' } }}>+ Add Sub-object</Box>
+                    <Box component="button" onClick={() => setAddingSubObj(true)} sx={{ fontSize: '0.7rem', px: 0.9, py: 0.3, borderRadius: 1, border: '1px dashed rgba(255,255,255,0.25)', backgroundColor: 'transparent', color: 'rgba(255,255,255,0.55)', cursor: 'pointer', '&:hover': { borderColor: 'rgba(255,255,255,0.6)', color: 'white' } }}>+ Add Sub-object</Box>
                   )}
                 </Box>
 
@@ -9981,8 +9975,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                       return null;
                     };
 
+                    const toggleCollapse = (id: string) => setCollapsedSubObjs(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
+
                     const TH = ({ children }: { children: React.ReactNode }) => (
-                      <Box component="th" sx={{ px: 1, py: 0.6, textAlign: 'left', fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.07em', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', backgroundColor: 'rgba(0,0,0,0.25)', whiteSpace: 'nowrap', borderBottom: '1px solid rgba(255,255,255,0.08)', position: 'sticky', top: 0, zIndex: 1 }}>{children}</Box>
+                      <Box component="th" sx={{ px: 1, py: 0.6, textAlign: 'left', fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.07em', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', backgroundColor: 'rgba(255,255,255,0.04)', whiteSpace: 'nowrap', borderBottom: '1px solid rgba(255,255,255,0.09)', position: 'sticky', top: 0, zIndex: 1 }}>{children}</Box>
                     );
 
                     return (
@@ -9993,16 +9989,58 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                           </Box>
                         </Box>
                         <Box component="tbody">
-                          {sections.map(({ label, subObjId, fields }) => (
-                            <React.Fragment key={subObjId || '__root__'}>
+                          {sections.map(({ label, subObjId, fields }) => {
+                            const sectionKey = subObjId || '__root__';
+                            const isCollapsed = subObjId ? collapsedSubObjs.has(subObjId) : false;
+                            return (
+                            <React.Fragment key={sectionKey}>
                               {/* Sub-object section header */}
                               {label && (
                                 <Box component="tr">
-                                  <Box component="td" colSpan={10} sx={{ px: 1, py: 0.5, backgroundColor: 'rgba(91,103,202,0.12)', borderTop: '1px solid rgba(91,103,202,0.25)', borderBottom: '1px solid rgba(91,103,202,0.15)' }}>
-                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                      <Typography sx={{ fontFamily: 'monospace', fontWeight: 800, fontSize: '0.75rem', color: '#8EA3CB' }}>{label}</Typography>
-                                      <Box component="button" onClick={() => { setAddingFieldToSubObj(subObjId || 'root'); setNewField({ tableName: '', fieldName: '', fieldLabel: '', dataType: '', length: '', decimals: '', isKey: false, isRequired: false, description: '' }); }}
-                                        sx={{ fontSize: '0.65rem', px: 0.6, py: 0.1, borderRadius: 1, border: '1px dashed rgba(255,255,255,0.2)', backgroundColor: 'transparent', color: 'rgba(255,255,255,0.45)', cursor: 'pointer', '&:hover': { borderColor: 'white', color: 'white' } }}>+ Add Field</Box>
+                                  <Box component="td" colSpan={10} sx={{ px: 1, py: 0, backgroundColor: 'rgba(255,255,255,0.05)', borderTop: '1px solid rgba(255,255,255,0.1)', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minHeight: 32 }}>
+                                      <IconButton size="small" sx={{ p: 0.3, color: 'rgba(255,255,255,0.5)', '&:hover': { color: 'white' } }} onClick={() => toggleCollapse(subObjId!)}>
+                                        {isCollapsed
+                                          ? <ChevronRightIcon sx={{ fontSize: '1rem' }} />
+                                          : <ExpandMoreIcon sx={{ fontSize: '1rem' }} />}
+                                      </IconButton>
+                                      {editingSubObjId === subObjId ? (
+                                        <>
+                                          <input autoFocus value={editingSubObjName} onChange={e => setEditingSubObjName(e.target.value)}
+                                            onKeyDown={async e => {
+                                              if (e.key === 'Enter' && editingSubObjName.trim()) {
+                                                await apiClient.put(`/api/applications/data-definitions/sub-objects/${subObjId}`, { name: editingSubObjName.trim() });
+                                                setDataDefSubObjects(prev => prev.map((s: any) => s.id === subObjId ? { ...s, name: editingSubObjName.trim() } : s));
+                                                setEditingSubObjId(null);
+                                              } else if (e.key === 'Escape') { setEditingSubObjId(null); }
+                                            }}
+                                            style={{ fontSize: '0.78rem', fontFamily: 'monospace', fontWeight: 800, width: 140, padding: '2px 6px', borderRadius: 4, border: '1px solid rgba(91,103,202,0.5)', backgroundColor: 'rgba(0,0,0,0.3)', color: '#DBE7FF' }} />
+                                          <IconButton size="small" sx={{ p: 0.2 }} onClick={async () => {
+                                            if (editingSubObjName.trim()) {
+                                              await apiClient.put(`/api/applications/data-definitions/sub-objects/${subObjId}`, { name: editingSubObjName.trim() });
+                                              setDataDefSubObjects(prev => prev.map((s: any) => s.id === subObjId ? { ...s, name: editingSubObjName.trim() } : s));
+                                            }
+                                            setEditingSubObjId(null);
+                                          }}><SaveIcon sx={{ fontSize: '0.85rem', color: '#66bb6a' }} /></IconButton>
+                                          <IconButton size="small" sx={{ p: 0.2 }} onClick={() => setEditingSubObjId(null)}><CloseIcon sx={{ fontSize: '0.8rem' }} /></IconButton>
+                                        </>
+                                      ) : (
+                                        <Typography sx={{ fontFamily: 'monospace', fontWeight: 800, fontSize: '0.78rem', color: '#A8BCDB', flex: 1 }}>{label}</Typography>
+                                      )}
+                                      {editingSubObjId !== subObjId && (
+                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, ml: 'auto' }}>
+                                          <Box component="button" onClick={() => { setAddingFieldToSubObj(subObjId || 'root'); setNewField({ tableName: '', fieldName: '', fieldLabel: '', dataType: '', length: '', decimals: '', isKey: false, isRequired: false, description: '' }); }}
+                                            sx={{ fontSize: '0.65rem', px: 0.6, py: 0.2, borderRadius: 1, border: '1px dashed rgba(255,255,255,0.2)', backgroundColor: 'transparent', color: 'rgba(255,255,255,0.45)', cursor: 'pointer', '&:hover': { borderColor: 'white', color: 'white' } }}>+ Add Field</Box>
+                                          <IconButton size="small" sx={{ p: 0.3, opacity: 0.55, '&:hover': { opacity: 1, color: '#90caf9' } }} onClick={() => { setEditingSubObjId(subObjId!); setEditingSubObjName(label); }}>
+                                            <EditIcon sx={{ fontSize: '0.8rem' }} />
+                                          </IconButton>
+                                          <IconButton size="small" sx={{ p: 0.3, opacity: 0.45, '&:hover': { opacity: 1, color: '#ef5350' } }} onClick={async () => {
+                                            await apiClient.delete(`/api/applications/data-definitions/sub-objects/${subObjId}`);
+                                            setDataDefSubObjects(prev => prev.filter((s: any) => s.id !== subObjId));
+                                            setDataDefFields(prev => prev.filter((f: any) => f.sub_object_id !== subObjId));
+                                          }}><DeleteIcon sx={{ fontSize: '0.8rem' }} /></IconButton>
+                                        </Box>
+                                      )}
                                     </Box>
                                   </Box>
                                 </Box>
@@ -10015,8 +10053,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                   </Box>
                                 </Box>
                               )}
-                              {addFieldRow(subObjId)}
-                              {fields.map((f: any) => (
+                              {!isCollapsed && addFieldRow(subObjId)}
+                              {!isCollapsed && fields.map((f: any) => (
                                 editingFieldRow?.id === f.id ? (
                                   <Box component="tr" key={f.id} sx={{ backgroundColor: 'rgba(91,103,202,0.08)' }}>
                                     {['table_name', 'field_name', 'field_label', 'data_type', 'length', 'decimals'].map(col => {
@@ -10064,7 +10102,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution' }
                                 )
                               ))}
                             </React.Fragment>
-                          ))}
+                            );
+                          })}
                         </Box>
                       </Box>
                     );
