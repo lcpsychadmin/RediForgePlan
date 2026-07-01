@@ -2450,7 +2450,15 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
           })
         );
 
-        setCycleScheduleItems(all.flat());
+        // Deduplicate schedule items by composite key (objectId + projectId + cycleId)
+        const seen = new Set<string>();
+        const deduped = all.flat().filter(item => {
+          const key = `${item.scheduleEntityType}:${item.id || item.taskGroupName}:${item.projectId}:${item.cycleId || ''}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+        setCycleScheduleItems(deduped);
       } finally {
         setIsLoadingCycleSchedule(false);
       }

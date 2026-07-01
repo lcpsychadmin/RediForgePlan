@@ -22,6 +22,7 @@ import AssignmentTurnedInIcon from '@mui/icons-material/AssignmentTurnedIn';
 import MenuIcon from '@mui/icons-material/Menu';
 import TimelineIcon from '@mui/icons-material/Timeline';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
+import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import apiClient from '../api/client';
@@ -69,6 +70,7 @@ const TopNav: React.FC<TopNavProps> = ({
   const location = useLocation();
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
   const [notifAnchorEl, setNotifAnchorEl] = React.useState<null | HTMLElement>(null);
+  const [workspaceAnchorEl, setWorkspaceAnchorEl] = React.useState<null | HTMLElement>(null);
   const [notifications, setNotifications] = React.useState<any[]>([]);
   const [unreadCount, setUnreadCount] = React.useState(0);
   const unopenedCount = React.useMemo(() => {
@@ -180,12 +182,34 @@ const TopNav: React.FC<TopNavProps> = ({
           <>
             {/* Projects Page Header */}
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-              {/* Icon and Title */}
+              {/* Icon and Title — click to open workspace switcher */}
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
                 <CompareArrowsIcon sx={{ fontSize: '1.4rem', color: 'secondary.light' }} />
-                <Typography variant="h6" sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>
+                <Button
+                  onClick={e => setWorkspaceAnchorEl(e.currentTarget)}
+                  endIcon={<KeyboardArrowDownIcon sx={{ fontSize: '1rem !important', opacity: 0.7 }} />}
+                  sx={{ textTransform: 'none', color: 'white', fontWeight: 700, fontSize: '1.15rem', p: 0, minWidth: 0, '&:hover': { backgroundColor: 'transparent', opacity: 0.85 } }}
+                >
                   {sectionTitle}
-                </Typography>
+                </Button>
+                <Menu anchorEl={workspaceAnchorEl} open={Boolean(workspaceAnchorEl)} onClose={() => setWorkspaceAnchorEl(null)}
+                  PaperProps={{ sx: { mt: 1, minWidth: 200 } }}>
+                  {[
+                    { label: 'Dashboard', icon: <DashboardIcon fontSize="small" />, path: '/dashboard' },
+                    { label: 'Planning', icon: <ArchitectureIcon fontSize="small" />, path: '/planning/strategy' },
+                    { label: 'Execution', icon: <FolderOpenIcon fontSize="small" />, path: '/projects' },
+                    { label: 'Design', icon: <DesignServicesIcon fontSize="small" />, path: null },
+                    { label: 'Build', icon: <ConstructionIcon fontSize="small" />, path: null },
+                  ].map(item => (
+                    <MenuItem key={item.label} disabled={!item.path}
+                      selected={!!item.path && isActive(item.path)}
+                      onClick={() => { if (item.path) { navigate(item.path); setWorkspaceAnchorEl(null); } }}
+                      sx={{ display: 'flex', gap: 1, opacity: item.path ? 1 : 0.5 }}>
+                      {item.icon}
+                      <Typography variant="body2">{item.label}{!item.path ? ' (Coming Soon)' : ''}</Typography>
+                    </MenuItem>
+                  ))}
+                </Menu>
               </Box>
 
               {/* Stats Divider */}
@@ -338,44 +362,7 @@ const TopNav: React.FC<TopNavProps> = ({
 
             <Divider sx={{ my: 1 }} />
 
-            {/* Navigation */}
-            <MenuItem
-              onClick={() => handleNavigate('/dashboard')}
-              selected={isActive('/dashboard')}
-              sx={{ display: 'flex', gap: 1 }}
-            >
-              <DashboardIcon fontSize="small" />
-              <Typography variant="body2">Dashboard</Typography>
-            </MenuItem>
-
-            <MenuItem
-              onClick={() => handleNavigate('/projects')}
-              selected={isActive('/projects')}
-              sx={{ display: 'flex', gap: 1 }}
-            >
-              <FolderOpenIcon fontSize="small" />
-              <Typography variant="body2">Execution</Typography>
-            </MenuItem>
-
-            <MenuItem
-              onClick={() => handleNavigate('/planning')}
-              selected={isActive('/planning')}
-              sx={{ display: 'flex', gap: 1 }}
-            >
-              <ArchitectureIcon fontSize="small" />
-              <Typography variant="body2">Planning</Typography>
-            </MenuItem>
-
-            <MenuItem disabled sx={{ display: 'flex', gap: 1, opacity: 0.6 }}>
-              <DesignServicesIcon fontSize="small" />
-              <Typography variant="body2">Design (Coming Soon)</Typography>
-            </MenuItem>
-
-            <MenuItem disabled sx={{ display: 'flex', gap: 1, opacity: 0.6 }}>
-              <ConstructionIcon fontSize="small" />
-              <Typography variant="body2">Build (Coming Soon)</Typography>
-            </MenuItem>
-
+            {/* Settings & Admin */}
             <MenuItem
               onClick={() => handleNavigate('/settings')}
               selected={isActive('/settings')}

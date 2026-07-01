@@ -82,11 +82,16 @@ const PrioritiesPage: React.FC = () => {
     queryFn: async () => (await apiClient.get('/api/people')).data.data || [],
   });
 
-  const { data: rawTasks = [] } = useQuery({
+  const { data: rawTasksRaw = [] } = useQuery({
     queryKey: ['priorities-fallback-tasks', projectId],
     queryFn: async () => (await apiClient.get(`/api/tasks/project/${projectId}`)).data.data || [],
     enabled: !!projectId,
   });
+  // Deduplicate tasks by ID to avoid showing duplicates when multiple project instances exist
+  const rawTasks = useMemo(() => {
+    const seen = new Set<string>();
+    return (rawTasksRaw as any[]).filter(t => { const id = t.id; if (!id || seen.has(id)) return false; seen.add(id); return true; });
+  }, [rawTasksRaw]);
 
   const taskIds = useMemo(() => (rawTasks || []).map((t: any) => t.taskId || t.id).filter(Boolean), [rawTasks]);
 
