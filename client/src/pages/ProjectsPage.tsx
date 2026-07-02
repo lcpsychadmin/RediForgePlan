@@ -906,6 +906,42 @@ const planningViewToTab: Record<string, number> = {
   roadmap: 7,
 };
 
+// Helper component: renders the date-range + On Target/Behind summary for a sub-object row
+const SubObjectTimeline: React.FC<{ tasks: any[]; status?: string }> = ({ tasks, status }) => {
+  if (!tasks || tasks.length === 0) return null;
+  const mn = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  let minMs: number | null = null;
+  let maxMs: number | null = null;
+  let minD: Date | null = null;
+  let maxD: Date | null = null;
+  for (const t of tasks) {
+    const parseV = (v?: string) => {
+      if (!v) return null;
+      const s = String(v).substring(0, 10);
+      const parts = s.split('-');
+      if (parts.length !== 3) return null;
+      const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+      return isNaN(d.getTime()) ? null : d;
+    };
+    const s = parseV(t.startDate);
+    const e = parseV(t.endDate);
+    if (s) { const ms = s.getTime(); if (minMs === null || ms < minMs) { minMs = ms; minD = s; } }
+    if (e) { const ms = e.getTime(); if (maxMs === null || ms > maxMs) { maxMs = ms; maxD = e; } }
+  }
+  if (!minD || !maxD) return null;
+  const str = mn[minD.getMonth()] + ' ' + minD.getDate() + ' \u2192 ' + mn[maxD.getMonth()] + ' ' + maxD.getDate();
+  const behind = new Date() > maxD || status === 'blocked';
+  return (
+    <Box sx={{ px: 2, py: 0.4, display: 'flex', alignItems: 'center', gap: 1 }}>
+      <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.7rem', fontWeight: 500 }}>{str}</Typography>
+      <Box sx={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: behind ? 'rgba(255,152,0,0.3)' : 'rgba(76,175,80,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: behind ? '#FFA726' : '#66BB6A', fontSize: '0.6rem', fontWeight: 'bold' }}>
+        {behind ? '\u26a0' : '\u2713'}
+      </Box>
+      <Typography variant="caption" sx={{ color: behind ? '#FFA726' : '#66BB6A', fontSize: '0.65rem' }}>{behind ? 'Behind' : 'On Target'}</Typography>
+    </Box>
+  );
+};
+
 const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', planningView }) => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -6302,6 +6338,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                                   </Box>
                                                   <Box sx={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: getTaskStatusColor(childStatus), flexShrink: 0 }} />
                                                 </Box>
+                                                <SubObjectTimeline tasks={childTasks} status={childStatus} />
                                                 {childExpanded && (
                                                   <Box sx={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
                                                     {(taskDeps[subObject.id] || []).length > 0 && (
@@ -6781,17 +6818,14 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                                     key={subObject.id}
                                                     sx={{
                                                       ml: 1,
-                                                      pl: 1.5,
-                                                      pr: 1.5,
-                                                      py: 1,
                                                       borderRadius: 2,
                                                       border: '1px solid rgba(255,255,255,0.08)',
                                                       backgroundColor: 'rgba(255,255,255,0.03)',
                                                       display: 'flex',
-                                                      alignItems: 'center',
-                                                      gap: 1,
+                                                      flexDirection: 'column',
                                                     }}
                                                   >
+                                                    <Box sx={{ pl: 1.5, pr: 1.5, py: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
                                                     <ChevronRightIcon sx={{ fontSize: 15, color: 'text.secondary', transform: 'rotate(90deg)', flexShrink: 0 }} />
                                                     <Typography sx={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '0.78rem', color: planAccentColor, flexShrink: 0 }}>
                                                       {subObject.objectId}
@@ -6803,6 +6837,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                                       {childTasks.length} task{childTasks.length === 1 ? '' : 's'}
                                                     </Box>
                                                     <Box sx={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: getTaskStatusColor(childStatus), flexShrink: 0 }} />
+                                                    </Box>
+                                                    <SubObjectTimeline tasks={childTasks} status={childStatus} />
                                                   </Box>
                                                 );
                                               })}
