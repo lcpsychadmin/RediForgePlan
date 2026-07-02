@@ -6302,6 +6302,32 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                                   </Box>
                                                   <Box sx={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: getTaskStatusColor(childStatus), flexShrink: 0 }} />
                                                 </Box>
+                                                {/* Timeline summary for sub-object */}
+                                                {childTasks.length > 0 && (() => {
+                                                  let minStart: {year:number;month:number;day:number}|null = null;
+                                                  let maxEnd: {year:number;month:number;day:number}|null = null;
+                                                  const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+                                                  childTasks.forEach((t: any) => {
+                                                    const parseD = (v?: string) => { if (!v) return null; const p = v.substring(0,10).split('-'); if (p.length !== 3) return null; return { year: +p[0], month: +p[1], day: +p[2] }; };
+                                                    const toN = (d: {year:number;month:number;day:number}) => d.year*10000+d.month*100+d.day;
+                                                    const s = parseD(t.startDate), e = parseD(t.endDate);
+                                                    if (s && (!minStart || toN(s) < toN(minStart))) minStart = s;
+                                                    if (e && (!maxEnd || toN(e) > toN(maxEnd))) maxEnd = e;
+                                                  });
+                                                  if (!minStart || !maxEnd) return null;
+                                                  const timelineStr = `${monthNames[(minStart as any).month-1]} ${(minStart as any).day} → ${monthNames[(maxEnd as any).month-1]} ${(maxEnd as any).day}`;
+                                                  const endDate = new Date((maxEnd as any).year, (maxEnd as any).month-1, (maxEnd as any).day);
+                                                  const isBehind = today > endDate || childStatus === 'blocked';
+                                                  return (
+                                                    <Box sx={{ ml: 1, px: 2, py: 0.4, display: 'flex', alignItems: 'center', gap: 1, fontSize: '0.75rem' }}>
+                                                      <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.7rem', fontWeight: 500 }}>{timelineStr}</Typography>
+                                                      <Box sx={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: isBehind ? 'rgba(255,152,0,0.3)' : 'rgba(76,175,80,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: isBehind ? '#FFA726' : '#66BB6A', fontSize: '0.6rem', fontWeight: 'bold' }}>
+                                                        {isBehind ? '⚠' : '✓'}
+                                                      </Box>
+                                                      <Typography variant="caption" sx={{ color: isBehind ? '#FFA726' : '#66BB6A', fontSize: '0.65rem' }}>{isBehind ? 'Behind' : 'On Target'}</Typography>
+                                                    </Box>
+                                                  );
+                                                })()}
                                                 {childExpanded && (
                                                   <Box sx={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
                                                     {(taskDeps[subObject.id] || []).length > 0 && (
@@ -6804,14 +6830,39 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                                     </Box>
                                                     <Box sx={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: getTaskStatusColor(childStatus), flexShrink: 0 }} />
                                                   </Box>
+                                                  {/* Timeline summary for this sub-object */}
+                                                  {childTasks.length > 0 && (() => {
+                                                    let minStart: {year:number;month:number;day:number}|null = null;
+                                                    let maxEnd: {year:number;month:number;day:number}|null = null;
+                                                    const mn = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+                                                    childTasks.forEach((t: any) => {
+                                                      const parseD = (v?: string) => { if (!v) return null; const p = v.substring(0,10).split('-'); return p.length===3 ? {year:+p[0],month:+p[1],day:+p[2]} : null; };
+                                                      const toN = (d: {year:number;month:number;day:number}) => d.year*10000+d.month*100+d.day;
+                                                      const s = parseD(t.startDate), e = parseD(t.endDate);
+                                                      if (s && (!minStart || toN(s)<toN(minStart))) minStart = s;
+                                                      if (e && (!maxEnd || toN(e)>toN(maxEnd))) maxEnd = e;
+                                                    });
+                                                    if (!minStart || !maxEnd) return null;
+                                                    const timelineStr = `${mn[(minStart as any).month-1]} ${(minStart as any).day} → ${mn[(maxEnd as any).month-1]} ${(maxEnd as any).day}`;
+                                                    const endDate = new Date((maxEnd as any).year,(maxEnd as any).month-1,(maxEnd as any).day);
+                                                    const isBehind = today > endDate || childStatus === 'blocked';
+                                                    return (
+                                                      <Box sx={{ px: 2, py: 0.4, display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                        <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.7rem', fontWeight: 500 }}>{timelineStr}</Typography>
+                                                        <Box sx={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: isBehind ? 'rgba(255,152,0,0.3)' : 'rgba(76,175,80,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: isBehind ? '#FFA726' : '#66BB6A', fontSize: '0.6rem', fontWeight: 'bold' }}>
+                                                          {isBehind ? '⚠' : '✓'}
+                                                        </Box>
+                                                        <Typography variant="caption" sx={{ color: isBehind ? '#FFA726' : '#66BB6A', fontSize: '0.65rem' }}>{isBehind ? 'Behind' : 'On Target'}</Typography>
+                                                      </Box>
+                                                    );
+                                                  })()}
+                                                </Box>
                                                 );
                                               })}
                                             </Box>
                                           </Box>
                                         )}
                                         {/* Add Task row */}
-                                        <Box sx={{ px: 2, py: 0.5, minWidth: 930 }}>
-                                          <Button size="small" variant="text" startIcon={<AddIcon sx={{ fontSize: '0.8rem !important' }} />}
                                             onClick={async () => {
                                               try {
                                                 const res = await apiClient.post(`/api/tasks/cycle/${activeCycleId}`, { taskType: 'custom', projectObjectId: objectId, name: 'New Task', durationUnit: 'days' });
