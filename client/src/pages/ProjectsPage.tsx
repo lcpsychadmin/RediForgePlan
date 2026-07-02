@@ -272,6 +272,21 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [actDrag, laneAssign]);
   const timelineRef = React.useRef<HTMLDivElement>(null);
+  const scrollContainerRef = React.useRef<HTMLDivElement>(null);
+
+  // Scroll to center today's date on first render
+  React.useLayoutEffect(() => {
+    const container = scrollContainerRef.current;
+    const inner = timelineRef.current;
+    if (!container || !inner) return;
+    const totalWidth = inner.scrollWidth;
+    const containerWidth = container.clientWidth;
+    const todayPct = totalDays > 0 ? (today.getTime() - rangeStart.getTime()) / (rangeEnd.getTime() - rangeStart.getTime()) : 0.5;
+    const scrollTo = todayPct * totalWidth - containerWidth / 2;
+    container.scrollLeft = Math.max(0, scrollTo);
+  // Run once on mount (rangeStart/rangeEnd/today are stable after first render)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   React.useEffect(() => {
     apiClient.get('/api/hierarchy-preferences/state').then(res => {
@@ -580,7 +595,7 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
       </Box>
 
       {/* Timeline card — tall, horizontally scrollable */}
-      <Box sx={{ backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 2, p: 2, overflowX: 'auto', overflowY: 'auto', minHeight: '60vh', maxHeight: '80vh' }}>
+      <Box ref={scrollContainerRef} sx={{ backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 2, p: 2, overflowX: 'auto', overflowY: 'auto', minHeight: '60vh', maxHeight: '80vh' }}>
         <Box ref={timelineRef} sx={{ minWidth: Math.max(900, totalDays * 3), position: 'relative' }}>
           {/* Month header */}
           <Box sx={{ position: 'relative', height: 24, mb: 1, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
