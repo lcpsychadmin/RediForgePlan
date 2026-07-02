@@ -932,7 +932,7 @@ const SubObjectTimeline: React.FC<{ tasks: any[]; status?: string }> = ({ tasks,
   const str = mn[minD.getMonth()] + ' ' + minD.getDate() + ' \u2192 ' + mn[maxD.getMonth()] + ' ' + maxD.getDate();
   const behind = new Date() > maxD || status === 'blocked';
   return (
-    <Box sx={{ px: 2, py: 0.4, display: 'flex', alignItems: 'center', gap: 1 }}>
+    <Box sx={{ px: 2.5, py: 0.4, display: 'flex', alignItems: 'center', gap: 1, backgroundColor: 'rgba(255,255,255,0.02)', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
       <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.7rem', fontWeight: 500 }}>{str}</Typography>
       <Box sx={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: behind ? 'rgba(255,152,0,0.3)' : 'rgba(76,175,80,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: behind ? '#FFA726' : '#66BB6A', fontSize: '0.6rem', fontWeight: 'bold' }}>
         {behind ? '\u26a0' : '\u2713'}
@@ -6151,7 +6151,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                               const showAreaHeader = currentArea !== previousArea;
                               // Default to expanded so tasks are visible without a click.
                               // User can collapse by clicking the chevron.
-                              const isExpanded = !expandedObjects.has(`collapsed:${objectId}`);
+                              const isExpanded = expandedObjects.has(`hier:${objectId}`);
                               const hierarchyChildTasks = isHierarchyNode
                                 ? subObjects.flatMap((subObject: any) => projectTasks.filter(t => t.projectObjectId === subObject.id))
                                 : [];
@@ -6240,10 +6240,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                   }}
                                 >
                                     <Box sx={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, backgroundColor: planAccentColor }} />
-                                  <Box onClick={() => { const next = new Set(expandedObjects); const collapseKey = `collapsed:${objectId || ''}`; if (isExpanded) next.add(collapseKey); else next.delete(collapseKey); setExpandedObjects(next); apiClient.put('/api/hierarchy-preferences/state', { treeOrder, expandedPrograms: Array.from(expandedPrograms), expandedCycles: Array.from(expandedCycles), expandedProjectGroups: Array.from(expandedProjectGroups), expandedObjects: Array.from(next), planningAdditionalGroups, planningAdditionalProcessAreas, hiddenProcessAreas, processAreaAccentOverrides, processAreaDescriptions, hierarchyLevelIcons }).catch(() => {}); }}
+                                  <Box onClick={() => { const next = new Set(expandedObjects); const expandKey = `hier:${objectId || ''}`; if (isExpanded) next.delete(expandKey); else next.add(expandKey); setExpandedObjects(next); apiClient.put('/api/hierarchy-preferences/state', { treeOrder, expandedPrograms: Array.from(expandedPrograms), expandedCycles: Array.from(expandedCycles), expandedProjectGroups: Array.from(expandedProjectGroups), expandedObjects: Array.from(next), planningAdditionalGroups, planningAdditionalProcessAreas, hiddenProcessAreas, processAreaAccentOverrides, processAreaDescriptions, hierarchyLevelIcons }).catch(() => {}); }}
                                     sx={{ pl: 2.5, pr: 1, py: 1.25, display: 'flex', alignItems: 'center', gap: { xs: 0.8, sm: 1.5 }, cursor: 'pointer', '&:hover': { backgroundColor: 'rgba(255,255,255,0.03)' } }}>
                                     <DragIndicatorIcon sx={{ fontSize: 14, color: 'text.disabled', flexShrink: 0, cursor: canReorderPlan ? 'grab' : 'not-allowed', opacity: canReorderPlan ? 1 : 0.45 }} />
-                                    <IconButton size="small" onClick={(e) => { e.stopPropagation(); const next = new Set(expandedObjects); const collapseKey = `collapsed:${objectId || ''}`; if (isExpanded) next.add(collapseKey); else next.delete(collapseKey); setExpandedObjects(next); apiClient.put('/api/hierarchy-preferences/state', { treeOrder, expandedPrograms: Array.from(expandedPrograms), expandedCycles: Array.from(expandedCycles), expandedProjectGroups: Array.from(expandedProjectGroups), expandedObjects: Array.from(next), planningAdditionalGroups, planningAdditionalProcessAreas, hiddenProcessAreas, processAreaAccentOverrides, processAreaDescriptions, hierarchyLevelIcons }).catch(() => {}); }} sx={{ p: 0.2, flexShrink: 0 }}>
+                                    <IconButton size="small" onClick={(e) => { e.stopPropagation(); const next = new Set(expandedObjects); const expandKey = `hier:${objectId || ''}`; if (isExpanded) next.delete(expandKey); else next.add(expandKey); setExpandedObjects(next); apiClient.put('/api/hierarchy-preferences/state', { treeOrder, expandedPrograms: Array.from(expandedPrograms), expandedCycles: Array.from(expandedCycles), expandedProjectGroups: Array.from(expandedProjectGroups), expandedObjects: Array.from(next), planningAdditionalGroups, planningAdditionalProcessAreas, hiddenProcessAreas, processAreaAccentOverrides, processAreaDescriptions, hierarchyLevelIcons }).catch(() => {}); }} sx={{ p: 0.2, flexShrink: 0 }}>
                                       <ChevronRightIcon sx={{ fontSize: 16, color: 'text.secondary', transition: 'transform 0.2s', transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)' }} />
                                     </IconButton>
                                     <Typography sx={{ fontFamily: 'monospace', fontWeight: 700, fontSize: { xs: '0.76rem', sm: '0.82rem' }, color: planAccentColor, flexShrink: 0, minWidth: { xs: 0, sm: 90 }, maxWidth: { xs: '38vw', sm: 'none' }, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{objectName}</Typography>
@@ -6265,6 +6265,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                     )}
                                     <IconButton size="small" onClick={(e) => { e.stopPropagation(); setMenuAnchorEl(e.currentTarget); setMenuType('task'); setMenuItemId(objectId || ''); }}><MoreVertIcon sx={{ fontSize: '1rem' }} /></IconButton>
                                   </Box>
+                                  {isHierarchyNode && <SubObjectTimeline tasks={hierarchyChildTasks} status={hierarchyStatus} />}
                                   {isHierarchyNode && isExpanded && (
                                     <Box sx={{ borderTop: '1px solid rgba(255,255,255,0.06)', px: 2, py: 1.25 }}>
                                       <Box sx={{ pl: 2.5, borderLeft: '2px solid rgba(111, 180, 78, 0.28)', display: 'flex', flexDirection: 'column', gap: 1 }}>
@@ -6287,16 +6288,12 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                           const childDescription = childGlobal?.description || subObject.subObjectDescription || subObject.description || '';
                                             const childExpanded = expandedObjects.has(subObject.id);
                                           return (
-                                              <Box key={subObject.id} sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
+                                              <Box key={subObject.id} sx={{ display: 'flex', flexDirection: 'column', ml: 1, borderRadius: 2, border: '1px solid rgba(255,255,255,0.08)', backgroundColor: 'rgba(255,255,255,0.03)' }}>
                                                 <Box
                                                   sx={{
-                                                    ml: 1,
                                                     pl: 1.5,
                                                     pr: 1.5,
                                                     py: 1,
-                                                    borderRadius: 2,
-                                                    border: '1px solid rgba(255,255,255,0.08)',
-                                                    backgroundColor: 'rgba(255,255,255,0.03)',
                                                     display: 'flex',
                                                     alignItems: 'center',
                                                     gap: 1,
