@@ -18,7 +18,7 @@ export class PriorityViewService {
         t.task_type,
         t.name,
         go.object_id,
-        po.process_area
+        go.process_area
       FROM prioritized_tasks_view ptv
       LEFT JOIN tasks t ON ptv.task_id = t.id
       LEFT JOIN project_objects po ON ptv.project_object_id = po.id
@@ -62,7 +62,7 @@ export class PriorityViewService {
         t.task_type,
         t.name,
         go.object_id,
-        po.process_area
+        go.process_area
       FROM tasks t
       LEFT JOIN project_objects po ON t.project_object_id = po.id
       LEFT JOIN global_objects go ON po.global_object_id = go.id
