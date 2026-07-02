@@ -4,6 +4,12 @@ import defectsController from './defects.controller.js';
 
 const router = Router();
 
+router.get(
+  '/projects/:projectId/defects',
+  requireAuth,
+  (req, res, next) => defectsController.getDefectsForProject(req, res, next)
+);
+
 router.post(
   '/tasks/:taskId/defects',
   requireAuth,

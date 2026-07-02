@@ -15,4 +15,5 @@ export * from './useValidationStats';
 export * from './useIssueTypes';
 export * from './useIssueRecords';
 export * from './useDefects';
+export * from './useProjectDefects';
 export * from './useReporting';

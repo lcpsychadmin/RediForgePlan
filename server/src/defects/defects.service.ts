@@ -23,7 +23,64 @@ export interface UpdateDefectInput {
   resolvedAt?: string | null;
 }
 
+export interface DefectListFilters {
+  statuses?: DefectStatus[];
+  search?: string;
+}
+
 class DefectsService {
+  async getDefectsForProject(projectId: string, filters?: DefectListFilters) {
+    const params: any[] = [projectId];
+    let paramIndex = 2;
+    const whereClauses: string[] = ['t.project_id = $1'];
+
+    if (filters?.statuses?.length) {
+      whereClauses.push(`d.status = ANY($${paramIndex}::defect_status_enum[])`);
+      params.push(filters.statuses);
+      paramIndex++;
+    }
+
+    if (filters?.search?.trim()) {
+      whereClauses.push(`(
+        d.title ILIKE $${paramIndex}
+        OR COALESCE(d.description, '') ILIKE $${paramIndex}
+        OR COALESCE(t.name, '') ILIKE $${paramIndex}
+        OR COALESCE(t.task_type, '') ILIKE $${paramIndex}
+        OR COALESCE(it.issue_code, '') ILIKE $${paramIndex}
+        OR COALESCE(it.issue_description, '') ILIKE $${paramIndex}
+      )`);
+      params.push(`%${filters.search.trim()}%`);
+      paramIndex++;
+    }
+
+    const result = await db.query(
+      `SELECT d.id, d.task_id, d.project_object_id, d.issue_type_id, d.title, d.description,
+              d.severity, d.status, d.assigned_to_user_id, d.created_by_user_id,
+              d.created_at, d.updated_at, d.resolved_at,
+              tu.email AS assigned_to_user_email,
+              cu.email AS created_by_user_email,
+              it.issue_code,
+              it.issue_description,
+              po.global_object_id,
+              t.name AS task_name,
+              t.task_type,
+              t.status AS task_status,
+              p.name AS project_name
+       FROM defects d
+       JOIN tasks t ON d.task_id = t.id
+       JOIN projects p ON t.project_id = p.id
+       LEFT JOIN users tu ON d.assigned_to_user_id = tu.id
+       LEFT JOIN users cu ON d.created_by_user_id = cu.id
+       LEFT JOIN task_issue_types it ON d.issue_type_id = it.id
+       LEFT JOIN project_objects po ON d.project_object_id = po.id
+       WHERE ${whereClauses.join(' AND ')}
+       ORDER BY d.updated_at DESC, d.created_at DESC`,
+      params
+    );
+
+    return result.rows.map((row) => this.format(row));
+  }
+
   async createDefect(taskId: string, data: CreateDefectInput) {
     const taskResult = await db.query(
       'SELECT id, project_object_id FROM tasks WHERE id = $1',

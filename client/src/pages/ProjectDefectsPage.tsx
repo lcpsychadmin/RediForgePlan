@@ -8,13 +8,8 @@ import {
   CardContent,
   Chip,
   CircularProgress,
-  Divider,
   Grid,
-  List,
-  ListItemButton,
-  ListItemText,
   MenuItem,
-  Paper,
   Stack,
   TextField,
   Table,
@@ -25,14 +20,14 @@ import {
   Typography,
 } from '@mui/material';
 import { useParams } from 'react-router-dom';
-import { useQuery, useQueries, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import PageContainer from '../layout/PageContainer';
 import ContentHeader from '../layout/ContentHeader';
 import apiClient from '../api/client';
 import { Defect, DefectStatus, ReportingSummary } from '../api/types';
 import { useFilter } from '../contexts/FilterContext';
+import { useProjectDefects } from '../api/hooks';
 
-const qualityTaskTypes = new Set(['preload_validation', 'postload_validation', 'load']);
 const statusOptions: DefectStatus[] = ['open', 'in_progress', 'resolved', 'closed'];
 
 const surfaceSx = {
@@ -119,8 +114,7 @@ const ProjectDefectsPage: React.FC<ProjectDefectsPageProps> = ({ projectId: proj
   const { projectId: routeProjectId } = useParams<{ projectId: string }>();
   const { selectedProjectId } = useFilter();
   const resolvedProjectId = projectIdProp || routeProjectId || selectedProjectId || '';
-  const [taskFilter, setTaskFilter] = React.useState<'all' | 'validation' | 'load' | 'other'>('all');
-  const [statusFilter, setStatusFilter] = React.useState<'all' | DefectStatus>('all');
+  const [statusMode, setStatusMode] = React.useState<'active' | 'closed' | 'all'>('active');
   const [searchTerm, setSearchTerm] = React.useState('');
   const [selectedDefectId, setSelectedDefectId] = React.useState<string>('');
   const [draft, setDraft] = React.useState({
@@ -145,36 +139,15 @@ const ProjectDefectsPage: React.FC<ProjectDefectsPageProps> = ({ projectId: proj
     enabled: !!resolvedProjectId,
   });
 
-  const { data: tasks = [], isLoading: tasksLoading, error: tasksError } = useQuery({
-    queryKey: ['project-defects-tasks', resolvedProjectId],
-    queryFn: async () => {
-      const response = await apiClient.get(`/api/tasks/project/${resolvedProjectId}`);
-      return response.data.data || [];
-    },
-    enabled: !!resolvedProjectId,
-  });
+  const defectStatuses = React.useMemo(() => {
+    if (statusMode === 'active') return ['open', 'in_progress'];
+    if (statusMode === 'closed') return ['closed'];
+    return ['open', 'in_progress', 'resolved', 'closed'];
+  }, [statusMode]);
 
-  const taskIds = React.useMemo(() => (tasks || []).map((task: any) => task.id).filter(Boolean), [tasks]);
-
-  const defectQueries = useQueries({
-    queries: taskIds.map((taskId) => ({
-      queryKey: ['project-defects', resolvedProjectId, taskId],
-      queryFn: async () => {
-        const response = await apiClient.get(`/api/tasks/${taskId}/defects`);
-        return response.data.data || [];
-      },
-      enabled: !!resolvedProjectId && !!taskId,
-    })),
-  });
-
-  const { data: summary } = useQuery<ReportingSummary>({
-    queryKey: ['project-defects-summary', resolvedProjectId],
-    queryFn: async () => {
-      const response = await apiClient.get(`/api/reporting/projects/${resolvedProjectId}/summary`);
-      return response.data.data;
-    },
-    enabled: !!resolvedProjectId,
-    staleTime: 30_000,
+  const { data: defects = [], isLoading: defectsLoading } = useProjectDefects(resolvedProjectId, {
+    statuses: defectStatuses,
+    search: searchTerm,
   });
 
   const { data: people = [] } = useQuery({
@@ -192,76 +165,11 @@ const ProjectDefectsPage: React.FC<ProjectDefectsPageProps> = ({ projectId: proj
     [people]
   );
 
-  const taskById = React.useMemo(
-    () => Object.fromEntries((tasks || []).map((task: any) => [task.id, task])),
-    [tasks]
-  );
-
-  const allDefects = React.useMemo(() => {
-    return defectQueries.flatMap((query: any, index: number) => {
-      const taskId = taskIds[index];
-      const task = taskById[taskId];
-      return (query.data || []).map((defect: any) => ({
-        ...defect,
-        taskId,
-        taskName: task?.name || task?.taskName || 'Task',
-        taskType: task?.taskType || task?.task_type || 'custom',
-        projectObjectId: defect.projectObjectId || task?.projectObjectId || null,
-      }));
-    });
-  }, [defectQueries, taskIds, taskById]);
-
-  const allTaskTypes = React.useMemo(() => {
-    const grouped: Record<string, number> = {};
-    (tasks || []).forEach((task: any) => {
-      const type = (task.taskType || task.task_type || 'custom').toLowerCase();
-      grouped[type] = (grouped[type] || 0) + 1;
-    });
-    return grouped;
-  }, [tasks]);
-
-  const filteredTasks = React.useMemo(() => {
-    return (tasks || []).filter((task: any) => {
-      if (taskFilter === 'all') return true;
-      const taskType = (task.taskType || task.task_type || '').toLowerCase();
-      if (taskFilter === 'validation') return taskType === 'preload_validation' || taskType === 'postload_validation';
-      if (taskFilter === 'load') return taskType === 'load';
-      return !qualityTaskTypes.has(taskType);
-    });
-  }, [tasks, taskFilter]);
-
-  const groupedTasks = React.useMemo(() => {
-    const groups: Record<string, any[]> = {
-      'Preload Validation': [],
-      'Load': [],
-      'Postload Validation': [],
-      'Other': [],
-    };
-
-    filteredTasks.forEach((task: any) => {
-      const taskType = (task.taskType || task.task_type || '').toLowerCase();
-      if (taskType === 'preload_validation') groups['Preload Validation'].push(task);
-      else if (taskType === 'load') groups['Load'].push(task);
-      else if (taskType === 'postload_validation') groups['Postload Validation'].push(task);
-      else groups['Other'].push(task);
-    });
-
-    return groups;
-  }, [filteredTasks]);
-
-  const filteredDefects = React.useMemo(() => {
-    return allDefects
-      .filter((defect: any) => (statusFilter === 'all' ? true : defect.status === statusFilter))
-      .filter((defect: any) => {
-        const haystack = `${defect.title || ''} ${defect.taskName || ''} ${defect.issueCode || ''}`.toLowerCase();
-        return haystack.includes(searchTerm.trim().toLowerCase());
-      })
-      .sort((a: any, b: any) => new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime());
-  }, [allDefects, statusFilter, searchTerm]);
+  const activeDefects = defects;
 
   const activeDefect = React.useMemo(
-    () => filteredDefects.find((defect: any) => defect.id === selectedDefectId) || filteredDefects[0] || null,
-    [filteredDefects, selectedDefectId]
+    () => activeDefects.find((defect: any) => defect.id === selectedDefectId) || activeDefects[0] || null,
+    [activeDefects, selectedDefectId]
   );
 
   React.useEffect(() => {
@@ -328,84 +236,74 @@ const ProjectDefectsPage: React.FC<ProjectDefectsPageProps> = ({ projectId: proj
     return <Alert severity="info">Select a project using the global filter to view defects.</Alert>;
   }
 
+  const defectCount = defects.length;
+  const activeCount = defects.filter((defect: any) => defect.status === 'open' || defect.status === 'in_progress').length;
+  const closedCount = defects.filter((defect: any) => defect.status === 'closed').length;
+  const resolvedCount = defects.filter((defect: any) => defect.status === 'resolved').length;
+
   return (
     <PageContainer>
       <ContentHeader
         title={`${project?.name || 'Project'} Defects`}
         stats={[
-          { label: 'Open Defects', value: summary?.defects.open ?? 0 },
-          { label: 'In Progress', value: summary?.defects.inProgress ?? 0 },
-          { label: 'Preload Invalid', value: summary?.validation.preload.invalidRecords ?? 0 },
-          { label: 'Postload Invalid', value: summary?.validation.postload.invalidRecords ?? 0 },
+          { label: 'Displayed', value: defectCount },
+          { label: 'Active', value: activeCount },
+          { label: 'Closed', value: closedCount },
+          { label: 'Resolved', value: resolvedCount },
         ]}
       />
 
       <Box sx={{ ...surfaceSx, mb: 3 }}>
         <Box sx={{ px: 2.5, py: 1.5, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: 'rgba(255,255,255,0.02)' }}>
-          <Typography variant="subtitle2" fontWeight={700}>
-            Project quality overview
-          </Typography>
+          <Typography variant="subtitle2" fontWeight={700}>Defect Search</Typography>
           <Typography variant="body2" color="text.secondary">
-            Use this page to inspect any task in the project, capture preload/postload validation stats, and manage defects for the selected task.
+            Search defects across the project. Active defects are shown by default; switch to closed or all defects when needed.
           </Typography>
-          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 1 }}>
-            <Chip size="small" label={`Total defects: ${summary?.defects.total ?? 0}`} />
-            <Chip size="small" label={`Load failures: ${summary?.loadMetrics.failed ?? 0}`} />
-            <Chip size="small" label={`Preload invalid: ${summary?.validation.preload.invalidRecords ?? 0}`} color="warning" variant="outlined" />
-            <Chip size="small" label={`Postload invalid: ${summary?.validation.postload.invalidRecords ?? 0}`} color="error" variant="outlined" />
-            <Chip size="small" label={`Validation tasks: ${(allTaskTypes.preload_validation || 0) + (allTaskTypes.postload_validation || 0)}`} />
-            <Chip size="small" label={`Load tasks: ${allTaskTypes.load || 0}`} />
-          </Box>
         </Box>
-      </Box>
-
-      <Box sx={{ ...surfaceSx, mb: 3 }}>
-        <Box sx={{ px: 2.5, py: 1.5, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: 'rgba(255,255,255,0.02)' }}>
-          <Stack spacing={2}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
-              <Box>
-                <Typography variant="subtitle1" fontWeight={700}>Defect Work Items</Typography>
-                <Typography variant="body2" color="text.secondary">Table-based defect triage with a detail editor.</Typography>
-              </Box>
-            </Box>
+        <Box sx={{ px: 2.5, py: 1.5 }}>
+          <Stack spacing={1.5}>
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
               <TextField
                 size="small"
                 label="Search defects"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                sx={{ minWidth: 260 }}
+                sx={{ minWidth: 280 }}
               />
               <TextField
                 size="small"
                 select
-                label="Status"
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value as 'all' | DefectStatus)}
+                label="Visibility"
+                value={statusMode}
+                onChange={(e) => setStatusMode(e.target.value as 'active' | 'closed' | 'all')}
                 sx={{ minWidth: 180 }}
               >
-                <MenuItem value="all">All statuses</MenuItem>
-                {statusOptions.map((status) => (
-                  <MenuItem key={status} value={status}>{status.replace('_', ' ')}</MenuItem>
-                ))}
+                <MenuItem value="active">Active defects</MenuItem>
+                <MenuItem value="closed">Closed defects</MenuItem>
+                <MenuItem value="all">All defects</MenuItem>
               </TextField>
             </Stack>
+            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+              <Chip size="small" label={`Active: ${activeCount}`} />
+              <Chip size="small" label={`Closed: ${closedCount}`} />
+              <Chip size="small" label={`Resolved: ${resolvedCount}`} />
+            </Box>
           </Stack>
         </Box>
       </Box>
 
-      {defectQueries.some((query: any) => query.isLoading) ? (
+      {defectsLoading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
           <CircularProgress />
         </Box>
-      ) : filteredDefects.length === 0 ? (
+      ) : defects.length === 0 ? (
         <Alert severity="info">No defects found for the selected filters.</Alert>
       ) : (
         <Grid container spacing={2.5} sx={{ mb: 3 }}>
-          <Grid item xs={12} md={4} lg={3.5}>
+          <Grid item xs={12} md={5} lg={4.5}>
             <Box sx={{ ...surfaceSx, height: '100%', maxHeight: 760, overflow: 'hidden' }}>
               <Box sx={{ px: 2, py: 1, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: 'rgba(255,255,255,0.02)' }}>
-                <Typography variant="subtitle2" fontWeight={700}>Defect Queue ({filteredDefects.length})</Typography>
+                <Typography variant="subtitle2" fontWeight={700}>Defect Queue ({defects.length})</Typography>
               </Box>
               <Box sx={{ maxHeight: 716, overflow: 'auto' }}>
                 <Table size="small" stickyHeader>
@@ -413,12 +311,12 @@ const ProjectDefectsPage: React.FC<ProjectDefectsPageProps> = ({ projectId: proj
                     <TableRow>
                       <TableCell sx={tableTh}>ID</TableCell>
                       <TableCell sx={tableTh}>Title</TableCell>
-                      <TableCell sx={tableTh}>Status</TableCell>
-                      <TableCell sx={tableTh}>Severity</TableCell>
+                      <TableCell sx={tableTh}>Task</TableCell>
+                      <TableCell sx={tableTh}>State</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {filteredDefects.map((defect: any) => (
+                    {defects.map((defect: any) => (
                       <TableRow
                         key={defect.id}
                         hover
@@ -428,16 +326,20 @@ const ProjectDefectsPage: React.FC<ProjectDefectsPageProps> = ({ projectId: proj
                       >
                         <TableCell sx={tableTd}>
                           <Typography sx={{ fontWeight: 700, fontSize: '0.78rem' }}>BUG {defect.id.slice(0, 8)}</Typography>
+                          <Typography variant="caption" color="text.secondary">{defect.issueCode || 'No issue code'}</Typography>
                         </TableCell>
                         <TableCell sx={tableTd}>
                           <Typography sx={{ fontWeight: 600, fontSize: '0.8rem' }}>{defect.title}</Typography>
-                          <Typography variant="caption" color="text.secondary">{defect.taskName || 'Task'}</Typography>
+                          <Typography variant="caption" color="text.secondary">{defect.description || 'No description.'}</Typography>
                         </TableCell>
                         <TableCell sx={tableTd}>
-                          <Chip size="small" variant="outlined" label={defect.status.replace('_', ' ')} />
+                          <Typography sx={{ fontSize: '0.78rem', color: 'text.secondary' }}>{defect.taskName || 'Task'}</Typography>
                         </TableCell>
                         <TableCell sx={tableTd}>
-                          <Chip size="small" label={defect.severity} color={defect.severity === 'critical' ? 'error' : defect.severity === 'high' ? 'warning' : 'default'} />
+                          <Stack spacing={0.5}>
+                            <Chip size="small" variant="outlined" label={defect.status.replace('_', ' ')} />
+                            <Chip size="small" label={defect.severity} color={defect.severity === 'critical' ? 'error' : defect.severity === 'high' ? 'warning' : 'default'} />
+                          </Stack>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -447,7 +349,7 @@ const ProjectDefectsPage: React.FC<ProjectDefectsPageProps> = ({ projectId: proj
             </Box>
           </Grid>
 
-          <Grid item xs={12} md={8} lg={8.5}>
+          <Grid item xs={12} md={7} lg={7.5}>
             {!activeDefect ? (
               <Alert severity="info">Select a defect to view details.</Alert>
             ) : (
@@ -491,12 +393,6 @@ const ProjectDefectsPage: React.FC<ProjectDefectsPageProps> = ({ projectId: proj
                       </Button>
                     </Stack>
                   </Box>
-
-                  <Stack direction="row" spacing={1} alignItems="center">
-                    <Chip size="small" color="primary" label="Details" />
-                    <Chip size="small" variant="outlined" label="Related Work" />
-                    <Chip size="small" variant="outlined" label="Discussion" />
-                  </Stack>
 
                   <Grid container spacing={2}>
                     <Grid item xs={12} lg={7.5}>
@@ -583,6 +479,11 @@ const ProjectDefectsPage: React.FC<ProjectDefectsPageProps> = ({ projectId: proj
                               <Typography variant="caption" color="text.secondary">Task: {activeDefect.taskName || 'Task'}</Typography>
                               <Typography variant="caption" color="text.secondary">Issue Type: {activeDefect.issueCode || 'None'}</Typography>
                               <Typography variant="caption" color="text.secondary">Object: {activeDefect.globalObjectId || 'None'}</Typography>
+                              <Typography variant="caption" color="text.secondary">Created: {new Date(activeDefect.createdAt).toLocaleString()}</Typography>
+                              <Typography variant="caption" color="text.secondary">Updated: {new Date(activeDefect.updatedAt).toLocaleString()}</Typography>
+                              {activeDefect.resolvedAt ? (
+                                <Typography variant="caption" color="text.secondary">Resolved: {new Date(activeDefect.resolvedAt).toLocaleString()}</Typography>
+                              ) : null}
                             </Stack>
                           </CardContent>
                         </Card>
@@ -597,11 +498,8 @@ const ProjectDefectsPage: React.FC<ProjectDefectsPageProps> = ({ projectId: proj
                                 </Avatar>
                                 <Typography variant="caption" color="text.secondary">Created by {activeDefect.createdByUserEmail || activeDefect.createdByUserId}</Typography>
                               </Stack>
-                              <Typography variant="caption" color="text.secondary">Created: {new Date(activeDefect.createdAt).toLocaleString()}</Typography>
-                              <Typography variant="caption" color="text.secondary">Updated: {new Date(activeDefect.updatedAt).toLocaleString()}</Typography>
-                              {activeDefect.resolvedAt ? (
-                                <Typography variant="caption" color="text.secondary">Resolved: {new Date(activeDefect.resolvedAt).toLocaleString()}</Typography>
-                              ) : null}
+                              <Typography variant="caption" color="text.secondary">Current status: {activeDefect.status.replace('_', ' ')}</Typography>
+                              <Typography variant="caption" color="text.secondary">Severity: {activeDefect.severity}</Typography>
                             </Stack>
                           </CardContent>
                         </Card>
@@ -613,91 +511,6 @@ const ProjectDefectsPage: React.FC<ProjectDefectsPageProps> = ({ projectId: proj
             )}
           </Grid>
         </Grid>
-      )}
-
-      <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 3 }}>
-        {(['all', 'validation', 'load', 'other'] as const).map((filter) => (
-          <Button
-            key={filter}
-            size="small"
-            variant={taskFilter === filter ? 'contained' : 'outlined'}
-            onClick={() => setTaskFilter(filter)}
-            sx={{ textTransform: 'none' }}
-          >
-            {filter === 'all' ? 'All Tasks' : filter === 'validation' ? 'Validation Tasks' : filter === 'load' ? 'Load Tasks' : 'Other Tasks'}
-          </Button>
-        ))}
-      </Box>
-
-      {tasksLoading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
-          <CircularProgress />
-        </Box>
-      ) : tasksError ? (
-        <Alert severity="error">Failed to load tasks for this project.</Alert>
-      ) : filteredTasks.length === 0 ? (
-        <Alert severity="info">No tasks match the selected filter.</Alert>
-      ) : (
-        <Box sx={{ ...surfaceSx, overflow: 'hidden' }}>
-          <Box sx={{ px: 2, py: 1.25, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: 'rgba(255,255,255,0.02)' }}>
-            <Typography variant="subtitle1" fontWeight={700}>Task Queue</Typography>
-          </Box>
-          <Box sx={{ overflow: 'auto' }}>
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell sx={tableTh}>Group</TableCell>
-                  <TableCell sx={tableTh}>Task</TableCell>
-                  <TableCell sx={tableTh}>Type</TableCell>
-                  <TableCell sx={tableTh}>Status</TableCell>
-                  <TableCell sx={tableTh}>Owners</TableCell>
-                  <TableCell sx={tableTh}>Notes</TableCell>
-                  <TableCell sx={{ ...tableTh, width: 96 }}>Action</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {Object.entries(groupedTasks).flatMap(([groupName, groupTasks]) => {
-                  if (groupTasks.length === 0) return [];
-
-                  return [
-                    <TableRow key={`${groupName}-header`}>
-                      <TableCell colSpan={7} sx={{ ...tableTd, backgroundColor: 'rgba(255,255,255,0.03)', fontWeight: 700 }}>
-                        {groupName} ({groupTasks.length})
-                      </TableCell>
-                    </TableRow>,
-                    ...groupTasks.map((task: any) => {
-                      const taskType = (task.taskType || task.task_type || 'custom').toLowerCase();
-                      const isValidation = taskType === 'preload_validation' || taskType === 'postload_validation';
-                      return (
-                        <TableRow key={task.id} hover sx={{ backgroundColor: 'rgba(255,255,255,0.01)' }}>
-                          <TableCell sx={tableTd}><Typography sx={{ fontSize: '0.78rem', color: 'text.secondary' }}>{groupName}</Typography></TableCell>
-                          <TableCell sx={tableTd}>
-                            <Typography sx={{ fontWeight: 600, fontSize: '0.8rem' }}>{task.name || task.taskName || 'Task'}</Typography>
-                          </TableCell>
-                          <TableCell sx={tableTd}><Typography sx={{ fontSize: '0.78rem', color: 'text.secondary' }}>{task.taskType || task.task_type || 'custom'}</Typography></TableCell>
-                          <TableCell sx={tableTd}><Chip size="small" label={(task.status || 'not_started').replace(/_/g, ' ')} variant="outlined" /></TableCell>
-                          <TableCell sx={tableTd}>
-                            <Stack spacing={0.4}>
-                              {task.draUserId ? <Typography variant="caption" color="text.secondary">DRA: {peopleById[task.draUserId]?.name || task.draUserId}</Typography> : null}
-                              {task.developerUserId ? <Typography variant="caption" color="text.secondary">Dev: {peopleById[task.developerUserId]?.name || task.developerUserId}</Typography> : null}
-                              {isValidation ? <Chip size="small" color={taskType === 'preload_validation' ? 'warning' : 'error'} variant="outlined" label={taskType === 'preload_validation' ? 'Preload quality' : 'Postload quality'} /> : null}
-                            </Stack>
-                          </TableCell>
-                          <TableCell sx={tableTd}><Typography variant="body2" color="text.secondary">{task.notes || task.description || 'No notes.'}</Typography></TableCell>
-                          <TableCell sx={{ ...tableTd, px: 0.5 }}>
-                            <Button size="small" variant="outlined" onClick={() => setSelectedTask(task)} sx={{ textTransform: 'none', whiteSpace: 'nowrap' }}>
-                              Manage
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    }),
-                  ];
-                })}
-              </TableBody>
-            </Table>
-          </Box>
-        </Box>
       )}
 
     </PageContainer>

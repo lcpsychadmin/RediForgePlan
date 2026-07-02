@@ -8,6 +8,24 @@ const SEVERITIES: DefectSeverity[] = ['low', 'medium', 'high', 'critical'];
 const STATUSES: DefectStatus[] = ['open', 'in_progress', 'resolved', 'closed'];
 
 class DefectsController {
+  async getDefectsForProject(req: Request, res: Response, next: NextFunction) {
+    try {
+      const statusesRaw = String(req.query.statuses || '').trim();
+      const statuses: DefectStatus[] = statusesRaw
+        ? (statusesRaw.split(',').map((status) => status.trim()).filter(Boolean) as DefectStatus[])
+        : ['open', 'in_progress'];
+
+      const defects = await defectsService.getDefectsForProject(req.params.projectId, {
+        statuses,
+        search: req.query.search ? String(req.query.search) : undefined,
+      });
+
+      res.json(formatListResponse(defects, defects.length));
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async createDefect(req: Request, res: Response, next: NextFunction) {
     try {
       const { taskId } = req.params;
