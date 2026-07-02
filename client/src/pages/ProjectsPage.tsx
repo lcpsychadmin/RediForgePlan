@@ -10010,14 +10010,30 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                 } else {
                   delete updated[area];
                 }
+                // Also save accent + icon globally in the same request
+                const newAccents = { ...globalProcessAreaAccents, [area]: editingProcessAreaAccent };
+                const newIcons = { ...globalProcessAreaIcons, [area]: editingProcessAreaIcon as any };
+                setGlobalProcessAreaAccents(newAccents);
+                setGlobalProcessAreaIcons(newIcons);
                 apiClient.put('/api/hierarchy-preferences/global-process-areas', {
                   globalProcessAreaDescriptions: updated,
+                  globalProcessAreaAccents: newAccents,
+                  globalProcessAreaIcons: newIcons,
                 }).catch(() => {});
                 return updated;
               });
               setProcessAreaSettingsDialogOpen(false);
               setEditingProcessAreaContext(null);
               setEditingProcessAreaDescription('');
+              // Immediately persist accent/icon overrides (don't wait for a tree interaction)
+              setTimeout(() => {
+                apiClient.put('/api/hierarchy-preferences/state', {
+                  treeOrder, expandedPrograms: Array.from(expandedPrograms),
+                  expandedCycles: Array.from(expandedCycles), expandedProjectGroups: Array.from(expandedProjectGroups),
+                  expandedObjects: Array.from(expandedObjects), planningAdditionalGroups, planningAdditionalProcessAreas,
+                  hiddenProcessAreas, processAreaAccentOverrides, processAreaDescriptions, hierarchyLevelIcons,
+                }).catch(() => {});
+              }, 50);
             }}
             variant="contained"
             sx={{ textTransform: 'none' }}
