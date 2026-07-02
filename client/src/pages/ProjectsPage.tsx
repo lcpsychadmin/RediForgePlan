@@ -2417,7 +2417,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
         },
       }));
 
-      await reloadProjectPlanData(activeCycleId || projectId);
+      if (activeCycleId) {
+        await reloadProjectPlanData(activeCycleId);
+      }
 
       setProcessAreaDialogOpen(false);
       setProcessAreaTargetProjectId(null);
@@ -2477,7 +2479,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
         },
       }));
 
-      await reloadProjectPlanData(activeCycleId || projectId);
+      if (activeCycleId) {
+        await reloadProjectPlanData(activeCycleId);
+      }
     } catch (error) {
       console.error('Failed to remove process area from plan:', error);
       alert('Failed to remove process area from the execution plan');
