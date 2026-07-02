@@ -1,6 +1,6 @@
 // client/src/pages/PrioritiesPage.tsx
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Box, Typography, TextField, MenuItem, Table, TableBody, TableCell,
   TableContainer, TableHead, TableRow, Chip, IconButton, Alert, CircularProgress,
@@ -11,7 +11,7 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import TaskDetailModal from '../components/tasks/TaskDetailModal';
 import { usePriorities } from '../hooks/usePriorities';
-import { useProjectObjects } from '../hooks/useProjectObjects';
+import { useGlobalObjects } from '../api/hooks';
 import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import apiClient from '../api/client';
@@ -82,7 +82,7 @@ const PrioritiesPage: React.FC = () => {
 
   const { data: prioritized, isLoading } = usePriorities(projectId);
 
-  const { data: projectObjects = [] } = useProjectObjects(projectId);
+  const { data: globalObjects = [] } = useGlobalObjects();
 
   const { data: people = [] } = useQuery({
     queryKey: ['people'],
@@ -131,13 +131,7 @@ const PrioritiesPage: React.FC = () => {
     blocked: rawTasks.filter((t: any) => t.status === 'blocked'),
   }), [rawTasks]);
 
-  const objectsByIdMap = useMemo(() => new Map((projectObjects || []).map((o: any) => [o.objectId, o])), [projectObjects]);
-
-  useEffect(() => {
-    if (projectObjects && projectObjects.length > 0) {
-      console.log('objectsByIdMap populated:', projectObjects.slice(0, 3).map(o => ({ id: o.objectId, desc: o.description })));
-    }
-  }, [projectObjects]);
+  const objectsByIdMap = useMemo(() => new Map((globalObjects || []).map((o: any) => [o.objectId, o])), [globalObjects]);
 
   const merge = (arr: any[]) => arr.map((t: any) => {
     const id = t.taskId || t.id;
