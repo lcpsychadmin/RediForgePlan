@@ -6836,6 +6836,14 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                                     </Box>
                                                     <Box sx={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: getTaskStatusColor(childStatus), flexShrink: 0 }} />
                                                   </Box>
+                                                  {/* Timeline summary for this sub-object */}
+                                                {childTimelineStr && (
+                                                  <Box sx={{ px: 2, py: 0.4, display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                    <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.7rem', fontWeight: 500 }}>{childTimelineStr}</Typography>
+                                                    <Box sx={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: childIsBehind ? 'rgba(255,152,0,0.3)' : 'rgba(76,175,80,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: childIsBehind ? '#FFA726' : '#66BB6A', fontSize: '0.6rem', fontWeight: 'bold' }}>{childIsBehind ? '⚠' : '✓'}</Box>
+                                                    <Typography variant="caption" sx={{ color: childIsBehind ? '#FFA726' : '#66BB6A', fontSize: '0.65rem' }}>{childIsBehind ? 'Behind' : 'On Target'}</Typography>
+                                                  </Box>
+                                                )}
                                                 </Box>
                                                 );
                                               })}
