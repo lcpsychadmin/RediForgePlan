@@ -2869,6 +2869,26 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
     };
   }, []);
 
+  // Refresh global process area settings when switching to Schedule tab
+  // (user may have edited colors on Settings page while on different tab)
+  useEffect(() => {
+    if (tabValue === 3) {
+      apiClient.get('/api/hierarchy-preferences/state').then(res => {
+        const parsed = res.data?.data;
+        if (!parsed) return;
+        if (parsed.globalProcessAreaAccents && typeof parsed.globalProcessAreaAccents === 'object') {
+          setGlobalProcessAreaAccents(parsed.globalProcessAreaAccents);
+        }
+        if (parsed.globalProcessAreaIcons && typeof parsed.globalProcessAreaIcons === 'object') {
+          setGlobalProcessAreaIcons(parsed.globalProcessAreaIcons as Record<string, HierarchyIconChoice>);
+        }
+        if (parsed.globalProcessAreaDescriptions && typeof parsed.globalProcessAreaDescriptions === 'object') {
+          setGlobalProcessAreaDescriptions(parsed.globalProcessAreaDescriptions);
+        }
+      }).catch(() => {});
+    }
+  }, [tabValue]);
+
   // Sync tree ordering when data changes.
   useEffect(() => {
     setTreeOrder(prev => {
