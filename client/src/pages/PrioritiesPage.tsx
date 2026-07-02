@@ -150,6 +150,14 @@ const PrioritiesPage: React.FC = () => {
 
   const processAreas = useMemo(() => [...new Set(allPriorityTasks.map(t => (t.processArea || '').trim()).filter(Boolean))].sort(), [allPriorityTasks]);
 
+  const filteredTasks = useMemo(() => allPriorityTasks.filter(t => {
+    if (categoryFilter !== 'all' && t._category !== categoryFilter) return false;
+    if (processAreaFilter !== 'all' && (t.processArea || '').trim().toLowerCase() !== processAreaFilter) return false;
+    if (assignedFilter !== 'all' && t.draUserId !== assignedFilter && t.developerUserId !== assignedFilter) return false;
+    if (taskSearch) { const s = taskSearch.toLowerCase(); if (!(t.taskName || t.name || '').toLowerCase().includes(s) && !(t.objectId || '').toLowerCase().includes(s)) return false; }
+    return true;
+  }), [allPriorityTasks, categoryFilter, processAreaFilter, assignedFilter, taskSearch]);
+
   const toggleGroupExpanded = (groupKey: string) => {
     const updated = new Set(expandedGroups);
     if (updated.has(groupKey)) {
@@ -178,14 +186,6 @@ const PrioritiesPage: React.FC = () => {
     });
     return groups;
   }, [filteredTasks, groupBy]);
-
-  const filteredTasks = useMemo(() => allPriorityTasks.filter(t => {
-    if (categoryFilter !== 'all' && t._category !== categoryFilter) return false;
-    if (processAreaFilter !== 'all' && (t.processArea || '').trim().toLowerCase() !== processAreaFilter) return false;
-    if (assignedFilter !== 'all' && t.draUserId !== assignedFilter && t.developerUserId !== assignedFilter) return false;
-    if (taskSearch) { const s = taskSearch.toLowerCase(); if (!(t.taskName || t.name || '').toLowerCase().includes(s) && !(t.objectId || '').toLowerCase().includes(s)) return false; }
-    return true;
-  }), [allPriorityTasks, categoryFilter, processAreaFilter, assignedFilter, taskSearch]);
 
   const filteredDefects = useMemo(() => defects.filter((def: any) => {
     if (defectStatusFilter !== 'all' && (def.status || 'open') !== defectStatusFilter) return false;
