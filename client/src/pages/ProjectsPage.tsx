@@ -233,6 +233,7 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
   const actDragRef = React.useRef<typeof actDrag>(null);
   const laneDragOverRef = React.useRef<typeof laneDragOver>(null);
   const laneAssignRef = React.useRef(laneAssign);
+  const fullLaneMapsRef = React.useRef<Record<string, Record<string, number>>>({});
   React.useEffect(() => { actDragRef.current = actDrag; }, [actDrag]);
   React.useEffect(() => { laneDragOverRef.current = laneDragOver; }, [laneDragOver]);
   React.useEffect(() => { laneAssignRef.current = laneAssign; }, [laneAssign]);
@@ -261,10 +262,13 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
       const ad = actDragRef.current;
       const ld = laneDragOverRef.current;
       if (ad && ld && ld.canDrop) {
-        const cur = (laneAssignRef.current[ad.projectKey]) || {};
-        const maxLane = Math.max(-1, ...Object.values(cur));
+        // Save the full lane map for this project (auto-packed base + all existing overrides + the new move)
+        const fullCurrent = fullLaneMapsRef.current[ad.projectKey] || laneAssignRef.current[ad.projectKey] || {};
+        const cur = laneAssignRef.current[ad.projectKey] || {};
+        const maxLane = Math.max(-1, ...Object.values(fullCurrent));
         const targetLane = ld.laneIdx === -1 ? maxLane + 1 : ld.laneIdx;
-        const next = { ...laneAssignRef.current, [ad.projectKey]: { ...cur, [ad.actId]: targetLane } };
+        const fullUpdated = { ...fullCurrent, [ad.actId]: targetLane };
+        const next = { ...laneAssignRef.current, [ad.projectKey]: fullUpdated };
         setLaneAssign(next);
         apiClient.put('/api/hierarchy-preferences/global-process-areas', { roadmapLaneAssign: next }).catch(err => console.error('Lane save failed:', err));
       }
@@ -642,9 +646,12 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
               ...testCycles.map(tc => ({ id: tc.id, kind: 'test-cycle' as const })),
             ];
             // Get or auto-compute lane assignments
+            // Always auto-pack first (base), then apply explicit saved overrides on top
+            const autoPacked = autoPackLanes(allActs.map(a => a.id), id => getActRange(id, phases, cycles, testCycles));
             const curAssign = laneAssign[proj.name] || {};
-            const hasAssign = allActs.some(a => a.id in curAssign);
-            const laneMap = hasAssign ? curAssign : autoPackLanes(allActs.map(a => a.id), id => getActRange(id, phases, cycles, testCycles));
+            // Merge: start from auto-pack, override with any explicitly saved lane assignments
+            const laneMap: Record<string, number> = { ...autoPacked, ...curAssign };
+            fullLaneMapsRef.current[proj.name] = laneMap; // keep ref for save in drag handler
             // Group into lanes
             const maxLane = Math.max(-1, ...allActs.map(a => laneMap[a.id] ?? 0));
             const lanes: Array<typeof allActs> = Array.from({ length: maxLane + 1 }, () => []);
