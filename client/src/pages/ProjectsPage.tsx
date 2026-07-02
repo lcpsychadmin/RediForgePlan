@@ -271,10 +271,6 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
     document.addEventListener('mouseup', onUp);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
   const timelineRef = React.useRef<HTMLDivElement>(null);
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
 
