@@ -242,19 +242,29 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
   React.useEffect(() => {
     if (!actDrag) return;
     const onMove = (e: MouseEvent) => {
-      // Check at cursor X and also offset right to handle cursor being over the grip (outside lane hit area)
-      for (const cx of [e.clientX, e.clientX + 25, e.clientX + 60]) {
-        const els = document.elementsFromPoint(cx, e.clientY) as HTMLElement[];
-        for (const el of els) {
-          const laneIdx = el.dataset?.laneIdx;
-          const projectKey = el.dataset?.projectKey;
-          if (laneIdx !== undefined && projectKey && projectKey === actDragRef.current?.projectKey) {
-            const idx = Number(laneIdx);
-            const canDrop = !laneHasOverlap(projectKey, actDragRef.current!.actId, idx);
-            laneDragOverRef.current = { projectKey, laneIdx: idx, canDrop };
-            setLaneDragOver({ projectKey, laneIdx: idx, canDrop });
-            return;
-          }
+      const projectKey = actDragRef.current?.projectKey;
+      if (!projectKey) return;
+      // Y-position based detection: find which lane row the cursor's Y falls within
+      const laneEls = Array.from(document.querySelectorAll('[data-lane-idx][data-project-key]')) as HTMLElement[];
+      for (const el of laneEls) {
+        if (el.dataset.projectKey !== projectKey) continue;
+        const rect = el.getBoundingClientRect();
+        if (e.clientY >= rect.top && e.clientY <= rect.bottom) {
+          const idx = Number(el.dataset.laneIdx);
+          const canDrop = !laneHasOverlap(projectKey, actDragRef.current!.actId, idx);
+          laneDragOverRef.current = { projectKey, laneIdx: idx, canDrop };
+          setLaneDragOver({ projectKey, laneIdx: idx, canDrop });
+          return;
+        }
+      }
+      // Check new-lane drop zone
+      const newLaneEl = Array.from(document.querySelectorAll('[data-new-lane]'))
+        .find(el => (el as HTMLElement).dataset.newLane === projectKey) as HTMLElement | null;
+      if (newLaneEl) {
+        const rect = newLaneEl.getBoundingClientRect();
+        if (e.clientY >= rect.top && e.clientY <= rect.bottom) {
+          laneDragOverRef.current = { projectKey, laneIdx: -1, canDrop: true };
+          setLaneDragOver({ projectKey, laneIdx: -1, canDrop: true });
         }
       }
     };
@@ -264,9 +274,8 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
       if (ad && ld && ld.canDrop) {
         // Save the full lane map for this project (auto-packed base + all existing overrides + the new move)
         const fullCurrent = fullLaneMapsRef.current[ad.projectKey] || laneAssignRef.current[ad.projectKey] || {};
-        const cur = laneAssignRef.current[ad.projectKey] || {};
         const maxLane = Math.max(-1, ...Object.values(fullCurrent));
-        const targetLane = ld.laneIdx === -1 ? maxLane + 1 : ld.laneIdx;
+        const targetLane = ld.laneIdx < 0 ? maxLane + 1 : ld.laneIdx;
         const fullUpdated = { ...fullCurrent, [ad.actId]: targetLane };
         const next = { ...laneAssignRef.current, [ad.projectKey]: fullUpdated };
         setLaneAssign(next);
