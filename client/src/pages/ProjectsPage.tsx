@@ -235,64 +235,42 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
   React.useEffect(() => { laneAssignRef.current = laneAssign; }, [laneAssign]);
 
   // Start a lane drag — sets up mousemove/mouseup directly (no effect delay, no stale closures)
-  const startLaneDrag = React.useCallback((e: React.MouseEvent, actId: string, projectKey: string) => {
+  // Y-delta based lane drag — pure math, no DOM queries needed
+  const startLaneDrag = React.useCallback((
+    e: React.MouseEvent, actId: string, projectKey: string, fromLane: number, totalLanes: number
+  ) => {
     e.stopPropagation();
     e.preventDefault();
     setActDrag({ projectKey, actId });
-    let currentOver: { projectKey: string; laneIdx: number; canDrop: boolean } | null = null;
-
-    const detectLane = (clientY: number) => {
-      const els = Array.from(document.querySelectorAll('[data-lane-idx][data-project-key]')) as HTMLElement[];
-      for (const el of els) {
-        if (el.dataset.projectKey !== projectKey) continue;
-        const r = el.getBoundingClientRect();
-        if (clientY >= r.top && clientY <= r.bottom) {
-          const idx = Number(el.dataset.laneIdx);
-          // Overlap check against current saved full map
-          const cur = laneAssignRef.current[projectKey] || fullLaneMapsRef.current[projectKey] || {};
-          const sameLane = Object.entries(cur).filter(([id, l]) => Number(l) === idx && id !== actId).map(([id]) => id);
-          const getR = (id: string) => {
-            const ri = (window as any).__roadmapItemsSnap?.find?.((x: any) => x.id === id);
-            if (ri?.startDate && ri?.endDate) return { start: ri.startDate, end: ri.endDate };
-            const cyc = (window as any).__mockCyclesSnap?.find?.((c: any) => c.id === id);
-            if (cyc?.startDate && cyc?.endDate) return { start: cyc.startDate.substring(0,10), end: cyc.endDate.substring(0,10) };
-            return null;
-          };
-          const dragR = getR(actId);
-          const overlap = dragR ? sameLane.some(oid => { const r2 = getR(oid); return r2 ? !(dragR.end <= r2.start || r2.end <= dragR.start) : false; }) : false;
-          return { projectKey, laneIdx: idx, canDrop: !overlap };
-        }
-      }
-      const newLaneEl = Array.from(document.querySelectorAll('[data-new-lane]'))
-        .find(el => (el as HTMLElement).dataset.newLane === projectKey) as HTMLElement | null;
-      if (newLaneEl) {
-        const r = newLaneEl.getBoundingClientRect();
-        if (clientY >= r.top && clientY <= r.bottom) return { projectKey, laneIdx: -1, canDrop: true };
-      }
-      return null;
-    };
+    const startY = e.clientY;
+    const ROW_H = 44; // approximate lane row height in px
+    let targetLane = fromLane;
 
     const onMove = (me: MouseEvent) => {
-      currentOver = detectLane(me.clientY);
-      setLaneDragOver(currentOver);
+      const delta = Math.round((me.clientY - startY) / ROW_H);
+      targetLane = Math.max(0, Math.min(totalLanes, fromLane + delta));
+      setLaneDragOver({ projectKey, laneIdx: targetLane, canDrop: true });
     };
     const onUp = () => {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
-      if (currentOver?.canDrop) {
-        const full = { ...fullLaneMapsRef.current[projectKey], ...(laneAssignRef.current[projectKey] || {}) };
-        const maxLane = Math.max(-1, ...Object.values(full).map(Number));
-        const targetLane = currentOver.laneIdx < 0 ? maxLane + 1 : currentOver.laneIdx;
+      // Always save when the lane changed
+      if (targetLane !== fromLane) {
+        const full = { ...(fullLaneMapsRef.current[projectKey] || {}), ...(laneAssignRef.current[projectKey] || {}) };
         const updated = { ...full, [actId]: targetLane };
         const next = { ...laneAssignRef.current, [projectKey]: updated };
         laneAssignRef.current = next;
-        setLaneAssign(next);
+        setLaneAssign({ ...next });
         apiClient.put('/api/hierarchy-preferences/global-process-areas', { roadmapLaneAssign: next })
           .catch(err => console.error('Lane save failed:', err));
       }
       setActDrag(null);
       setLaneDragOver(null);
     };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -677,8 +655,8 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
             allActs.forEach(a => { const l = laneMap[a.id] ?? 0; if (lanes[l]) lanes[l].push(a); else lanes[l] = [a]; });
 
             // Grip handle — calls startLaneDrag directly (no effect delay)
-            const ActGrip = ({ actId }: { actId: string }) => (
-              <Box onMouseDown={e => startLaneDrag(e, actId, proj.name)}
+            const ActGrip = ({ actId, fromLane }: { actId: string; fromLane: number }) => (
+              <Box onMouseDown={e => startLaneDrag(e, actId, proj.name, fromLane, lanes.length)}
                 sx={{ position: 'absolute', left: -18, top: '50%', transform: 'translateY(-50%)', width: 14, cursor: actDrag ? 'grabbing' : 'ns-resize', color: 'rgba(255,255,255,0.25)', fontSize: '0.78rem', lineHeight: 1, userSelect: 'none', '&:hover': { color: 'rgba(255,255,255,0.55)' }, zIndex: 3 }}>
                 ⠿
               </Box>
@@ -696,12 +674,13 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
                 {/* Activity lanes — each lane = one row, can hold multiple non-overlapping bars */}
                 {lanes.map((laneActs, laneIdx) => {
                   const isDropTarget = laneDragOver?.projectKey === proj.name && laneDragOver?.laneIdx === laneIdx;
+                  const showInsertBefore = laneDragOver?.projectKey === proj.name && laneDragOver?.laneIdx === laneIdx && actDrag;
                   return (
                     <Box key={laneIdx} data-lane-idx={String(laneIdx)} data-project-key={proj.name}
                       sx={{ ...rowSx, mb: 0.5, position: 'relative', borderRadius: 1,
                         ml: '-20px', pl: '20px', // extend left to cover the grip handle
-                        outline: isDropTarget ? `2px solid ${laneDragOver!.canDrop ? '#667eea' : '#ef5350'}` : 'none',
-                        backgroundColor: isDropTarget ? (laneDragOver!.canDrop ? 'rgba(102,126,234,0.07)' : 'rgba(239,83,80,0.07)') : 'transparent',
+                        outline: isDropTarget ? '2px solid #667eea' : 'none',
+                        backgroundColor: isDropTarget ? 'rgba(102,126,234,0.1)' : 'transparent',
                       }}>
                       <Box sx={trackSx} />
                       {laneActs.map(row => {
@@ -713,7 +692,7 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
                           const dispEnd   = drag?.id === ph.id && drag?.handle === 'end'   ? drag.currentDate : ph.endDate;
                           return (
                             <React.Fragment key={ph.id}>
-                              <ActGrip actId={ph.id} />
+                              <ActGrip actId={ph.id} fromLane={laneIdx} />
                               <Box sx={{ opacity }}>
                                 <TimelineBar startDate={dispStart} endDate={dispEnd} color={ph.color} label={`▐ ${ph.name}`} onClick={() => openEditItem(ph)}
                                   subtitle={`${proj.programName} · ${proj.name}`}
@@ -732,7 +711,7 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
                           const dispEnd   = drag?.id === c.id && drag?.handle === 'end'   ? drag.currentDate : c.endDate?.substring(0, 10);
                           return (
                             <React.Fragment key={c.id}>
-                              <ActGrip actId={c.id} />
+                              <ActGrip actId={c.id} fromLane={laneIdx} />
                               <Box sx={{ opacity }}>
                                 <TimelineBar startDate={dispStart} endDate={dispEnd} color={accent} label={c.name}
                                   subtitle={`${proj.programName} · ${proj.name}`}
@@ -751,7 +730,7 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
                           const dispEnd   = drag?.id === tc.id && drag?.handle === 'end'   ? drag.currentDate : tc.endDate;
                           return (
                             <React.Fragment key={tc.id}>
-                              <ActGrip actId={tc.id} />
+                              <ActGrip actId={tc.id} fromLane={laneIdx} />
                               <Box sx={{ opacity }}>
                                 <TimelineBar startDate={dispStart} endDate={dispEnd} color={tc.color} label={`◆ ${tc.name}`} onClick={() => openEditItem(tc)} dashed
                                   subtitle={`${proj.programName} · ${proj.name}`}
