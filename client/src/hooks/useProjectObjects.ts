@@ -36,18 +36,25 @@ export const useProjectObjects = (projectId: string, filters?: Filters) => {
   return useQuery({
     queryKey,
     queryFn: async () => {
+      console.log(`useProjectObjects: Fetching for projectId=${projectId}`);
       const params = new URLSearchParams();
       if (filters?.status) params.append('status', filters.status);
       if (filters?.draUserId) params.append('draUserId', filters.draUserId);
       if (filters?.developerUserId) params.append('developerUserId', filters.developerUserId);
       if (filters?.processArea) params.append('processArea', filters.processArea);
 
-      const response = await apiClient.get(`/api/project-objects/project/${projectId}`, {
-        params: Object.fromEntries(params),
-      });
-      const data = response.data.data;
-      console.log('useProjectObjects response:', data.slice(0, 3).map((o: any) => ({ objectId: o.objectId, description: o.description })));
-      return data;
+      try {
+        const response = await apiClient.get(`/api/project-objects/project/${projectId}`, {
+          params: Object.fromEntries(params),
+        });
+        console.log('useProjectObjects raw response:', response.data);
+        const data = response.data.data;
+        console.log('useProjectObjects response:', data.slice(0, 3).map((o: any) => ({ objectId: o.objectId, description: o.description })));
+        return data;
+      } catch (err: any) {
+        console.error('useProjectObjects error:', err.message, err.response?.status, err.response?.data);
+        throw err;
+      }
     },
     enabled: !!projectId,
   });
