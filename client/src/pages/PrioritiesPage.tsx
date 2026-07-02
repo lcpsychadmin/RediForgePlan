@@ -1,6 +1,6 @@
 // client/src/pages/PrioritiesPage.tsx
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Box, Typography, TextField, MenuItem, Table, TableBody, TableCell,
   TableContainer, TableHead, TableRow, Chip, IconButton, Alert, CircularProgress,
@@ -82,17 +82,6 @@ const PrioritiesPage: React.FC = () => {
 
   const { data: prioritized, isLoading } = usePriorities(projectId);
 
-  useEffect(() => {
-    if (prioritized) {
-      const allTasks = [
-        ...(prioritized.late || []),
-        ...(prioritized.due_this_week || []),
-        ...(prioritized.blocked || []),
-      ];
-      console.log('Prioritized tasks from API:', allTasks.length, 'tasks, sample:', allTasks.slice(0, 2));
-    }
-  }, [prioritized]);
-
   const { data: projectObjects = [] } = useProjectObjects(projectId);
 
   const { data: people = [] } = useQuery({
@@ -142,11 +131,7 @@ const PrioritiesPage: React.FC = () => {
     blocked: rawTasks.filter((t: any) => t.status === 'blocked'),
   }), [rawTasks]);
 
-  const objectsByIdMap = useMemo(() => {
-    const map = new Map((projectObjects || []).map((o: any) => [o.objectId, o]));
-    console.log('Object inventory loaded:', projectObjects.length, 'objects, map entries:', Array.from(map.entries()).slice(0, 5));
-    return map;
-  }, [projectObjects]);
+  const objectsByIdMap = useMemo(() => new Map((projectObjects || []).map((o: any) => [o.objectId, o])), [projectObjects]);
 
   const merge = (arr: any[]) => arr.map((t: any) => {
     const id = t.taskId || t.id;
@@ -155,7 +140,6 @@ const PrioritiesPage: React.FC = () => {
     const object = objectId ? objectsByIdMap.get(objectId) : null;
     // Priority: API processArea > object.processArea > raw.processArea
     const processArea = t.processArea || object?.processArea || raw.processArea;
-    console.log(`Task ${t.taskName}: api=${t.processArea}, object=${object?.processArea}, raw=${raw.processArea}, final=${processArea}`);
     return { ...raw, ...t, taskId: id, taskName: t.taskName || raw.name, processArea };
   });
 
@@ -176,7 +160,6 @@ const PrioritiesPage: React.FC = () => {
 
   const processAreas = useMemo(() => {
     const areas = [...new Set(allPriorityTasks.map(t => (t.processArea || '').trim()).filter(Boolean))].sort();
-    console.log('Available process areas:', areas);
     return areas;
   }, [allPriorityTasks]);
 
@@ -276,6 +259,7 @@ const PrioritiesPage: React.FC = () => {
               <Table size="small">
                 <TableHead>
                   <TableRow>
+                    <TableCell sx={th}>Object</TableCell>
                     <TableCell sx={th}>Task</TableCell>
                     <TableCell sx={th}>Category</TableCell>
                     <TableCell sx={th}>Status</TableCell>
@@ -294,14 +278,19 @@ const PrioritiesPage: React.FC = () => {
                       const assignee = peopleById[task.draUserId || task.developerUserId] || null;
                       const catColor = task._category === 'overdue' ? '#ef5350' : task._category === 'blocked' ? '#ab47bc' : '#ffa726';
                       const catLabel = task._category === 'overdue' ? 'Overdue' : task._category === 'due_this_week' ? 'Due This Week' : 'Blocked';
+                      const objectId = task.objectId || task.projectObjectId;
+                      const objectData = objectId ? objectsByIdMap.get(objectId) : null;
                       return (
                         <TableRow key={`${task.taskId || task.id}-${i}`} hover onClick={() => setSelectedTask(task)}
                           sx={{ cursor: 'pointer', '&:hover': { backgroundColor: 'rgba(255,255,255,0.035)' } }}>
                           <TableCell sx={td}>
-                            <Typography sx={{ fontWeight: 600, fontSize: '0.8rem' }}>{task.taskName || task.name || 'Untitled'}</Typography>
-                            {(task.objectId || task.projectName) && (
-                              <Typography variant="caption" color="text.secondary">{[task.objectId, task.projectName, task.mockCycleName].filter(Boolean).join(' · ')}</Typography>
+                            <Typography sx={{ fontWeight: 600, fontSize: '0.8rem' }}>{objectId || '—'}</Typography>
+                            {objectData?.description && (
+                              <Typography variant="caption" color="text.secondary">{objectData.description}</Typography>
                             )}
+                          </TableCell>
+                          <TableCell sx={td}>
+                            <Typography sx={{ fontWeight: 600, fontSize: '0.8rem' }}>{task.taskName || task.name || 'Untitled'}</Typography>
                           </TableCell>
                           <TableCell sx={td}>
                             <Chip size="small" label={catLabel} sx={{ fontSize: '0.68rem', height: 20, backgroundColor: `${catColor}20`, color: catColor }} />
@@ -335,7 +324,7 @@ const PrioritiesPage: React.FC = () => {
                             onClick={() => toggleGroupExpanded(groupKey)}
                             sx={{ cursor: 'pointer', backgroundColor: 'rgba(255,255,255,0.05)', '&:hover': { backgroundColor: 'rgba(255,255,255,0.08)' } }}
                           >
-                            <TableCell colSpan={8} sx={{ ...td, py: 1 }}>
+                            <TableCell colSpan={9} sx={{ ...td, py: 1 }}>
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                 {isExpanded ? <ExpandLessIcon sx={{ fontSize: '1.1rem' }} /> : <ExpandMoreIcon sx={{ fontSize: '1.1rem' }} />}
                                 <Typography sx={{ fontWeight: 700, fontSize: '0.85rem' }}>{groupKey}</Typography>
@@ -348,14 +337,19 @@ const PrioritiesPage: React.FC = () => {
                             const assignee = peopleById[task.draUserId || task.developerUserId] || null;
                             const catColor = task._category === 'overdue' ? '#ef5350' : task._category === 'blocked' ? '#ab47bc' : '#ffa726';
                             const catLabel = task._category === 'overdue' ? 'Overdue' : task._category === 'due_this_week' ? 'Due This Week' : 'Blocked';
+                            const objectId = task.objectId || task.projectObjectId;
+                            const objectData = objectId ? objectsByIdMap.get(objectId) : null;
                             return (
                               <TableRow key={`${task.taskId || task.id}-${i}`} hover onClick={() => setSelectedTask(task)}
                                 sx={{ cursor: 'pointer', '&:hover': { backgroundColor: 'rgba(255,255,255,0.035)' }, backgroundColor: 'rgba(255,255,255,0.01)' }}>
+                                <TableCell sx={td}>
+                                  <Typography sx={{ fontWeight: 600, fontSize: '0.8rem' }}>{objectId || '—'}</Typography>
+                                  {objectData?.description && (
+                                    <Typography variant="caption" color="text.secondary">{objectData.description}</Typography>
+                                  )}
+                                </TableCell>
                                 <TableCell sx={{ ...td, pl: 4 }}>
                                   <Typography sx={{ fontWeight: 600, fontSize: '0.8rem' }}>{task.taskName || task.name || 'Untitled'}</Typography>
-                                  {(task.objectId || task.projectName) && (
-                                    <Typography variant="caption" color="text.secondary">{[task.objectId, task.projectName, task.mockCycleName].filter(Boolean).join(' · ')}</Typography>
-                                  )}
                                 </TableCell>
                                 <TableCell sx={td}>
                                   <Chip size="small" label={catLabel} sx={{ fontSize: '0.68rem', height: 20, backgroundColor: `${catColor}20`, color: catColor }} />
