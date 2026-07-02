@@ -50,7 +50,7 @@ router.put('/state', requireAuth, async (req: Request, res: Response, next: Next
     const treeOrder = hierarchyState?.treeOrder || null;
 
     // Merge new state with existing, but preserve global keys that have their own endpoint.
-    // This prevents PUT /state from wiping globalProcessAreaAccents/Icons/Descriptions/picklistValues/roadmapItems.
+    // This prevents PUT /state from wiping globalProcessAreaAccents/Icons/Descriptions/picklistValues/roadmapItems/roadmapLaneAssign/roadmapRowOrder.
     await db.query(
       `INSERT INTO ${preferenceTable} (id, tree_order, hierarchy_state, updated_at)
        VALUES (1, $1::jsonb, $2::jsonb, CURRENT_TIMESTAMP)
@@ -63,7 +63,9 @@ router.put('/state', requireAuth, async (req: Request, res: Response, next: Next
              'globalProcessAreaIcons',      COALESCE(${preferenceTable}.hierarchy_state->'globalProcessAreaIcons', '{}'::jsonb),
              'globalProcessAreaDescriptions', COALESCE(${preferenceTable}.hierarchy_state->'globalProcessAreaDescriptions', '{}'::jsonb),
              'picklistValues',              COALESCE(${preferenceTable}.hierarchy_state->'picklistValues', '{}'::jsonb),
-             'roadmapItems',                COALESCE(${preferenceTable}.hierarchy_state->'roadmapItems', '[]'::jsonb)
+             'roadmapItems',                COALESCE(${preferenceTable}.hierarchy_state->'roadmapItems', '[]'::jsonb),
+             'roadmapLaneAssign',           COALESCE(${preferenceTable}.hierarchy_state->'roadmapLaneAssign', '{}'::jsonb),
+             'roadmapRowOrder',             COALESCE(${preferenceTable}.hierarchy_state->'roadmapRowOrder', '{}'::jsonb)
            ) || EXCLUDED.hierarchy_state
          ),
          updated_at = CURRENT_TIMESTAMP`,
