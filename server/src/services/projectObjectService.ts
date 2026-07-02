@@ -112,7 +112,12 @@ export class ProjectObjectService {
       : ' ORDER BY po.created_at DESC';
 
     const result = await db.query(query, params);
-    return result.rows.map(row => this.formatProjectObject(row));
+    const formatted = result.rows.map(row => {
+      const obj = this.formatProjectObject(row);
+      console.log(`ProjectObject ${obj.objectId}: description="${obj.description}"`);
+      return obj;
+    });
+    return formatted;
   }
 
   async getProjectObjectById(projectObjectId: string) {
