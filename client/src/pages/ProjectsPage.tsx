@@ -1023,6 +1023,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   const [processAreaDialogOpen, setProcessAreaDialogOpen] = useState(false);
   const [newProcessAreaName, setNewProcessAreaName] = useState('');
   const [processAreaTargetProjectId, setProcessAreaTargetProjectId] = useState<string | null>(null);
+  const [processAreaTargetCycleId, setProcessAreaTargetCycleId] = useState<string | null>(null);
 
   // Picklist constants
   // Picklist values — loaded from the global settings API so custom values added
@@ -2265,6 +2266,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
 
   const handleAddProcessArea = (projectId: string) => {
     setProcessAreaTargetProjectId(projectId);
+    setProcessAreaTargetCycleId(activeCycleId || null); // capture cycle context at open time
     setNewProcessAreaName(processAreaOptions[0] || '');
     setProcessAreaDialogOpen(true);
   };
@@ -2384,9 +2386,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
       return;
     }
 
-    // Use cycleId as key so process areas are isolated per cycle, not shared
-    // across cycles that share the same project.
-    const cycleKey = activeCycleId || projectId;
+    // Use the cycle ID captured when the dialog was opened (not the current activeCycleId which may have changed)
+    const cycleKey = processAreaTargetCycleId || activeCycleId || projectId;
 
     try {
       const normalizedArea = name.toLowerCase();
@@ -2423,7 +2424,17 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
 
       setProcessAreaDialogOpen(false);
       setProcessAreaTargetProjectId(null);
+      setProcessAreaTargetCycleId(null);
       setNewProcessAreaName('');
+      // Persist immediately so the new process area survives refresh
+      setTimeout(() => {
+        apiClient.put('/api/hierarchy-preferences/state', {
+          treeOrder, expandedPrograms: Array.from(expandedPrograms),
+          expandedCycles: Array.from(expandedCycles), expandedProjectGroups: Array.from(expandedProjectGroups),
+          expandedObjects: Array.from(expandedObjects), planningAdditionalGroups, planningAdditionalProcessAreas,
+          hiddenProcessAreas, processAreaAccentOverrides, processAreaDescriptions, hierarchyLevelIcons,
+        }).catch(() => {});
+      }, 100);
     } catch (error) {
       console.error('Failed to add process area to plan:', error);
       alert('Failed to add process area to the execution plan');
