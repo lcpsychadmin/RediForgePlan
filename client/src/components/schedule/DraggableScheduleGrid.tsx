@@ -62,18 +62,10 @@ export const DraggableScheduleGrid: React.FC<DraggableScheduleGridProps> = ({
     const processArea = (item.processArea || 'Unassigned').trim();
     // Priority: global setting > per-project override > hash-based color
     const global = globalProcessAreaAccents?.[processArea];
-    if (global) {
-      console.log(`DraggableScheduleGrid: Using global accent for "${processArea}": ${global}`);
-      return global;
-    }
+    if (global) return global;
     const override = processAreaAccentOverrides?.[projectId]?.[processArea];
-    if (override) {
-      console.log(`DraggableScheduleGrid: Using override for "${processArea}": ${override}`);
-      return override;
-    }
-    const hash = hashColorForArea(processArea);
-    console.log(`DraggableScheduleGrid: Using hash color for "${processArea}": ${hash}`);
-    return hash;
+    if (override) return override;
+    return hashColorForArea(processArea);
   };
 
   const visibleSpans = items
