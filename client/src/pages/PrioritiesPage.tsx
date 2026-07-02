@@ -200,7 +200,7 @@ const PrioritiesPage: React.FC = () => {
     if (severityFilter !== 'all' && (def.severity || 'low') !== severityFilter) return false;
     if (defectSearch) { const s = defectSearch.toLowerCase(); if (!(def.title || '').toLowerCase().includes(s) && !(def.issueCode || '').toLowerCase().includes(s)) return false; }
     return true;
-  }, [defects, defectStatusFilter, severityFilter, defectSearch]);
+  }), [defects, defectStatusFilter, severityFilter, defectSearch]);
 
   const th = { py: 0.8, px: 1.5, fontSize: '0.68rem', letterSpacing: '0.06em', color: 'rgba(255,255,255,0.45)', backgroundColor: 'rgba(0,0,0,0.18)', textTransform: 'uppercase' as const, fontWeight: 700, borderBottom: '1px solid rgba(255,255,255,0.07)' };
   const td = { py: 0.75, px: 1.5, fontSize: '0.8rem', borderBottom: '1px solid rgba(255,255,255,0.04)' };
