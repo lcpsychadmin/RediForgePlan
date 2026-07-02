@@ -235,9 +235,25 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
   React.useEffect(() => { rowDragRef.current = rowDrag; }, [rowDrag]);
   React.useEffect(() => { rowDragOverRef.current = rowDragOver; }, [rowDragOver]);
 
-  // Commit vertical drag on mouseup
+  // Vertical drag: use elementsFromPoint on mousemove (mouseenter doesn’t fire during mousedown-drag)
   React.useEffect(() => {
     if (!rowDrag) return;
+    const onMove = (e: MouseEvent) => {
+      const els = document.elementsFromPoint(e.clientX, e.clientY) as HTMLElement[];
+      for (const el of els) {
+        const rowId = el.dataset?.rowId;
+        const projectKey = el.dataset?.projectKey;
+        if (rowId && projectKey) {
+          const rect = el.getBoundingClientRect();
+          const side: 'before' | 'after' = e.clientY < rect.top + rect.height / 2 ? 'before' : 'after';
+          if (rowId !== rowDragRef.current?.rowId) {
+            rowDragOverRef.current = { projectKey, rowId, side };
+            setRowDragOver({ projectKey, rowId, side });
+          }
+          return;
+        }
+      }
+    };
     const onUp = () => {
       const rd = rowDragRef.current;
       const rdo = rowDragOverRef.current;
@@ -250,8 +266,9 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
       setRowDrag(null);
       setRowDragOver(null);
     };
+    document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
-    return () => document.removeEventListener('mouseup', onUp);
+    return () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rowDrag]);
   const timelineRef = React.useRef<HTMLDivElement>(null);
@@ -353,14 +370,20 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
 
   const today = React.useMemo(() => new Date(), []);
   const rangeStart = React.useMemo(() => {
-    if (!allDates.length) { const d = new Date(today); d.setMonth(d.getMonth() - 1); return d; }
-    const d = new Date(Math.min(...allDates.map(x => x.getTime())));
-    d.setDate(d.getDate() - 21); return d;
+    // Always show 6 months before today; extend if data reaches further back
+    const sixMonthsBefore = new Date(today);
+    sixMonthsBefore.setMonth(sixMonthsBefore.getMonth() - 6);
+    if (!allDates.length) return sixMonthsBefore;
+    const dataMin = new Date(Math.min(...allDates.map(x => x.getTime())));
+    return new Date(Math.min(sixMonthsBefore.getTime(), dataMin.getTime()));
   }, [allDates, today]);
   const rangeEnd = React.useMemo(() => {
-    if (!allDates.length) { const d = new Date(today); d.setMonth(d.getMonth() + 7); return d; }
-    const d = new Date(Math.max(...allDates.map(x => x.getTime())));
-    d.setDate(d.getDate() + 21); return d;
+    // Always show 6 months after today; extend if data reaches further ahead
+    const sixMonthsAfter = new Date(today);
+    sixMonthsAfter.setMonth(sixMonthsAfter.getMonth() + 6);
+    if (!allDates.length) return sixMonthsAfter;
+    const dataMax = new Date(Math.max(...allDates.map(x => x.getTime())));
+    return new Date(Math.max(sixMonthsAfter.getTime(), dataMax.getTime()));
   }, [allDates, today]);
   const totalDays = Math.max(1, (rangeEnd.getTime() - rangeStart.getTime()) / 86400000);
   const dateToX = (d: Date) => Math.max(0, Math.min(100, ((d.getTime() - rangeStart.getTime()) / 86400000 / totalDays) * 100));
@@ -541,9 +564,9 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
         )}
       </Box>
 
-      {/* Timeline card */}
-      <Box sx={{ backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 2, p: 2, overflowX: 'auto' }}>
-        <Box ref={timelineRef} sx={{ minWidth: 900, position: 'relative' }}>
+      {/* Timeline card — tall, horizontally scrollable */}
+      <Box sx={{ backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 2, p: 2, overflowX: 'auto', overflowY: 'auto', minHeight: '60vh', maxHeight: '80vh' }}>
+        <Box ref={timelineRef} sx={{ minWidth: Math.max(900, totalDays * 3), position: 'relative' }}>
           {/* Month header */}
           <Box sx={{ position: 'relative', height: 24, mb: 1, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
             {months.map((m, i) => (
@@ -590,16 +613,11 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
               </Box>
             );
 
-            // Drop zone: uses onMouseEnter (works during mousedown-drag without draggable attr)
+            // Drop indicator — shown when a row drag is over this position
             const DropZone = ({ rowId, side }: { rowId: string; side: 'before' | 'after' }) => {
               const isOver = rowDragOver?.projectKey === proj.name && rowDragOver?.rowId === rowId && rowDragOver?.side === side;
-              return (
-                <Box
-                  onMouseEnter={() => { if (rowDragRef.current?.projectKey === proj.name) setRowDragOver({ projectKey: proj.name, rowId, side }); }}
-                  sx={{ position: 'absolute', left: 0, right: 0, height: '50%', top: side === 'before' ? 0 : '50%', zIndex: 5, pointerEvents: rowDrag ? 'auto' : 'none' }}>
-                  {isOver && <Box sx={{ position: 'absolute', left: 0, right: 0, height: 2, backgroundColor: '#667eea', [side === 'before' ? 'top' : 'bottom']: 0, borderRadius: 1 }} />}
-                </Box>
-              );
+              if (!isOver) return null;
+              return <Box sx={{ position: 'absolute', left: 0, right: 0, height: 2, backgroundColor: '#667eea', [side === 'before' ? 'top' : 'bottom']: -1, borderRadius: 1, zIndex: 6, pointerEvents: 'none' }} />;
             };
 
             return (
@@ -618,7 +636,7 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
                     const dispStart = drag?.id === ph.id && drag?.handle === 'start' ? drag.currentDate : ph.startDate;
                     const dispEnd   = drag?.id === ph.id && drag?.handle === 'end'   ? drag.currentDate : ph.endDate;
                     return (
-                      <Box key={ph.id} sx={{ ...rowSx, mb: 0.25, position: 'relative' }}>
+                      <Box key={ph.id} data-row-id={ph.id} data-project-key={proj.name} sx={{ ...rowSx, mb: 0.25, position: 'relative', opacity: rowDrag?.rowId === ph.id ? 0.4 : 1 }}>
                         <DropZone rowId={ph.id} side="before" />
                         <DropZone rowId={ph.id} side="after" />
                         <GripHandle rowId={ph.id} />
@@ -638,7 +656,7 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
                     const dispStart = drag?.id === c.id && drag?.handle === 'start' ? drag.currentDate : c.startDate?.substring(0, 10);
                     const dispEnd   = drag?.id === c.id && drag?.handle === 'end'   ? drag.currentDate : c.endDate?.substring(0, 10);
                     return (
-                      <Box key={c.id} sx={{ ...rowSx, mb: 0.25, position: 'relative' }}>
+                      <Box key={c.id} data-row-id={c.id} data-project-key={proj.name} sx={{ ...rowSx, mb: 0.25, position: 'relative', opacity: rowDrag?.rowId === c.id ? 0.4 : 1 }}>
                         <DropZone rowId={c.id} side="before" />
                         <DropZone rowId={c.id} side="after" />
                         <GripHandle rowId={c.id} />
@@ -658,7 +676,7 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
                     const dispStart = drag?.id === tc.id && drag?.handle === 'start' ? drag.currentDate : tc.startDate;
                     const dispEnd   = drag?.id === tc.id && drag?.handle === 'end'   ? drag.currentDate : tc.endDate;
                     return (
-                      <Box key={tc.id} sx={{ ...rowSx, mb: 0.25, position: 'relative' }}>
+                      <Box key={tc.id} data-row-id={tc.id} data-project-key={proj.name} sx={{ ...rowSx, mb: 0.25, position: 'relative', opacity: rowDrag?.rowId === tc.id ? 0.4 : 1 }}>
                         <DropZone rowId={tc.id} side="before" />
                         <DropZone rowId={tc.id} side="after" />
                         <GripHandle rowId={tc.id} />
@@ -673,7 +691,7 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
                   }
                   if (row.kind === 'milestones') {
                     return (
-                      <Box key="__milestones__" sx={{ ...rowSx, mb: 0.25, position: 'relative' }}>
+                      <Box key="__milestones__" data-row-id="__milestones__" data-project-key={proj.name} sx={{ ...rowSx, mb: 0.25, position: 'relative', opacity: rowDrag?.rowId === '__milestones__' ? 0.4 : 1 }}>
                         <DropZone rowId="__milestones__" side="before" />
                         <DropZone rowId="__milestones__" side="after" />
                         <GripHandle rowId="__milestones__" />
