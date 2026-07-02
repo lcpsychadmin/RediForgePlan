@@ -6250,6 +6250,18 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                           const childGlobal = inventoryObjects.find(o => o.id === subObject.globalObjectId || o.objectId === subObject.objectId);
                                           const childDescription = childGlobal?.description || subObject.subObjectDescription || subObject.description || '';
                                             const childExpanded = expandedObjects.has(subObject.id);
+                                          // Pre-compute timeline summary
+                                          const _mn = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+                                          let _minS: any = null, _maxE: any = null;
+                                          childTasks.forEach((t: any) => {
+                                            const pd = (v?: string) => { if (!v) return null; const p = v.substring(0,10).split('-'); return p.length===3 ? {year:+p[0],month:+p[1],day:+p[2]} : null; };
+                                            const tn = (d: any) => d.year*10000+d.month*100+d.day;
+                                            const s = pd(t.startDate), e = pd(t.endDate);
+                                            if (s && (!_minS || tn(s)<tn(_minS))) _minS = s;
+                                            if (e && (!_maxE || tn(e)>tn(_maxE))) _maxE = e;
+                                          });
+                                          const childTimelineStr = _minS && _maxE ? `${_mn[_minS.month-1]} ${_minS.day} → ${_mn[_maxE.month-1]} ${_maxE.day}` : null;
+                                          const childIsBehind = _maxE ? (today > new Date(_maxE.year, _maxE.month-1, _maxE.day) || childStatus === 'blocked') : false;
                                           return (
                                               <Box key={subObject.id} sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
                                                 <Box
@@ -6303,31 +6315,13 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                                   <Box sx={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: getTaskStatusColor(childStatus), flexShrink: 0 }} />
                                                 </Box>
                                                 {/* Timeline summary for sub-object */}
-                                                {childTasks.length > 0 && (() => {
-                                                  let minStart: any = null;
-                                                  let maxEnd: any = null;
-                                                  const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-                                                  childTasks.forEach((t: any) => {
-                                                    const parseD = (v?: string) => { if (!v) return null; const p = v.substring(0,10).split('-'); if (p.length !== 3) return null; return { year: +p[0], month: +p[1], day: +p[2] }; };
-                                                    const toN = (d: any) => d.year*10000+d.month*100+d.day;
-                                                    const s = parseD(t.startDate), e = parseD(t.endDate);
-                                                    if (s && (!minStart || toN(s) < toN(minStart))) minStart = s;
-                                                    if (e && (!maxEnd || toN(e) > toN(maxEnd))) maxEnd = e;
-                                                  });
-                                                  if (!minStart || !maxEnd) return null;
-                                                  const timelineStr = `${monthNames[(minStart as any).month-1]} ${(minStart as any).day} → ${monthNames[(maxEnd as any).month-1]} ${(maxEnd as any).day}`;
-                                                  const endDate = new Date((maxEnd as any).year, (maxEnd as any).month-1, (maxEnd as any).day);
-                                                  const isBehind = today > endDate || childStatus === 'blocked';
-                                                  return (
-                                                    <Box sx={{ ml: 1, px: 2, py: 0.4, display: 'flex', alignItems: 'center', gap: 1, fontSize: '0.75rem' }}>
-                                                      <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.7rem', fontWeight: 500 }}>{timelineStr}</Typography>
-                                                      <Box sx={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: isBehind ? 'rgba(255,152,0,0.3)' : 'rgba(76,175,80,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: isBehind ? '#FFA726' : '#66BB6A', fontSize: '0.6rem', fontWeight: 'bold' }}>
-                                                        {isBehind ? '⚠' : '✓'}
-                                                      </Box>
-                                                      <Typography variant="caption" sx={{ color: isBehind ? '#FFA726' : '#66BB6A', fontSize: '0.65rem' }}>{isBehind ? 'Behind' : 'On Target'}</Typography>
-                                                    </Box>
-                                                  );
-                                                })()}
+                                                {childTimelineStr && (
+                                                  <Box sx={{ px: 2, py: 0.4, display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                    <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.7rem', fontWeight: 500 }}>{childTimelineStr}</Typography>
+                                                    <Box sx={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: childIsBehind ? 'rgba(255,152,0,0.3)' : 'rgba(76,175,80,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: childIsBehind ? '#FFA726' : '#66BB6A', fontSize: '0.6rem', fontWeight: 'bold' }}>{childIsBehind ? '⚠' : '✓'}</Box>
+                                                    <Typography variant="caption" sx={{ color: childIsBehind ? '#FFA726' : '#66BB6A', fontSize: '0.65rem' }}>{childIsBehind ? 'Behind' : 'On Target'}</Typography>
+                                                  </Box>
+                                                )}
                                                 {childExpanded && (
                                                   <Box sx={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
                                                     {(taskDeps[subObject.id] || []).length > 0 && (
@@ -6802,6 +6796,18 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                                 const childStatus = childTasks.length > 0 && childTasks.every(t => t.status === 'complete') ? 'complete' : childTasks.some(t => t.status === 'in_progress') ? 'in_progress' : childTasks.some(t => t.status === 'blocked') ? 'blocked' : 'not_started';
                                                 const childGlobal = inventoryObjects.find(o => o.id === subObject.globalObjectId || o.objectId === subObject.objectId);
                                                 const childDescription = childGlobal?.description || subObject.subObjectDescription || subObject.description || '';
+                                                // Pre-compute timeline summary for sub-object
+                                                const _mn2 = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+                                                let _minS2: any = null, _maxE2: any = null;
+                                                childTasks.forEach((t: any) => {
+                                                  const pd2 = (v?: string) => { if (!v) return null; const p = v.substring(0,10).split('-'); return p.length===3 ? {year:+p[0],month:+p[1],day:+p[2]} : null; };
+                                                  const tn2 = (d: any) => d.year*10000+d.month*100+d.day;
+                                                  const s2 = pd2(t.startDate), e2 = pd2(t.endDate);
+                                                  if (s2 && (!_minS2 || tn2(s2)<tn2(_minS2))) _minS2 = s2;
+                                                  if (e2 && (!_maxE2 || tn2(e2)>tn2(_maxE2))) _maxE2 = e2;
+                                                });
+                                                const childTimelineStr = _minS2 && _maxE2 ? `${_mn2[_minS2.month-1]} ${_minS2.day} → ${_mn2[_maxE2.month-1]} ${_maxE2.day}` : null;
+                                                const childIsBehind = _maxE2 ? (today > new Date(_maxE2.year, _maxE2.month-1, _maxE2.day) || childStatus === 'blocked') : false;
                                                 return (
                                                   <Box
                                                     key={subObject.id}
@@ -6831,31 +6837,13 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                                     <Box sx={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: getTaskStatusColor(childStatus), flexShrink: 0 }} />
                                                   </Box>
                                                   {/* Timeline summary for this sub-object */}
-                                                  {childTasks.length > 0 && (() => {
-                                                    let minStart: any = null;
-                                                    let maxEnd: any = null;
-                                                    const mn = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-                                                    childTasks.forEach((t: any) => {
-                                                      const parseD = (v?: string) => { if (!v) return null; const p = v.substring(0,10).split('-'); return p.length===3 ? {year:+p[0],month:+p[1],day:+p[2]} : null; };
-                                                      const toN = (d: any) => d.year*10000+d.month*100+d.day;
-                                                      const s = parseD(t.startDate), e = parseD(t.endDate);
-                                                      if (s && (!minStart || toN(s)<toN(minStart))) minStart = s;
-                                                      if (e && (!maxEnd || toN(e)>toN(maxEnd))) maxEnd = e;
-                                                    });
-                                                    if (!minStart || !maxEnd) return null;
-                                                    const timelineStr = `${mn[(minStart as any).month-1]} ${(minStart as any).day} → ${mn[(maxEnd as any).month-1]} ${(maxEnd as any).day}`;
-                                                    const endDate = new Date((maxEnd as any).year,(maxEnd as any).month-1,(maxEnd as any).day);
-                                                    const isBehind = today > endDate || childStatus === 'blocked';
-                                                    return (
-                                                      <Box sx={{ px: 2, py: 0.4, display: 'flex', alignItems: 'center', gap: 1 }}>
-                                                        <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.7rem', fontWeight: 500 }}>{timelineStr}</Typography>
-                                                        <Box sx={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: isBehind ? 'rgba(255,152,0,0.3)' : 'rgba(76,175,80,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: isBehind ? '#FFA726' : '#66BB6A', fontSize: '0.6rem', fontWeight: 'bold' }}>
-                                                          {isBehind ? '⚠' : '✓'}
-                                                        </Box>
-                                                        <Typography variant="caption" sx={{ color: isBehind ? '#FFA726' : '#66BB6A', fontSize: '0.65rem' }}>{isBehind ? 'Behind' : 'On Target'}</Typography>
-                                                      </Box>
-                                                    );
-                                                  })()}
+                                                {childTimelineStr && (
+                                                  <Box sx={{ px: 2, py: 0.4, display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                    <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.7rem', fontWeight: 500 }}>{childTimelineStr}</Typography>
+                                                    <Box sx={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: childIsBehind ? 'rgba(255,152,0,0.3)' : 'rgba(76,175,80,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: childIsBehind ? '#FFA726' : '#66BB6A', fontSize: '0.6rem', fontWeight: 'bold' }}>{childIsBehind ? '⚠' : '✓'}</Box>
+                                                    <Typography variant="caption" sx={{ color: childIsBehind ? '#FFA726' : '#66BB6A', fontSize: '0.65rem' }}>{childIsBehind ? 'Behind' : 'On Target'}</Typography>
+                                                  </Box>
+                                                )}
                                                 </Box>
                                                 );
                                               })}
