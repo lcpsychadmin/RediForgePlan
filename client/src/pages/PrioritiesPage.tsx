@@ -7,6 +7,8 @@ import {
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import TaskDetailModal from '../components/tasks/TaskDetailModal';
 import { usePriorities } from '../hooks/usePriorities';
 import { useParams } from 'react-router-dom';
@@ -74,6 +76,8 @@ const PrioritiesPage: React.FC = () => {
   const [defectSearch, setDefectSearch] = useState('');
   const [severityFilter, setSeverityFilter] = useState('all');
   const [defectStatusFilter, setDefectStatusFilter] = useState('open');
+  const [groupBy, setGroupBy] = useState<'none' | 'processArea' | 'object' | 'planGroup'>('none');
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
   const { data: prioritized, isLoading } = usePriorities(projectId);
 
@@ -146,6 +150,35 @@ const PrioritiesPage: React.FC = () => {
 
   const processAreas = useMemo(() => [...new Set(allPriorityTasks.map(t => (t.processArea || '').trim()).filter(Boolean))].sort(), [allPriorityTasks]);
 
+  const toggleGroupExpanded = (groupKey: string) => {
+    const updated = new Set(expandedGroups);
+    if (updated.has(groupKey)) {
+      updated.delete(groupKey);
+    } else {
+      updated.add(groupKey);
+    }
+    setExpandedGroups(updated);
+  };
+
+  const groupedTasks = useMemo(() => {
+    if (groupBy === 'none') return null;
+    
+    const groups: Record<string, any[]> = {};
+    filteredTasks.forEach(task => {
+      let key = '';
+      if (groupBy === 'processArea') {
+        key = task.processArea?.trim() || 'Unassigned';
+      } else if (groupBy === 'object') {
+        key = task.objectId || 'Unassigned Object';
+      } else if (groupBy === 'planGroup') {
+        key = task.mockCycleName || 'Unassigned Plan Group';
+      }
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(task);
+    });
+    return groups;
+  }, [filteredTasks, groupBy]);
+
   const filteredTasks = useMemo(() => allPriorityTasks.filter(t => {
     if (categoryFilter !== 'all' && t._category !== categoryFilter) return false;
     if (processAreaFilter !== 'all' && (t.processArea || '').trim().toLowerCase() !== processAreaFilter) return false;
@@ -202,6 +235,12 @@ const PrioritiesPage: React.FC = () => {
               <MenuItem value="all">All Assignees</MenuItem>
               {(people as any[]).map((p: any) => <MenuItem key={p.id} value={p.id}>{p.name || p.email}</MenuItem>)}
             </TextField>
+            <TextField select size="small" label="Group By" value={groupBy} onChange={e => setGroupBy(e.target.value as any)} sx={fsx}>
+              <MenuItem value="none">No Grouping</MenuItem>
+              <MenuItem value="processArea">Process Area</MenuItem>
+              <MenuItem value="object">Object</MenuItem>
+              <MenuItem value="planGroup">Plan Group</MenuItem>
+            </TextField>
           </Box>
           {filteredTasks.length === 0 ? (
             <Box sx={{ p: 3 }}><Typography variant="body2" color="text.secondary">{allPriorityTasks.length === 0 ? 'No overdue, due-this-week, or blocked tasks.' : 'No tasks match the current filters.'}</Typography></Box>
@@ -221,41 +260,101 @@ const PrioritiesPage: React.FC = () => {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {filteredTasks.map((task: any, i: number) => {
-                    const over = daysOverdue(task.endDate);
-                    const assignee = peopleById[task.draUserId || task.developerUserId] || null;
-                    const catColor = task._category === 'overdue' ? '#ef5350' : task._category === 'blocked' ? '#ab47bc' : '#ffa726';
-                    const catLabel = task._category === 'overdue' ? 'Overdue' : task._category === 'due_this_week' ? 'Due This Week' : 'Blocked';
-                    return (
-                      <TableRow key={`${task.taskId || task.id}-${i}`} hover onClick={() => setSelectedTask(task)}
-                        sx={{ cursor: 'pointer', '&:hover': { backgroundColor: 'rgba(255,255,255,0.035)' } }}>
-                        <TableCell sx={td}>
-                          <Typography sx={{ fontWeight: 600, fontSize: '0.8rem' }}>{task.taskName || task.name || 'Untitled'}</Typography>
-                          {(task.objectId || task.projectName) && (
-                            <Typography variant="caption" color="text.secondary">{[task.objectId, task.projectName, task.mockCycleName].filter(Boolean).join(' · ')}</Typography>
-                          )}
-                        </TableCell>
-                        <TableCell sx={td}>
-                          <Chip size="small" label={catLabel} sx={{ fontSize: '0.68rem', height: 20, backgroundColor: `${catColor}20`, color: catColor }} />
-                        </TableCell>
-                        <TableCell sx={td}>
-                          <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
-                            <Box sx={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: STATUS_COLOR[task.status] || 'rgba(255,255,255,0.3)' }} />
-                            <Typography sx={{ fontSize: '0.78rem' }}>{STATUS_LABEL[task.status] || task.status}</Typography>
-                          </Box>
-                        </TableCell>
-                        <TableCell sx={td}><Typography sx={{ fontSize: '0.78rem', color: 'text.secondary' }}>{task.processArea || '—'}</Typography></TableCell>
-                        <TableCell sx={td}><Typography sx={{ fontSize: '0.78rem' }}>{assignee ? (assignee.name || assignee.email) : (task.assignedTo || '—')}</Typography></TableCell>
-                        <TableCell sx={td}><Typography sx={{ fontSize: '0.78rem', color: over ? '#ef5350' : 'text.secondary', fontWeight: over ? 600 : 400 }}>{fmtDate(task.endDate)}</Typography></TableCell>
-                        <TableCell sx={td}>{over ? <Typography sx={{ fontSize: '0.78rem', color: '#ef5350', fontWeight: 700 }}>{over}d</Typography> : <Typography sx={{ fontSize: '0.78rem', color: 'text.disabled' }}>—</Typography>}</TableCell>
-                        <TableCell sx={{ ...td, px: 0.5 }}>
-                          <IconButton size="small" onClick={e => { e.stopPropagation(); setSelectedTask(task); }} sx={{ opacity: 0.6, '&:hover': { opacity: 1 } }}>
-                            <OpenInNewIcon sx={{ fontSize: '0.9rem' }} />
-                          </IconButton>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
+                  {groupBy === 'none' ? (
+                    // Ungrouped rendering
+                    filteredTasks.map((task: any, i: number) => {
+                      const over = daysOverdue(task.endDate);
+                      const assignee = peopleById[task.draUserId || task.developerUserId] || null;
+                      const catColor = task._category === 'overdue' ? '#ef5350' : task._category === 'blocked' ? '#ab47bc' : '#ffa726';
+                      const catLabel = task._category === 'overdue' ? 'Overdue' : task._category === 'due_this_week' ? 'Due This Week' : 'Blocked';
+                      return (
+                        <TableRow key={`${task.taskId || task.id}-${i}`} hover onClick={() => setSelectedTask(task)}
+                          sx={{ cursor: 'pointer', '&:hover': { backgroundColor: 'rgba(255,255,255,0.035)' } }}>
+                          <TableCell sx={td}>
+                            <Typography sx={{ fontWeight: 600, fontSize: '0.8rem' }}>{task.taskName || task.name || 'Untitled'}</Typography>
+                            {(task.objectId || task.projectName) && (
+                              <Typography variant="caption" color="text.secondary">{[task.objectId, task.projectName, task.mockCycleName].filter(Boolean).join(' · ')}</Typography>
+                            )}
+                          </TableCell>
+                          <TableCell sx={td}>
+                            <Chip size="small" label={catLabel} sx={{ fontSize: '0.68rem', height: 20, backgroundColor: `${catColor}20`, color: catColor }} />
+                          </TableCell>
+                          <TableCell sx={td}>
+                            <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
+                              <Box sx={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: STATUS_COLOR[task.status] || 'rgba(255,255,255,0.3)' }} />
+                              <Typography sx={{ fontSize: '0.78rem' }}>{STATUS_LABEL[task.status] || task.status}</Typography>
+                            </Box>
+                          </TableCell>
+                          <TableCell sx={td}><Typography sx={{ fontSize: '0.78rem', color: 'text.secondary' }}>{task.processArea || '—'}</Typography></TableCell>
+                          <TableCell sx={td}><Typography sx={{ fontSize: '0.78rem' }}>{assignee ? (assignee.name || assignee.email) : (task.assignedTo || '—')}</Typography></TableCell>
+                          <TableCell sx={td}><Typography sx={{ fontSize: '0.78rem', color: over ? '#ef5350' : 'text.secondary', fontWeight: over ? 600 : 400 }}>{fmtDate(task.endDate)}</Typography></TableCell>
+                          <TableCell sx={td}>{over ? <Typography sx={{ fontSize: '0.78rem', color: '#ef5350', fontWeight: 700 }}>{over}d</Typography> : <Typography sx={{ fontSize: '0.78rem', color: 'text.disabled' }}>—</Typography>}</TableCell>
+                          <TableCell sx={{ ...td, px: 0.5 }}>
+                            <IconButton size="small" onClick={e => { e.stopPropagation(); setSelectedTask(task); }} sx={{ opacity: 0.6, '&:hover': { opacity: 1 } }}>
+                              <OpenInNewIcon sx={{ fontSize: '0.9rem' }} />
+                            </IconButton>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  ) : (
+                    // Grouped rendering
+                    Object.entries(groupedTasks || {}).map(([groupKey, tasks]: [string, any[]]) => {
+                      const isExpanded = expandedGroups.has(groupKey);
+                      return (
+                        <React.Fragment key={groupKey}>
+                          <TableRow
+                            hover
+                            onClick={() => toggleGroupExpanded(groupKey)}
+                            sx={{ cursor: 'pointer', backgroundColor: 'rgba(255,255,255,0.05)', '&:hover': { backgroundColor: 'rgba(255,255,255,0.08)' } }}
+                          >
+                            <TableCell colSpan={8} sx={{ ...td, py: 1 }}>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                {isExpanded ? <ExpandLessIcon sx={{ fontSize: '1.1rem' }} /> : <ExpandMoreIcon sx={{ fontSize: '1.1rem' }} />}
+                                <Typography sx={{ fontWeight: 700, fontSize: '0.85rem' }}>{groupKey}</Typography>
+                                <Box sx={{ px: 0.6, py: 0.2, borderRadius: 1, backgroundColor: 'rgba(255,255,255,0.08)', color: 'text.secondary', fontSize: '0.7rem', fontWeight: 600 }}>{tasks.length}</Box>
+                              </Box>
+                            </TableCell>
+                          </TableRow>
+                          {isExpanded && tasks.map((task: any, i: number) => {
+                            const over = daysOverdue(task.endDate);
+                            const assignee = peopleById[task.draUserId || task.developerUserId] || null;
+                            const catColor = task._category === 'overdue' ? '#ef5350' : task._category === 'blocked' ? '#ab47bc' : '#ffa726';
+                            const catLabel = task._category === 'overdue' ? 'Overdue' : task._category === 'due_this_week' ? 'Due This Week' : 'Blocked';
+                            return (
+                              <TableRow key={`${task.taskId || task.id}-${i}`} hover onClick={() => setSelectedTask(task)}
+                                sx={{ cursor: 'pointer', '&:hover': { backgroundColor: 'rgba(255,255,255,0.035)' }, backgroundColor: 'rgba(255,255,255,0.01)' }}>
+                                <TableCell sx={{ ...td, pl: 4 }}>
+                                  <Typography sx={{ fontWeight: 600, fontSize: '0.8rem' }}>{task.taskName || task.name || 'Untitled'}</Typography>
+                                  {(task.objectId || task.projectName) && (
+                                    <Typography variant="caption" color="text.secondary">{[task.objectId, task.projectName, task.mockCycleName].filter(Boolean).join(' · ')}</Typography>
+                                  )}
+                                </TableCell>
+                                <TableCell sx={td}>
+                                  <Chip size="small" label={catLabel} sx={{ fontSize: '0.68rem', height: 20, backgroundColor: `${catColor}20`, color: catColor }} />
+                                </TableCell>
+                                <TableCell sx={td}>
+                                  <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
+                                    <Box sx={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: STATUS_COLOR[task.status] || 'rgba(255,255,255,0.3)' }} />
+                                    <Typography sx={{ fontSize: '0.78rem' }}>{STATUS_LABEL[task.status] || task.status}</Typography>
+                                  </Box>
+                                </TableCell>
+                                <TableCell sx={td}><Typography sx={{ fontSize: '0.78rem', color: 'text.secondary' }}>{task.processArea || '—'}</Typography></TableCell>
+                                <TableCell sx={td}><Typography sx={{ fontSize: '0.78rem' }}>{assignee ? (assignee.name || assignee.email) : (task.assignedTo || '—')}</Typography></TableCell>
+                                <TableCell sx={td}><Typography sx={{ fontSize: '0.78rem', color: over ? '#ef5350' : 'text.secondary', fontWeight: over ? 600 : 400 }}>{fmtDate(task.endDate)}</Typography></TableCell>
+                                <TableCell sx={td}>{over ? <Typography sx={{ fontSize: '0.78rem', color: '#ef5350', fontWeight: 700 }}>{over}d</Typography> : <Typography sx={{ fontSize: '0.78rem', color: 'text.disabled' }}>—</Typography>}</TableCell>
+                                <TableCell sx={{ ...td, px: 0.5 }}>
+                                  <IconButton size="small" onClick={e => { e.stopPropagation(); setSelectedTask(task); }} sx={{ opacity: 0.6, '&:hover': { opacity: 1 } }}>
+                                    <OpenInNewIcon sx={{ fontSize: '0.9rem' }} />
+                                  </IconButton>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </React.Fragment>
+                      );
+                    })
+                  )}
                 </TableBody>
               </Table>
             </TableContainer>
