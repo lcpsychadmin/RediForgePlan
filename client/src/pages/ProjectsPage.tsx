@@ -2644,6 +2644,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
               const objectRows = items.map((item: any) => {
                 const processArea = (item.processArea || '').trim() || 'Unassigned Process Area';
                 const processAreaAccent = getProcessAreaAccent(project.id, processArea, projectColor);
+                console.log(`Object ${item.objectId}: processArea="${processArea}" accent="${processAreaAccent}"`);
                 return {
                   ...item,
                   scheduleEntityType: 'object',
@@ -2664,6 +2665,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
               const taskGroupRows = groups.map((group: any) => {
                 const processArea = (group.processArea || '').trim() || 'Unassigned Process Area';
                 const processAreaAccent = getProcessAreaAccent(project.id, processArea, projectColor);
+                console.log(`TaskGroup ${group.name}: processArea="${processArea}" accent="${processAreaAccent}"`);
                 return {
                   id: group.id,
                   description: group.name || 'Task Group',
@@ -2873,10 +2875,13 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   // (user may have edited colors on Settings page while on different tab)
   useEffect(() => {
     if (tabValue === 3) {
+      console.log('Schedule tab active, fetching latest settings...');
       apiClient.get('/api/hierarchy-preferences/state').then(res => {
         const parsed = res.data?.data;
+        console.log('Settings response:', parsed);
         if (!parsed) return;
         if (parsed.globalProcessAreaAccents && typeof parsed.globalProcessAreaAccents === 'object') {
+          console.log('Updating globalProcessAreaAccents:', parsed.globalProcessAreaAccents);
           setGlobalProcessAreaAccents(parsed.globalProcessAreaAccents);
         }
         if (parsed.globalProcessAreaIcons && typeof parsed.globalProcessAreaIcons === 'object') {
@@ -2885,7 +2890,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
         if (parsed.globalProcessAreaDescriptions && typeof parsed.globalProcessAreaDescriptions === 'object') {
           setGlobalProcessAreaDescriptions(parsed.globalProcessAreaDescriptions);
         }
-      }).catch(() => {});
+      }).catch(err => {
+        console.error('Failed to fetch settings:', err);
+      });
     }
   }, [tabValue]);
 
