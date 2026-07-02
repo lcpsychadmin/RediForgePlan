@@ -45,7 +45,9 @@ export const useProjectObjects = (projectId: string, filters?: Filters) => {
       const response = await apiClient.get(`/api/project-objects/project/${projectId}`, {
         params: Object.fromEntries(params),
       });
-      return response.data.data;
+      const data = response.data.data;
+      console.log('useProjectObjects response:', data.slice(0, 3).map((o: any) => ({ objectId: o.objectId, description: o.description })));
+      return data;
     },
     enabled: !!projectId,
   });

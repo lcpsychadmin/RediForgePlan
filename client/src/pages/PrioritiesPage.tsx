@@ -1,6 +1,6 @@
 // client/src/pages/PrioritiesPage.tsx
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Box, Typography, TextField, MenuItem, Table, TableBody, TableCell,
   TableContainer, TableHead, TableRow, Chip, IconButton, Alert, CircularProgress,
@@ -132,6 +132,12 @@ const PrioritiesPage: React.FC = () => {
   }), [rawTasks]);
 
   const objectsByIdMap = useMemo(() => new Map((projectObjects || []).map((o: any) => [o.objectId, o])), [projectObjects]);
+
+  useEffect(() => {
+    if (projectObjects && projectObjects.length > 0) {
+      console.log('objectsByIdMap populated:', projectObjects.slice(0, 3).map(o => ({ id: o.objectId, desc: o.description })));
+    }
+  }, [projectObjects]);
 
   const merge = (arr: any[]) => arr.map((t: any) => {
     const id = t.taskId || t.id;
@@ -280,6 +286,9 @@ const PrioritiesPage: React.FC = () => {
                       const catLabel = task._category === 'overdue' ? 'Overdue' : task._category === 'due_this_week' ? 'Due This Week' : 'Blocked';
                       const objectId = task.objectId || task.projectObjectId;
                       const objectData = objectId ? objectsByIdMap.get(objectId) : null;
+                      if (objectId && !objectData) {
+                        console.log(`ObjectId ${objectId} not found in map. Map has ${objectsByIdMap.size} entries.`);
+                      }
                       return (
                         <TableRow key={`${task.taskId || task.id}-${i}`} hover onClick={() => setSelectedTask(task)}
                           sx={{ cursor: 'pointer', '&:hover': { backgroundColor: 'rgba(255,255,255,0.035)' } }}>
