@@ -19,7 +19,7 @@ export function useGlobalObjects(params?: PaginationParams) {
   return useQuery({
     queryKey: GLOBAL_OBJECT_KEYS.list(params),
     queryFn: async () => {
-      const response = await apiClient.get<{ data: GlobalObject[] }>('/global-objects', { params });
+      const response = await apiClient.get<{ data: GlobalObject[] }>('/api/global-objects', { params });
       return response.data.data;
     },
   });
@@ -32,7 +32,7 @@ export function useGlobalObject(objectId: string) {
   return useQuery({
     queryKey: GLOBAL_OBJECT_KEYS.detail(objectId),
     queryFn: async () => {
-      const response = await apiClient.get<{ data: GlobalObject }>(`/global-objects/${objectId}`);
+      const response = await apiClient.get<{ data: GlobalObject }>(`/api/global-objects/${objectId}`);
       return response.data.data;
     },
     enabled: !!objectId,
@@ -47,7 +47,7 @@ export function useCreateGlobalObject() {
 
   return useMutation({
     mutationFn: async (payload: CreateGlobalObjectPayload) => {
-      const response = await apiClient.post<{ data: GlobalObject }>('/global-objects', payload);
+      const response = await apiClient.post<{ data: GlobalObject }>('/api/global-objects', payload);
       return response.data.data;
     },
     onSuccess: (newObject) => {
@@ -65,7 +65,7 @@ export function useUpdateGlobalObject(objectId: string) {
 
   return useMutation({
     mutationFn: async (payload: UpdateGlobalObjectPayload) => {
-      const response = await apiClient.patch<{ data: GlobalObject }>(`/global-objects/${objectId}`, payload);
+      const response = await apiClient.patch<{ data: GlobalObject }>(`/api/global-objects/${objectId}`, payload);
       return response.data.data;
     },
     onSuccess: (updatedObject) => {
@@ -83,7 +83,7 @@ export function useDeleteGlobalObject(objectId: string) {
 
   return useMutation({
     mutationFn: async () => {
-      await apiClient.delete(`/global-objects/${objectId}`);
+      await apiClient.delete(`/api/global-objects/${objectId}`);
     },
     onSuccess: () => {
       queryClient.removeQueries({ queryKey: GLOBAL_OBJECT_KEYS.detail(objectId) });
