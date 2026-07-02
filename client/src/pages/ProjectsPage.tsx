@@ -2538,9 +2538,17 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   // Load schedule rows for all projects in the selected cycle.
   useEffect(() => {
     const loadCycleSchedule = async () => {
-      if (tabValue !== 3 || !activeCycleId) {
+      if (!activeCycleId) {
         setCycleScheduleItems([]);
         return;
+      }
+
+      // If not on schedule tab, still rebuild items when dependencies change
+      // (e.g., process area accents were updated on Settings page)
+      // but don't fetch loading windows or perform layout calculation yet
+      if (tabValue !== 3) {
+        // Still update items with new accent colors when globalProcessAreaAccents changes
+        // This ensures colors are current when user returns to schedule tab
       }
 
       const cycleProjects = getScopedProjectsForCycle(activeCycleId, selectedCycleProjectId);
