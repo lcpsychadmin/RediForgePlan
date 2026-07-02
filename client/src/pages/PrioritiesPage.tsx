@@ -285,9 +285,7 @@ const PrioritiesPage: React.FC = () => {
                           sx={{ cursor: 'pointer', '&:hover': { backgroundColor: 'rgba(255,255,255,0.035)' } }}>
                           <TableCell sx={td}>
                             <Typography sx={{ fontWeight: 600, fontSize: '0.8rem' }}>{objectId || '—'}</Typography>
-                            {objectData?.description && (
-                              <Typography variant="caption" color="text.secondary">{objectData.description}</Typography>
-                            )}
+                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.2 }}>{objectData?.description || '—'}</Typography>
                           </TableCell>
                           <TableCell sx={td}>
                             <Typography sx={{ fontWeight: 600, fontSize: '0.8rem' }}>{task.taskName || task.name || 'Untitled'}</Typography>
@@ -344,9 +342,7 @@ const PrioritiesPage: React.FC = () => {
                                 sx={{ cursor: 'pointer', '&:hover': { backgroundColor: 'rgba(255,255,255,0.035)' }, backgroundColor: 'rgba(255,255,255,0.01)' }}>
                                 <TableCell sx={td}>
                                   <Typography sx={{ fontWeight: 600, fontSize: '0.8rem' }}>{objectId || '—'}</Typography>
-                                  {objectData?.description && (
-                                    <Typography variant="caption" color="text.secondary">{objectData.description}</Typography>
-                                  )}
+                                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.2 }}>{objectData?.description || '—'}</Typography>
                                 </TableCell>
                                 <TableCell sx={{ ...td, pl: 4 }}>
                                   <Typography sx={{ fontWeight: 600, fontSize: '0.8rem' }}>{task.taskName || task.name || 'Untitled'}</Typography>
