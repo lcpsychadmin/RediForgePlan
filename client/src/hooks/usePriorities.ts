@@ -11,6 +11,7 @@ export interface PriorityTask {
   name?: string;
   projectObjectId?: string;
   objectId?: string;
+  processArea?: string;
   taskGroupId?: string;
   status: string;
   startDate?: string;

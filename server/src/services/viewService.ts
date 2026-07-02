@@ -17,7 +17,8 @@ export class PriorityViewService {
         ptv.priority_category,
         t.task_type,
         t.name,
-        go.object_id
+        go.object_id,
+        po.process_area
       FROM prioritized_tasks_view ptv
       LEFT JOIN tasks t ON ptv.task_id = t.id
       LEFT JOIN project_objects po ON ptv.project_object_id = po.id
@@ -60,7 +61,8 @@ export class PriorityViewService {
         'blocked'::text AS priority_category,
         t.task_type,
         t.name,
-        go.object_id
+        go.object_id,
+        po.process_area
       FROM tasks t
       LEFT JOIN project_objects po ON t.project_object_id = po.id
       LEFT JOIN global_objects go ON po.global_object_id = go.id
@@ -82,6 +84,7 @@ export class PriorityViewService {
       taskName: row.name,
       projectObjectId: row.project_object_id,
       objectId: row.object_id,
+      processArea: row.process_area,
       taskGroupId: row.task_group_id,
       status: row.status,
       startDate: row.start_date,

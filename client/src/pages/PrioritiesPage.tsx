@@ -11,7 +11,6 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import TaskDetailModal from '../components/tasks/TaskDetailModal';
 import { usePriorities } from '../hooks/usePriorities';
-import { useProjectObjects } from '../hooks/useProjectObjects';
 import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import apiClient from '../api/client';
@@ -82,8 +81,6 @@ const PrioritiesPage: React.FC = () => {
 
   const { data: prioritized, isLoading } = usePriorities(projectId);
 
-  const { data: projectObjects = [] } = useProjectObjects(projectId);
-
   const { data: people = [] } = useQuery({
     queryKey: ['people'],
     queryFn: async () => (await apiClient.get('/api/people')).data.data || [],
@@ -131,16 +128,11 @@ const PrioritiesPage: React.FC = () => {
     blocked: rawTasks.filter((t: any) => t.status === 'blocked'),
   }), [rawTasks]);
 
-  const objectsByIdMap = useMemo(() => new Map((projectObjects || []).map((o: any) => [o.objectId, o])), [projectObjects]);
-
   const merge = (arr: any[]) => arr.map((t: any) => {
     const id = t.taskId || t.id;
     const raw = rawTaskMap.get(id) || {};
-    const objectId = t.objectId || t.projectObjectId || raw.objectId || raw.projectObjectId;
-    const object = objectId ? objectsByIdMap.get(objectId) : null;
-    // Priority: task.processArea > raw.processArea > object.processArea
-    const processArea = t.processArea || raw.processArea || object?.processArea;
-    return { ...raw, ...t, taskId: id, taskName: t.taskName || raw.name, objectId, processArea };
+    // processArea comes directly from API now
+    return { ...raw, ...t, taskId: id, taskName: t.taskName || raw.name, processArea: t.processArea || raw.processArea };
   });
 
   const allPriorityTasks: any[] = useMemo(() => {
@@ -156,7 +148,7 @@ const PrioritiesPage: React.FC = () => {
     add((source as any).due_this_week || [], 'due_this_week');
     add((source as any).blocked || [], 'blocked');
     return result;
-  }, [prioritized, rawTaskMap, rawTasks, fallback, objectsByIdMap]);
+  }, [prioritized, rawTaskMap, rawTasks, fallback]);
 
   const processAreas = useMemo(() => [...new Set(allPriorityTasks.map(t => (t.processArea || '').trim()).filter(Boolean))].sort(), [allPriorityTasks]);
 
