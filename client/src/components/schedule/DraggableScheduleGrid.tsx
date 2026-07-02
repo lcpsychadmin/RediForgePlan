@@ -13,6 +13,7 @@ interface DraggableScheduleGridProps {
   weekStart: Date;
   projectId: string;
   processAreaAccentOverrides?: Record<string, Record<string, string>>;
+  globalProcessAreaAccents?: Record<string, string>;
 }
 
 interface PositionedItem {
@@ -33,6 +34,7 @@ export const DraggableScheduleGrid: React.FC<DraggableScheduleGridProps> = ({
   weekStart,
   projectId,
   processAreaAccentOverrides = {},
+  globalProcessAreaAccents = {},
 }) => {
   const laneCardHeight = 92;
   const laneGapPx = 8;
@@ -58,8 +60,20 @@ export const DraggableScheduleGrid: React.FC<DraggableScheduleGridProps> = ({
 
   const getAreaColor = (item: ScheduleItemType) => {
     const processArea = (item.processArea || 'Unassigned').trim();
+    // Priority: global setting > per-project override > hash-based color
+    const global = globalProcessAreaAccents?.[processArea];
+    if (global) {
+      console.log(`DraggableScheduleGrid: Using global accent for "${processArea}": ${global}`);
+      return global;
+    }
     const override = processAreaAccentOverrides?.[projectId]?.[processArea];
-    return override || hashColorForArea(processArea);
+    if (override) {
+      console.log(`DraggableScheduleGrid: Using override for "${processArea}": ${override}`);
+      return override;
+    }
+    const hash = hashColorForArea(processArea);
+    console.log(`DraggableScheduleGrid: Using hash color for "${processArea}": ${hash}`);
+    return hash;
   };
 
   const visibleSpans = items

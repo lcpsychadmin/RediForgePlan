@@ -27,7 +27,9 @@ const SchedulePage: React.FC = () => {
   const { data: hierarchyState = {} } = useQuery({
     queryKey: ['hierarchy-preferences-state'],
     queryFn: async () => {
+      console.log('SchedulePage: Fetching hierarchy preferences state...');
       const response = await apiClient.get('/api/hierarchy-preferences/state');
+      console.log('SchedulePage: Received hierarchy state:', response.data?.data);
       return response.data?.data || {};
     },
     enabled: !!projectId,
@@ -35,6 +37,10 @@ const SchedulePage: React.FC = () => {
 
   const processAreaAccentOverrides =
     (hierarchyState as any)?.processAreaAccentOverrides || {};
+  const globalProcessAreaAccents =
+    (hierarchyState as any)?.globalProcessAreaAccents || {};
+  
+  console.log('SchedulePage: globalProcessAreaAccents:', globalProcessAreaAccents);
 
   const processAreaOptions = useMemo(() =>
     Array.from(new Set(scheduleItems.map((i: any) => i.processArea).filter(Boolean))).sort() as string[],
@@ -166,6 +172,7 @@ const SchedulePage: React.FC = () => {
             weekStart={weekStart}
             projectId={projectId}
             processAreaAccentOverrides={processAreaAccentOverrides}
+            globalProcessAreaAccents={globalProcessAreaAccents}
           />
         )}
       </Box>
