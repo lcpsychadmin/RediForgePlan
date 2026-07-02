@@ -76,7 +76,7 @@ const PrioritiesPage: React.FC = () => {
   const [defectSearch, setDefectSearch] = useState('');
   const [severityFilter, setSeverityFilter] = useState('all');
   const [defectStatusFilter, setDefectStatusFilter] = useState('open');
-  const [groupBy, setGroupBy] = useState<'none' | 'processArea' | 'object' | 'planGroup'>('none');
+  const [groupBy, setGroupBy] = useState<'none' | 'processArea' | 'object'>('none');
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
   const { data: prioritized, isLoading } = usePriorities(projectId);
@@ -130,7 +130,7 @@ const PrioritiesPage: React.FC = () => {
   const merge = (arr: any[]) => arr.map((t: any) => {
     const id = t.taskId || t.id;
     const raw = rawTaskMap.get(id) || {};
-    return { ...raw, ...t, taskId: id, taskName: t.taskName || raw.name };
+    return { ...raw, ...t, taskId: id, taskName: t.taskName || raw.name, processArea: t.processArea || raw.processArea };
   });
 
   const allPriorityTasks: any[] = useMemo(() => {
@@ -178,8 +178,6 @@ const PrioritiesPage: React.FC = () => {
         key = task.processArea?.trim() || 'Unassigned';
       } else if (groupBy === 'object') {
         key = task.objectId || 'Unassigned Object';
-      } else if (groupBy === 'planGroup') {
-        key = task.mockCycleName || 'Unassigned Plan Group';
       }
       if (!groups[key]) groups[key] = [];
       groups[key].push(task);
@@ -239,7 +237,6 @@ const PrioritiesPage: React.FC = () => {
               <MenuItem value="none">No Grouping</MenuItem>
               <MenuItem value="processArea">Process Area</MenuItem>
               <MenuItem value="object">Object</MenuItem>
-              <MenuItem value="planGroup">Plan Group</MenuItem>
             </TextField>
           </Box>
           {filteredTasks.length === 0 ? (
