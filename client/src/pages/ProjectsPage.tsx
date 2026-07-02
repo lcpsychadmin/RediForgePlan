@@ -292,7 +292,6 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
     apiClient.get('/api/hierarchy-preferences/state').then(res => {
       const d = res.data?.data || res.data?.preferences || res.data;
       if (Array.isArray(d?.roadmapItems)) setRoadmapItems(d.roadmapItems);
-      if (d?.roadmapRowOrder && typeof d.roadmapRowOrder === 'object') setRowOrder(d.roadmapRowOrder);
       if (d?.roadmapLaneAssign && typeof d.roadmapLaneAssign === 'object') setLaneAssign(d.roadmapLaneAssign);
     }).catch(() => {});
   }, []);
