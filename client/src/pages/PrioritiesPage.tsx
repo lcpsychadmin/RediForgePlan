@@ -11,6 +11,7 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import TaskDetailModal from '../components/tasks/TaskDetailModal';
 import { usePriorities } from '../hooks/usePriorities';
+import { useProjectObjects } from '../hooks/useProjectObjects';
 import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import apiClient from '../api/client';
@@ -81,6 +82,8 @@ const PrioritiesPage: React.FC = () => {
 
   const { data: prioritized, isLoading } = usePriorities(projectId);
 
+  const { data: projectObjects = [] } = useProjectObjects(projectId);
+
   const { data: people = [] } = useQuery({
     queryKey: ['people'],
     queryFn: async () => (await apiClient.get('/api/people')).data.data || [],
@@ -102,6 +105,8 @@ const PrioritiesPage: React.FC = () => {
     });
   }, [rawTasksRaw]);
 
+  const rawTaskMap = useMemo(() => new Map((rawTasks || []).map((t: any) => [t.id, t])), [rawTasks]);
+
   const taskIds = useMemo(() => (rawTasks || []).map((t: any) => t.taskId || t.id).filter(Boolean), [rawTasks]);
 
   const { data: defects = [] } = useQuery({
@@ -113,7 +118,6 @@ const PrioritiesPage: React.FC = () => {
     enabled: !!projectId && taskIds.length > 0,
   });
 
-  const rawTaskMap = useMemo(() => new Map((rawTasks || []).map((t: any) => [t.id, t])), [rawTasks]);
   const peopleById = useMemo(() => Object.fromEntries((people || []).map((p: any) => [p.id, p])), [people]);
 
   const today = new Date();
@@ -127,10 +131,16 @@ const PrioritiesPage: React.FC = () => {
     blocked: rawTasks.filter((t: any) => t.status === 'blocked'),
   }), [rawTasks]);
 
+  const objectsByIdMap = useMemo(() => new Map((projectObjects || []).map((o: any) => [o.objectId, o])), [projectObjects]);
+
   const merge = (arr: any[]) => arr.map((t: any) => {
     const id = t.taskId || t.id;
     const raw = rawTaskMap.get(id) || {};
-    return { ...raw, ...t, taskId: id, taskName: t.taskName || raw.name, processArea: t.processArea || raw.processArea };
+    const objectId = t.objectId || t.projectObjectId || raw.objectId || raw.projectObjectId;
+    const object = objectId ? objectsByIdMap.get(objectId) : null;
+    // Priority: task.processArea > raw.processArea > object.processArea
+    const processArea = t.processArea || raw.processArea || object?.processArea;
+    return { ...raw, ...t, taskId: id, taskName: t.taskName || raw.name, objectId, processArea };
   });
 
   const allPriorityTasks: any[] = useMemo(() => {
@@ -146,7 +156,7 @@ const PrioritiesPage: React.FC = () => {
     add((source as any).due_this_week || [], 'due_this_week');
     add((source as any).blocked || [], 'blocked');
     return result;
-  }, [prioritized, rawTaskMap, rawTasks, fallback]);
+  }, [prioritized, rawTaskMap, rawTasks, fallback, objectsByIdMap]);
 
   const processAreas = useMemo(() => [...new Set(allPriorityTasks.map(t => (t.processArea || '').trim()).filter(Boolean))].sort(), [allPriorityTasks]);
 
@@ -190,7 +200,7 @@ const PrioritiesPage: React.FC = () => {
     if (severityFilter !== 'all' && (def.severity || 'low') !== severityFilter) return false;
     if (defectSearch) { const s = defectSearch.toLowerCase(); if (!(def.title || '').toLowerCase().includes(s) && !(def.issueCode || '').toLowerCase().includes(s)) return false; }
     return true;
-  }), [defects, defectStatusFilter, severityFilter, defectSearch]);
+  }, [defects, defectStatusFilter, severityFilter, defectSearch]);
 
   const th = { py: 0.8, px: 1.5, fontSize: '0.68rem', letterSpacing: '0.06em', color: 'rgba(255,255,255,0.45)', backgroundColor: 'rgba(0,0,0,0.18)', textTransform: 'uppercase' as const, fontWeight: 700, borderBottom: '1px solid rgba(255,255,255,0.07)' };
   const td = { py: 0.75, px: 1.5, fontSize: '0.8rem', borderBottom: '1px solid rgba(255,255,255,0.04)' };
