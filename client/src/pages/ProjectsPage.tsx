@@ -2699,7 +2699,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
     };
 
     loadCycleSchedule();
-  }, [tabValue, activeCycleId, selectedCycleProjectId, projectsByMockCycle]);
+  }, [tabValue, activeCycleId, selectedCycleProjectId, projectsByMockCycle, globalProcessAreaAccents]);
 
   // Load persisted ordering when project changes.
   useEffect(() => {
