@@ -65,8 +65,10 @@ router.get(
   requireAuth,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
+      console.log(`[GET /project-objects/project/:projectId] projectId=${req.params.projectId}`);
       const project = await projectService.getProjectById(req.params.projectId);
       if (!project) {
+        console.log(`[GET /project-objects/project/:projectId] Project not found`);
         throw new ApiError(404, 'Project not found', 'NOT_FOUND');
       }
 
@@ -82,6 +84,7 @@ router.get(
         filters
       );
 
+      console.log(`[GET /project-objects/project/:projectId] Returning ${objects.length} objects`);
       res.json(formatListResponse(objects, objects.length));
     } catch (error) {
       next(error);

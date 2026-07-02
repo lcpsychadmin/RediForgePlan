@@ -111,7 +111,14 @@ export class ProjectObjectService {
       po.created_at DESC`
       : ' ORDER BY po.created_at DESC';
 
+    console.log(`[getProjectObjectsByProject] Query for projectId=${projectId}`, { query, params, supportsSubObjects });
     const result = await db.query(query, params);
+    console.log(`[getProjectObjectsByProject] Got ${result.rows.length} rows`);
+    
+    // Also check if ANY project_objects exist for this project
+    const countResult = await db.query('SELECT COUNT(*) as cnt FROM project_objects WHERE project_id = $1', [projectId]);
+    const totalCount = countResult.rows[0]?.cnt || 0;
+    console.log(`[getProjectObjectsByProject] Total project_objects in DB for this project: ${totalCount}`);
     const formatted = result.rows.map(row => {
       const obj = this.formatProjectObject(row);
       console.log(`ProjectObject ${obj.objectId}: description="${obj.description}"`);
