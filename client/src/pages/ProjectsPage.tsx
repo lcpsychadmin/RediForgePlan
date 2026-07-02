@@ -757,7 +757,6 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
           })}
 
           {filteredProjects.length === 0 && (
-          {filteredProjects.length === 0 && (
             <Box sx={{ py: 6, textAlign: 'center', color: 'text.disabled' }}>
               <Typography variant="body2">No projects match the selected filters.</Typography>
             </Box>
