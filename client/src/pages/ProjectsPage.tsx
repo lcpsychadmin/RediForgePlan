@@ -6304,12 +6304,12 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                                 </Box>
                                                 {/* Timeline summary for sub-object */}
                                                 {childTasks.length > 0 && (() => {
-                                                  let minStart: any = null;
-                                                  let maxEnd: any = null;
+                                                  let minStart: {year:number;month:number;day:number}|null = null;
+                                                  let maxEnd: {year:number;month:number;day:number}|null = null;
                                                   const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
                                                   childTasks.forEach((t: any) => {
                                                     const parseD = (v?: string) => { if (!v) return null; const p = v.substring(0,10).split('-'); if (p.length !== 3) return null; return { year: +p[0], month: +p[1], day: +p[2] }; };
-                                                    const toN = (d: any) => d.year*10000+d.month*100+d.day;
+                                                    const toN = (d: {year:number;month:number;day:number}) => d.year*10000+d.month*100+d.day;
                                                     const s = parseD(t.startDate), e = parseD(t.endDate);
                                                     if (s && (!minStart || toN(s) < toN(minStart))) minStart = s;
                                                     if (e && (!maxEnd || toN(e) > toN(maxEnd))) maxEnd = e;
@@ -6832,12 +6832,12 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                                   </Box>
                                                   {/* Timeline summary for this sub-object */}
                                                   {childTasks.length > 0 && (() => {
-                                                    let minStart: any = null;
-                                                    let maxEnd: any = null;
+                                                    let minStart: {year:number;month:number;day:number}|null = null;
+                                                    let maxEnd: {year:number;month:number;day:number}|null = null;
                                                     const mn = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
                                                     childTasks.forEach((t: any) => {
                                                       const parseD = (v?: string) => { if (!v) return null; const p = v.substring(0,10).split('-'); return p.length===3 ? {year:+p[0],month:+p[1],day:+p[2]} : null; };
-                                                      const toN = (d: any) => d.year*10000+d.month*100+d.day;
+                                                      const toN = (d: {year:number;month:number;day:number}) => d.year*10000+d.month*100+d.day;
                                                       const s = parseD(t.startDate), e = parseD(t.endDate);
                                                       if (s && (!minStart || toN(s)<toN(minStart))) minStart = s;
                                                       if (e && (!maxEnd || toN(e)>toN(maxEnd))) maxEnd = e;
