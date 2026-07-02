@@ -280,6 +280,7 @@ const PrioritiesPage: React.FC = () => {
                       const catLabel = task._category === 'overdue' ? 'Overdue' : task._category === 'due_this_week' ? 'Due This Week' : 'Blocked';
                       const objectId = task.objectId || task.projectObjectId;
                       const objectData = objectId ? objectsByIdMap.get(objectId) : null;
+                      const objectDescription = task.objectDescription || objectData?.description;
                       if (objectId && !objectData) {
                         console.log(`ObjectId ${objectId} not found in map. Map has ${objectsByIdMap.size} entries.`);
                       }
@@ -288,7 +289,7 @@ const PrioritiesPage: React.FC = () => {
                           sx={{ cursor: 'pointer', '&:hover': { backgroundColor: 'rgba(255,255,255,0.035)' } }}>
                           <TableCell sx={td}>
                             <Typography sx={{ fontWeight: 600, fontSize: '0.8rem' }}>{objectId || '—'}</Typography>
-                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.2 }}>{objectData?.description || '—'}</Typography>
+                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.2 }}>{objectDescription || '—'}</Typography>
                           </TableCell>
                           <TableCell sx={td}>
                             <Typography sx={{ fontWeight: 600, fontSize: '0.8rem' }}>{task.taskName || task.name || 'Untitled'}</Typography>
@@ -340,12 +341,13 @@ const PrioritiesPage: React.FC = () => {
                             const catLabel = task._category === 'overdue' ? 'Overdue' : task._category === 'due_this_week' ? 'Due This Week' : 'Blocked';
                             const objectId = task.objectId || task.projectObjectId;
                             const objectData = objectId ? objectsByIdMap.get(objectId) : null;
+                            const objectDescription = task.objectDescription || objectData?.description;
                             return (
                               <TableRow key={`${task.taskId || task.id}-${i}`} hover onClick={() => setSelectedTask(task)}
                                 sx={{ cursor: 'pointer', '&:hover': { backgroundColor: 'rgba(255,255,255,0.035)' }, backgroundColor: 'rgba(255,255,255,0.01)' }}>
                                 <TableCell sx={td}>
                                   <Typography sx={{ fontWeight: 600, fontSize: '0.8rem' }}>{objectId || '—'}</Typography>
-                                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.2 }}>{objectData?.description || '—'}</Typography>
+                                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.2 }}>{objectDescription || '—'}</Typography>
                                 </TableCell>
                                 <TableCell sx={{ ...td, pl: 4 }}>
                                   <Typography sx={{ fontWeight: 600, fontSize: '0.8rem' }}>{task.taskName || task.name || 'Untitled'}</Typography>
