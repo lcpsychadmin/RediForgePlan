@@ -14,7 +14,7 @@ export function useDefects(taskId: string) {
   const defectsQuery = useQuery({
     queryKey: DEFECT_KEYS.list(taskId),
     queryFn: async () => {
-      const response = await apiClient.get<{ data: Defect[] }>(`/tasks/${taskId}/defects`);
+      const response = await apiClient.get<{ data: Defect[] }>(`/api/tasks/${taskId}/defects`);
       return response.data.data || [];
     },
     enabled: !!taskId,
@@ -22,7 +22,7 @@ export function useDefects(taskId: string) {
 
   const createMutation = useMutation({
     mutationFn: async (payload: CreateDefectPayload) => {
-      const response = await apiClient.post<{ data: Defect }>(`/tasks/${taskId}/defects`, payload);
+      const response = await apiClient.post<{ data: Defect }>(`/api/tasks/${taskId}/defects`, payload);
       return response.data.data;
     },
     onMutate: async (payload) => {
@@ -66,7 +66,7 @@ export function useDefects(taskId: string) {
 
   const updateMutation = useMutation({
     mutationFn: async ({ defectId, payload }: { defectId: string; payload: UpdateDefectPayload }) => {
-      const response = await apiClient.patch<{ data: Defect }>(`/defects/${defectId}`, payload);
+      const response = await apiClient.patch<{ data: Defect }>(`/api/defects/${defectId}`, payload);
       return response.data.data;
     },
     onMutate: async ({ defectId, payload }) => {

@@ -84,7 +84,7 @@ const PlanPage: React.FC = () => {
         queryFn: async () => {
           if (!taskIds.length) return [];
           const responses = await Promise.all(
-            taskIds.map((taskId: string) => apiClient.get(`/tasks/${taskId}/defects`).catch(() => ({ data: { data: [] } })))
+            taskIds.map((taskId: string) => apiClient.get(`/api/tasks/${taskId}/defects`).catch(() => ({ data: { data: [] } })))
           );
           return responses.flatMap((response: any) => response.data.data || []);
         },
@@ -115,7 +115,7 @@ const PlanPage: React.FC = () => {
         queryFn: async () => {
           if (!taskIds.length) return [];
           const responses = await Promise.all(
-            taskIds.map((taskId: string) => apiClient.get(`/tasks/${taskId}/defects`).catch(() => ({ data: { data: [] } })))
+            taskIds.map((taskId: string) => apiClient.get(`/api/tasks/${taskId}/defects`).catch(() => ({ data: { data: [] } })))
           );
           return responses.flatMap((response: any) => response.data.data || []);
         },
