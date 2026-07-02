@@ -52,6 +52,7 @@ export class ProjectObjectService {
         SELECT po.id, po.project_id, po.global_object_id, po.parent_project_object_id, po.sub_object_suffix, po.sub_object_description,
           COALESCE(parent_go.object_id || '-' || po.sub_object_suffix, go.object_id) AS object_id,
           parent_go.object_id AS parent_object_id,
+          COALESCE(po.sub_object_description, go.description) AS description,
           COALESCE(go.process_area, parent_go.process_area) AS process_area,
           po.complexity, po.deployment_disposition,
              po.build_type, po.object_type, po.cutover_phase, po.ddm_approach, po.risk_security_type,
@@ -67,6 +68,7 @@ export class ProjectObjectService {
       : `
       SELECT po.id, po.project_id, po.global_object_id,
              go.object_id,
+             go.description,
              go.process_area,
              po.complexity, po.deployment_disposition,
              po.build_type, po.object_type, po.cutover_phase, po.ddm_approach, po.risk_security_type,
@@ -120,6 +122,7 @@ export class ProjectObjectService {
           ? `SELECT po.id, po.project_id, po.global_object_id, po.parent_project_object_id, po.sub_object_suffix, po.sub_object_description,
             COALESCE(parent_go.object_id || '-' || po.sub_object_suffix, go.object_id) AS object_id,
               parent_go.object_id AS parent_object_id,
+              COALESCE(po.sub_object_description, go.description) AS description,
               COALESCE(go.process_area, parent_go.process_area) AS process_area,
               po.complexity, po.deployment_disposition,
               po.build_type, po.object_type, po.cutover_phase, po.ddm_approach, po.risk_security_type,
@@ -133,6 +136,7 @@ export class ProjectObjectService {
       WHERE po.id = $1`
        : `SELECT po.id, po.project_id, po.global_object_id,
         go.object_id,
+        go.description,
         go.process_area,
         po.complexity, po.deployment_disposition,
         po.build_type, po.object_type, po.cutover_phase, po.ddm_approach, po.risk_security_type,
@@ -367,6 +371,7 @@ export class ProjectObjectService {
         SELECT po.id, po.project_id, po.global_object_id, po.parent_project_object_id, po.sub_object_suffix, po.sub_object_description,
           COALESCE(parent_go.object_id || '-' || po.sub_object_suffix, go.object_id) AS object_id,
           parent_go.object_id AS parent_object_id,
+          COALESCE(po.sub_object_description, go.description) AS description,
           COALESCE(go.process_area, parent_go.process_area) AS process_area,
           po.complexity, po.deployment_disposition,
           po.build_type, po.object_type, po.cutover_phase, po.ddm_approach, po.risk_security_type,
@@ -381,7 +386,7 @@ export class ProjectObjectService {
       `
       : `
         SELECT po.id, po.project_id, po.global_object_id,
-               go.object_id, go.process_area,
+               go.object_id, go.description, go.process_area,
                po.complexity, po.deployment_disposition,
                po.build_type, po.object_type, po.cutover_phase, po.ddm_approach, po.risk_security_type,
                po.migration_type, po.factor_type, po.load_method, po.start_date, po.end_date, po.status,
@@ -454,6 +459,7 @@ export class ProjectObjectService {
       subObjectDescription: row.sub_object_description || null,
       isSubObject: !!row.parent_project_object_id,
       objectId: row.object_id,
+      description: row.description,
       processArea: row.process_area,
       complexity: row.complexity,
       deploymentDisposition: row.deployment_disposition,
