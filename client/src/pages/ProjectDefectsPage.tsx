@@ -17,6 +17,11 @@ import {
   Paper,
   Stack,
   TextField,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableRow,
   Typography,
 } from '@mui/material';
 import { useParams } from 'react-router-dom';
@@ -29,6 +34,32 @@ import { useFilter } from '../contexts/FilterContext';
 
 const qualityTaskTypes = new Set(['preload_validation', 'postload_validation', 'load']);
 const statusOptions: DefectStatus[] = ['open', 'in_progress', 'resolved', 'closed'];
+
+const surfaceSx = {
+  border: '1px solid rgba(255,255,255,0.08)',
+  borderRadius: 2,
+  backgroundColor: 'rgba(255,255,255,0.04)',
+  overflow: 'hidden',
+};
+
+const tableTh = {
+  py: 0.8,
+  px: 1.5,
+  fontSize: '0.68rem',
+  letterSpacing: '0.06em',
+  color: 'rgba(255,255,255,0.45)',
+  backgroundColor: 'rgba(0,0,0,0.18)',
+  textTransform: 'uppercase' as const,
+  fontWeight: 700,
+  borderBottom: '1px solid rgba(255,255,255,0.07)',
+};
+
+const tableTd = {
+  py: 0.75,
+  px: 1.5,
+  fontSize: '0.8rem',
+  borderBottom: '1px solid rgba(255,255,255,0.04)',
+};
 
 const parseDefectDescriptionSections = (description: string | null | undefined) => {
   const text = (description || '').trim();
@@ -309,37 +340,34 @@ const ProjectDefectsPage: React.FC<ProjectDefectsPageProps> = ({ projectId: proj
         ]}
       />
 
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Stack spacing={1}>
-            <Typography variant="subtitle2" fontWeight={700}>
-              Project quality overview
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Use this page to inspect any task in the project, capture preload/postload validation stats, and manage defects for the selected task.
-            </Typography>
-            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 1 }}>
-              <Chip size="small" label={`Total defects: ${summary?.defects.total ?? 0}`} />
-              <Chip size="small" label={`Load failures: ${summary?.loadMetrics.failed ?? 0}`} />
-              <Chip size="small" label={`Preload invalid: ${summary?.validation.preload.invalidRecords ?? 0}`} color="warning" variant="outlined" />
-              <Chip size="small" label={`Postload invalid: ${summary?.validation.postload.invalidRecords ?? 0}`} color="error" variant="outlined" />
-              <Chip size="small" label={`Validation tasks: ${(allTaskTypes.preload_validation || 0) + (allTaskTypes.postload_validation || 0)}`} />
-              <Chip size="small" label={`Load tasks: ${allTaskTypes.load || 0}`} />
-            </Box>
-          </Stack>
-        </CardContent>
-      </Card>
+      <Box sx={{ ...surfaceSx, mb: 3 }}>
+        <Box sx={{ px: 2.5, py: 1.5, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: 'rgba(255,255,255,0.02)' }}>
+          <Typography variant="subtitle2" fontWeight={700}>
+            Project quality overview
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Use this page to inspect any task in the project, capture preload/postload validation stats, and manage defects for the selected task.
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 1 }}>
+            <Chip size="small" label={`Total defects: ${summary?.defects.total ?? 0}`} />
+            <Chip size="small" label={`Load failures: ${summary?.loadMetrics.failed ?? 0}`} />
+            <Chip size="small" label={`Preload invalid: ${summary?.validation.preload.invalidRecords ?? 0}`} color="warning" variant="outlined" />
+            <Chip size="small" label={`Postload invalid: ${summary?.validation.postload.invalidRecords ?? 0}`} color="error" variant="outlined" />
+            <Chip size="small" label={`Validation tasks: ${(allTaskTypes.preload_validation || 0) + (allTaskTypes.postload_validation || 0)}`} />
+            <Chip size="small" label={`Load tasks: ${allTaskTypes.load || 0}`} />
+          </Box>
+        </Box>
+      </Box>
 
-      <Card variant="outlined" sx={{ mb: 3 }}>
-        <CardContent>
+      <Box sx={{ ...surfaceSx, mb: 3 }}>
+        <Box sx={{ px: 2.5, py: 1.5, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: 'rgba(255,255,255,0.02)' }}>
           <Stack spacing={2}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
               <Box>
                 <Typography variant="subtitle1" fontWeight={700}>Defect Work Items</Typography>
-                <Typography variant="body2" color="text.secondary">ADO-style defect triage with a work-item queue and detail editor.</Typography>
+                <Typography variant="body2" color="text.secondary">Table-based defect triage with a detail editor.</Typography>
               </Box>
             </Box>
-            <Divider />
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
               <TextField
                 size="small"
@@ -363,8 +391,8 @@ const ProjectDefectsPage: React.FC<ProjectDefectsPageProps> = ({ projectId: proj
               </TextField>
             </Stack>
           </Stack>
-        </CardContent>
-      </Card>
+        </Box>
+      </Box>
 
       {defectQueries.some((query: any) => query.isLoading) ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
@@ -375,42 +403,55 @@ const ProjectDefectsPage: React.FC<ProjectDefectsPageProps> = ({ projectId: proj
       ) : (
         <Grid container spacing={2.5} sx={{ mb: 3 }}>
           <Grid item xs={12} md={4} lg={3.5}>
-            <Paper variant="outlined" sx={{ height: '100%', maxHeight: 760, overflow: 'auto' }}>
-              <Box sx={{ px: 1.5, py: 1, borderBottom: '1px solid', borderColor: 'divider' }}>
+            <Box sx={{ ...surfaceSx, height: '100%', maxHeight: 760, overflow: 'hidden' }}>
+              <Box sx={{ px: 2, py: 1, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: 'rgba(255,255,255,0.02)' }}>
                 <Typography variant="subtitle2" fontWeight={700}>Defect Queue ({filteredDefects.length})</Typography>
               </Box>
-              <List dense disablePadding>
-                {filteredDefects.map((defect: any) => (
-                  <ListItemButton
-                    key={defect.id}
-                    selected={activeDefect?.id === defect.id}
-                    onClick={() => setSelectedDefectId(defect.id)}
-                    sx={{ alignItems: 'flex-start', py: 1.2 }}
-                  >
-                    <ListItemText
-                      primary={<Typography variant="body2" fontWeight={700}>BUG {defect.id.slice(0, 8)}</Typography>}
-                      secondary={(
-                        <Stack spacing={0.7} sx={{ mt: 0.5 }}>
-                          <Typography variant="body2">{defect.title}</Typography>
-                          <Stack direction="row" spacing={0.75} useFlexGap flexWrap="wrap">
-                            <Chip size="small" variant="outlined" label={defect.status.replace('_', ' ')} />
-                            <Chip size="small" label={defect.severity} color={defect.severity === 'critical' ? 'error' : defect.severity === 'high' ? 'warning' : 'default'} />
-                          </Stack>
+              <Box sx={{ maxHeight: 716, overflow: 'auto' }}>
+                <Table size="small" stickyHeader>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell sx={tableTh}>ID</TableCell>
+                      <TableCell sx={tableTh}>Title</TableCell>
+                      <TableCell sx={tableTh}>Status</TableCell>
+                      <TableCell sx={tableTh}>Severity</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {filteredDefects.map((defect: any) => (
+                      <TableRow
+                        key={defect.id}
+                        hover
+                        selected={activeDefect?.id === defect.id}
+                        onClick={() => setSelectedDefectId(defect.id)}
+                        sx={{ cursor: 'pointer', '&:hover': { backgroundColor: 'rgba(255,255,255,0.035)' }, backgroundColor: 'rgba(255,255,255,0.01)' }}
+                      >
+                        <TableCell sx={tableTd}>
+                          <Typography sx={{ fontWeight: 700, fontSize: '0.78rem' }}>BUG {defect.id.slice(0, 8)}</Typography>
+                        </TableCell>
+                        <TableCell sx={tableTd}>
+                          <Typography sx={{ fontWeight: 600, fontSize: '0.8rem' }}>{defect.title}</Typography>
                           <Typography variant="caption" color="text.secondary">{defect.taskName || 'Task'}</Typography>
-                        </Stack>
-                      )}
-                    />
-                  </ListItemButton>
-                ))}
-              </List>
-            </Paper>
+                        </TableCell>
+                        <TableCell sx={tableTd}>
+                          <Chip size="small" variant="outlined" label={defect.status.replace('_', ' ')} />
+                        </TableCell>
+                        <TableCell sx={tableTd}>
+                          <Chip size="small" label={defect.severity} color={defect.severity === 'critical' ? 'error' : defect.severity === 'high' ? 'warning' : 'default'} />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </Box>
+            </Box>
           </Grid>
 
           <Grid item xs={12} md={8} lg={8.5}>
             {!activeDefect ? (
               <Alert severity="info">Select a defect to view details.</Alert>
             ) : (
-              <Paper variant="outlined" sx={{ p: 2 }}>
+              <Box sx={{ ...surfaceSx, p: 2 }}>
                 <Stack spacing={2}>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
                     <Stack spacing={0.5}>
@@ -568,7 +609,7 @@ const ProjectDefectsPage: React.FC<ProjectDefectsPageProps> = ({ projectId: proj
                     </Grid>
                   </Grid>
                 </Stack>
-              </Paper>
+              </Box>
             )}
           </Grid>
         </Grid>
@@ -597,78 +638,66 @@ const ProjectDefectsPage: React.FC<ProjectDefectsPageProps> = ({ projectId: proj
       ) : filteredTasks.length === 0 ? (
         <Alert severity="info">No tasks match the selected filter.</Alert>
       ) : (
-        <Stack spacing={2}>
-          {Object.entries(groupedTasks).map(([groupName, groupTasks]) => {
-            if (groupTasks.length === 0) return null;
+        <Box sx={{ ...surfaceSx, overflow: 'hidden' }}>
+          <Box sx={{ px: 2, py: 1.25, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: 'rgba(255,255,255,0.02)' }}>
+            <Typography variant="subtitle1" fontWeight={700}>Task Queue</Typography>
+          </Box>
+          <Box sx={{ overflow: 'auto' }}>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell sx={tableTh}>Group</TableCell>
+                  <TableCell sx={tableTh}>Task</TableCell>
+                  <TableCell sx={tableTh}>Type</TableCell>
+                  <TableCell sx={tableTh}>Status</TableCell>
+                  <TableCell sx={tableTh}>Owners</TableCell>
+                  <TableCell sx={tableTh}>Notes</TableCell>
+                  <TableCell sx={{ ...tableTh, width: 96 }}>Action</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {Object.entries(groupedTasks).flatMap(([groupName, groupTasks]) => {
+                  if (groupTasks.length === 0) return [];
 
-            return (
-              <Card key={groupName} variant="outlined">
-                <CardContent>
-                  <Stack spacing={2}>
-                    <Typography variant="subtitle1" fontWeight={700}>
-                      {groupName} ({groupTasks.length})
-                    </Typography>
-                    <Grid container spacing={2}>
-                      {groupTasks.map((task: any) => {
-                        const taskType = (task.taskType || task.task_type || 'custom').toLowerCase();
-                        const isValidation = taskType === 'preload_validation' || taskType === 'postload_validation';
-                        return (
-                          <Grid key={task.id} item xs={12} md={6} lg={4}>
-                            <Card variant="outlined" sx={{ height: '100%' }}>
-                              <CardContent>
-                                <Stack spacing={1.25}>
-                                  <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, alignItems: 'flex-start' }}>
-                                    <Box>
-                                      <Typography variant="subtitle2" fontWeight={700}>
-                                        {task.name || task.taskName || 'Task'}
-                                      </Typography>
-                                      <Typography variant="caption" color="text.secondary">
-                                        {task.taskType || task.task_type || 'custom'}
-                                      </Typography>
-                                    </Box>
-                                    <Chip size="small" label={(task.status || 'not_started').replace(/_/g, ' ')} variant="outlined" />
-                                  </Box>
-
-                                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                                    {task.draUserId ? <Chip size="small" label={`DRA: ${peopleById[task.draUserId]?.name || task.draUserId}`} /> : null}
-                                    {task.developerUserId ? <Chip size="small" label={`Dev: ${peopleById[task.developerUserId]?.name || task.developerUserId}`} /> : null}
-                                  </Box>
-
-                                  <Typography variant="body2" color="text.secondary">
-                                    {task.notes || task.description || 'No notes.'}
-                                  </Typography>
-
-                                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                                    {isValidation ? (
-                                      <Chip
-                                        size="small"
-                                        color={taskType === 'preload_validation' ? 'warning' : 'error'}
-                                        variant="outlined"
-                                        label={taskType === 'preload_validation' ? 'Preload quality' : 'Postload quality'}
-                                      />
-                                    ) : null}
-                                    <Button
-                                      size="small"
-                                      variant="contained"
-                                      onClick={() => setSelectedTask(task)}
-                                      sx={{ textTransform: 'none' }}
-                                    >
-                                      Manage task
-                                    </Button>
-                                  </Box>
-                                </Stack>
-                              </CardContent>
-                            </Card>
-                          </Grid>
-                        );
-                      })}
-                    </Grid>
-                  </Stack>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </Stack>
+                  return [
+                    <TableRow key={`${groupName}-header`}>
+                      <TableCell colSpan={7} sx={{ ...tableTd, backgroundColor: 'rgba(255,255,255,0.03)', fontWeight: 700 }}>
+                        {groupName} ({groupTasks.length})
+                      </TableCell>
+                    </TableRow>,
+                    ...groupTasks.map((task: any) => {
+                      const taskType = (task.taskType || task.task_type || 'custom').toLowerCase();
+                      const isValidation = taskType === 'preload_validation' || taskType === 'postload_validation';
+                      return (
+                        <TableRow key={task.id} hover sx={{ backgroundColor: 'rgba(255,255,255,0.01)' }}>
+                          <TableCell sx={tableTd}><Typography sx={{ fontSize: '0.78rem', color: 'text.secondary' }}>{groupName}</Typography></TableCell>
+                          <TableCell sx={tableTd}>
+                            <Typography sx={{ fontWeight: 600, fontSize: '0.8rem' }}>{task.name || task.taskName || 'Task'}</Typography>
+                          </TableCell>
+                          <TableCell sx={tableTd}><Typography sx={{ fontSize: '0.78rem', color: 'text.secondary' }}>{task.taskType || task.task_type || 'custom'}</Typography></TableCell>
+                          <TableCell sx={tableTd}><Chip size="small" label={(task.status || 'not_started').replace(/_/g, ' ')} variant="outlined" /></TableCell>
+                          <TableCell sx={tableTd}>
+                            <Stack spacing={0.4}>
+                              {task.draUserId ? <Typography variant="caption" color="text.secondary">DRA: {peopleById[task.draUserId]?.name || task.draUserId}</Typography> : null}
+                              {task.developerUserId ? <Typography variant="caption" color="text.secondary">Dev: {peopleById[task.developerUserId]?.name || task.developerUserId}</Typography> : null}
+                              {isValidation ? <Chip size="small" color={taskType === 'preload_validation' ? 'warning' : 'error'} variant="outlined" label={taskType === 'preload_validation' ? 'Preload quality' : 'Postload quality'} /> : null}
+                            </Stack>
+                          </TableCell>
+                          <TableCell sx={tableTd}><Typography variant="body2" color="text.secondary">{task.notes || task.description || 'No notes.'}</Typography></TableCell>
+                          <TableCell sx={{ ...tableTd, px: 0.5 }}>
+                            <Button size="small" variant="outlined" onClick={() => setSelectedTask(task)} sx={{ textTransform: 'none', whiteSpace: 'nowrap' }}>
+                              Manage
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    }),
+                  ];
+                })}
+              </TableBody>
+            </Table>
+          </Box>
+        </Box>
       )}
 
     </PageContainer>
