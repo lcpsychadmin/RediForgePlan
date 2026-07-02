@@ -209,7 +209,6 @@ const MILESTONE_COLOR = '#FFD54F';
 
 const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, projectsByMockCycle, onSaveCycleDates }) => {
   const [roadmapItems, setRoadmapItems] = React.useState<RoadmapItem[]>([]);
-  const [rowOrder, setRowOrder] = React.useState<Record<string, string[]>>({});
   const [filterProgram, setFilterProgram] = React.useState('');
   const [filterProject, setFilterProject] = React.useState('');
   const [editCycle, setEditCycle] = React.useState<any | null>(null);
@@ -226,51 +225,52 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
     currentDate: string; indicatorX: number;
     origStart: string; origEnd: string;
   } | null>(null);
-  // Vertical row drag — uses mouse events (not HTML5 draggable) to avoid conflicts
-  const [rowDrag, setRowDrag] = React.useState<{ projectKey: string; rowId: string } | null>(null);
-  const [rowDragOver, setRowDragOver] = React.useState<{ projectKey: string; rowId: string; side: 'before' | 'after' } | null>(null);
-  const rowDragRef = React.useRef<typeof rowDrag>(null);
-  const rowDragOverRef = React.useRef<typeof rowDragOver>(null);
-  const rowAllIdsRef = React.useRef<Record<string, string[]>>({});
-  React.useEffect(() => { rowDragRef.current = rowDrag; }, [rowDrag]);
-  React.useEffect(() => { rowDragOverRef.current = rowDragOver; }, [rowDragOver]);
+  // Lane-based layout: activityId → laneIndex per project
+  const [laneAssign, setLaneAssign] = React.useState<Record<string, Record<string, number>>>({});
+  // Vertical activity drag — uses mouse events to avoid conflicts with horizontal date drag
+  const [actDrag, setActDrag] = React.useState<{ projectKey: string; actId: string } | null>(null);
+  const [laneDragOver, setLaneDragOver] = React.useState<{ projectKey: string; laneIdx: number; canDrop: boolean } | null>(null);
+  const actDragRef = React.useRef<typeof actDrag>(null);
+  const laneDragOverRef = React.useRef<typeof laneDragOver>(null);
+  React.useEffect(() => { actDragRef.current = actDrag; }, [actDrag]);
+  React.useEffect(() => { laneDragOverRef.current = laneDragOver; }, [laneDragOver]);
 
-  // Vertical drag: use elementsFromPoint on mousemove (mouseenter doesn’t fire during mousedown-drag)
+  // Vertical activity drag via elementsFromPoint
   React.useEffect(() => {
-    if (!rowDrag) return;
+    if (!actDrag) return;
     const onMove = (e: MouseEvent) => {
       const els = document.elementsFromPoint(e.clientX, e.clientY) as HTMLElement[];
       for (const el of els) {
-        const rowId = el.dataset?.rowId;
+        const laneIdx = el.dataset?.laneIdx;
         const projectKey = el.dataset?.projectKey;
-        if (rowId && projectKey) {
-          const rect = el.getBoundingClientRect();
-          const side: 'before' | 'after' = e.clientY < rect.top + rect.height / 2 ? 'before' : 'after';
-          if (rowId !== rowDragRef.current?.rowId) {
-            rowDragOverRef.current = { projectKey, rowId, side };
-            setRowDragOver({ projectKey, rowId, side });
-          }
+        if (laneIdx !== undefined && projectKey && projectKey === actDragRef.current?.projectKey) {
+          const idx = Number(laneIdx);
+          const canDrop = !laneHasOverlap(projectKey, actDragRef.current!.actId, idx);
+          laneDragOverRef.current = { projectKey, laneIdx: idx, canDrop };
+          setLaneDragOver({ projectKey, laneIdx: idx, canDrop });
           return;
         }
       }
     };
     const onUp = () => {
-      const rd = rowDragRef.current;
-      const rdo = rowDragOverRef.current;
-      if (rd && rdo && rd.rowId !== rdo.rowId && rd.projectKey === rdo.projectKey) {
-        const allIds = rowAllIdsRef.current[rd.projectKey] || [];
-        dropRow(rd.projectKey, rd.rowId, rdo.rowId, rdo.side, allIds);
+      const ad = actDragRef.current;
+      const ld = laneDragOverRef.current;
+      if (ad && ld && ld.canDrop) {
+        const cur = laneAssign[ad.projectKey] || {};
+        const maxLane = Math.max(-1, ...Object.values(cur));
+        const targetLane = ld.laneIdx === -1 ? maxLane + 1 : ld.laneIdx;
+        const next = { ...laneAssign, [ad.projectKey]: { ...cur, [ad.actId]: targetLane } };
+        setLaneAssign(next);
+        apiClient.put('/api/hierarchy-preferences/global-process-areas', { roadmapLaneAssign: next }).catch(() => {});
       }
-      rowDragRef.current = null;
-      rowDragOverRef.current = null;
-      setRowDrag(null);
-      setRowDragOver(null);
+      actDragRef.current = null; laneDragOverRef.current = null;
+      setActDrag(null); setLaneDragOver(null);
     };
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
     return () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rowDrag]);
+  }, [actDrag, laneAssign]);
   const timelineRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
@@ -278,6 +278,7 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
       const d = res.data?.data || res.data?.preferences || res.data;
       if (Array.isArray(d?.roadmapItems)) setRoadmapItems(d.roadmapItems);
       if (d?.roadmapRowOrder && typeof d.roadmapRowOrder === 'object') setRowOrder(d.roadmapRowOrder);
+      if (d?.roadmapLaneAssign && typeof d.roadmapLaneAssign === 'object') setLaneAssign(d.roadmapLaneAssign);
     }).catch(() => {});
   }, []);
 
@@ -286,35 +287,6 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
     apiClient.put('/api/hierarchy-preferences/global-process-areas', { roadmapItems: items }).catch(() => {});
   };
 
-  const persistRowOrder = (order: Record<string, string[]>) => {
-    setRowOrder(order);
-    apiClient.put('/api/hierarchy-preferences/global-process-areas', { roadmapRowOrder: order }).catch(() => {});
-  };
-
-  // Build ordered rows for a project applying saved row order
-  const buildRows = (proj: { name: string; cycleIds: string[] }, phases: RoadmapItem[], cycles: any[], testCycles: RoadmapItem[], milestones: RoadmapItem[]) => {
-    const defaults: { id: string; kind: string }[] = [
-      ...phases.map(ph => ({ id: ph.id, kind: 'phase' })),
-      ...cycles.map(c => ({ id: c.id, kind: 'cycle' })),
-      ...testCycles.map(tc => ({ id: tc.id, kind: 'test-cycle' })),
-      ...(milestones.length > 0 ? [{ id: '__milestones__', kind: 'milestones' }] : []),
-    ];
-    const savedOrder = rowOrder[proj.name];
-    if (!savedOrder?.length) return defaults;
-    const byId = new Map(defaults.map(r => [r.id, r]));
-    const ordered: typeof defaults = [];
-    savedOrder.forEach(id => { const r = byId.get(id); if (r) { ordered.push(r); byId.delete(id); } });
-    byId.forEach(r => ordered.push(r)); // append new rows not yet in saved order
-    return ordered;
-  };
-
-  const dropRow = (projectKey: string, dragId: string, overId: string, side: 'before' | 'after', allRowIds: string[]) => {
-    const without = allRowIds.filter(id => id !== dragId);
-    const targetIdx = without.indexOf(overId);
-    const insertAt = side === 'after' ? targetIdx + 1 : targetIdx;
-    const next = [...without.slice(0, insertAt), dragId, ...without.slice(insertAt)];
-    persistRowOrder({ ...rowOrder, [projectKey]: next });
-  };
 
   const allCyclesById = React.useMemo(() => {
     const m = new Map<string, any>();
@@ -528,6 +500,49 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
 
   const deleteItem = (id: string) => persistItems(roadmapItems.filter(x => x.id !== id));
 
+  // Lane helpers
+  const getActRange = (actId: string, phases: RoadmapItem[], cycles: any[], testCycles: RoadmapItem[]): {start:string;end:string}|null => {
+    const ph = phases.find(x => x.id === actId); if (ph?.startDate && ph?.endDate) return {start: ph.startDate, end: ph.endDate};
+    const c = cycles.find(x => x.id === actId); if (c?.startDate && c?.endDate) return {start: c.startDate.substring(0,10), end: c.endDate.substring(0,10)};
+    const tc = testCycles.find(x => x.id === actId); if (tc?.startDate && tc?.endDate) return {start: tc.startDate, end: tc.endDate};
+    return null;
+  };
+  const rangesOverlap = (a:{start:string;end:string}, b:{start:string;end:string}) => !(a.end <= b.start || b.end <= a.start);
+
+  // Greedy auto-packing for activities without explicit lane assignments
+  const autoPackLanes = (actIds: string[], getRangeById: (id: string) => {start:string;end:string}|null): Record<string,number> => {
+    const assign: Record<string,number> = {};
+    const laneDates: Array<Array<{start:string;end:string}>> = [];
+    actIds.forEach(id => {
+      const range = getRangeById(id);
+      if (!range) { assign[id] = laneDates.length; return; }
+      let placed = false;
+      for (let i = 0; i < laneDates.length; i++) {
+        if (!laneDates[i].some(d => rangesOverlap(range, d))) {
+          assign[id] = i; laneDates[i].push(range); placed = true; break;
+        }
+      }
+      if (!placed) { assign[id] = laneDates.length; laneDates.push([range]); }
+    });
+    return assign;
+  };
+
+  // Check if placing actId onto laneIdx would overlap with existing occupants
+  const laneHasOverlap = (projectKey: string, actId: string, laneIdx: number): boolean => {
+    const cur = laneAssign[projectKey] || {};
+    const sameLaneIds = Object.entries(cur).filter(([id, l]) => l === laneIdx && id !== actId).map(([id]) => id);
+    const getRange = (id: string): {start:string;end:string}|null => {
+      const ri = roadmapItems.find(x => x.id === id);
+      if (ri?.startDate && ri?.endDate) return {start: ri.startDate, end: ri.endDate};
+      const cyc = Object.values(mockCycles).flat().find((c: any) => c.id === id) as any;
+      if (cyc?.startDate && cyc?.endDate) return {start: cyc.startDate.substring(0,10), end: cyc.endDate.substring(0,10)};
+      return null;
+    };
+    const dragRange = getRange(actId);
+    if (!dragRange) return false;
+    return sameLaneIds.some(otherId => { const r = getRange(otherId); return r ? rangesOverlap(dragRange, r) : false; });
+  };
+
   return (
     <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
       {/* Header */}
@@ -600,25 +615,28 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
             const phases = projItems.filter(x => x.type === 'phase');
             const testCycles = projItems.filter(x => x.type === 'test-cycle');
             const milestones = projItems.filter(x => x.type === 'milestone');
-            const orderedRows = buildRows(proj, phases, cycles, testCycles, milestones);
-            const allRowIds = orderedRows.map(r => r.id);
-            rowAllIdsRef.current[proj.name] = allRowIds; // keep ref in sync for mouseup handler
+            // Build per-activity rows list
+            const allActs = [
+              ...phases.map(ph => ({ id: ph.id, kind: 'phase' as const })),
+              ...cycles.map(c => ({ id: c.id, kind: 'cycle' as const })),
+              ...testCycles.map(tc => ({ id: tc.id, kind: 'test-cycle' as const })),
+            ];
+            // Get or auto-compute lane assignments
+            const curAssign = laneAssign[proj.name] || {};
+            const hasAssign = allActs.some(a => a.id in curAssign);
+            const laneMap = hasAssign ? curAssign : autoPackLanes(allActs.map(a => a.id), id => getActRange(id, phases, cycles, testCycles));
+            // Group into lanes
+            const maxLane = Math.max(-1, ...allActs.map(a => laneMap[a.id] ?? 0));
+            const lanes: Array<typeof allActs> = Array.from({ length: maxLane + 1 }, () => []);
+            allActs.forEach(a => { const l = laneMap[a.id] ?? 0; if (lanes[l]) lanes[l].push(a); else lanes[l] = [a]; });
 
-            // Grip: mousedown starts vertical drag (no HTML5 draggable to avoid conflicts)
-            const GripHandle = ({ rowId }: { rowId: string }) => (
-              <Box
-                onMouseDown={e => { e.stopPropagation(); e.preventDefault(); setRowDrag({ projectKey: proj.name, rowId }); }}
-                sx={{ position: 'absolute', left: -18, top: '50%', transform: 'translateY(-50%)', width: 14, cursor: rowDrag ? 'grabbing' : 'grab', color: 'rgba(255,255,255,0.25)', fontSize: '0.8rem', lineHeight: 1, userSelect: 'none', '&:hover': { color: 'rgba(255,255,255,0.6)' }, zIndex: 3 }}>
+            // Grip handle for each activity bar
+            const ActGrip = ({ actId }: { actId: string }) => (
+              <Box onMouseDown={e => { e.stopPropagation(); e.preventDefault(); setActDrag({ projectKey: proj.name, actId }); }}
+                sx={{ position: 'absolute', left: -18, top: '50%', transform: 'translateY(-50%)', width: 14, cursor: actDrag ? 'grabbing' : 'ns-resize', color: 'rgba(255,255,255,0.25)', fontSize: '0.78rem', lineHeight: 1, userSelect: 'none', '&:hover': { color: 'rgba(255,255,255,0.55)' }, zIndex: 3 }}>
                 ⠿
               </Box>
             );
-
-            // Drop indicator — shown when a row drag is over this position
-            const DropZone = ({ rowId, side }: { rowId: string; side: 'before' | 'after' }) => {
-              const isOver = rowDragOver?.projectKey === proj.name && rowDragOver?.rowId === rowId && rowDragOver?.side === side;
-              if (!isOver) return null;
-              return <Box sx={{ position: 'absolute', left: 0, right: 0, height: 2, backgroundColor: '#667eea', [side === 'before' ? 'top' : 'bottom']: -1, borderRadius: 1, zIndex: 6, pointerEvents: 'none' }} />;
-            };
 
             return (
               <Box key={proj.name} sx={{ mb: 1.5, pl: 2 }}>
@@ -629,97 +647,116 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
                   <Typography sx={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.3)', fontWeight: 500 }}>{proj.programName}</Typography>
                 </Box>
 
-                {orderedRows.map(row => {
-                  if (row.kind === 'phase') {
-                    const ph = phases.find(p => p.id === row.id)!;
-                    if (!ph) return null;
-                    const dispStart = drag?.id === ph.id && drag?.handle === 'start' ? drag.currentDate : ph.startDate;
-                    const dispEnd   = drag?.id === ph.id && drag?.handle === 'end'   ? drag.currentDate : ph.endDate;
-                    return (
-                      <Box key={ph.id} data-row-id={ph.id} data-project-key={proj.name} sx={{ ...rowSx, mb: 0.25, position: 'relative', opacity: rowDrag?.rowId === ph.id ? 0.4 : 1 }}>
-                        <DropZone rowId={ph.id} side="before" />
-                        <DropZone rowId={ph.id} side="after" />
-                        <GripHandle rowId={ph.id} />
-                        <Box sx={trackSx} />
-                        <TimelineBar startDate={dispStart} endDate={dispEnd} color={ph.color} label={`▐ ${ph.name}`} onClick={() => openEditItem(ph)}
-                          subtitle={`${proj.programName} · ${proj.name}`}
-                          onStartDrag={e => setDrag({ id: ph.id, entityType: 'roadmap', handle: 'start', currentDate: ph.startDate || '', indicatorX: getIndicatorX(e.clientX), origStart: ph.startDate || '', origEnd: ph.endDate || '' })}
-                          onEndDrag={e => setDrag({ id: ph.id, entityType: 'roadmap', handle: 'end', currentDate: ph.endDate || '', indicatorX: getIndicatorX(e.clientX), origStart: ph.startDate || '', origEnd: ph.endDate || '' })}
-                        />
-                      </Box>
-                    );
-                  }
-                  if (row.kind === 'cycle') {
-                    const c = cycles.find(x => x.id === row.id);
-                    if (!c) return null;
-                    const accent = c.accentColor || projAccent;
-                    const dispStart = drag?.id === c.id && drag?.handle === 'start' ? drag.currentDate : c.startDate?.substring(0, 10);
-                    const dispEnd   = drag?.id === c.id && drag?.handle === 'end'   ? drag.currentDate : c.endDate?.substring(0, 10);
-                    return (
-                      <Box key={c.id} data-row-id={c.id} data-project-key={proj.name} sx={{ ...rowSx, mb: 0.25, position: 'relative', opacity: rowDrag?.rowId === c.id ? 0.4 : 1 }}>
-                        <DropZone rowId={c.id} side="before" />
-                        <DropZone rowId={c.id} side="after" />
-                        <GripHandle rowId={c.id} />
-                        <Box sx={trackSx} />
-                        <TimelineBar startDate={dispStart} endDate={dispEnd} color={accent} label={c.name}
-                          subtitle={`${proj.programName} · ${proj.name}`}
-                          onClick={() => { setEditCycle(c); setEditStart(c.startDate?.substring(0, 10) || ''); setEditEnd(c.endDate?.substring(0, 10) || ''); }}
-                          onStartDrag={e => setDrag({ id: c.id, entityType: 'cycle', handle: 'start', currentDate: c.startDate?.substring(0, 10) || '', indicatorX: getIndicatorX(e.clientX), origStart: c.startDate?.substring(0, 10) || '', origEnd: c.endDate?.substring(0, 10) || '' })}
-                          onEndDrag={e => setDrag({ id: c.id, entityType: 'cycle', handle: 'end', currentDate: c.endDate?.substring(0, 10) || '', indicatorX: getIndicatorX(e.clientX), origStart: c.startDate?.substring(0, 10) || '', origEnd: c.endDate?.substring(0, 10) || '' })}
-                        />
-                      </Box>
-                    );
-                  }
-                  if (row.kind === 'test-cycle') {
-                    const tc = testCycles.find(x => x.id === row.id)!;
-                    if (!tc) return null;
-                    const dispStart = drag?.id === tc.id && drag?.handle === 'start' ? drag.currentDate : tc.startDate;
-                    const dispEnd   = drag?.id === tc.id && drag?.handle === 'end'   ? drag.currentDate : tc.endDate;
-                    return (
-                      <Box key={tc.id} data-row-id={tc.id} data-project-key={proj.name} sx={{ ...rowSx, mb: 0.25, position: 'relative', opacity: rowDrag?.rowId === tc.id ? 0.4 : 1 }}>
-                        <DropZone rowId={tc.id} side="before" />
-                        <DropZone rowId={tc.id} side="after" />
-                        <GripHandle rowId={tc.id} />
-                        <Box sx={trackSx} />
-                        <TimelineBar startDate={dispStart} endDate={dispEnd} color={tc.color} label={`◆ ${tc.name}`} onClick={() => openEditItem(tc)} dashed
-                          subtitle={`${proj.programName} · ${proj.name}`}
-                          onStartDrag={e => setDrag({ id: tc.id, entityType: 'roadmap', handle: 'start', currentDate: tc.startDate || '', indicatorX: getIndicatorX(e.clientX), origStart: tc.startDate || '', origEnd: tc.endDate || '' })}
-                          onEndDrag={e => setDrag({ id: tc.id, entityType: 'roadmap', handle: 'end', currentDate: tc.endDate || '', indicatorX: getIndicatorX(e.clientX), origStart: tc.startDate || '', origEnd: tc.endDate || '' })}
-                        />
-                      </Box>
-                    );
-                  }
-                  if (row.kind === 'milestones') {
-                    return (
-                      <Box key="__milestones__" data-row-id="__milestones__" data-project-key={proj.name} sx={{ ...rowSx, mb: 0.25, position: 'relative', opacity: rowDrag?.rowId === '__milestones__' ? 0.4 : 1 }}>
-                        <DropZone rowId="__milestones__" side="before" />
-                        <DropZone rowId="__milestones__" side="after" />
-                        <GripHandle rowId="__milestones__" />
-                        <Box sx={trackSx} />
-                        {milestones.map(ms => {
-                          const dispDate = drag?.id === ms.id && drag?.handle === 'date' ? drag.currentDate : ms.date;
-                          const x = dispDate ? dateToX(new Date(dispDate)) : null;
-                          if (x === null) return null;
+                {/* Activity lanes — each lane = one row, can hold multiple non-overlapping bars */}
+                {lanes.map((laneActs, laneIdx) => {
+                  const isDropTarget = laneDragOver?.projectKey === proj.name && laneDragOver?.laneIdx === laneIdx;
+                  return (
+                    <Box key={laneIdx} data-lane-idx={String(laneIdx)} data-project-key={proj.name}
+                      sx={{ ...rowSx, mb: 0.5, position: 'relative', borderRadius: 1,
+                        outline: isDropTarget ? `2px solid ${laneDragOver!.canDrop ? '#667eea' : '#ef5350'}` : 'none',
+                        backgroundColor: isDropTarget ? (laneDragOver!.canDrop ? 'rgba(102,126,234,0.07)' : 'rgba(239,83,80,0.07)') : 'transparent',
+                      }}>
+                      <Box sx={trackSx} />
+                      {laneActs.map(row => {
+                        const opacity = actDrag?.actId === row.id ? 0.35 : 1;
+                        if (row.kind === 'phase') {
+                          const ph = phases.find(p => p.id === row.id)!;
+                          if (!ph) return null;
+                          const dispStart = drag?.id === ph.id && drag?.handle === 'start' ? drag.currentDate : ph.startDate;
+                          const dispEnd   = drag?.id === ph.id && drag?.handle === 'end'   ? drag.currentDate : ph.endDate;
                           return (
-                            <Box key={ms.id}
-                              onMouseDown={e => { e.stopPropagation(); e.preventDefault(); setDrag({ id: ms.id, entityType: 'roadmap', handle: 'date', currentDate: ms.date || '', indicatorX: getIndicatorX(e.clientX), origStart: ms.date || '', origEnd: ms.date || '' }); }}
-                              onClick={() => { if (!drag) openEditItem(ms); }}
-                              title={ms.name}
-                              sx={{ position: 'absolute', left: `${x}%`, top: '50%', transform: 'translate(-50%, -50%)', cursor: 'ew-resize', display: 'flex', flexDirection: 'column', alignItems: 'center', userSelect: 'none' }}>
-                              <Typography sx={{ fontSize: '1.1rem', color: ms.color, lineHeight: 1, filter: 'drop-shadow(0 0 4px currentColor)', pointerEvents: 'none' }}>★</Typography>
-                              <Typography sx={{ fontSize: '0.58rem', color: ms.color, whiteSpace: 'nowrap', fontWeight: 700, mt: -0.25, pointerEvents: 'none' }}>{ms.name}</Typography>
-                            </Box>
+                            <React.Fragment key={ph.id}>
+                              <ActGrip actId={ph.id} />
+                              <Box sx={{ opacity }}>
+                                <TimelineBar startDate={dispStart} endDate={dispEnd} color={ph.color} label={`▐ ${ph.name}`} onClick={() => openEditItem(ph)}
+                                  subtitle={`${proj.programName} · ${proj.name}`}
+                                  onStartDrag={e => setDrag({ id: ph.id, entityType: 'roadmap', handle: 'start', currentDate: ph.startDate || '', indicatorX: getIndicatorX(e.clientX), origStart: ph.startDate || '', origEnd: ph.endDate || '' })}
+                                  onEndDrag={e => setDrag({ id: ph.id, entityType: 'roadmap', handle: 'end', currentDate: ph.endDate || '', indicatorX: getIndicatorX(e.clientX), origStart: ph.startDate || '', origEnd: ph.endDate || '' })}
+                                />
+                              </Box>
+                            </React.Fragment>
                           );
-                        })}
-                      </Box>
-                    );
-                  }
-                  return null;
+                        }
+                        if (row.kind === 'cycle') {
+                          const c = cycles.find(x => x.id === row.id);
+                          if (!c) return null;
+                          const accent = c.accentColor || projAccent;
+                          const dispStart = drag?.id === c.id && drag?.handle === 'start' ? drag.currentDate : c.startDate?.substring(0, 10);
+                          const dispEnd   = drag?.id === c.id && drag?.handle === 'end'   ? drag.currentDate : c.endDate?.substring(0, 10);
+                          return (
+                            <React.Fragment key={c.id}>
+                              <ActGrip actId={c.id} />
+                              <Box sx={{ opacity }}>
+                                <TimelineBar startDate={dispStart} endDate={dispEnd} color={accent} label={c.name}
+                                  subtitle={`${proj.programName} · ${proj.name}`}
+                                  onClick={() => { setEditCycle(c); setEditStart(c.startDate?.substring(0, 10) || ''); setEditEnd(c.endDate?.substring(0, 10) || ''); }}
+                                  onStartDrag={e => setDrag({ id: c.id, entityType: 'cycle', handle: 'start', currentDate: c.startDate?.substring(0, 10) || '', indicatorX: getIndicatorX(e.clientX), origStart: c.startDate?.substring(0, 10) || '', origEnd: c.endDate?.substring(0, 10) || '' })}
+                                  onEndDrag={e => setDrag({ id: c.id, entityType: 'cycle', handle: 'end', currentDate: c.endDate?.substring(0, 10) || '', indicatorX: getIndicatorX(e.clientX), origStart: c.startDate?.substring(0, 10) || '', origEnd: c.endDate?.substring(0, 10) || '' })}
+                                />
+                              </Box>
+                            </React.Fragment>
+                          );
+                        }
+                        if (row.kind === 'test-cycle') {
+                          const tc = testCycles.find(x => x.id === row.id)!;
+                          if (!tc) return null;
+                          const dispStart = drag?.id === tc.id && drag?.handle === 'start' ? drag.currentDate : tc.startDate;
+                          const dispEnd   = drag?.id === tc.id && drag?.handle === 'end'   ? drag.currentDate : tc.endDate;
+                          return (
+                            <React.Fragment key={tc.id}>
+                              <ActGrip actId={tc.id} />
+                              <Box sx={{ opacity }}>
+                                <TimelineBar startDate={dispStart} endDate={dispEnd} color={tc.color} label={`◆ ${tc.name}`} onClick={() => openEditItem(tc)} dashed
+                                  subtitle={`${proj.programName} · ${proj.name}`}
+                                  onStartDrag={e => setDrag({ id: tc.id, entityType: 'roadmap', handle: 'start', currentDate: tc.startDate || '', indicatorX: getIndicatorX(e.clientX), origStart: tc.startDate || '', origEnd: tc.endDate || '' })}
+                                  onEndDrag={e => setDrag({ id: tc.id, entityType: 'roadmap', handle: 'end', currentDate: tc.endDate || '', indicatorX: getIndicatorX(e.clientX), origStart: tc.startDate || '', origEnd: tc.endDate || '' })}
+                                />
+                              </Box>
+                            </React.Fragment>
+                          );
+                        }
+                        return null;
+                      })}
+                    </Box>
+                  );
                 })}
+
+                {/* New lane drop zone (always shown at bottom during drag) */}
+                {actDrag?.projectKey === proj.name && (
+                  <Box data-new-lane={proj.name} data-lane-idx={String(lanes.length)} data-project-key={proj.name}
+                    sx={{ height: 28, borderRadius: 1, border: `1px dashed ${laneDragOver?.laneIdx === lanes.length || laneDragOver?.laneIdx === -1 ? '#667eea' : 'rgba(255,255,255,0.12)'}`,
+                      backgroundColor: (laneDragOver?.laneIdx === lanes.length || laneDragOver?.laneIdx === -1) ? 'rgba(102,126,234,0.08)' : 'transparent',
+                      mb: 0.5, display: 'flex', alignItems: 'center', px: 1 }}>
+                    <Typography sx={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.3)' }}>+ New lane</Typography>
+                  </Box>
+                )}
+
+                {/* Milestone row (separate, always last) */}
+                {milestones.length > 0 && (
+                  <Box sx={{ ...rowSx, mb: 0.25, position: 'relative' }}>
+                    <Box sx={trackSx} />
+                    {milestones.map(ms => {
+                      const dispDate = drag?.id === ms.id && drag?.handle === 'date' ? drag.currentDate : ms.date;
+                      const x = dispDate ? dateToX(new Date(dispDate)) : null;
+                      if (x === null) return null;
+                      return (
+                        <Box key={ms.id}
+                          onMouseDown={e => { e.stopPropagation(); e.preventDefault(); setDrag({ id: ms.id, entityType: 'roadmap', handle: 'date', currentDate: ms.date || '', indicatorX: getIndicatorX(e.clientX), origStart: ms.date || '', origEnd: ms.date || '' }); }}
+                          onClick={() => { if (!drag) openEditItem(ms); }}
+                          title={ms.name}
+                          sx={{ position: 'absolute', left: `${x}%`, top: '50%', transform: 'translate(-50%, -50%)', cursor: 'ew-resize', display: 'flex', flexDirection: 'column', alignItems: 'center', userSelect: 'none' }}>
+                          <Typography sx={{ fontSize: '1.1rem', color: ms.color, lineHeight: 1, filter: 'drop-shadow(0 0 4px currentColor)', pointerEvents: 'none' }}>★</Typography>
+                          <Typography sx={{ fontSize: '0.58rem', color: ms.color, whiteSpace: 'nowrap', fontWeight: 700, mt: -0.25, pointerEvents: 'none' }}>{ms.name}</Typography>
+                        </Box>
+                      );
+                    })}
+                  </Box>
+                )}
               </Box>
             );
           })}
 
+          {filteredProjects.length === 0 && (
           {filteredProjects.length === 0 && (
             <Box sx={{ py: 6, textAlign: 'center', color: 'text.disabled' }}>
               <Typography variant="body2">No projects match the selected filters.</Typography>
