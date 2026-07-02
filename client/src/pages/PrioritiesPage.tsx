@@ -1,6 +1,6 @@
 // client/src/pages/PrioritiesPage.tsx
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Box, Typography, TextField, MenuItem, Table, TableBody, TableCell,
   TableContainer, TableHead, TableRow, Chip, IconButton, Alert, CircularProgress,
@@ -82,6 +82,17 @@ const PrioritiesPage: React.FC = () => {
 
   const { data: prioritized, isLoading } = usePriorities(projectId);
 
+  useEffect(() => {
+    if (prioritized) {
+      const allTasks = [
+        ...(prioritized.late || []),
+        ...(prioritized.due_this_week || []),
+        ...(prioritized.blocked || []),
+      ];
+      console.log('Prioritized tasks from API:', allTasks.length, 'tasks, sample:', allTasks.slice(0, 2));
+    }
+  }, [prioritized]);
+
   const { data: projectObjects = [] } = useProjectObjects(projectId);
 
   const { data: people = [] } = useQuery({
@@ -131,7 +142,11 @@ const PrioritiesPage: React.FC = () => {
     blocked: rawTasks.filter((t: any) => t.status === 'blocked'),
   }), [rawTasks]);
 
-  const objectsByIdMap = useMemo(() => new Map((projectObjects || []).map((o: any) => [o.objectId, o])), [projectObjects]);
+  const objectsByIdMap = useMemo(() => {
+    const map = new Map((projectObjects || []).map((o: any) => [o.objectId, o]));
+    console.log('Object inventory loaded:', projectObjects.length, 'objects, map entries:', Array.from(map.entries()).slice(0, 5));
+    return map;
+  }, [projectObjects]);
 
   const merge = (arr: any[]) => arr.map((t: any) => {
     const id = t.taskId || t.id;
