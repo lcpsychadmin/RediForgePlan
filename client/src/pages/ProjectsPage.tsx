@@ -232,23 +232,28 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
   const [laneDragOver, setLaneDragOver] = React.useState<{ projectKey: string; laneIdx: number; canDrop: boolean } | null>(null);
   const actDragRef = React.useRef<typeof actDrag>(null);
   const laneDragOverRef = React.useRef<typeof laneDragOver>(null);
+  const laneAssignRef = React.useRef(laneAssign);
   React.useEffect(() => { actDragRef.current = actDrag; }, [actDrag]);
   React.useEffect(() => { laneDragOverRef.current = laneDragOver; }, [laneDragOver]);
+  React.useEffect(() => { laneAssignRef.current = laneAssign; }, [laneAssign]);
 
   // Vertical activity drag via elementsFromPoint
   React.useEffect(() => {
     if (!actDrag) return;
     const onMove = (e: MouseEvent) => {
-      const els = document.elementsFromPoint(e.clientX, e.clientY) as HTMLElement[];
-      for (const el of els) {
-        const laneIdx = el.dataset?.laneIdx;
-        const projectKey = el.dataset?.projectKey;
-        if (laneIdx !== undefined && projectKey && projectKey === actDragRef.current?.projectKey) {
-          const idx = Number(laneIdx);
-          const canDrop = !laneHasOverlap(projectKey, actDragRef.current!.actId, idx);
-          laneDragOverRef.current = { projectKey, laneIdx: idx, canDrop };
-          setLaneDragOver({ projectKey, laneIdx: idx, canDrop });
-          return;
+      // Check at cursor X and also offset right to handle cursor being over the grip (outside lane hit area)
+      for (const cx of [e.clientX, e.clientX + 25, e.clientX + 60]) {
+        const els = document.elementsFromPoint(cx, e.clientY) as HTMLElement[];
+        for (const el of els) {
+          const laneIdx = el.dataset?.laneIdx;
+          const projectKey = el.dataset?.projectKey;
+          if (laneIdx !== undefined && projectKey && projectKey === actDragRef.current?.projectKey) {
+            const idx = Number(laneIdx);
+            const canDrop = !laneHasOverlap(projectKey, actDragRef.current!.actId, idx);
+            laneDragOverRef.current = { projectKey, laneIdx: idx, canDrop };
+            setLaneDragOver({ projectKey, laneIdx: idx, canDrop });
+            return;
+          }
         }
       }
     };
@@ -256,12 +261,12 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
       const ad = actDragRef.current;
       const ld = laneDragOverRef.current;
       if (ad && ld && ld.canDrop) {
-        const cur = laneAssign[ad.projectKey] || {};
+        const cur = (laneAssignRef.current[ad.projectKey]) || {};
         const maxLane = Math.max(-1, ...Object.values(cur));
         const targetLane = ld.laneIdx === -1 ? maxLane + 1 : ld.laneIdx;
-        const next = { ...laneAssign, [ad.projectKey]: { ...cur, [ad.actId]: targetLane } };
+        const next = { ...laneAssignRef.current, [ad.projectKey]: { ...cur, [ad.actId]: targetLane } };
         setLaneAssign(next);
-        apiClient.put('/api/hierarchy-preferences/global-process-areas', { roadmapLaneAssign: next }).catch(() => {});
+        apiClient.put('/api/hierarchy-preferences/global-process-areas', { roadmapLaneAssign: next }).catch(err => console.error('Lane save failed:', err));
       }
       actDragRef.current = null; laneDragOverRef.current = null;
       setActDrag(null); setLaneDragOver(null);
@@ -668,6 +673,7 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
                   return (
                     <Box key={laneIdx} data-lane-idx={String(laneIdx)} data-project-key={proj.name}
                       sx={{ ...rowSx, mb: 0.5, position: 'relative', borderRadius: 1,
+                        ml: '-20px', pl: '20px', // extend left to cover the grip handle
                         outline: isDropTarget ? `2px solid ${laneDragOver!.canDrop ? '#667eea' : '#ef5350'}` : 'none',
                         backgroundColor: isDropTarget ? (laneDragOver!.canDrop ? 'rgba(102,126,234,0.07)' : 'rgba(239,83,80,0.07)') : 'transparent',
                       }}>
