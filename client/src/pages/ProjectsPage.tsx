@@ -227,68 +227,76 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
   } | null>(null);
   // Lane-based layout: activityId → laneIndex per project
   const [laneAssign, setLaneAssign] = React.useState<Record<string, Record<string, number>>>({});
-  // Vertical activity drag — uses mouse events to avoid conflicts with horizontal date drag
+  // Vertical activity drag — visual state only (listeners set up directly in mousedown)
   const [actDrag, setActDrag] = React.useState<{ projectKey: string; actId: string } | null>(null);
   const [laneDragOver, setLaneDragOver] = React.useState<{ projectKey: string; laneIdx: number; canDrop: boolean } | null>(null);
-  const actDragRef = React.useRef<typeof actDrag>(null);
-  const laneDragOverRef = React.useRef<typeof laneDragOver>(null);
   const laneAssignRef = React.useRef(laneAssign);
   const fullLaneMapsRef = React.useRef<Record<string, Record<string, number>>>({});
-  React.useEffect(() => { actDragRef.current = actDrag; }, [actDrag]);
-  React.useEffect(() => { laneDragOverRef.current = laneDragOver; }, [laneDragOver]);
   React.useEffect(() => { laneAssignRef.current = laneAssign; }, [laneAssign]);
 
-  // Vertical activity drag via elementsFromPoint
-  React.useEffect(() => {
-    if (!actDrag) return;
-    const onMove = (e: MouseEvent) => {
-      const projectKey = actDragRef.current?.projectKey;
-      if (!projectKey) return;
-      // Y-position based detection: find which lane row the cursor's Y falls within
-      const laneEls = Array.from(document.querySelectorAll('[data-lane-idx][data-project-key]')) as HTMLElement[];
-      for (const el of laneEls) {
+  // Start a lane drag — sets up mousemove/mouseup directly (no effect delay, no stale closures)
+  const startLaneDrag = React.useCallback((e: React.MouseEvent, actId: string, projectKey: string) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setActDrag({ projectKey, actId });
+    let currentOver: { projectKey: string; laneIdx: number; canDrop: boolean } | null = null;
+
+    const detectLane = (clientY: number) => {
+      const els = Array.from(document.querySelectorAll('[data-lane-idx][data-project-key]')) as HTMLElement[];
+      for (const el of els) {
         if (el.dataset.projectKey !== projectKey) continue;
-        const rect = el.getBoundingClientRect();
-        if (e.clientY >= rect.top && e.clientY <= rect.bottom) {
+        const r = el.getBoundingClientRect();
+        if (clientY >= r.top && clientY <= r.bottom) {
           const idx = Number(el.dataset.laneIdx);
-          const canDrop = !laneHasOverlap(projectKey, actDragRef.current!.actId, idx);
-          laneDragOverRef.current = { projectKey, laneIdx: idx, canDrop };
-          setLaneDragOver({ projectKey, laneIdx: idx, canDrop });
-          return;
+          // Overlap check against current saved full map
+          const cur = laneAssignRef.current[projectKey] || fullLaneMapsRef.current[projectKey] || {};
+          const sameLane = Object.entries(cur).filter(([id, l]) => Number(l) === idx && id !== actId).map(([id]) => id);
+          const getR = (id: string) => {
+            const ri = (window as any).__roadmapItemsSnap?.find?.((x: any) => x.id === id);
+            if (ri?.startDate && ri?.endDate) return { start: ri.startDate, end: ri.endDate };
+            const cyc = (window as any).__mockCyclesSnap?.find?.((c: any) => c.id === id);
+            if (cyc?.startDate && cyc?.endDate) return { start: cyc.startDate.substring(0,10), end: cyc.endDate.substring(0,10) };
+            return null;
+          };
+          const dragR = getR(actId);
+          const overlap = dragR ? sameLane.some(oid => { const r2 = getR(oid); return r2 ? !(dragR.end <= r2.start || r2.end <= dragR.start) : false; }) : false;
+          return { projectKey, laneIdx: idx, canDrop: !overlap };
         }
       }
-      // Check new-lane drop zone
       const newLaneEl = Array.from(document.querySelectorAll('[data-new-lane]'))
         .find(el => (el as HTMLElement).dataset.newLane === projectKey) as HTMLElement | null;
       if (newLaneEl) {
-        const rect = newLaneEl.getBoundingClientRect();
-        if (e.clientY >= rect.top && e.clientY <= rect.bottom) {
-          laneDragOverRef.current = { projectKey, laneIdx: -1, canDrop: true };
-          setLaneDragOver({ projectKey, laneIdx: -1, canDrop: true });
-        }
+        const r = newLaneEl.getBoundingClientRect();
+        if (clientY >= r.top && clientY <= r.bottom) return { projectKey, laneIdx: -1, canDrop: true };
       }
+      return null;
+    };
+
+    const onMove = (me: MouseEvent) => {
+      currentOver = detectLane(me.clientY);
+      setLaneDragOver(currentOver);
     };
     const onUp = () => {
-      const ad = actDragRef.current;
-      const ld = laneDragOverRef.current;
-      if (ad && ld && ld.canDrop) {
-        // Save the full lane map for this project (auto-packed base + all existing overrides + the new move)
-        const fullCurrent = fullLaneMapsRef.current[ad.projectKey] || laneAssignRef.current[ad.projectKey] || {};
-        const maxLane = Math.max(-1, ...Object.values(fullCurrent));
-        const targetLane = ld.laneIdx < 0 ? maxLane + 1 : ld.laneIdx;
-        const fullUpdated = { ...fullCurrent, [ad.actId]: targetLane };
-        const next = { ...laneAssignRef.current, [ad.projectKey]: fullUpdated };
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      if (currentOver?.canDrop) {
+        const full = { ...fullLaneMapsRef.current[projectKey], ...(laneAssignRef.current[projectKey] || {}) };
+        const maxLane = Math.max(-1, ...Object.values(full).map(Number));
+        const targetLane = currentOver.laneIdx < 0 ? maxLane + 1 : currentOver.laneIdx;
+        const updated = { ...full, [actId]: targetLane };
+        const next = { ...laneAssignRef.current, [projectKey]: updated };
+        laneAssignRef.current = next;
         setLaneAssign(next);
-        apiClient.put('/api/hierarchy-preferences/global-process-areas', { roadmapLaneAssign: next }).catch(err => console.error('Lane save failed:', err));
+        apiClient.put('/api/hierarchy-preferences/global-process-areas', { roadmapLaneAssign: next })
+          .catch(err => console.error('Lane save failed:', err));
       }
-      actDragRef.current = null; laneDragOverRef.current = null;
-      setActDrag(null); setLaneDragOver(null);
+      setActDrag(null);
+      setLaneDragOver(null);
     };
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
-    return () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [actDrag, laneAssign]);
+  }, []);
   const timelineRef = React.useRef<HTMLDivElement>(null);
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
 
@@ -578,6 +586,8 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
 
   return (
     <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+      {/* Update window snaps for the lane drag closure (avoids stale closure on roadmapItems/mockCycles) */}
+      {(() => { (window as any).__roadmapItemsSnap = roadmapItems; (window as any).__mockCyclesSnap = Object.values(mockCycles).flat(); return null; })()}
       {/* Header */}
       <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1.5 }}>
         <Box>
@@ -666,9 +676,9 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
             const lanes: Array<typeof allActs> = Array.from({ length: maxLane + 1 }, () => []);
             allActs.forEach(a => { const l = laneMap[a.id] ?? 0; if (lanes[l]) lanes[l].push(a); else lanes[l] = [a]; });
 
-            // Grip handle for each activity bar
+            // Grip handle — calls startLaneDrag directly (no effect delay)
             const ActGrip = ({ actId }: { actId: string }) => (
-              <Box onMouseDown={e => { e.stopPropagation(); e.preventDefault(); setActDrag({ projectKey: proj.name, actId }); }}
+              <Box onMouseDown={e => startLaneDrag(e, actId, proj.name)}
                 sx={{ position: 'absolute', left: -18, top: '50%', transform: 'translateY(-50%)', width: 14, cursor: actDrag ? 'grabbing' : 'ns-resize', color: 'rgba(255,255,255,0.25)', fontSize: '0.78rem', lineHeight: 1, userSelect: 'none', '&:hover': { color: 'rgba(255,255,255,0.55)' }, zIndex: 3 }}>
                 ⠿
               </Box>
