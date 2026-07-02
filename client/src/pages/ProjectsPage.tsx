@@ -6863,6 +6863,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                           </Box>
                                         )}
                                         {/* Add Task row */}
+                                        <Box sx={{ px: 2, py: 0.5, minWidth: 930 }}>
+                                          <Button size="small" variant="text" startIcon={<AddIcon sx={{ fontSize: '0.8rem !important' }} />}
                                             onClick={async () => {
                                               try {
                                                 const res = await apiClient.post(`/api/tasks/cycle/${activeCycleId}`, { taskType: 'custom', projectObjectId: objectId, name: 'New Task', durationUnit: 'days' });
