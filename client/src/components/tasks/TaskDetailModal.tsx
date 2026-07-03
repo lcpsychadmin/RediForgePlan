@@ -433,10 +433,14 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   const getProcessAreaDisplayName = (projectId: string, area: string) => {
     const key = String(area || '').trim();
     if (!key) return 'Unassigned';
-    const desc = processAreaDescriptions[projectId]?.[key]
+    const scopeKey = cycleIdResolved || projectId;
+    const desc = processAreaDescriptions[scopeKey]?.[key]
+      || processAreaDescriptions[projectId]?.[key]
       || globalProcessAreaDescriptions[key]
+      || processAreaDescriptions[scopeKey]?.[key.toUpperCase()]
       || processAreaDescriptions[projectId]?.[key.toUpperCase()]
       || globalProcessAreaDescriptions[key.toUpperCase()]
+      || processAreaDescriptions[scopeKey]?.[key.toLowerCase()]
       || processAreaDescriptions[projectId]?.[key.toLowerCase()]
       || globalProcessAreaDescriptions[key.toLowerCase()];
     return (desc || key) as string;
