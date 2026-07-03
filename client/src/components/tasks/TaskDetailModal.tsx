@@ -747,7 +747,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
 
               const searching = depSearchTerm.trim().length > 0;
               const depIds = new Set((deps as any[]).map((d: any) => d.dependsOnTaskId));
-              const objectById = new Map<string, any>((projectObjects as any[]).map((po: any) => [po.id, po]));
+                const objectById = new Map<string, any>(allObjects.map((po: any) => [po.id, po]));
               const forcedExpanded = new Set<string>();
 
               type TreeNode = {
@@ -770,7 +770,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                   projectMap[projectId] = { name: projectName || 'Project', color: color || accent, areas: {} };
                 }
                 return projectMap[projectId];
-                              const objectById = new Map<string, any>(allObjects.map((po: any) => [po.id, po]));
+                };
 
               const ensureArea = (projectEntry: { areas: Record<string, { nodes: Record<string, TreeNode> }> }, areaName: string) => {
                 if (!projectEntry.areas[areaName]) {
@@ -905,68 +905,68 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                                 <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, fontSize: '0.72rem' }}>{areaName}</Typography>
                               </Box>
 
-                              {areaOpen && Object.values(areaEntry.nodes)
-                                .filter((node) => !node.parentNodeKey)
-                                .sort((a, b) => a.label.localeCompare(b.label))
-                                .map((node) => {
-                                  const renderNode = (nodeKey: string, depth: number): React.ReactNode => {
-                                    const nodeData = areaEntry.nodes[nodeKey];
-                                    if (!nodeData) return null;
+                              {areaOpen && (() => {
+                                const renderNode = (nodeKey: string, depth: number): React.ReactNode => {
+                                  const nodeData = areaEntry.nodes[nodeKey];
+                                  if (!nodeData) return null;
 
-                                    const nodeExpKey = `${areaKey}:${nodeKey}`;
-                                    const nodeManual = depTreeExpanded[nodeExpKey];
-                                    const nodeOpen = searching
-                                      ? (forcedExpanded.has(nodeExpKey) || nodeManual === true)
-                                      : (nodeManual ?? forcedExpanded.has(nodeExpKey));
+                                  const nodeExpKey = `${areaKey}:${nodeKey}`;
+                                  const nodeManual = depTreeExpanded[nodeExpKey];
+                                  const nodeOpen = searching
+                                    ? (forcedExpanded.has(nodeExpKey) || nodeManual === true)
+                                    : (nodeManual ?? forcedExpanded.has(nodeExpKey));
 
-                                    return (
-                                      <Box key={nodeKey} sx={{ ml: depth * 2.2, mb: 0.2 }}>
-                                        <Box
-                                          onClick={() => setDepTreeExpanded(prev => ({ ...prev, [nodeExpKey]: !nodeOpen }))}
-                                          sx={{ display: 'flex', alignItems: 'center', gap: 0.75, py: 0.35, px: 0.75, borderRadius: 1, cursor: 'pointer', '&:hover': { backgroundColor: 'rgba(255,255,255,0.04)' } }}
-                                        >
-                                          <ChevronRightIcon sx={{ fontSize: '0.72rem', color: 'text.disabled', transform: nodeOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }} />
-                                          <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500, fontSize: '0.72rem' }}>{nodeData.label}</Typography>
-                                        </Box>
-
-                                        {nodeOpen && nodeData.tasks.map((t: any) => {
-                                          const isDep = depIds.has(t.id);
-                                          return (
-                                            <Box
-                                              key={t.id}
-                                              onClick={() => toggleDependency(t.id)}
-                                              sx={{
-                                                ml: 2.2,
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                gap: 1.1,
-                                                py: 0.45,
-                                                px: 0.75,
-                                                borderRadius: 1,
-                                                cursor: 'pointer',
-                                                backgroundColor: isDep ? toRgba(accent, 0.2) : 'transparent',
-                                                '&:hover': { backgroundColor: isDep ? toRgba(accent, 0.24) : 'rgba(255,255,255,0.05)' },
-                                              }}
-                                            >
-                                              <Box sx={{ width: 14, height: 14, borderRadius: '3px', border: '1.5px solid', borderColor: isDep ? accent : 'rgba(255,255,255,0.3)', backgroundColor: isDep ? accent : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                                {isDep && <Box sx={{ width: 6, height: 6, backgroundColor: 'white', borderRadius: '1px' }} />}
-                                              </Box>
-                                              <Typography variant="body2" sx={{ fontSize: '0.82rem', flex: 1 }}>{t.name || 'Unnamed task'}</Typography>
-                                              <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.7rem', textTransform: 'lowercase' }}>{String(t.status || 'not_started').replace(/_/g, ' ')}</Typography>
-                                            </Box>
-                                          );
-                                        })}
-
-                                        {nodeOpen && nodeData.children
-                                          .slice()
-                                          .sort((a, b) => (areaEntry.nodes[a]?.label || '').localeCompare(areaEntry.nodes[b]?.label || ''))
-                                          .map((childKey) => renderNode(childKey, depth + 1))}
+                                  return (
+                                    <Box key={nodeKey} sx={{ ml: depth * 2.2, mb: 0.2 }}>
+                                      <Box
+                                        onClick={() => setDepTreeExpanded(prev => ({ ...prev, [nodeExpKey]: !nodeOpen }))}
+                                        sx={{ display: 'flex', alignItems: 'center', gap: 0.75, py: 0.35, px: 0.75, borderRadius: 1, cursor: 'pointer', '&:hover': { backgroundColor: 'rgba(255,255,255,0.04)' } }}
+                                      >
+                                        <ChevronRightIcon sx={{ fontSize: '0.72rem', color: 'text.disabled', transform: nodeOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }} />
+                                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500, fontSize: '0.72rem' }}>{nodeData.label}</Typography>
                                       </Box>
-                                    );
-                                  };
 
-                                  return renderNode(node.key, 1);
-                                })}
+                                      {nodeOpen && nodeData.tasks.map((t: any) => {
+                                        const isDep = depIds.has(t.id);
+                                        return (
+                                          <Box
+                                            key={t.id}
+                                            onClick={() => toggleDependency(t.id)}
+                                            sx={{
+                                              ml: 2.2,
+                                              display: 'flex',
+                                              alignItems: 'center',
+                                              gap: 1.1,
+                                              py: 0.45,
+                                              px: 0.75,
+                                              borderRadius: 1,
+                                              cursor: 'pointer',
+                                              backgroundColor: isDep ? toRgba(accent, 0.2) : 'transparent',
+                                              '&:hover': { backgroundColor: isDep ? toRgba(accent, 0.24) : 'rgba(255,255,255,0.05)' },
+                                            }}
+                                          >
+                                            <Box sx={{ width: 14, height: 14, borderRadius: '3px', border: '1.5px solid', borderColor: isDep ? accent : 'rgba(255,255,255,0.3)', backgroundColor: isDep ? accent : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                              {isDep && <Box sx={{ width: 6, height: 6, backgroundColor: 'white', borderRadius: '1px' }} />}
+                                            </Box>
+                                            <Typography variant="body2" sx={{ fontSize: '0.82rem', flex: 1 }}>{t.name || 'Unnamed task'}</Typography>
+                                            <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.7rem', textTransform: 'lowercase' }}>{String(t.status || 'not_started').replace(/_/g, ' ')}</Typography>
+                                          </Box>
+                                        );
+                                      })}
+
+                                      {nodeOpen && nodeData.children
+                                        .slice()
+                                        .sort((a, b) => (areaEntry.nodes[a]?.label || '').localeCompare(areaEntry.nodes[b]?.label || ''))
+                                        .map((childKey) => renderNode(childKey, depth + 1))}
+                                    </Box>
+                                  );
+                                };
+
+                                return Object.values(areaEntry.nodes)
+                                  .filter((node) => !node.parentNodeKey)
+                                  .sort((a, b) => a.label.localeCompare(b.label))
+                                  .map((node) => renderNode(node.key, 1));
+                              })()}
                             </Box>
                           );
                         })}
