@@ -1,12 +1,21 @@
 import React from 'react';
 import { Alert, Box, Button, Chip, Stack, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import apiClient from '../../api/client';
 import { useDefects } from '../../api/hooks/useDefects';
 import { Defect } from '../../api/types';
 import DefectFormDialog from './DefectFormDialog';
+import DefectCommentsModal from '../DefectCommentsModal';
 
 interface DefectsSectionProps {
   taskId: string;
+}
+
+interface PersonOption {
+  id: string;
+  email?: string | null;
+  name?: string | null;
 }
 
 const formatDefectNumber = (defect: Defect) => {
@@ -16,6 +25,7 @@ const formatDefectNumber = (defect: Defect) => {
 };
 
 const DefectsSection: React.FC<DefectsSectionProps> = ({ taskId }) => {
+  const queryClient = useQueryClient();
   const {
     data: defects = [],
     isLoading,
@@ -26,8 +36,27 @@ const DefectsSection: React.FC<DefectsSectionProps> = ({ taskId }) => {
     isUpdatingDefect,
   } = useDefects(taskId);
 
+  const { data: people = [] } = useQuery({
+    queryKey: ['people-defect-options'],
+    queryFn: async () => {
+      const response = await apiClient.get<{ data: PersonOption[] }>('/people');
+      return response.data.data || [];
+    },
+  });
+
   const [dialogOpen, setDialogOpen] = React.useState(false);
-  const [editingDefect, setEditingDefect] = React.useState<Defect | null>(null);
+  const [activeDefectId, setActiveDefectId] = React.useState<string>('');
+
+  const activeDefect = React.useMemo(
+    () => defects.find((defect) => defect.id === activeDefectId) || null,
+    [defects, activeDefectId]
+  );
+
+  React.useEffect(() => {
+    if (activeDefectId && !defects.some((defect) => defect.id === activeDefectId)) {
+      setActiveDefectId('');
+    }
+  }, [defects, activeDefectId]);
 
   const handleCreate = (payload: any) => {
     createDefect(payload, {
@@ -42,7 +71,6 @@ const DefectsSection: React.FC<DefectsSectionProps> = ({ taskId }) => {
       { defectId, payload },
       {
         onSuccess: () => {
-          setEditingDefect(null);
           setDialogOpen(false);
         },
       }
@@ -50,12 +78,6 @@ const DefectsSection: React.FC<DefectsSectionProps> = ({ taskId }) => {
   };
 
   const openCreateDialog = () => {
-    setEditingDefect(null);
-    setDialogOpen(true);
-  };
-
-  const openEditDialog = (defect: Defect) => {
-    setEditingDefect(defect);
     setDialogOpen(true);
   };
 
@@ -92,7 +114,7 @@ const DefectsSection: React.FC<DefectsSectionProps> = ({ taskId }) => {
                 <TableRow
                   key={defect.id}
                   hover
-                  onClick={() => openEditDialog(defect)}
+                  onClick={() => setActiveDefectId(defect.id)}
                   sx={{ cursor: 'pointer' }}
                 >
                   <TableCell>{formatDefectNumber(defect)}</TableCell>
@@ -119,14 +141,25 @@ const DefectsSection: React.FC<DefectsSectionProps> = ({ taskId }) => {
       <DefectFormDialog
         open={dialogOpen}
         taskId={taskId}
-        defect={editingDefect}
+        defect={null}
         onClose={() => {
           setDialogOpen(false);
-          setEditingDefect(null);
         }}
         onCreate={handleCreate}
         onUpdate={handleUpdate}
         isSaving={isCreatingDefect || isUpdatingDefect}
+      />
+
+      <DefectCommentsModal
+        open={Boolean(activeDefect)}
+        defect={activeDefect}
+        people={people}
+        onClose={() => setActiveDefectId('')}
+        onSaved={async () => {
+          await queryClient.invalidateQueries({ queryKey: ['defects', taskId] });
+          await queryClient.invalidateQueries({ queryKey: ['project-defects'] });
+          await queryClient.invalidateQueries({ queryKey: ['project-defects-summary'] });
+        }}
       />
     </Stack>
   );
