@@ -405,6 +405,7 @@ export interface Defect {
   processArea?: string | null;
   programName?: string | null;
   projectName?: string | null;
+  projectAccentColor?: string | null;
   mockCycleName?: string | null;
   issueTypeId?: string | null;
   title: string;

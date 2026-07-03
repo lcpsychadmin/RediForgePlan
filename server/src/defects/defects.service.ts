@@ -97,6 +97,7 @@ class DefectsService {
             COALESCE(go.process_area, tg.process_area) AS process_area,
             pr.name AS program_name,
             p.name AS project_name,
+              p.accent_color AS project_accent_color,
             mc.name AS mock_cycle_name,
               rc.name AS root_cause_category_name,
               t.name AS task_name,
@@ -241,6 +242,7 @@ class DefectsService {
             COALESCE(go.process_area, tg.process_area) AS process_area,
             pr.name AS program_name,
             p.name AS project_name,
+              p.accent_color AS project_accent_color,
             mc.name AS mock_cycle_name,
               rc.name AS root_cause_category_name
        FROM defects d
@@ -279,6 +281,7 @@ class DefectsService {
               COALESCE(go.process_area, tg.process_area) AS process_area,
               pr.name AS program_name,
               p.name AS project_name,
+              p.accent_color AS project_accent_color,
               mc.name AS mock_cycle_name,
               rc.name AS root_cause_category_name,
               t.name AS task_name
@@ -619,6 +622,7 @@ class DefectsService {
       processArea: row.process_area,
       programName: row.program_name,
       projectName: row.project_name,
+      projectAccentColor: row.project_accent_color,
       mockCycleName: row.mock_cycle_name,
       issueTypeId: row.issue_type_id,
       title: row.title,

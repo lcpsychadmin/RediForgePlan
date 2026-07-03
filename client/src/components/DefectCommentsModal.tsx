@@ -76,6 +76,19 @@ const formatDefectNumber = (defect: Defect) => {
   return defect.id;
 };
 
+const isHexColor = (value?: string | null) => typeof value === 'string' && /^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/.test(value.trim());
+
+const hexToRgba = (hex: string, alpha: number) => {
+  const normalized = hex.replace('#', '').trim();
+  const fullHex = normalized.length === 3
+    ? normalized.split('').map((c) => `${c}${c}`).join('')
+    : normalized;
+  const r = parseInt(fullHex.slice(0, 2), 16);
+  const g = parseInt(fullHex.slice(2, 4), 16);
+  const b = parseInt(fullHex.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};
+
 const DefectCommentsModal: React.FC<DefectCommentsModalProps> = ({ open, defect, people, onClose, onSaved }) => {
   const { user } = useAuth();
   const [tab, setTab] = React.useState<TabValue>('details');
@@ -106,6 +119,7 @@ const DefectCommentsModal: React.FC<DefectCommentsModalProps> = ({ open, defect,
   const [mentionFilter, setMentionFilter] = React.useState('');
   const [showMentions, setShowMentions] = React.useState(false);
   const [mentionCandidates, setMentionCandidates] = React.useState<Array<{ id: string; handle: string; email: string }>>([]);
+  const [globalProcessAreaAccents, setGlobalProcessAreaAccents] = React.useState<Record<string, string>>({});
   const commentInputRef = React.useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
@@ -138,6 +152,13 @@ const DefectCommentsModal: React.FC<DefectCommentsModalProps> = ({ open, defect,
     apiClient.get('/api/comments/mention-candidates')
       .then((response) => setMentionCandidates(response.data.data || []))
       .catch(() => setMentionCandidates([]));
+
+    apiClient.get('/api/hierarchy-preferences/state')
+      .then((response) => {
+        const state = response.data?.data || {};
+        setGlobalProcessAreaAccents(state.globalProcessAreaAccents || {});
+      })
+      .catch(() => setGlobalProcessAreaAccents({}));
 
     apiClient.get(`/api/defects/${defect.id}/comments`)
       .then((response) => setComments(response.data.data || []))
@@ -292,6 +313,11 @@ const DefectCommentsModal: React.FC<DefectCommentsModalProps> = ({ open, defect,
 
   const assignedPerson = people.find((person) => person.id === draft.assignedToUserId);
   const resolutionDate = defect.resolvedAt ? new Date(defect.resolvedAt).toLocaleDateString() : null;
+  const processAreaKey = (defect.processArea || '').trim().toLowerCase();
+  const processAreaAccent = Object.entries(globalProcessAreaAccents).find(([key]) => key.trim().toLowerCase() === processAreaKey)?.[1];
+  const headerAccent = isHexColor(processAreaAccent)
+    ? processAreaAccent!.trim()
+    : (isHexColor(defect.projectAccentColor) ? defect.projectAccentColor!.trim() : '#3a84ff');
 
   return (
     <Dialog
@@ -312,7 +338,7 @@ const DefectCommentsModal: React.FC<DefectCommentsModalProps> = ({ open, defect,
         sx={{
           borderBottom: '1px solid rgba(255,255,255,0.08)',
           pb: 1.5,
-          background: 'linear-gradient(180deg, rgba(58,132,255,0.28) 0%, rgba(58,132,255,0.08) 52%, rgba(58,132,255,0) 100%)',
+          background: `linear-gradient(180deg, ${hexToRgba(headerAccent, 0.28)} 0%, ${hexToRgba(headerAccent, 0.08)} 52%, ${hexToRgba(headerAccent, 0)} 100%)`,
         }}
       >
         <Stack direction="row" justifyContent="space-between" alignItems="flex-start" gap={2}>
@@ -326,7 +352,7 @@ const DefectCommentsModal: React.FC<DefectCommentsModalProps> = ({ open, defect,
               sx={{ mt: 0.5, '& .MuiInputBase-input': { fontSize: '1.6rem', fontWeight: 700 } }}
             />
 
-            <Box sx={{ mt: 1.5, display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(6, minmax(0, 1fr))' }, gap: 1.25 }}>
+            <Box sx={{ mt: 1.5, display: 'grid', gridTemplateColumns: { xs: '1fr', md: draft.status === 'closed' ? 'repeat(6, minmax(0, 1fr))' : 'repeat(5, minmax(0, 1fr))' }, gap: 1.25 }}>
               <TextField
                 label="Status"
                 size="small"
@@ -374,26 +400,28 @@ const DefectCommentsModal: React.FC<DefectCommentsModalProps> = ({ open, defect,
                 <MenuItem value="high">High</MenuItem>
                 <MenuItem value="critical">Critical</MenuItem>
               </TextField>
-              <Box
-                sx={{
-                  border: '1px solid rgba(255,255,255,0.15)',
-                  borderRadius: 1.2,
-                  px: 1.2,
-                  py: 0.75,
-                  minHeight: 40,
-                  backgroundColor: 'rgba(255,255,255,0.04)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'center',
-                }}
-              >
-                <Typography variant="caption" sx={{ lineHeight: 1, color: 'rgba(255,255,255,0.62)' }}>
-                  Resolution Date (Calculated)
-                </Typography>
-                <Typography variant="body2" sx={{ mt: 0.45, lineHeight: 1.2 }}>
-                  {resolutionDate || 'Auto-set when status changes to Closed'}
-                </Typography>
-              </Box>
+              {draft.status === 'closed' ? (
+                <Box
+                  sx={{
+                    border: '1px solid rgba(255,255,255,0.15)',
+                    borderRadius: 1.2,
+                    px: 1.2,
+                    py: 0.75,
+                    minHeight: 40,
+                    backgroundColor: 'rgba(255,255,255,0.04)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Typography variant="caption" sx={{ lineHeight: 1, color: 'rgba(255,255,255,0.62)' }}>
+                    Resolution Date
+                  </Typography>
+                  <Typography variant="body2" sx={{ mt: 0.45, lineHeight: 1.2 }}>
+                    {resolutionDate || 'Pending close timestamp'}
+                  </Typography>
+                </Box>
+              ) : null}
               <TextField
                 label="Target Resolution Date"
                 size="small"
@@ -472,11 +500,15 @@ const DefectCommentsModal: React.FC<DefectCommentsModalProps> = ({ open, defect,
                     Defect Details
                   </Typography>
                   <TextField
-                    label="What's the problem"
+                    fullWidth
                     multiline
-                    minRows={4}
+                    minRows={6}
                     value={draft.defectDetails}
                     onChange={(event) => setDraft((prev) => ({ ...prev, defectDetails: event.target.value }))}
+                    sx={{
+                      '& .MuiOutlinedInput-root': { alignItems: 'flex-start', p: 0.75 },
+                      '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
+                    }}
                   />
                 </Box>
                 <Box sx={{ border: '1px solid rgba(255,255,255,0.13)', borderRadius: 1.5, backgroundColor: 'rgba(255,255,255,0.06)', p: 1 }}>
@@ -484,11 +516,15 @@ const DefectCommentsModal: React.FC<DefectCommentsModalProps> = ({ open, defect,
                     Root Cause
                   </Typography>
                   <TextField
-                    label="What's causing the problem"
+                    fullWidth
                     multiline
-                    minRows={4}
+                    minRows={6}
                     value={draft.rootCauseDetails}
                     onChange={(event) => setDraft((prev) => ({ ...prev, rootCauseDetails: event.target.value }))}
+                    sx={{
+                      '& .MuiOutlinedInput-root': { alignItems: 'flex-start', p: 0.75 },
+                      '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
+                    }}
                   />
                 </Box>
                 <Box sx={{ border: '1px solid rgba(255,255,255,0.13)', borderRadius: 1.5, backgroundColor: 'rgba(255,255,255,0.06)', p: 1 }}>
@@ -496,11 +532,15 @@ const DefectCommentsModal: React.FC<DefectCommentsModalProps> = ({ open, defect,
                     Resolution Plan
                   </Typography>
                   <TextField
-                    label="How do we solve the problem"
+                    fullWidth
                     multiline
-                    minRows={5}
+                    minRows={6}
                     value={draft.resolutionDetails}
                     onChange={(event) => setDraft((prev) => ({ ...prev, resolutionDetails: event.target.value }))}
+                    sx={{
+                      '& .MuiOutlinedInput-root': { alignItems: 'flex-start', p: 0.75 },
+                      '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
+                    }}
                   />
                 </Box>
                 <Stack direction="row" spacing={1}>
