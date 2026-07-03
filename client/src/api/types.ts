@@ -416,6 +416,15 @@ export interface Defect {
   resolvedAt?: string | null;
 }
 
+export interface DefectComment {
+  id: string;
+  defectId: string;
+  authorName: string;
+  authorEmail: string;
+  content: string;
+  createdAt: string;
+}
+
 export interface CreateDefectPayload {
   projectObjectId?: string | null;
   issueTypeId?: string | null;

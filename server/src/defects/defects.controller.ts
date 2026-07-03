@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { ApiError } from '../middleware/errorHandler.js';
 import { formatListResponse, formatSingleResponse } from '../utils/responseFormatter.js';
+import defectCommentsService from '../services/defectCommentsService.js';
 import taskService from '../services/taskService.js';
 import defectsService, { DefectSeverity, DefectStatus } from './defects.service.js';
 
@@ -132,6 +133,47 @@ class DefectsController {
       if (!task) throw new ApiError(404, 'Task not found', 'NOT_FOUND');
 
       await defectsService.deleteDefect(req.params.defectId);
+      res.json({ data: { success: true } });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getDefectComments(req: Request, res: Response, next: NextFunction) {
+    try {
+      const defect = await defectsService.getDefect(req.params.defectId);
+      if (!defect) throw new ApiError(404, 'Defect not found', 'NOT_FOUND');
+
+      const comments = await defectCommentsService.getComments(req.params.defectId);
+      res.json(formatListResponse(comments, comments.length));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async addDefectComment(req: Request, res: Response, next: NextFunction) {
+    try {
+      const defect = await defectsService.getDefect(req.params.defectId);
+      if (!defect) throw new ApiError(404, 'Defect not found', 'NOT_FOUND');
+
+      const content = String(req.body.content || '').trim();
+      if (!content) {
+        throw new ApiError(400, 'Content required', 'MISSING_FIELD');
+      }
+
+      const authorEmail = String((req as any).userEmail || '').trim();
+      const authorName = authorEmail.split('@')[0] || 'User';
+      const comment = await defectCommentsService.addComment(req.params.defectId, authorName, authorEmail, content);
+
+      res.status(201).json(formatSingleResponse(comment));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async deleteDefectComment(req: Request, res: Response, next: NextFunction) {
+    try {
+      await defectCommentsService.deleteComment(req.params.commentId);
       res.json({ data: { success: true } });
     } catch (error) {
       next(error);

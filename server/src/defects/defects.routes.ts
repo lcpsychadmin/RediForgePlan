@@ -43,4 +43,22 @@ router.delete(
   (req, res, next) => defectsController.deleteDefect(req, res, next)
 );
 
+router.get(
+  '/defects/:defectId/comments',
+  requireAuth,
+  (req, res, next) => defectsController.getDefectComments(req, res, next)
+);
+
+router.post(
+  '/defects/:defectId/comments',
+  requireAuth,
+  (req, res, next) => defectsController.addDefectComment(req, res, next)
+);
+
+router.delete(
+  '/defect-comments/:commentId',
+  requireAuth,
+  (req, res, next) => defectsController.deleteDefectComment(req, res, next)
+);
+
 export default router;
