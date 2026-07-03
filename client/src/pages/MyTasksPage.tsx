@@ -62,6 +62,9 @@ const Section: React.FC<{ title: string; count: number; accent: string; children
 const MyTasksPage: React.FC = () => {
   const { user } = useAuth();
   const { selectedProgramId, selectedProjectId } = useFilter();
+  const isAdmin = user?.role === 'admin';
+  const effectiveProgramId = isAdmin ? null : selectedProgramId;
+  const effectiveProjectId = isAdmin ? null : selectedProjectId;
   const [selectedTask, setSelectedTask] = React.useState<any | null>(null);
   const [selectedDefectId, setSelectedDefectId] = React.useState<string>('');
   const [taskSearch, setTaskSearch] = React.useState('');
@@ -90,10 +93,9 @@ const MyTasksPage: React.FC = () => {
   );
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['my-items', user?.id, user?.email, currentPerson?.id, selectedProgramId, selectedProjectId],
+    queryKey: ['my-items', user?.id, user?.email, currentPerson?.id, effectiveProgramId, effectiveProjectId],
     queryFn: async () => {
       const emailAlias = normalizeValue((user?.email || '').split('@')[0]?.split('+')[0]);
-      const isAdmin = user?.role === 'admin';
       const tokenSet = new Set(
         [
           user?.id,
@@ -165,8 +167,8 @@ const MyTasksPage: React.FC = () => {
         });
       };
 
-      if (selectedProjectId) {
-        const projectResponse = await apiClient.get(`/api/projects/${selectedProjectId}`);
+      if (effectiveProjectId) {
+        const projectResponse = await apiClient.get(`/api/projects/${effectiveProjectId}`);
         const project = projectResponse.data.data;
         let cycle = null;
         let program = null;
@@ -182,7 +184,7 @@ const MyTasksPage: React.FC = () => {
         if (cycle?.id) {
           await hydrateScope(program, cycle, project);
         } else {
-          const tasksResponse = await apiClient.get(`/api/tasks/project/${selectedProjectId}`);
+          const tasksResponse = await apiClient.get(`/api/tasks/project/${effectiveProjectId}`);
           const tasks = tasksResponse.data.data || [];
           tasks.forEach((task: any) => {
             if (!isTaskAssigned(task)) return;
@@ -213,8 +215,8 @@ const MyTasksPage: React.FC = () => {
       } else {
         const programsResponse = await apiClient.get('/api/programs');
         const allPrograms = programsResponse.data.data || [];
-        const programs = selectedProgramId
-          ? allPrograms.filter((p: any) => p.id === selectedProgramId)
+        const programs = effectiveProgramId
+          ? allPrograms.filter((p: any) => p.id === effectiveProgramId)
           : allPrograms;
 
         const projectScopesNested = await Promise.all(
@@ -316,7 +318,7 @@ const MyTasksPage: React.FC = () => {
   }, [filteredDefects, selectedDefectId]);
 
   const handleDefectSaved = async () => {
-    await queryClient.invalidateQueries({ queryKey: ['my-items', user?.id, user?.email, selectedProgramId, selectedProjectId] });
+    await queryClient.invalidateQueries({ queryKey: ['my-items', user?.id, user?.email, currentPerson?.id, effectiveProgramId, effectiveProjectId] });
   };
 
   const th = { py: 0.8, px: 1.5, fontSize: '0.68rem', letterSpacing: '0.06em', color: 'rgba(255,255,255,0.45)', backgroundColor: 'rgba(0,0,0,0.18)', textTransform: 'uppercase' as const, fontWeight: 700, borderBottom: '1px solid rgba(255,255,255,0.07)' };
@@ -333,7 +335,7 @@ const MyTasksPage: React.FC = () => {
       <PageContainer maxWidth="xl">
         <ContentHeader
           title="My Tasks"
-          subtitle={selectedProjectId ? 'Items assigned to you in the selected project.' : selectedProgramId ? 'Items assigned to you in the selected program.' : 'Items assigned to you across all programs and projects.'}
+          subtitle={isAdmin ? 'Items assigned across all programs and projects.' : effectiveProjectId ? 'Items assigned to you in the selected project.' : effectiveProgramId ? 'Items assigned to you in the selected program.' : 'Items assigned to you across all programs and projects.'}
           stats={stats}
         />
 
