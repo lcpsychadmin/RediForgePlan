@@ -518,7 +518,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
 
               {/* Defects tab */}
               {((supportsValidation && tab === 2) || (!supportsValidation && tab === 1)) && (
-                <DefectsSection taskId={taskIdResolved} />
+                <DefectsSection taskId={taskIdResolved} accentColor={accent} />
               )}
             </Box>
 

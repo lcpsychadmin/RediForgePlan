@@ -10,6 +10,7 @@ import DefectCommentsModal from '../DefectCommentsModal';
 
 interface DefectsSectionProps {
   taskId: string;
+  accentColor?: string;
 }
 
 interface PersonOption {
@@ -24,7 +25,15 @@ const formatDefectNumber = (defect: Defect) => {
   return defect.id;
 };
 
-const DefectsSection: React.FC<DefectsSectionProps> = ({ taskId }) => {
+const toRgba = (hex: string, alpha: number) => {
+  const h = hex.replace('#', '');
+  const r = parseInt(h.substring(0, 2), 16);
+  const g = parseInt(h.substring(2, 4), 16);
+  const b = parseInt(h.substring(4, 6), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+};
+
+const DefectsSection: React.FC<DefectsSectionProps> = ({ taskId, accentColor = '#29b6f6' }) => {
   const queryClient = useQueryClient();
   const {
     data: defects = [],
@@ -90,7 +99,21 @@ const DefectsSection: React.FC<DefectsSectionProps> = ({ taskId }) => {
       {error ? <Alert severity="error">Failed to load defects.</Alert> : null}
 
       <Box>
-        <Button startIcon={<AddIcon />} variant="contained" onClick={openCreateDialog}>
+        <Button
+          startIcon={<AddIcon />}
+          onClick={openCreateDialog}
+          sx={{
+            textTransform: 'none',
+            borderRadius: 1.5,
+            px: 2,
+            py: 0.85,
+            fontWeight: 700,
+            fontSize: '0.88rem',
+            backgroundColor: toRgba(accentColor, 0.25),
+            color: accentColor,
+            '&:hover': { backgroundColor: toRgba(accentColor, 0.4) },
+          }}
+        >
           Add Defect
         </Button>
       </Box>
