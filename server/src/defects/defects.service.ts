@@ -612,9 +612,13 @@ class DefectsService {
   }
 
   private format(row: any) {
+    const parsedDefectNumber = row.defect_number !== null && row.defect_number !== undefined
+      ? Number(row.defect_number)
+      : null;
+
     return {
       id: row.id,
-      defectNumber: row.defect_number,
+      defectNumber: Number.isFinite(parsedDefectNumber) ? parsedDefectNumber : null,
       taskId: row.task_id,
       taskName: row.task_name,
       projectObjectId: row.project_object_id,

@@ -51,8 +51,11 @@ const tableTd = {
 };
 
 const formatDefectNumber = (defect: any) => {
-  if (typeof defect?.defectNumber === 'number' && Number.isFinite(defect.defectNumber)) {
-    return `DEF-${String(defect.defectNumber).padStart(5, '0')}`;
+  const parsedNumber = typeof defect?.defectNumber === 'number'
+    ? defect.defectNumber
+    : Number(defect?.defectNumber);
+  if (Number.isFinite(parsedNumber)) {
+    return `DEF-${String(parsedNumber).padStart(5, '0')}`;
   }
   return defect.id;
 };
