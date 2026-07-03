@@ -168,8 +168,13 @@ export class TaskService {
     let query = `
       SELECT t.id, t.project_id, t.project_object_id, t.task_group_id, t.task_type, t.name, t.status,
               t.start_date, t.end_date, t.revised_start_date, t.revised_end_date, t.actual_start_date, t.actual_end_date, t.assigned_to, t.duration, t.duration_unit, t.schedule_mode_override, t.progress_percentage,
-             t.dra_user_id, t.developer_user_id, t.notes, t.created_at, t.updated_at
+             t.dra_user_id, t.developer_user_id, t.notes, t.created_at, t.updated_at,
+             go.object_id,
+             COALESCE(go.process_area, tg.process_area) AS process_area
       FROM tasks t
+      LEFT JOIN project_objects po ON t.project_object_id = po.id
+      LEFT JOIN global_objects go ON po.global_object_id = go.id
+      LEFT JOIN task_groups tg ON t.task_group_id = tg.id
       WHERE t.project_id = $1
     `;
     const params: any[] = [projectId];
@@ -216,8 +221,13 @@ export class TaskService {
     const result = await db.query(
       `SELECT t.id, t.project_id, t.project_object_id, t.task_group_id, t.task_type, t.name, t.status,
               t.start_date, t.end_date, t.revised_start_date, t.revised_end_date, t.actual_start_date, t.actual_end_date, t.assigned_to, t.duration, t.duration_unit, t.schedule_mode_override, t.progress_percentage,
-              t.dra_user_id, t.developer_user_id, t.notes, t.created_at, t.updated_at
+              t.dra_user_id, t.developer_user_id, t.notes, t.created_at, t.updated_at,
+              go.object_id,
+              COALESCE(go.process_area, tg.process_area) AS process_area
        FROM tasks t
+       LEFT JOIN project_objects po ON t.project_object_id = po.id
+       LEFT JOIN global_objects go ON po.global_object_id = go.id
+       LEFT JOIN task_groups tg ON t.task_group_id = tg.id
        WHERE t.id = $1`,
       [taskId]
     );
@@ -501,8 +511,13 @@ export class TaskService {
     let query = `
       SELECT t.id, t.project_id, t.project_object_id, t.task_group_id, t.task_type, t.name, t.status,
              t.start_date, t.end_date, t.revised_start_date, t.revised_end_date, t.actual_start_date, t.actual_end_date, t.assigned_to, t.duration, t.duration_unit, t.schedule_mode_override, t.progress_percentage,
-             t.dra_user_id, t.developer_user_id, t.notes, t.created_at, t.updated_at
+             t.dra_user_id, t.developer_user_id, t.notes, t.created_at, t.updated_at,
+             go.object_id,
+             COALESCE(go.process_area, tg.process_area) AS process_area
       FROM tasks t
+      LEFT JOIN project_objects po ON t.project_object_id = po.id
+      LEFT JOIN global_objects go ON po.global_object_id = go.id
+      LEFT JOIN task_groups tg ON t.task_group_id = tg.id
       WHERE t.mock_cycle_id = $1
     `;
     const params: any[] = [mockCycleId];
@@ -585,6 +600,8 @@ export class TaskService {
       id: row.id,
       projectId: row.project_id,
       projectObjectId: row.project_object_id,
+      objectId: row.object_id,
+      processArea: row.process_area || '',
       taskGroupId: row.task_group_id,
       taskType: row.task_type,
       name: row.name,
