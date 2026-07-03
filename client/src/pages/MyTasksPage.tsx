@@ -1,21 +1,75 @@
 import React from 'react';
-import { Box, CircularProgress, Alert } from '@mui/material';
-import { useQuery } from '@tanstack/react-query';
+import {
+  Box,
+  CircularProgress,
+  Alert,
+  Typography,
+  TextField,
+  MenuItem,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Chip,
+  IconButton,
+} from '@mui/material';
+import SearchIcon from '@mui/icons-material/Search';
+import OpenInNewIcon from '@mui/icons-material/OpenInNew';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Layout from '../components/Layout';
 import PageContainer from '../layout/PageContainer';
 import ContentHeader from '../layout/ContentHeader';
-import PrioritySection from '../components/priorities/PrioritySection';
 import TaskDetailModal from '../components/tasks/TaskDetailModal';
+import DefectCommentsModal from '../components/DefectCommentsModal';
 import apiClient from '../api/client';
 import { useAuth } from '../contexts/AuthContext';
 import { useFilter } from '../contexts/FilterContext';
 
 const normalizeValue = (value?: string | null) => (value || '').trim().toLowerCase();
 
+const fmtDate = (v?: string) => {
+  if (!v) return '—';
+  const clean = v.length > 10 ? v.substring(0, 10) : v;
+  const [y, m, d] = clean.split('-');
+  return `${m}/${d}/${y}`;
+};
+
+const STATUS_LABEL: Record<string, string> = {
+  not_started: 'Not Started', in_progress: 'In Progress', complete: 'Complete', blocked: 'Blocked',
+};
+
+const STATUS_COLOR: Record<string, string> = {
+  not_started: 'rgba(255,255,255,0.3)', in_progress: '#29b6f6', complete: '#66bb6a', blocked: '#ef5350',
+};
+
+const SEVERITY_COLOR: Record<string, string> = {
+  critical: '#ef5350', high: '#ffa726', medium: '#29b6f6', low: '#78909c',
+};
+
+const Section: React.FC<{ title: string; count: number; accent: string; children: React.ReactNode }> = ({ title, count, accent, children }) => (
+  <Box sx={{ border: '1px solid rgba(255,255,255,0.08)', borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.04)', overflow: 'hidden' }}>
+    <Box sx={{ px: 2.5, py: 1.5, display: 'flex', alignItems: 'center', gap: 1.5, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: 'rgba(255,255,255,0.02)' }}>
+      <Box sx={{ width: 4, height: 18, borderRadius: 2, backgroundColor: accent, flexShrink: 0 }} />
+      <Typography sx={{ fontWeight: 700, fontSize: '0.95rem' }}>{title}</Typography>
+      <Box sx={{ px: 0.8, py: 0.1, borderRadius: 1, backgroundColor: `${accent}28`, color: accent, fontWeight: 700, fontSize: '0.75rem' }}>{count}</Box>
+    </Box>
+    {children}
+  </Box>
+);
+
 const MyTasksPage: React.FC = () => {
   const { user } = useAuth();
   const { selectedProgramId, selectedProjectId } = useFilter();
   const [selectedTask, setSelectedTask] = React.useState<any | null>(null);
+  const [selectedDefectId, setSelectedDefectId] = React.useState<string>('');
+  const [taskSearch, setTaskSearch] = React.useState('');
+  const [taskStatusFilter, setTaskStatusFilter] = React.useState('all');
+  const [defectSearch, setDefectSearch] = React.useState('');
+  const [defectStatusFilter, setDefectStatusFilter] = React.useState('open');
+  const [severityFilter, setSeverityFilter] = React.useState('all');
+  const queryClient = useQueryClient();
 
   const { data: people = [] } = useQuery({
     queryKey: ['people'],
@@ -31,126 +85,209 @@ const MyTasksPage: React.FC = () => {
   );
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['my-tasks', user?.id, user?.email, selectedProgramId, selectedProjectId],
+    queryKey: ['my-items', user?.id, user?.email, selectedProgramId, selectedProjectId],
     queryFn: async () => {
       const emailAlias = normalizeValue((user?.email || '').split('@')[0]?.split('+')[0]);
       const tokenSet = new Set(
-        [user?.id, user?.email, emailAlias]
+        [user?.id, user?.email, user?.name, emailAlias]
           .map((item) => normalizeValue(item))
           .filter(Boolean)
       );
 
-      // If a specific project is selected, only fetch tasks for that project
-      if (selectedProjectId) {
-        const tasksResponse = await apiClient.get(`/api/tasks/project/${selectedProjectId}`);
-        const tasks = tasksResponse.data.data || [];
-        const assigned = tasks.filter((task: any) => {
-          const dra = normalizeValue(task.draUserId);
-          const dev = normalizeValue(task.developerUserId);
-          return tokenSet.has(dra) || tokenSet.has(dev) || tokenSet.has(normalizeValue(task.assignedTo));
+      const taskMap = new Map<string, any>();
+      const defectMap = new Map<string, any>();
+
+      const isTaskAssigned = (task: any) => {
+        const dra = normalizeValue(task.draUserId);
+        const dev = normalizeValue(task.developerUserId);
+        const assignedTo = normalizeValue(task.assignedTo);
+        return tokenSet.has(dra) || tokenSet.has(dev) || tokenSet.has(assignedTo);
+      };
+
+      const isDefectAssigned = (defect: any) => {
+        const assignedId = normalizeValue(defect.assignedToUserId);
+        const assignedEmail = normalizeValue(defect.assignedToUserEmail);
+        return tokenSet.has(assignedId) || tokenSet.has(assignedEmail);
+      };
+
+      const hydrateScope = async (program: any, cycle: any, project: any) => {
+        const tasksResponse = await apiClient.get(`/api/tasks/cycle/${cycle.id}`);
+        const cycleTasks = tasksResponse.data.data || [];
+
+        cycleTasks.forEach((task: any) => {
+          const taskId = task.id || task.taskId;
+          if (!taskId) return;
+          if (isTaskAssigned(task)) {
+            taskMap.set(taskId, {
+              ...task,
+              taskId,
+              taskName: task.name || task.taskName,
+              projectName: project?.name || task.projectName || 'Project',
+              mockCycleName: cycle?.name || task.mockCycleName || 'Cycle',
+              programName: program?.name || task.programName || 'Program',
+            });
+          }
         });
-        return buildSections(assigned);
-      }
 
-      // Otherwise fetch across the selected program (or all programs)
-      const programsResponse = await apiClient.get('/api/programs');
-      const allPrograms = programsResponse.data.data || [];
-      const programs = selectedProgramId
-        ? allPrograms.filter((p: any) => p.id === selectedProgramId)
-        : allPrograms;
+        const defectResponses = await Promise.all(
+          cycleTasks.map((task: any) => apiClient.get(`/api/tasks/${task.id}/defects`).catch(() => ({ data: { data: [] } })))
+        );
 
-      const cycleScopesNested = await Promise.all(
-        programs.map(async (program: any) => {
-          const cyclesResponse = await apiClient.get(`/api/programs/${program.id}/mock-cycles`);
-          const cycles = cyclesResponse.data.data || [];
-          return cycles.map((cycle: any) => ({ program, cycle }));
-        })
-      );
+        defectResponses.flatMap((r: any) => r?.data?.data || []).forEach((defect: any) => {
+          if (!defect?.id || !isDefectAssigned(defect)) return;
+          defectMap.set(defect.id, {
+            ...defect,
+            programName: defect.programName || program?.name || 'Program',
+            projectName: defect.projectName || project?.name || 'Project',
+            mockCycleName: defect.mockCycleName || cycle?.name || 'Cycle',
+          });
+        });
+      };
 
-      const cycleScopes = cycleScopesNested.flat();
+      if (selectedProjectId) {
+        const projectResponse = await apiClient.get(`/api/projects/${selectedProjectId}`);
+        const project = projectResponse.data.data;
+        let cycle = null;
+        let program = null;
+        if (project?.mockCycleId) {
+          const cycleResponse = await apiClient.get(`/api/mock-cycles/${project.mockCycleId}`);
+          cycle = cycleResponse.data.data;
+          if (cycle?.programId) {
+            const programResponse = await apiClient.get(`/api/programs/${cycle.programId}`);
+            program = programResponse.data.data;
+          }
+        }
 
-      const projectScopesNested = await Promise.all(
-        cycleScopes.map(async ({ program, cycle }: any) => {
+        if (cycle?.id) {
+          await hydrateScope(program, cycle, project);
+        } else {
+          const tasksResponse = await apiClient.get(`/api/tasks/project/${selectedProjectId}`);
+          const tasks = tasksResponse.data.data || [];
+          tasks.forEach((task: any) => {
+            if (!isTaskAssigned(task)) return;
+            const taskId = task.id || task.taskId;
+            taskMap.set(taskId, {
+              ...task,
+              taskId,
+              taskName: task.name || task.taskName,
+              projectName: project?.name || 'Project',
+              mockCycleName: 'Cycle',
+              programName: program?.name || 'Program',
+            });
+          });
+
+          const defectResponses = await Promise.all(
+            tasks.map((task: any) => apiClient.get(`/api/tasks/${task.id}/defects`).catch(() => ({ data: { data: [] } })))
+          );
+          defectResponses.flatMap((r: any) => r?.data?.data || []).forEach((defect: any) => {
+            if (!defect?.id || !isDefectAssigned(defect)) return;
+            defectMap.set(defect.id, {
+              ...defect,
+              programName: defect.programName || program?.name || 'Program',
+              projectName: defect.projectName || project?.name || 'Project',
+              mockCycleName: defect.mockCycleName || 'Cycle',
+            });
+          });
+        }
+      } else {
+        const programsResponse = await apiClient.get('/api/programs');
+        const allPrograms = programsResponse.data.data || [];
+        const programs = selectedProgramId
+          ? allPrograms.filter((p: any) => p.id === selectedProgramId)
+          : allPrograms;
+
+        const cycleScopesNested = await Promise.all(
+          programs.map(async (program: any) => {
+            const cyclesResponse = await apiClient.get(`/api/programs/${program.id}/mock-cycles`);
+            const cycles = cyclesResponse.data.data || [];
+            return cycles.map((cycle: any) => ({ program, cycle }));
+          })
+        );
+
+        const cycleScopes = cycleScopesNested.flat();
+
+        for (const { program, cycle } of cycleScopes as any[]) {
           const projectsResponse = await apiClient.get(`/api/projects/by-cycle/${cycle.id}`);
           const projects = projectsResponse.data.data || [];
-          return projects.map((project: any) => ({ program, cycle, project }));
-        })
-      );
-
-      const projectScopes = projectScopesNested.flat();
-
-      const taskBatches = await Promise.all(
-        projectScopes.map(async ({ program, cycle, project }: any) => {
+          const project = projects[0] || null;
           try {
-            const tasksResponse = await apiClient.get(`/api/tasks/cycle/${cycle.id}`);
-            const tasks = tasksResponse.data.data || [];
-
-            return tasks
-              .filter((task: any) => {
-                const dra = normalizeValue(task.draUserId);
-                const developer = normalizeValue(task.developerUserId);
-                const assignedTo = normalizeValue(task.assignedTo);
-                return tokenSet.has(dra) || tokenSet.has(developer) || tokenSet.has(assignedTo);
-              })
-              .map((task: any) => ({
-                ...task,
-                taskId: task.id,
-                taskName: task.name,
-                priorityCategory: 'my_tasks',
-                projectName: project.name,
-                mockCycleName: cycle.name,
-                programName: program.name,
-              }));
-          } catch (requestError) {
-            return [];
+            await hydrateScope(program, cycle, project);
+          } catch {
+            // Continue processing remaining scopes.
           }
-        })
-      );
+        }
+      }
 
-      const assignedTasks = taskBatches.flat();
-      return buildSections(assignedTasks);
+      return {
+        tasks: Array.from(taskMap.values()),
+        defects: Array.from(defectMap.values()),
+      };
     },
     enabled: !!user,
   });
 
-  function buildSections(assignedTasks: any[]) {
-    const parseDateOnly = (value?: string) => {
-      if (!value) return null;
-      const date = new Date(value);
-      if (Number.isNaN(date.getTime())) return null;
-      return new Date(date.getFullYear(), date.getMonth(), date.getDate());
-    };
+  const filteredTasks = React.useMemo(() => {
+    const all = (data?.tasks || []) as any[];
+    return all.filter((task: any) => {
+      if (taskStatusFilter !== 'all' && (task.status || 'not_started') !== taskStatusFilter) return false;
+      if (!taskSearch) return true;
+      const q = taskSearch.toLowerCase();
+      return (
+        String(task.taskName || task.name || '').toLowerCase().includes(q)
+        || String(task.objectId || '').toLowerCase().includes(q)
+        || String(task.processArea || '').toLowerCase().includes(q)
+        || String(task.projectName || '').toLowerCase().includes(q)
+      );
+    });
+  }, [data?.tasks, taskSearch, taskStatusFilter]);
 
-    const today = new Date();
-    const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-    const weekEnd = new Date(todayStart);
-    weekEnd.setDate(todayStart.getDate() + 6);
+  const filteredDefects = React.useMemo(() => {
+    const all = (data?.defects || []) as any[];
+    return all.filter((defect: any) => {
+      if (defectStatusFilter !== 'all' && (defect.status || 'open') !== defectStatusFilter) return false;
+      if (severityFilter !== 'all' && (defect.severity || 'low') !== severityFilter) return false;
+      if (!defectSearch) return true;
+      const q = defectSearch.toLowerCase();
+      return (
+        String(defect.title || '').toLowerCase().includes(q)
+        || String(defect.issueCode || '').toLowerCase().includes(q)
+        || String(defect.processArea || '').toLowerCase().includes(q)
+        || String(defect.projectName || '').toLowerCase().includes(q)
+      );
+    });
+  }, [data?.defects, defectSearch, defectStatusFilter, severityFilter]);
 
-    const sections = {
-      late: assignedTasks.filter((task: any) => {
-        if (task.status === 'complete') return false;
-        const end = parseDateOnly(task.endDate);
-        return !!end && end < todayStart;
-      }),
-      in_progress: assignedTasks.filter((task: any) => task.status === 'in_progress'),
-      due_this_week: assignedTasks.filter((task: any) => {
-        if (task.status === 'complete') return false;
-        const end = parseDateOnly(task.endDate);
-        return !!end && end >= todayStart && end <= weekEnd;
-      }),
-      blocked: assignedTasks.filter((task: any) => task.status === 'blocked'),
-      complete: assignedTasks.filter((task: any) => task.status === 'complete'),
-    };
-    return { sections, totalAssigned: assignedTasks.length };
-  }
+  const activeDefect = React.useMemo(
+    () => filteredDefects.find((defect: any) => defect.id === selectedDefectId) || null,
+    [filteredDefects, selectedDefectId]
+  );
+
+  React.useEffect(() => {
+    if (selectedDefectId && !filteredDefects.some((defect: any) => defect.id === selectedDefectId)) {
+      setSelectedDefectId('');
+    }
+  }, [filteredDefects, selectedDefectId]);
+
+  const handleDefectSaved = async () => {
+    await queryClient.invalidateQueries({ queryKey: ['my-items', user?.id, user?.email, selectedProgramId, selectedProjectId] });
+  };
+
+  const th = { py: 0.8, px: 1.5, fontSize: '0.68rem', letterSpacing: '0.06em', color: 'rgba(255,255,255,0.45)', backgroundColor: 'rgba(0,0,0,0.18)', textTransform: 'uppercase' as const, fontWeight: 700, borderBottom: '1px solid rgba(255,255,255,0.07)' };
+  const td = { py: 0.75, px: 1.5, fontSize: '0.8rem', borderBottom: '1px solid rgba(255,255,255,0.04)' };
+  const fsx = { minWidth: 130, '& .MuiInputBase-root': { fontSize: '0.78rem', height: 32 }, '& .MuiInputLabel-root': { fontSize: '0.78rem' } };
+
+  const stats = [
+    { label: 'Assigned Tasks', value: data?.tasks?.length ?? 0 },
+    { label: 'Assigned Defects', value: data?.defects?.length ?? 0 },
+  ];
 
   return (
     <Layout>
       <PageContainer maxWidth="xl">
         <ContentHeader
           title="My Tasks"
-          subtitle={selectedProjectId ? 'Tasks assigned to you in the selected project.' : selectedProgramId ? 'Tasks assigned to you in the selected program.' : 'Tasks assigned to you across all programs and projects.'}
-          stats={[{ label: 'Assigned Tasks', value: data?.totalAssigned ?? 0 }]}
+          subtitle={selectedProjectId ? 'Items assigned to you in the selected project.' : selectedProgramId ? 'Items assigned to you in the selected program.' : 'Items assigned to you across all programs and projects.'}
+          stats={stats}
         />
 
         {isLoading ? (
@@ -158,47 +295,139 @@ const MyTasksPage: React.FC = () => {
             <CircularProgress />
           </Box>
         ) : error ? (
-          <Alert severity="error">Unable to load your tasks right now.</Alert>
-        ) : !data || data.totalAssigned === 0 ? (
-          <Alert severity="info">No tasks are currently assigned to your account.</Alert>
+          <Alert severity="error">Unable to load your assigned items right now.</Alert>
         ) : (
-          <>
-            <PrioritySection
-              title="Late Tasks"
-              tasks={data.sections.late}
-              color="#ef5350"
-              onTaskClick={setSelectedTask}
-              peopleById={peopleById}
-            />
-            <PrioritySection
-              title="In Progress"
-              tasks={data.sections.in_progress}
-              color="#29b6f6"
-              onTaskClick={setSelectedTask}
-              peopleById={peopleById}
-            />
-            <PrioritySection
-              title="Due This Week"
-              tasks={data.sections.due_this_week}
-              color="#ffa726"
-              onTaskClick={setSelectedTask}
-              peopleById={peopleById}
-            />
-            <PrioritySection
-              title="Blocked"
-              tasks={data.sections.blocked}
-              color="#ab47bc"
-              onTaskClick={setSelectedTask}
-              peopleById={peopleById}
-            />
-            <PrioritySection
-              title="Completed"
-              tasks={data.sections.complete}
-              color="#66bb6a"
-              onTaskClick={setSelectedTask}
-              peopleById={peopleById}
-            />
-          </>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            <Section title="Assigned Tasks" count={filteredTasks.length} accent="#29b6f6">
+              <Box sx={{ px: 2, py: 1.25, display: 'flex', gap: 1.25, flexWrap: 'wrap', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                <TextField size="small" placeholder="Search tasks..." value={taskSearch} onChange={e => setTaskSearch(e.target.value)}
+                  sx={{ width: 220, ...fsx }}
+                  slotProps={{ input: { startAdornment: <SearchIcon sx={{ fontSize: '1rem', mr: 0.5, color: 'text.secondary' }} /> } }} />
+                <TextField select size="small" label="Status" value={taskStatusFilter} onChange={e => setTaskStatusFilter(e.target.value)} sx={fsx}>
+                  <MenuItem value="all">All Statuses</MenuItem>
+                  <MenuItem value="not_started">Not Started</MenuItem>
+                  <MenuItem value="in_progress">In Progress</MenuItem>
+                  <MenuItem value="blocked">Blocked</MenuItem>
+                  <MenuItem value="complete">Complete</MenuItem>
+                </TextField>
+              </Box>
+              {filteredTasks.length === 0 ? (
+                <Box sx={{ p: 3 }}><Typography variant="body2" color="text.secondary">No assigned tasks match the current filters.</Typography></Box>
+              ) : (
+                <TableContainer>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell sx={th}>Object</TableCell>
+                        <TableCell sx={th}>Task</TableCell>
+                        <TableCell sx={th}>Status</TableCell>
+                        <TableCell sx={th}>Process Area</TableCell>
+                        <TableCell sx={th}>Project</TableCell>
+                        <TableCell sx={th}>Mock Cycle</TableCell>
+                        <TableCell sx={th}>Due Date</TableCell>
+                        <TableCell sx={{ ...th, width: 48, p: 0 }}></TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {filteredTasks.map((task: any, i: number) => (
+                        <TableRow key={`${task.taskId || task.id}-${i}`} hover onClick={() => setSelectedTask(task)}
+                          sx={{ cursor: 'pointer', '&:hover': { backgroundColor: 'rgba(255,255,255,0.035)' } }}>
+                          <TableCell sx={td}>
+                            <Typography sx={{ fontWeight: 600, fontSize: '0.8rem' }}>{task.objectId || '—'}</Typography>
+                          </TableCell>
+                          <TableCell sx={td}>
+                            <Typography sx={{ fontWeight: 600, fontSize: '0.8rem' }}>{task.taskName || task.name || 'Untitled'}</Typography>
+                          </TableCell>
+                          <TableCell sx={td}>
+                            <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
+                              <Box sx={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: STATUS_COLOR[task.status] || 'rgba(255,255,255,0.3)' }} />
+                              <Typography sx={{ fontSize: '0.78rem' }}>{STATUS_LABEL[task.status] || task.status}</Typography>
+                            </Box>
+                          </TableCell>
+                          <TableCell sx={td}><Typography sx={{ fontSize: '0.78rem', color: 'text.secondary' }}>{task.processArea || '—'}</Typography></TableCell>
+                          <TableCell sx={td}><Typography sx={{ fontSize: '0.78rem', color: 'text.secondary' }}>{task.projectName || '—'}</Typography></TableCell>
+                          <TableCell sx={td}><Typography sx={{ fontSize: '0.78rem', color: 'text.secondary' }}>{task.mockCycleName || '—'}</Typography></TableCell>
+                          <TableCell sx={td}><Typography sx={{ fontSize: '0.78rem', color: 'text.secondary' }}>{fmtDate(task.endDate)}</Typography></TableCell>
+                          <TableCell sx={{ ...td, px: 0.5 }}>
+                            <IconButton size="small" onClick={e => { e.stopPropagation(); setSelectedTask(task); }} sx={{ opacity: 0.6, '&:hover': { opacity: 1 } }}>
+                              <OpenInNewIcon sx={{ fontSize: '0.9rem' }} />
+                            </IconButton>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              )}
+            </Section>
+
+            <Section title="Assigned Defects" count={filteredDefects.length} accent="#ef5350">
+              <Box sx={{ px: 2, py: 1.25, display: 'flex', gap: 1.25, flexWrap: 'wrap', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                <TextField size="small" placeholder="Search defects..." value={defectSearch} onChange={e => setDefectSearch(e.target.value)}
+                  sx={{ width: 220, ...fsx }}
+                  slotProps={{ input: { startAdornment: <SearchIcon sx={{ fontSize: '1rem', mr: 0.5, color: 'text.secondary' }} /> } }} />
+                <TextField select size="small" label="Status" value={defectStatusFilter} onChange={e => setDefectStatusFilter(e.target.value)} sx={fsx}>
+                  <MenuItem value="all">All Statuses</MenuItem>
+                  <MenuItem value="open">Open</MenuItem>
+                  <MenuItem value="in_progress">In Progress</MenuItem>
+                  <MenuItem value="resolved">Resolved</MenuItem>
+                  <MenuItem value="closed">Closed</MenuItem>
+                </TextField>
+                <TextField select size="small" label="Severity" value={severityFilter} onChange={e => setSeverityFilter(e.target.value)} sx={fsx}>
+                  <MenuItem value="all">All Severities</MenuItem>
+                  <MenuItem value="critical">Critical</MenuItem>
+                  <MenuItem value="high">High</MenuItem>
+                  <MenuItem value="medium">Medium</MenuItem>
+                  <MenuItem value="low">Low</MenuItem>
+                </TextField>
+              </Box>
+              {filteredDefects.length === 0 ? (
+                <Box sx={{ p: 3 }}><Typography variant="body2" color="text.secondary">No assigned defects match the current filters.</Typography></Box>
+              ) : (
+                <TableContainer>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell sx={th}>Title</TableCell>
+                        <TableCell sx={th}>Severity</TableCell>
+                        <TableCell sx={th}>Status</TableCell>
+                        <TableCell sx={th}>Process Area</TableCell>
+                        <TableCell sx={th}>Project</TableCell>
+                        <TableCell sx={th}>Mock Cycle</TableCell>
+                        <TableCell sx={th}>Reported</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {filteredDefects.map((defect: any) => {
+                        const sevColor = SEVERITY_COLOR[defect.severity || 'low'] || '#78909c';
+                        return (
+                          <TableRow key={defect.id} hover onClick={() => setSelectedDefectId(defect.id)} sx={{ cursor: 'pointer', '&:hover': { backgroundColor: 'rgba(255,255,255,0.035)' } }}>
+                            <TableCell sx={td}>
+                              <Typography sx={{ fontWeight: 600, fontSize: '0.8rem' }}>{defect.title || 'Untitled Defect'}</Typography>
+                              <Typography variant="caption" color="text.secondary">{defect.issueCode || '—'}</Typography>
+                            </TableCell>
+                            <TableCell sx={td}>
+                              <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
+                                <Box sx={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: sevColor }} />
+                                <Typography sx={{ fontSize: '0.78rem', color: sevColor, fontWeight: 600, textTransform: 'capitalize' }}>{defect.severity || 'low'}</Typography>
+                              </Box>
+                            </TableCell>
+                            <TableCell sx={td}>
+                              <Chip size="small" label={(defect.status || 'open').replace(/_/g, ' ')} sx={{ fontSize: '0.68rem', height: 20, textTransform: 'capitalize' }} />
+                            </TableCell>
+                            <TableCell sx={td}><Typography sx={{ fontSize: '0.78rem', color: 'text.secondary' }}>{defect.processArea || '—'}</Typography></TableCell>
+                            <TableCell sx={td}><Typography sx={{ fontSize: '0.78rem', color: 'text.secondary' }}>{defect.projectName || '—'}</Typography></TableCell>
+                            <TableCell sx={td}><Typography sx={{ fontSize: '0.78rem', color: 'text.secondary' }}>{defect.mockCycleName || '—'}</Typography></TableCell>
+                            <TableCell sx={td}><Typography sx={{ fontSize: '0.78rem', color: 'text.secondary' }}>{defect.createdAt ? fmtDate(defect.createdAt.slice(0, 10)) : '—'}</Typography></TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              )}
+            </Section>
+          </Box>
         )}
 
         <TaskDetailModal
@@ -207,6 +436,15 @@ const MyTasksPage: React.FC = () => {
           taskId={selectedTask?.taskId || selectedTask?.id}
           task={selectedTask}
           peopleById={peopleById}
+          people={people}
+        />
+
+        <DefectCommentsModal
+          open={Boolean(activeDefect)}
+          defect={activeDefect}
+          people={people || []}
+          onClose={() => setSelectedDefectId('')}
+          onSaved={handleDefectSaved}
         />
       </PageContainer>
     </Layout>
