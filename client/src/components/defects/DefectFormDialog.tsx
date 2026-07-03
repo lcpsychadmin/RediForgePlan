@@ -12,7 +12,7 @@ import {
 } from '@mui/material';
 import { useQuery } from '@tanstack/react-query';
 import apiClient from '../../api/client';
-import { useIssueTypes, useProjectObjects, useTask } from '../../api/hooks';
+import { useTask } from '../../api/hooks';
 import { CreateDefectPayload, Defect, DefectStatus, DefectSeverity } from '../../api/types';
 
 interface DefectFormDialogProps {
@@ -36,8 +36,6 @@ const defaultState = {
   severity: 'medium' as DefectSeverity,
   status: 'open' as DefectStatus,
   assignedToUserId: '',
-  issueTypeId: '',
-  projectObjectId: '',
 };
 
 const DefectFormDialog: React.FC<DefectFormDialogProps> = ({
@@ -52,8 +50,6 @@ const DefectFormDialog: React.FC<DefectFormDialogProps> = ({
   const [state, setState] = React.useState(defaultState);
 
   const { data: task } = useTask(taskId);
-  const { data: issueTypes = [] } = useIssueTypes(taskId);
-  const { data: objects = [] } = useProjectObjects(task?.projectId || '');
   const { data: people = [] } = useQuery({
     queryKey: ['people-options'],
     queryFn: async () => {
@@ -70,8 +66,6 @@ const DefectFormDialog: React.FC<DefectFormDialogProps> = ({
         severity: defect.severity,
         status: defect.status,
         assignedToUserId: defect.assignedToUserId || '',
-        issueTypeId: defect.issueTypeId || '',
-        projectObjectId: defect.projectObjectId || '',
       });
       return;
     }
@@ -88,8 +82,7 @@ const DefectFormDialog: React.FC<DefectFormDialogProps> = ({
       severity: state.severity,
       status: state.status,
       assignedToUserId: state.assignedToUserId || null,
-      issueTypeId: state.issueTypeId || null,
-      projectObjectId: state.projectObjectId || task?.projectObjectId || null,
+      projectObjectId: task?.projectObjectId || null,
     };
 
     if (defect?.id) {
@@ -157,36 +150,6 @@ const DefectFormDialog: React.FC<DefectFormDialogProps> = ({
             getOptionLabel={(option) => option.email}
             renderInput={(params) => <TextField {...params} label="Assigned User" placeholder="Unassigned" />}
           />
-
-          <TextField
-            label="Issue Type (optional)"
-            select
-            value={state.issueTypeId}
-            onChange={(e) => setState((prev) => ({ ...prev, issueTypeId: e.target.value }))}
-            fullWidth
-          >
-            <MenuItem value="">None</MenuItem>
-            {issueTypes.map((issueType) => (
-              <MenuItem key={issueType.id} value={issueType.id}>
-                {issueType.issueCode} ({issueType.count})
-              </MenuItem>
-            ))}
-          </TextField>
-
-          <TextField
-            label="Project Object (optional)"
-            select
-            value={state.projectObjectId}
-            onChange={(e) => setState((prev) => ({ ...prev, projectObjectId: e.target.value }))}
-            fullWidth
-          >
-            <MenuItem value="">None</MenuItem>
-            {objects.map((object) => (
-              <MenuItem key={object.id} value={object.id}>
-                {object.objectId}
-              </MenuItem>
-            ))}
-          </TextField>
         </Stack>
       </DialogContent>
       <DialogActions>

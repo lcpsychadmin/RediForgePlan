@@ -1,28 +1,18 @@
 import React from 'react';
-import { Alert, Box, Button, Stack, Typography } from '@mui/material';
+import { Alert, Box, Button, Chip, Stack, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
-import { useQuery } from '@tanstack/react-query';
-import apiClient from '../../api/client';
 import { useDefects } from '../../api/hooks/useDefects';
-import { Defect, DefectStatus } from '../../api/types';
-import DefectCard from './DefectCard';
+import { Defect } from '../../api/types';
 import DefectFormDialog from './DefectFormDialog';
 
 interface DefectsSectionProps {
   taskId: string;
 }
 
-interface PersonOption {
-  id: string;
-  email: string;
-}
-
-const statusOrder: DefectStatus[] = ['open', 'in_progress', 'resolved', 'closed'];
-const statusLabel: Record<DefectStatus, string> = {
-  open: 'Open',
-  in_progress: 'In Progress',
-  resolved: 'Resolved',
-  closed: 'Closed',
+const formatDefectNumber = (defect: Defect) => {
+  const parsed = typeof defect.defectNumber === 'number' ? defect.defectNumber : Number(defect.defectNumber);
+  if (Number.isFinite(parsed)) return `DEF-${String(parsed).padStart(5, '0')}`;
+  return defect.id;
 };
 
 const DefectsSection: React.FC<DefectsSectionProps> = ({ taskId }) => {
@@ -36,34 +26,8 @@ const DefectsSection: React.FC<DefectsSectionProps> = ({ taskId }) => {
     isUpdatingDefect,
   } = useDefects(taskId);
 
-  const { data: users = [] } = useQuery({
-    queryKey: ['people-defect-options'],
-    queryFn: async () => {
-      const response = await apiClient.get<{ data: PersonOption[] }>('/people');
-      return response.data.data || [];
-    },
-  });
-
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [editingDefect, setEditingDefect] = React.useState<Defect | null>(null);
-
-  const grouped = React.useMemo(() => {
-    const groups: Record<DefectStatus, Defect[]> = {
-      open: [],
-      in_progress: [],
-      resolved: [],
-      closed: [],
-    };
-
-    defects.forEach((defect) => {
-      const status = defect.status as DefectStatus;
-      if (groups[status]) {
-        groups[status].push(defect);
-      }
-    });
-
-    return groups;
-  }, [defects]);
 
   const handleCreate = (payload: any) => {
     createDefect(payload, {
@@ -111,31 +75,46 @@ const DefectsSection: React.FC<DefectsSectionProps> = ({ taskId }) => {
 
       {isLoading ? <Typography variant="body2">Loading defects...</Typography> : null}
       {!isLoading && defects.length === 0 ? <Alert severity="info">No defects linked to this task yet.</Alert> : null}
-
-      {statusOrder.map((status) => (
-        <Stack key={status} spacing={1}>
-          <Typography variant="subtitle2" fontWeight={700}>
-            {statusLabel[status]} ({grouped[status].length})
-          </Typography>
-
-          {grouped[status].length === 0 ? (
-            <Alert severity="info" variant="outlined">
-              No {statusLabel[status].toLowerCase()} defects.
-            </Alert>
-          ) : (
-            grouped[status].map((defect) => (
-              <DefectCard
-                key={defect.id}
-                defect={defect}
-                users={users}
-                onEdit={openEditDialog}
-                onStatusChange={(defectId, nextStatus) => handleUpdate(defectId, { status: nextStatus })}
-                onAssign={(defectId, assignedToUserId) => handleUpdate(defectId, { assignedToUserId })}
-              />
-            ))
-          )}
-        </Stack>
-      ))}
+      {!isLoading && defects.length > 0 ? (
+        <Box sx={{ border: '1px solid rgba(255,255,255,0.08)', borderRadius: 2, overflow: 'hidden' }}>
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell sx={{ fontWeight: 700 }}>Defect #</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Title</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Severity</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Assigned To</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {defects.map((defect) => (
+                <TableRow
+                  key={defect.id}
+                  hover
+                  onClick={() => openEditDialog(defect)}
+                  sx={{ cursor: 'pointer' }}
+                >
+                  <TableCell>{formatDefectNumber(defect)}</TableCell>
+                  <TableCell>
+                    <Typography sx={{ fontWeight: 600, fontSize: '0.82rem' }}>{defect.title}</Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {defect.defectDetails || 'No details provided.'}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Chip size="small" variant="outlined" label={defect.status.replace('_', ' ')} />
+                  </TableCell>
+                  <TableCell>
+                    <Chip size="small" label={defect.severity} />
+                  </TableCell>
+                  <TableCell>{defect.assignedToUserEmail || 'Unassigned'}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </Box>
+      ) : null}
 
       <DefectFormDialog
         open={dialogOpen}
