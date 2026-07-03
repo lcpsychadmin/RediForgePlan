@@ -69,6 +69,13 @@ const formatBytes = (size: number) => {
   return `${(size / (1024 * 1024)).toFixed(1)} MB`;
 };
 
+const formatDefectNumber = (defect: Defect) => {
+  if (typeof defect.defectNumber === 'number' && Number.isFinite(defect.defectNumber)) {
+    return `DEF-${String(defect.defectNumber).padStart(5, '0')}`;
+  }
+  return defect.id;
+};
+
 const DefectCommentsModal: React.FC<DefectCommentsModalProps> = ({ open, defect, people, onClose, onSaved }) => {
   const { user } = useAuth();
   const [tab, setTab] = React.useState<TabValue>('details');
@@ -284,7 +291,7 @@ const DefectCommentsModal: React.FC<DefectCommentsModalProps> = ({ open, defect,
   if (!defect) return null;
 
   const assignedPerson = people.find((person) => person.id === draft.assignedToUserId);
-  const resolutionDate = defect.status === 'closed' ? defect.resolvedAt : null;
+  const resolutionDate = defect.resolvedAt ? new Date(defect.resolvedAt).toLocaleDateString() : null;
 
   return (
     <Dialog
@@ -301,10 +308,16 @@ const DefectCommentsModal: React.FC<DefectCommentsModalProps> = ({ open, defect,
         },
       }}
     >
-      <DialogTitle sx={{ borderBottom: '1px solid rgba(255,255,255,0.08)', pb: 1.5 }}>
+      <DialogTitle
+        sx={{
+          borderBottom: '1px solid rgba(255,255,255,0.08)',
+          pb: 1.5,
+          background: 'linear-gradient(180deg, rgba(58,132,255,0.28) 0%, rgba(58,132,255,0.08) 52%, rgba(58,132,255,0) 100%)',
+        }}
+      >
         <Stack direction="row" justifyContent="space-between" alignItems="flex-start" gap={2}>
           <Box sx={{ flex: 1 }}>
-            <Typography variant="caption" color="text.secondary">Defect {defect.id}</Typography>
+            <Typography variant="caption" color="rgba(255,255,255,0.72)">{formatDefectNumber(defect)}</Typography>
             <TextField
               value={draft.title}
               onChange={(event) => setDraft((prev) => ({ ...prev, title: event.target.value }))}
@@ -361,12 +374,26 @@ const DefectCommentsModal: React.FC<DefectCommentsModalProps> = ({ open, defect,
                 <MenuItem value="high">High</MenuItem>
                 <MenuItem value="critical">Critical</MenuItem>
               </TextField>
-              <TextField
-                label="Resolution Date"
-                size="small"
-                value={resolutionDate ? new Date(resolutionDate).toLocaleDateString() : 'Not closed'}
-                InputProps={{ readOnly: true }}
-              />
+              <Box
+                sx={{
+                  border: '1px solid rgba(255,255,255,0.15)',
+                  borderRadius: 1.2,
+                  px: 1.2,
+                  py: 0.75,
+                  minHeight: 40,
+                  backgroundColor: 'rgba(255,255,255,0.04)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'center',
+                }}
+              >
+                <Typography variant="caption" sx={{ lineHeight: 1, color: 'rgba(255,255,255,0.62)' }}>
+                  Resolution Date (Calculated)
+                </Typography>
+                <Typography variant="body2" sx={{ mt: 0.45, lineHeight: 1.2 }}>
+                  {resolutionDate || 'Auto-set when status changes to Closed'}
+                </Typography>
+              </Box>
               <TextField
                 label="Target Resolution Date"
                 size="small"
@@ -375,6 +402,27 @@ const DefectCommentsModal: React.FC<DefectCommentsModalProps> = ({ open, defect,
                 onChange={(event) => setDraft((prev) => ({ ...prev, targetResolutionDate: event.target.value }))}
                 InputLabelProps={{ shrink: true }}
               />
+            </Box>
+
+            <Box
+              sx={{
+                mt: 1.15,
+                border: '1px solid rgba(255,255,255,0.12)',
+                borderRadius: 1.5,
+                backgroundColor: 'rgba(255,255,255,0.06)',
+                p: 1,
+              }}
+            >
+              <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.7)' }}>
+                Assignment Context
+              </Typography>
+              <Box sx={{ mt: 0.75, display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', md: 'repeat(5, minmax(0, 1fr))' }, gap: 0.75 }}>
+                <Chip size="small" sx={{ justifyContent: 'flex-start', backgroundColor: 'rgba(255,255,255,0.14)' }} label={`Object: ${defect.objectId || 'Not linked'}`} />
+                <Chip size="small" sx={{ justifyContent: 'flex-start', backgroundColor: 'rgba(255,255,255,0.14)' }} label={`Process Area: ${defect.processArea || 'Not set'}`} />
+                <Chip size="small" sx={{ justifyContent: 'flex-start', backgroundColor: 'rgba(255,255,255,0.14)' }} label={`Program: ${defect.programName || 'Unknown'}`} />
+                <Chip size="small" sx={{ justifyContent: 'flex-start', backgroundColor: 'rgba(255,255,255,0.14)' }} label={`Project: ${defect.projectName || 'Unknown'}`} />
+                <Chip size="small" sx={{ justifyContent: 'flex-start', backgroundColor: 'rgba(255,255,255,0.14)' }} label={`Mock Cycle: ${defect.mockCycleName || 'Unknown'}`} />
+              </Box>
             </Box>
           </Box>
 
@@ -417,29 +465,44 @@ const DefectCommentsModal: React.FC<DefectCommentsModalProps> = ({ open, defect,
 
         {tab === 'details' ? (
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '1.7fr 1fr' }, gap: 1.5, minHeight: '62vh' }}>
-            <Box sx={{ ...cardSx, p: 1.5 }}>
+            <Box sx={{ ...cardSx, p: 1.5, backgroundColor: 'rgba(255,255,255,0.05)' }}>
               <Stack spacing={1.5}>
-                <TextField
-                  label="Defect Details (What's the problem)"
-                  multiline
-                  minRows={5}
-                  value={draft.defectDetails}
-                  onChange={(event) => setDraft((prev) => ({ ...prev, defectDetails: event.target.value }))}
-                />
-                <TextField
-                  label="Root Cause Details (What's causing the problem)"
-                  multiline
-                  minRows={5}
-                  value={draft.rootCauseDetails}
-                  onChange={(event) => setDraft((prev) => ({ ...prev, rootCauseDetails: event.target.value }))}
-                />
-                <TextField
-                  label="Resolution Details (How do we solve the problem)"
-                  multiline
-                  minRows={6}
-                  value={draft.resolutionDetails}
-                  onChange={(event) => setDraft((prev) => ({ ...prev, resolutionDetails: event.target.value }))}
-                />
+                <Box sx={{ border: '1px solid rgba(255,255,255,0.13)', borderRadius: 1.5, backgroundColor: 'rgba(255,255,255,0.06)', p: 1 }}>
+                  <Typography variant="overline" sx={{ display: 'block', color: '#8fc4ff', letterSpacing: '0.09em' }}>
+                    Defect Details
+                  </Typography>
+                  <TextField
+                    label="What's the problem"
+                    multiline
+                    minRows={4}
+                    value={draft.defectDetails}
+                    onChange={(event) => setDraft((prev) => ({ ...prev, defectDetails: event.target.value }))}
+                  />
+                </Box>
+                <Box sx={{ border: '1px solid rgba(255,255,255,0.13)', borderRadius: 1.5, backgroundColor: 'rgba(255,255,255,0.06)', p: 1 }}>
+                  <Typography variant="overline" sx={{ display: 'block', color: '#8fc4ff', letterSpacing: '0.09em' }}>
+                    Root Cause
+                  </Typography>
+                  <TextField
+                    label="What's causing the problem"
+                    multiline
+                    minRows={4}
+                    value={draft.rootCauseDetails}
+                    onChange={(event) => setDraft((prev) => ({ ...prev, rootCauseDetails: event.target.value }))}
+                  />
+                </Box>
+                <Box sx={{ border: '1px solid rgba(255,255,255,0.13)', borderRadius: 1.5, backgroundColor: 'rgba(255,255,255,0.06)', p: 1 }}>
+                  <Typography variant="overline" sx={{ display: 'block', color: '#8fc4ff', letterSpacing: '0.09em' }}>
+                    Resolution Plan
+                  </Typography>
+                  <TextField
+                    label="How do we solve the problem"
+                    multiline
+                    minRows={5}
+                    value={draft.resolutionDetails}
+                    onChange={(event) => setDraft((prev) => ({ ...prev, resolutionDetails: event.target.value }))}
+                  />
+                </Box>
                 <Stack direction="row" spacing={1}>
                   <Chip size="small" label={`Task: ${defect.taskName || defect.taskId}`} />
                   <Chip size="small" label={`Assigned: ${assignedPerson?.name || assignedPerson?.email || 'Unassigned'}`} />
@@ -447,7 +510,7 @@ const DefectCommentsModal: React.FC<DefectCommentsModalProps> = ({ open, defect,
               </Stack>
             </Box>
 
-            <Box sx={{ ...cardSx, p: 1.5, display: 'flex', flexDirection: 'column', maxHeight: '62vh' }}>
+            <Box sx={{ ...cardSx, p: 1.5, display: 'flex', flexDirection: 'column', maxHeight: '62vh', backgroundColor: 'rgba(255,255,255,0.05)' }}>
               <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1 }}>Discussion</Typography>
 
               <Box sx={{ flex: 1, overflowY: 'auto', pr: 0.5 }}>

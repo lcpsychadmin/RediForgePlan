@@ -397,9 +397,15 @@ export type DefectStatus = 'open' | 'in_progress' | 'resolved' | 'closed';
 
 export interface Defect {
   id: string;
+  defectNumber?: number | null;
   taskId: string;
   taskName?: string | null;
   projectObjectId?: string | null;
+  objectId?: string | null;
+  processArea?: string | null;
+  programName?: string | null;
+  projectName?: string | null;
+  mockCycleName?: string | null;
   issueTypeId?: string | null;
   title: string;
   defectDetails?: string | null;

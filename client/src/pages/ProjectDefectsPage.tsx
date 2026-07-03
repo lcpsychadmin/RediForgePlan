@@ -50,6 +50,13 @@ const tableTd = {
   borderBottom: '1px solid rgba(255,255,255,0.04)',
 };
 
+const formatDefectNumber = (defect: any) => {
+  if (typeof defect?.defectNumber === 'number' && Number.isFinite(defect.defectNumber)) {
+    return `DEF-${String(defect.defectNumber).padStart(5, '0')}`;
+  }
+  return defect.id;
+};
+
 interface ProjectDefectsPageProps {
   projectId?: string | null;
 }
@@ -199,7 +206,7 @@ const ProjectDefectsPage: React.FC<ProjectDefectsPageProps> = ({ projectId: proj
                     sx={{ cursor: 'pointer', '&:hover': { backgroundColor: 'rgba(255,255,255,0.035)' }, backgroundColor: 'rgba(255,255,255,0.01)' }}
                   >
                     <TableCell sx={tableTd}>
-                      <Typography sx={{ fontWeight: 700, fontSize: '0.78rem' }}>{defect.id}</Typography>
+                      <Typography sx={{ fontWeight: 700, fontSize: '0.78rem' }}>{formatDefectNumber(defect)}</Typography>
                       <Typography variant="caption" color="text.secondary">{defect.taskName || 'Task'}</Typography>
                     </TableCell>
                     <TableCell sx={tableTd}>

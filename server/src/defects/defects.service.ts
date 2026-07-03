@@ -83,7 +83,7 @@ class DefectsService {
     }
 
     const result = await db.query(
-      `SELECT d.id, d.task_id, d.project_object_id, d.issue_type_id, d.title, d.description,
+          `SELECT d.id, d.defect_number, d.task_id, d.project_object_id, d.issue_type_id, d.title, d.description,
               d.defect_details, d.root_cause_details, d.resolution_details,
               d.root_cause_category_id, d.target_resolution_date,
               d.severity, d.status, d.assigned_to_user_id, d.created_by_user_id,
@@ -93,18 +93,27 @@ class DefectsService {
               it.issue_code,
               it.issue_description,
               po.global_object_id,
+            go.object_id,
+            COALESCE(go.process_area, tg.process_area) AS process_area,
+            pr.name AS program_name,
+            p.name AS project_name,
+            mc.name AS mock_cycle_name,
               rc.name AS root_cause_category_name,
               t.name AS task_name,
               t.task_type,
               t.status AS task_status,
-              p.name AS project_name
+            p.name AS project_name
        FROM defects d
        JOIN tasks t ON d.task_id = t.id
        JOIN projects p ON t.project_id = p.id
+           LEFT JOIN programs pr ON p.program_id = pr.id
+           LEFT JOIN mock_cycles mc ON mc.project_id = p.id
        LEFT JOIN users tu ON d.assigned_to_user_id = tu.id
        LEFT JOIN users cu ON d.created_by_user_id = cu.id
        LEFT JOIN task_issue_types it ON d.issue_type_id = it.id
        LEFT JOIN project_objects po ON d.project_object_id = po.id
+           LEFT JOIN global_objects go ON po.global_object_id = go.id
+           LEFT JOIN task_groups tg ON t.task_group_id = tg.id
        LEFT JOIN defect_root_cause_categories rc ON d.root_cause_category_id = rc.id
        WHERE ${whereClauses.join(' AND ')}
        ORDER BY d.updated_at DESC, d.created_at DESC`,
@@ -218,7 +227,7 @@ class DefectsService {
 
   async getDefectsForTask(taskId: string) {
     const result = await db.query(
-      `SELECT d.id, d.task_id, d.project_object_id, d.issue_type_id, d.title, d.description,
+          `SELECT d.id, d.defect_number, d.task_id, d.project_object_id, d.issue_type_id, d.title, d.description,
               d.defect_details, d.root_cause_details, d.resolution_details,
               d.root_cause_category_id, d.target_resolution_date,
               d.severity, d.status, d.assigned_to_user_id, d.created_by_user_id,
@@ -228,12 +237,23 @@ class DefectsService {
               it.issue_code,
               it.issue_description,
               po.global_object_id,
+            go.object_id,
+            COALESCE(go.process_area, tg.process_area) AS process_area,
+            pr.name AS program_name,
+            p.name AS project_name,
+            mc.name AS mock_cycle_name,
               rc.name AS root_cause_category_name
        FROM defects d
+           JOIN tasks t ON d.task_id = t.id
+           JOIN projects p ON t.project_id = p.id
+           LEFT JOIN programs pr ON p.program_id = pr.id
+           LEFT JOIN mock_cycles mc ON mc.project_id = p.id
        LEFT JOIN users tu ON d.assigned_to_user_id = tu.id
        LEFT JOIN users cu ON d.created_by_user_id = cu.id
        LEFT JOIN task_issue_types it ON d.issue_type_id = it.id
        LEFT JOIN project_objects po ON d.project_object_id = po.id
+           LEFT JOIN global_objects go ON po.global_object_id = go.id
+           LEFT JOIN task_groups tg ON t.task_group_id = tg.id
        LEFT JOIN defect_root_cause_categories rc ON d.root_cause_category_id = rc.id
        WHERE d.task_id = $1
        ORDER BY d.created_at DESC`,
@@ -245,7 +265,7 @@ class DefectsService {
 
   async getDefect(defectId: string) {
     const result = await db.query(
-      `SELECT d.id, d.task_id, d.project_object_id, d.issue_type_id, d.title, d.description,
+      `SELECT d.id, d.defect_number, d.task_id, d.project_object_id, d.issue_type_id, d.title, d.description,
               d.defect_details, d.root_cause_details, d.resolution_details,
               d.root_cause_category_id, d.target_resolution_date,
               d.severity, d.status, d.assigned_to_user_id, d.created_by_user_id,
@@ -255,15 +275,25 @@ class DefectsService {
               it.issue_code,
               it.issue_description,
               po.global_object_id,
+              go.object_id,
+              COALESCE(go.process_area, tg.process_area) AS process_area,
+              pr.name AS program_name,
+              p.name AS project_name,
+              mc.name AS mock_cycle_name,
               rc.name AS root_cause_category_name,
               t.name AS task_name
        FROM defects d
+       JOIN tasks t ON d.task_id = t.id
+       JOIN projects p ON t.project_id = p.id
+       LEFT JOIN programs pr ON p.program_id = pr.id
+       LEFT JOIN mock_cycles mc ON mc.project_id = p.id
        LEFT JOIN users tu ON d.assigned_to_user_id = tu.id
        LEFT JOIN users cu ON d.created_by_user_id = cu.id
        LEFT JOIN task_issue_types it ON d.issue_type_id = it.id
        LEFT JOIN project_objects po ON d.project_object_id = po.id
+       LEFT JOIN global_objects go ON po.global_object_id = go.id
+       LEFT JOIN task_groups tg ON t.task_group_id = tg.id
        LEFT JOIN defect_root_cause_categories rc ON d.root_cause_category_id = rc.id
-       LEFT JOIN tasks t ON d.task_id = t.id
        WHERE d.id = $1`,
       [defectId]
     );
@@ -581,9 +611,15 @@ class DefectsService {
   private format(row: any) {
     return {
       id: row.id,
+      defectNumber: row.defect_number,
       taskId: row.task_id,
       taskName: row.task_name,
       projectObjectId: row.project_object_id,
+      objectId: row.object_id,
+      processArea: row.process_area,
+      programName: row.program_name,
+      projectName: row.project_name,
+      mockCycleName: row.mock_cycle_name,
       issueTypeId: row.issue_type_id,
       title: row.title,
       defectDetails: row.defect_details || row.description || '',
