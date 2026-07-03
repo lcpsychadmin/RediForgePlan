@@ -195,7 +195,11 @@ const ProjectDefectsPage: React.FC<ProjectDefectsPageProps> = ({ projectId: proj
                 <TableRow>
                   <TableCell sx={tableTh}>Defect #</TableCell>
                   <TableCell sx={tableTh}>Title</TableCell>
-                  <TableCell sx={tableTh}>Root Cause</TableCell>
+                  <TableCell sx={tableTh}>Assigned To</TableCell>
+                  <TableCell sx={tableTh}>Process Area</TableCell>
+                  <TableCell sx={tableTh}>Program</TableCell>
+                  <TableCell sx={tableTh}>Project</TableCell>
+                  <TableCell sx={tableTh}>Mock Cycle</TableCell>
                   <TableCell sx={tableTh}>State</TableCell>
                 </TableRow>
               </TableHead>
@@ -217,7 +221,19 @@ const ProjectDefectsPage: React.FC<ProjectDefectsPageProps> = ({ projectId: proj
                       <Typography variant="caption" color="text.secondary">{defect.defectDetails || 'No problem statement.'}</Typography>
                     </TableCell>
                     <TableCell sx={tableTd}>
-                      <Typography sx={{ fontSize: '0.78rem', color: 'text.secondary' }}>{defect.rootCauseCategoryName || 'Unspecified'}</Typography>
+                      <Typography sx={{ fontSize: '0.78rem', color: 'text.secondary' }}>{defect.assignedToUserEmail || 'Unassigned'}</Typography>
+                    </TableCell>
+                    <TableCell sx={tableTd}>
+                      <Typography sx={{ fontSize: '0.78rem', color: 'text.secondary' }}>{defect.processArea || 'Unspecified'}</Typography>
+                    </TableCell>
+                    <TableCell sx={tableTd}>
+                      <Typography sx={{ fontSize: '0.78rem', color: 'text.secondary' }}>{defect.programName || 'Unknown'}</Typography>
+                    </TableCell>
+                    <TableCell sx={tableTd}>
+                      <Typography sx={{ fontSize: '0.78rem', color: 'text.secondary' }}>{defect.projectName || project?.name || 'Unknown'}</Typography>
+                    </TableCell>
+                    <TableCell sx={tableTd}>
+                      <Typography sx={{ fontSize: '0.78rem', color: 'text.secondary' }}>{defect.mockCycleName || 'Unknown'}</Typography>
                     </TableCell>
                     <TableCell sx={tableTd}>
                       <Stack spacing={0.5}>

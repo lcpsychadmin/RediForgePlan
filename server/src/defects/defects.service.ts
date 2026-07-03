@@ -108,7 +108,13 @@ class DefectsService {
        JOIN tasks t ON d.task_id = t.id
        JOIN projects p ON t.project_id = p.id
            LEFT JOIN programs pr ON p.program_id = pr.id
-           LEFT JOIN mock_cycles mc ON mc.project_id = p.id
+          LEFT JOIN LATERAL (
+            SELECT name
+            FROM mock_cycles
+            WHERE project_id = p.id
+            ORDER BY created_at DESC NULLS LAST, id DESC
+            LIMIT 1
+          ) mc ON TRUE
        LEFT JOIN users tu ON d.assigned_to_user_id = tu.id
        LEFT JOIN users cu ON d.created_by_user_id = cu.id
        LEFT JOIN task_issue_types it ON d.issue_type_id = it.id
@@ -249,7 +255,13 @@ class DefectsService {
            JOIN tasks t ON d.task_id = t.id
            JOIN projects p ON t.project_id = p.id
            LEFT JOIN programs pr ON p.program_id = pr.id
-           LEFT JOIN mock_cycles mc ON mc.project_id = p.id
+          LEFT JOIN LATERAL (
+            SELECT name
+            FROM mock_cycles
+            WHERE project_id = p.id
+            ORDER BY created_at DESC NULLS LAST, id DESC
+            LIMIT 1
+          ) mc ON TRUE
        LEFT JOIN users tu ON d.assigned_to_user_id = tu.id
        LEFT JOIN users cu ON d.created_by_user_id = cu.id
        LEFT JOIN task_issue_types it ON d.issue_type_id = it.id
@@ -289,7 +301,13 @@ class DefectsService {
        JOIN tasks t ON d.task_id = t.id
        JOIN projects p ON t.project_id = p.id
        LEFT JOIN programs pr ON p.program_id = pr.id
-       LEFT JOIN mock_cycles mc ON mc.project_id = p.id
+          LEFT JOIN LATERAL (
+            SELECT name
+            FROM mock_cycles
+            WHERE project_id = p.id
+            ORDER BY created_at DESC NULLS LAST, id DESC
+            LIMIT 1
+          ) mc ON TRUE
        LEFT JOIN users tu ON d.assigned_to_user_id = tu.id
        LEFT JOIN users cu ON d.created_by_user_id = cu.id
        LEFT JOIN task_issue_types it ON d.issue_type_id = it.id
