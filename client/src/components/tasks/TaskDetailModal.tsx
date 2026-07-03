@@ -242,6 +242,15 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     enabled: open && !!resolvedTask?.projectId,
   });
 
+  const { data: projectObjects = [] } = useQuery({
+    queryKey: ['task-project-objects-modal', resolvedTask?.projectId],
+    queryFn: async () => {
+      if (!resolvedTask?.projectId) return [];
+      return (await apiClient.get(`/api/project-objects/project/${resolvedTask.projectId}`)).data.data || [];
+    },
+    enabled: open && !!resolvedTask?.projectId,
+  });
+
   useEffect(() => {
     if (!open) return;
     apiClient.get('/api/hierarchy-preferences/state')
@@ -326,9 +335,35 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   const hasDependencies = (deps as any[]).length > 0;
   const hasDuration = Number(editData?.duration || 0) > 0;
   const planDatesEditable = !scheduleLocked && !hasDependencies && !hasDuration;
-  const dependencyOptions = (projectTasks as any[])
-    .filter((t: any) => t.id !== taskIdResolved)
-    .filter((t: any) => !(deps as any[]).some((d: any) => d.dependsOnTaskId === t.id));
+  const dependencyOptions = (() => {
+    const byId = new Map<string, any>();
+    (projectTasks as any[])
+      .filter((t: any) => t.id !== taskIdResolved)
+      .forEach((t: any) => {
+        byId.set(t.id, t);
+      });
+
+    // Keep already-linked dependencies visible in the picker even if missing from project task payload.
+    (deps as any[]).forEach((d: any) => {
+      const depId = d.dependsOnTaskId;
+      if (!depId || depId === taskIdResolved) return;
+      if (!byId.has(depId)) {
+        byId.set(depId, {
+          id: depId,
+          name: d.dependsOnName || d.taskName || d.name || 'Task',
+          status: d.status || 'not_started',
+          objectId: d.objectId || '',
+          processArea: d.processArea || '',
+          projectId: resolvedTask?.projectId || '',
+          projectName: resolvedTask?.projectName || 'Project',
+          projectObjectId: d.projectObjectId || null,
+          taskGroupId: d.taskGroupId || null,
+        });
+      }
+    });
+
+    return Array.from(byId.values());
+  })();
 
   const addDependency = async (dependsOnTaskId: string) => {
     if (!taskIdResolved || !dependsOnTaskId || scheduleLocked) return;
@@ -669,15 +704,122 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
               });
 
               const searching = depSearchTerm.trim().length > 0;
-              const tree: Record<string, Record<string, Record<string, any[]>>> = {};
+              const depIds = new Set((deps as any[]).map((d: any) => d.dependsOnTaskId));
+              const objectById = new Map<string, any>((projectObjects as any[]).map((po: any) => [po.id, po]));
+              const forcedExpanded = new Set<string>();
+
+              type TreeNode = {
+                key: string;
+                label: string;
+                type: 'object' | 'taskGroup' | 'other';
+                tasks: any[];
+                children: string[];
+                parentNodeKey: string | null;
+              };
+
+              const projectMap: Record<string, {
+                name: string;
+                color: string;
+                areas: Record<string, { nodes: Record<string, TreeNode> }>;
+              }> = {};
+
+              const ensureProject = (projectId: string, projectName: string, color: string) => {
+                if (!projectMap[projectId]) {
+                  projectMap[projectId] = { name: projectName || 'Project', color: color || accent, areas: {} };
+                }
+                return projectMap[projectId];
+              };
+
+              const ensureArea = (projectEntry: { areas: Record<string, { nodes: Record<string, TreeNode> }> }, areaName: string) => {
+                if (!projectEntry.areas[areaName]) {
+                  projectEntry.areas[areaName] = { nodes: {} };
+                }
+                return projectEntry.areas[areaName];
+              };
+
+              const ensureObjectNode = (
+                nodes: Record<string, TreeNode>,
+                objectId: string,
+              ): string => {
+                const obj = objectById.get(objectId);
+                const nodeKey = `obj-${objectId}`;
+                const label = obj?.objectId || 'Object';
+                const parentId = obj?.parentProjectObjectId || null;
+                const parentNodeKey = parentId ? ensureObjectNode(nodes, parentId) : null;
+
+                if (!nodes[nodeKey]) {
+                  nodes[nodeKey] = {
+                    key: nodeKey,
+                    label,
+                    type: 'object',
+                    tasks: [],
+                    children: [],
+                    parentNodeKey,
+                  };
+                }
+
+                if (parentNodeKey && nodes[parentNodeKey] && !nodes[parentNodeKey].children.includes(nodeKey)) {
+                  nodes[parentNodeKey].children.push(nodeKey);
+                }
+
+                return nodeKey;
+              };
+
               filtered.forEach((t: any) => {
-                const project = t.projectName || 'Project';
-                const area = t.processArea || 'Unassigned';
-                const object = t.objectId || 'Other Tasks';
-                tree[project] = tree[project] || {};
-                tree[project][area] = tree[project][area] || {};
-                tree[project][area][object] = tree[project][area][object] || [];
-                tree[project][area][object].push(t);
+                const projectId = t.projectId || resolvedTask?.projectId || 'project';
+                const projectName = t.projectName || resolvedTask?.projectName || 'Project';
+                const projectColor = t.projectAccentColor || accent;
+                const projectEntry = ensureProject(projectId, projectName, projectColor);
+
+                const object = t.projectObjectId ? objectById.get(t.projectObjectId) : null;
+                const areaName = (object?.processArea || t.processArea || 'Unassigned').trim() || 'Unassigned';
+                const areaEntry = ensureArea(projectEntry, areaName);
+                const { nodes } = areaEntry;
+
+                let nodeKey = '';
+                if (t.projectObjectId) {
+                  nodeKey = ensureObjectNode(nodes, t.projectObjectId);
+                  nodes[nodeKey].tasks.push(t);
+                } else if (t.taskGroupId) {
+                  nodeKey = `grp-${t.taskGroupId}`;
+                  if (!nodes[nodeKey]) {
+                    nodes[nodeKey] = {
+                      key: nodeKey,
+                      label: t.groupLabel || 'Task Group',
+                      type: 'taskGroup',
+                      tasks: [],
+                      children: [],
+                      parentNodeKey: null,
+                    };
+                  }
+                  nodes[nodeKey].tasks.push(t);
+                } else {
+                  nodeKey = 'ungrouped';
+                  if (!nodes[nodeKey]) {
+                    nodes[nodeKey] = {
+                      key: nodeKey,
+                      label: 'Other Tasks',
+                      type: 'other',
+                      tasks: [],
+                      children: [],
+                      parentNodeKey: null,
+                    };
+                  }
+                  nodes[nodeKey].tasks.push(t);
+                }
+
+                if (searching || depIds.has(t.id)) {
+                  const projKey = `proj:${projectId}`;
+                  const areaKey = `${projKey}:area:${areaName}`;
+                  forcedExpanded.add(projKey);
+                  forcedExpanded.add(areaKey);
+
+                  let currentNodeKey: string | null = nodeKey;
+                  while (currentNodeKey) {
+                    forcedExpanded.add(`${areaKey}:${currentNodeKey}`);
+                    currentNodeKey = nodes[currentNodeKey]?.parentNodeKey || null;
+                  }
+                }
               });
 
               return (
@@ -689,21 +831,27 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                     </Typography>
                   </Box>
 
-                  {Object.entries(tree).map(([projectName, areas]) => {
-                    const projKey = `proj:${projectName}`;
-                    const projOpen = searching || depTreeExpanded[projKey] !== false;
+                  {Object.entries(projectMap).map(([projectId, projectEntry]) => {
+                    const projKey = `proj:${projectId}`;
+                    const projManual = depTreeExpanded[projKey];
+                    const projOpen = searching
+                      ? (forcedExpanded.has(projKey) || projManual === true)
+                      : (projManual ?? forcedExpanded.has(projKey));
                     return (
                       <Box key={projKey} sx={{ mb: 0.3 }}>
                         <Box onClick={() => setDepTreeExpanded(prev => ({ ...prev, [projKey]: !projOpen }))}
                           sx={{ display: 'flex', alignItems: 'center', gap: 0.75, py: 0.45, px: 0.75, borderRadius: 1, cursor: 'pointer', '&:hover': { backgroundColor: 'rgba(255,255,255,0.04)' } }}>
                           <ChevronRightIcon sx={{ fontSize: '0.85rem', color: 'text.secondary', transform: projOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }} />
-                          <Box sx={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: accent, flexShrink: 0 }} />
-                          <Typography variant="caption" sx={{ fontWeight: 700, color: accent, fontSize: '0.95rem' }}>{projectName}</Typography>
+                          <Box sx={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: projectEntry.color || accent, flexShrink: 0 }} />
+                          <Typography variant="caption" sx={{ fontWeight: 700, color: projectEntry.color || accent, fontSize: '0.95rem' }}>{projectEntry.name}</Typography>
                         </Box>
 
-                        {projOpen && Object.entries(areas as Record<string, Record<string, any[]>>).map(([areaName, objects]) => {
+                        {projOpen && Object.entries(projectEntry.areas).map(([areaName, areaEntry]) => {
                           const areaKey = `${projKey}:area:${areaName}`;
-                          const areaOpen = searching || depTreeExpanded[areaKey] !== false;
+                          const areaManual = depTreeExpanded[areaKey];
+                          const areaOpen = searching
+                            ? (forcedExpanded.has(areaKey) || areaManual === true)
+                            : (areaManual ?? forcedExpanded.has(areaKey));
                           return (
                             <Box key={areaKey} sx={{ ml: 2.5, mb: 0.2 }}>
                               <Box onClick={() => setDepTreeExpanded(prev => ({ ...prev, [areaKey]: !areaOpen }))}
@@ -712,47 +860,68 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                                 <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, fontSize: '0.72rem' }}>{areaName}</Typography>
                               </Box>
 
-                              {areaOpen && Object.entries(objects as Record<string, any[]>).map(([objectName, tasks]) => {
-                                const objKey = `${areaKey}:obj:${objectName}`;
-                                const objOpen = searching || depTreeExpanded[objKey] !== false;
-                                return (
-                                  <Box key={objKey} sx={{ ml: 2.2, mb: 0.2 }}>
-                                    <Box onClick={() => setDepTreeExpanded(prev => ({ ...prev, [objKey]: !objOpen }))}
-                                      sx={{ display: 'flex', alignItems: 'center', gap: 0.75, py: 0.35, px: 0.75, borderRadius: 1, cursor: 'pointer', '&:hover': { backgroundColor: 'rgba(255,255,255,0.04)' } }}>
-                                      <ChevronRightIcon sx={{ fontSize: '0.72rem', color: 'text.disabled', transform: objOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }} />
-                                      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500, fontSize: '0.72rem' }}>{objectName}</Typography>
-                                    </Box>
+                              {areaOpen && Object.values(areaEntry.nodes)
+                                .filter((node) => !node.parentNodeKey)
+                                .sort((a, b) => a.label.localeCompare(b.label))
+                                .map((node) => {
+                                  const renderNode = (nodeKey: string, depth: number): React.ReactNode => {
+                                    const nodeData = areaEntry.nodes[nodeKey];
+                                    if (!nodeData) return null;
 
-                                    {objOpen && (tasks as any[]).map((t: any) => {
-                                      const isDep = (deps as any[]).some((d: any) => d.dependsOnTaskId === t.id);
-                                      return (
+                                    const nodeExpKey = `${areaKey}:${nodeKey}`;
+                                    const nodeManual = depTreeExpanded[nodeExpKey];
+                                    const nodeOpen = searching
+                                      ? (forcedExpanded.has(nodeExpKey) || nodeManual === true)
+                                      : (nodeManual ?? forcedExpanded.has(nodeExpKey));
+
+                                    return (
+                                      <Box key={nodeKey} sx={{ ml: depth * 2.2, mb: 0.2 }}>
                                         <Box
-                                          key={t.id}
-                                          onClick={() => toggleDependency(t.id)}
-                                          sx={{
-                                            ml: 2.2,
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: 1.1,
-                                            py: 0.45,
-                                            px: 0.75,
-                                            borderRadius: 1,
-                                            cursor: 'pointer',
-                                            backgroundColor: isDep ? toRgba(accent, 0.2) : 'transparent',
-                                            '&:hover': { backgroundColor: isDep ? toRgba(accent, 0.24) : 'rgba(255,255,255,0.05)' },
-                                          }}
+                                          onClick={() => setDepTreeExpanded(prev => ({ ...prev, [nodeExpKey]: !nodeOpen }))}
+                                          sx={{ display: 'flex', alignItems: 'center', gap: 0.75, py: 0.35, px: 0.75, borderRadius: 1, cursor: 'pointer', '&:hover': { backgroundColor: 'rgba(255,255,255,0.04)' } }}
                                         >
-                                          <Box sx={{ width: 14, height: 14, borderRadius: '3px', border: '1.5px solid', borderColor: isDep ? accent : 'rgba(255,255,255,0.3)', backgroundColor: isDep ? accent : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                            {isDep && <Box sx={{ width: 6, height: 6, backgroundColor: 'white', borderRadius: '1px' }} />}
-                                          </Box>
-                                          <Typography variant="body2" sx={{ fontSize: '0.82rem', flex: 1 }}>{t.name || 'Unnamed task'}</Typography>
-                                          <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.7rem', textTransform: 'lowercase' }}>{String(t.status || 'not_started').replace(/_/g, ' ')}</Typography>
+                                          <ChevronRightIcon sx={{ fontSize: '0.72rem', color: 'text.disabled', transform: nodeOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }} />
+                                          <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500, fontSize: '0.72rem' }}>{nodeData.label}</Typography>
                                         </Box>
-                                      );
-                                    })}
-                                  </Box>
-                                );
-                              })}
+
+                                        {nodeOpen && nodeData.tasks.map((t: any) => {
+                                          const isDep = depIds.has(t.id);
+                                          return (
+                                            <Box
+                                              key={t.id}
+                                              onClick={() => toggleDependency(t.id)}
+                                              sx={{
+                                                ml: 2.2,
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: 1.1,
+                                                py: 0.45,
+                                                px: 0.75,
+                                                borderRadius: 1,
+                                                cursor: 'pointer',
+                                                backgroundColor: isDep ? toRgba(accent, 0.2) : 'transparent',
+                                                '&:hover': { backgroundColor: isDep ? toRgba(accent, 0.24) : 'rgba(255,255,255,0.05)' },
+                                              }}
+                                            >
+                                              <Box sx={{ width: 14, height: 14, borderRadius: '3px', border: '1.5px solid', borderColor: isDep ? accent : 'rgba(255,255,255,0.3)', backgroundColor: isDep ? accent : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                                {isDep && <Box sx={{ width: 6, height: 6, backgroundColor: 'white', borderRadius: '1px' }} />}
+                                              </Box>
+                                              <Typography variant="body2" sx={{ fontSize: '0.82rem', flex: 1 }}>{t.name || 'Unnamed task'}</Typography>
+                                              <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.7rem', textTransform: 'lowercase' }}>{String(t.status || 'not_started').replace(/_/g, ' ')}</Typography>
+                                            </Box>
+                                          );
+                                        })}
+
+                                        {nodeOpen && nodeData.children
+                                          .slice()
+                                          .sort((a, b) => (areaEntry.nodes[a]?.label || '').localeCompare(areaEntry.nodes[b]?.label || ''))
+                                          .map((childKey) => renderNode(childKey, depth + 1))}
+                                      </Box>
+                                    );
+                                  };
+
+                                  return renderNode(node.key, 1);
+                                })}
                             </Box>
                           );
                         })}
@@ -760,7 +929,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                     );
                   })}
 
-                  {Object.keys(tree).length === 0 ? (
+                  {Object.keys(projectMap).length === 0 ? (
                     <Typography variant="caption" color="text.secondary" sx={{ px: 0.5, py: 1 }}>
                       No available tasks found.
                     </Typography>
