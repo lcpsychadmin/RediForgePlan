@@ -53,7 +53,7 @@ const DefectFormDialog: React.FC<DefectFormDialogProps> = ({
   const { data: people = [] } = useQuery({
     queryKey: ['people-options'],
     queryFn: async () => {
-      const response = await apiClient.get<{ data: PersonOption[] }>('/people');
+      const response = await apiClient.get<{ data: PersonOption[] }>('/api/people');
       return response.data.data || [];
     },
   });

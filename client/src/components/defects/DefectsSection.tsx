@@ -39,7 +39,7 @@ const DefectsSection: React.FC<DefectsSectionProps> = ({ taskId }) => {
   const { data: people = [] } = useQuery({
     queryKey: ['people-defect-options'],
     queryFn: async () => {
-      const response = await apiClient.get<{ data: PersonOption[] }>('/people');
+      const response = await apiClient.get<{ data: PersonOption[] }>('/api/people');
       return response.data.data || [];
     },
   });
