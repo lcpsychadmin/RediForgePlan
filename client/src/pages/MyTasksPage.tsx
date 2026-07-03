@@ -84,12 +84,27 @@ const MyTasksPage: React.FC = () => {
     [people]
   );
 
+  const currentPerson = React.useMemo(
+    () => (people || []).find((person: any) => normalizeValue(person.email) === normalizeValue(user?.email)) || null,
+    [people, user?.email]
+  );
+
   const { data, isLoading, error } = useQuery({
-    queryKey: ['my-items', user?.id, user?.email, selectedProgramId, selectedProjectId],
+    queryKey: ['my-items', user?.id, user?.email, currentPerson?.id, selectedProgramId, selectedProjectId],
     queryFn: async () => {
       const emailAlias = normalizeValue((user?.email || '').split('@')[0]?.split('+')[0]);
+      const isAdmin = user?.role === 'admin';
       const tokenSet = new Set(
-        [user?.id, user?.email, user?.name, emailAlias]
+        [
+          user?.id,
+          user?.email,
+          (user as any)?.name,
+          currentPerson?.id,
+          currentPerson?.email,
+          currentPerson?.name,
+          emailAlias,
+          normalizeValue((currentPerson?.email || '').split('@')[0]?.split('+')[0]),
+        ]
           .map((item) => normalizeValue(item))
           .filter(Boolean)
       );
@@ -101,12 +116,18 @@ const MyTasksPage: React.FC = () => {
         const dra = normalizeValue(task.draUserId);
         const dev = normalizeValue(task.developerUserId);
         const assignedTo = normalizeValue(task.assignedTo);
+        if (isAdmin) {
+          return Boolean(dra || dev || assignedTo);
+        }
         return tokenSet.has(dra) || tokenSet.has(dev) || tokenSet.has(assignedTo);
       };
 
       const isDefectAssigned = (defect: any) => {
         const assignedId = normalizeValue(defect.assignedToUserId);
         const assignedEmail = normalizeValue(defect.assignedToUserEmail);
+        if (isAdmin) {
+          return Boolean(assignedId || assignedEmail);
+        }
         return tokenSet.has(assignedId) || tokenSet.has(assignedEmail);
       };
 
