@@ -211,6 +211,8 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   const [saveError, setSaveError] = useState<string | null>(null);
   const [tab, setTab] = useState(0);
   const [globalProcessAreaAccents, setGlobalProcessAreaAccents] = useState<Record<string, string>>({});
+  const [processAreaDescriptions, setProcessAreaDescriptions] = useState<Record<string, Record<string, string>>>({});
+  const [globalProcessAreaDescriptions, setGlobalProcessAreaDescriptions] = useState<Record<string, string>>({});
   const [depPickerOpen, setDepPickerOpen] = useState(false);
   const [depSearchTerm, setDepSearchTerm] = useState('');
   const [depTreeExpanded, setDepTreeExpanded] = useState<Record<string, boolean>>({});
@@ -343,8 +345,14 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
       .then((response) => {
         const state = response.data?.data || {};
         setGlobalProcessAreaAccents(state.globalProcessAreaAccents || {});
+        setProcessAreaDescriptions(state.processAreaDescriptions || {});
+        setGlobalProcessAreaDescriptions(state.globalProcessAreaDescriptions || {});
       })
-      .catch(() => setGlobalProcessAreaAccents({}));
+      .catch(() => {
+        setGlobalProcessAreaAccents({});
+        setProcessAreaDescriptions({});
+        setGlobalProcessAreaDescriptions({});
+      });
   }, [open]);
 
   // Reset edit data when task changes or modal opens
@@ -422,6 +430,17 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   const hasDuration = Number(editData?.duration || 0) > 0;
   const planDatesEditable = !scheduleLocked && !hasDependencies && !hasDuration;
   const taskUniverse = (cycleTasks as any[]).length > 0 ? (cycleTasks as any[]) : (projectTasks as any[]);
+  const getProcessAreaDisplayName = (projectId: string, area: string) => {
+    const key = String(area || '').trim();
+    if (!key) return 'Unassigned';
+    const desc = processAreaDescriptions[projectId]?.[key]
+      || globalProcessAreaDescriptions[key]
+      || processAreaDescriptions[projectId]?.[key.toUpperCase()]
+      || globalProcessAreaDescriptions[key.toUpperCase()]
+      || processAreaDescriptions[projectId]?.[key.toLowerCase()]
+      || globalProcessAreaDescriptions[key.toLowerCase()];
+    return (desc || key) as string;
+  };
   const dependencyOptions = (() => {
     const byId = new Map<string, any>();
     taskUniverse
@@ -976,7 +995,9 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                               <Box onClick={() => setDepTreeExpanded(prev => ({ ...prev, [areaKey]: !areaOpen }))}
                                 sx={{ display: 'flex', alignItems: 'center', gap: 0.75, py: 0.35, px: 0.75, borderRadius: 1, cursor: 'pointer', '&:hover': { backgroundColor: 'rgba(255,255,255,0.04)' } }}>
                                 <ChevronRightIcon sx={{ fontSize: '0.75rem', color: 'text.disabled', transform: areaOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }} />
-                                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, fontSize: '0.72rem' }}>{areaName}</Typography>
+                                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, fontSize: '0.72rem' }}>
+                                  {getProcessAreaDisplayName(projectId, areaName)}
+                                </Typography>
                               </Box>
 
                               {areaOpen && (() => {
