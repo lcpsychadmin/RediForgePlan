@@ -430,6 +430,45 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   const hasDuration = Number(editData?.duration || 0) > 0;
   const planDatesEditable = !scheduleLocked && !hasDependencies && !hasDuration;
   const taskUniverse = (cycleTasks as any[]).length > 0 ? (cycleTasks as any[]) : (projectTasks as any[]);
+  const allTaskGroups = (cycleTaskGroups as any[]).length > 0 ? (cycleTaskGroups as any[]) : (projectTaskGroups as any[]);
+  const allObjects = React.useMemo(() => {
+    const out = new Map<string, any>();
+    [...(projectObjects as any[]), ...(cycleObjects as any[]), ...(siblingProjectObjects as any[])].forEach((obj: any) => {
+      if (!obj?.id) return;
+      out.set(obj.id, obj);
+    });
+    return Array.from(out.values());
+  }, [projectObjects, cycleObjects, siblingProjectObjects]);
+  const taskGroup = React.useMemo(
+    () => allTaskGroups.find((g: any) => g.id === resolvedTask?.taskGroupId) || null,
+    [allTaskGroups, resolvedTask?.taskGroupId]
+  );
+  const taskObject = React.useMemo(() => {
+    if (!resolvedTask) return null;
+    const byProjectObjectId = resolvedTask.projectObjectId
+      ? allObjects.find((obj: any) => obj.id === resolvedTask.projectObjectId)
+      : null;
+    if (byProjectObjectId) return byProjectObjectId;
+    const objectIdKey = String(resolvedTask.objectId || '').trim().toLowerCase();
+    if (!objectIdKey) return null;
+    return allObjects.find((obj: any) => String(obj.objectId || '').trim().toLowerCase() === objectIdKey) || null;
+  }, [allObjects, resolvedTask]);
+  const objectContextLabel = React.useMemo(() => {
+    if (!taskObject && !resolvedTask?.objectId) return '';
+    const objectId = String(taskObject?.objectId || resolvedTask?.objectId || '').trim();
+    const objectDescription = String(taskObject?.description || taskObject?.subObjectDescription || '').trim();
+    if (objectId && objectDescription) return `${objectId} - ${objectDescription}`;
+    return objectId || objectDescription;
+  }, [taskObject, resolvedTask?.objectId]);
+  const planGroupContextLabel = React.useMemo(() => {
+    const groupName = String(taskGroup?.name || '').trim();
+    const groupDescription = String(taskGroup?.description || '').trim();
+    if (groupName && groupDescription) return `${groupName} - ${groupDescription}`;
+    return groupDescription || groupName;
+  }, [taskGroup]);
+  const assignmentHeadline = objectContextLabel
+    ? `Object: ${objectContextLabel}`
+    : (planGroupContextLabel ? `Plan Group: ${planGroupContextLabel}` : 'No object or plan group linked');
   const getProcessAreaDisplayName = (projectId: string, area: string) => {
     const key = String(area || '').trim();
     if (!key) return 'Unassigned';
@@ -532,6 +571,33 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
               <React.Fragment key={i}><span>{item}</span>{i < arr.length - 1 && <span style={{ opacity: 0.4 }}>·</span>}</React.Fragment>
             ))}
           </Typography>
+          <Typography variant="body2" sx={{ mt: 0.85, pl: 0.75, color: 'rgba(255,255,255,0.88)', fontWeight: 600 }}>
+            {assignmentHeadline}
+          </Typography>
+          <Box
+            sx={{
+              mt: 0.95,
+              ml: 0.75,
+              border: '1px solid rgba(255,255,255,0.12)',
+              borderRadius: 1.5,
+              backgroundColor: 'rgba(255,255,255,0.06)',
+              p: 1,
+              maxWidth: '100%',
+            }}
+          >
+            <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.7)' }}>
+              Assignment Context
+            </Typography>
+            <Box sx={{ mt: 0.75, display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', md: 'repeat(3, minmax(0, 1fr))' }, gap: 0.75 }}>
+              <Chip size="small" sx={{ justifyContent: 'flex-start', backgroundColor: 'rgba(255,255,255,0.14)' }} label={`Object: ${objectContextLabel || 'Not linked'}`} />
+              <Chip size="small" sx={{ justifyContent: 'flex-start', backgroundColor: 'rgba(255,255,255,0.14)' }} label={`Plan Group: ${planGroupContextLabel || 'Not set'}`} />
+              <Chip size="small" sx={{ justifyContent: 'flex-start', backgroundColor: 'rgba(255,255,255,0.14)' }} label={`Assigned To: ${editData?.assignedTo || resolvedTask?.assignedTo || 'Unassigned'}`} />
+              <Chip size="small" sx={{ justifyContent: 'flex-start', backgroundColor: 'rgba(255,255,255,0.14)' }} label={`Process Area: ${getProcessAreaDisplayName(resolvedTask?.projectId || '', resolvedTask?.processArea || resolvedTask?.process_area || '')}`} />
+              <Chip size="small" sx={{ justifyContent: 'flex-start', backgroundColor: 'rgba(255,255,255,0.14)' }} label={`Program: ${resolvedTask?.programName || 'Unknown'}`} />
+              <Chip size="small" sx={{ justifyContent: 'flex-start', backgroundColor: 'rgba(255,255,255,0.14)' }} label={`Project: ${resolvedTask?.projectName || 'Unknown'}`} />
+              <Chip size="small" sx={{ justifyContent: 'flex-start', backgroundColor: 'rgba(255,255,255,0.14)' }} label={`Mock Cycle: ${resolvedTask?.mockCycleName || 'Unknown'}`} />
+            </Box>
+          </Box>
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0 }}>
           <Box
