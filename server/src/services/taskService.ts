@@ -166,7 +166,7 @@ export class TaskService {
   // Tasks
   async getTasksByProject(projectId: string, filters?: { status?: string; taskType?: string; draUserId?: string; developerUserId?: string; projectObjectId?: string; taskGroupId?: string }) {
     let query = `
-      SELECT t.id, t.project_id, t.project_object_id, t.task_group_id, t.task_type, t.name, t.status,
+      SELECT t.id, t.project_id, t.mock_cycle_id, t.project_object_id, t.task_group_id, t.task_type, t.name, t.status,
               t.start_date, t.end_date, t.revised_start_date, t.revised_end_date, t.actual_start_date, t.actual_end_date, t.assigned_to, t.duration, t.duration_unit, t.schedule_mode_override, t.progress_percentage,
              t.dra_user_id, t.developer_user_id, t.notes, t.created_at, t.updated_at,
              go.object_id,
@@ -219,7 +219,7 @@ export class TaskService {
 
   async getTaskById(taskId: string) {
     const result = await db.query(
-      `SELECT t.id, t.project_id, t.project_object_id, t.task_group_id, t.task_type, t.name, t.status,
+      `SELECT t.id, t.project_id, t.mock_cycle_id, t.project_object_id, t.task_group_id, t.task_type, t.name, t.status,
               t.start_date, t.end_date, t.revised_start_date, t.revised_end_date, t.actual_start_date, t.actual_end_date, t.assigned_to, t.duration, t.duration_unit, t.schedule_mode_override, t.progress_percentage,
               t.dra_user_id, t.developer_user_id, t.notes, t.created_at, t.updated_at,
               go.object_id,
@@ -245,7 +245,7 @@ export class TaskService {
         project_id, project_object_id, task_group_id, task_type, name, status,
         start_date, end_date, assigned_to, duration, duration_unit, schedule_mode_override, progress_percentage, dra_user_id, developer_user_id, notes
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
-       RETURNING id, project_id, project_object_id, task_group_id, task_type, name, status,
+       RETURNING id, project_id, mock_cycle_id, project_object_id, task_group_id, task_type, name, status,
                  start_date, end_date, assigned_to, duration, duration_unit, schedule_mode_override, progress_percentage,
                  dra_user_id, developer_user_id, notes, created_at, updated_at`,
       [
@@ -509,7 +509,7 @@ export class TaskService {
 
   async getTasksByCycle(mockCycleId: string, filters?: { status?: string; taskType?: string; draUserId?: string; developerUserId?: string; projectObjectId?: string; taskGroupId?: string }) {
     let query = `
-      SELECT t.id, t.project_id, t.project_object_id, t.task_group_id, t.task_type, t.name, t.status,
+      SELECT t.id, t.project_id, t.mock_cycle_id, t.project_object_id, t.task_group_id, t.task_type, t.name, t.status,
              t.start_date, t.end_date, t.revised_start_date, t.revised_end_date, t.actual_start_date, t.actual_end_date, t.assigned_to, t.duration, t.duration_unit, t.schedule_mode_override, t.progress_percentage,
              t.dra_user_id, t.developer_user_id, t.notes, t.created_at, t.updated_at,
              go.object_id,
@@ -546,7 +546,7 @@ export class TaskService {
         start_date, end_date, assigned_to, duration, duration_unit, schedule_mode_override,
         progress_percentage, dra_user_id, developer_user_id, notes
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
-       RETURNING id, project_id, project_object_id, task_group_id, task_type, name, status,
+       RETURNING id, project_id, mock_cycle_id, project_object_id, task_group_id, task_type, name, status,
                  start_date, end_date, assigned_to, duration, duration_unit, schedule_mode_override,
                  progress_percentage, dra_user_id, developer_user_id, notes, created_at, updated_at`,
       [
@@ -599,6 +599,7 @@ export class TaskService {
     return {
       id: row.id,
       projectId: row.project_id,
+      mockCycleId: row.mock_cycle_id || null,
       projectObjectId: row.project_object_id,
       objectId: row.object_id,
       processArea: row.process_area || '',

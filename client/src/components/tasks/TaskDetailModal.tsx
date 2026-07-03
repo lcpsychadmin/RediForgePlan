@@ -853,7 +853,9 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
 
               filtered.forEach((t: any) => {
                 const projectId = t.projectId || resolvedTask?.projectId || 'project';
-                const projectName = t.projectName || currentProjectDisplay || 'Project';
+                const projectName = (projectId === resolvedTask?.projectId)
+                  ? (currentProjectDisplay || t.projectName || 'Project')
+                  : (t.projectName || 'Project');
                 const projectColor = t.projectAccentColor || accent;
                 const projectEntry = ensureProject(projectId, projectName, projectColor);
 
