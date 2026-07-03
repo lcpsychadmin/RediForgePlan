@@ -217,22 +217,48 @@ const MyTasksPage: React.FC = () => {
           ? allPrograms.filter((p: any) => p.id === selectedProgramId)
           : allPrograms;
 
-        const cycleScopesNested = await Promise.all(
+        const projectScopesNested = await Promise.all(
           programs.map(async (program: any) => {
-            const cyclesResponse = await apiClient.get(`/api/programs/${program.id}/mock-cycles`);
-            const cycles = cyclesResponse.data.data || [];
-            return cycles.map((cycle: any) => ({ program, cycle }));
+            const projectsResponse = await apiClient.get(`/api/projects/by-program/${program.id}`);
+            const projects = projectsResponse.data.data || [];
+            return projects.map((project: any) => ({ program, project }));
           })
         );
 
-        const cycleScopes = cycleScopesNested.flat();
+        const projectScopes = projectScopesNested.flat();
 
-        for (const { program, cycle } of cycleScopes as any[]) {
-          const projectsResponse = await apiClient.get(`/api/projects/by-cycle/${cycle.id}`);
-          const projects = projectsResponse.data.data || [];
-          const project = projects[0] || null;
+        for (const { program, project } of projectScopes as any[]) {
           try {
-            await hydrateScope(program, cycle, project);
+            const tasksResponse = await apiClient.get(`/api/tasks/project/${project.id}`);
+            const tasks = tasksResponse.data.data || [];
+
+            tasks.forEach((task: any) => {
+              if (!isTaskAssigned(task)) return;
+              const taskId = task.id || task.taskId;
+              if (!taskId) return;
+              taskMap.set(taskId, {
+                ...task,
+                taskId,
+                taskName: task.name || task.taskName,
+                projectName: project?.name || task.projectName || 'Project',
+                mockCycleName: task.mockCycleName || 'Cycle',
+                programName: program?.name || task.programName || 'Program',
+              });
+            });
+
+            const defectResponses = await Promise.all(
+              tasks.map((task: any) => apiClient.get(`/api/tasks/${task.id}/defects`).catch(() => ({ data: { data: [] } })))
+            );
+
+            defectResponses.flatMap((r: any) => r?.data?.data || []).forEach((defect: any) => {
+              if (!defect?.id || !isDefectAssigned(defect)) return;
+              defectMap.set(defect.id, {
+                ...defect,
+                programName: defect.programName || program?.name || 'Program',
+                projectName: defect.projectName || project?.name || 'Project',
+                mockCycleName: defect.mockCycleName || 'Cycle',
+              });
+            });
           } catch {
             // Continue processing remaining scopes.
           }
