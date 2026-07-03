@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Dialog, DialogContent, Box, Typography, IconButton, TextField, MenuItem,
-  Chip, CircularProgress, Alert, LinearProgress, Divider, Avatar,
+  Chip, CircularProgress, Alert, LinearProgress, Divider, Avatar, Button,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import SaveIcon from '@mui/icons-material/Save';
@@ -209,6 +209,8 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   const [saveError, setSaveError] = useState<string | null>(null);
   const [tab, setTab] = useState(0);
   const [globalProcessAreaAccents, setGlobalProcessAreaAccents] = useState<Record<string, string>>({});
+  const [newDependencyTaskId, setNewDependencyTaskId] = useState('');
+  const [dependencySaving, setDependencySaving] = useState(false);
 
   const { data: fetched, isLoading } = useQuery({
     queryKey: ['task-details-modal', taskId],
@@ -225,6 +227,15 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     queryKey: ['task-deps-modal', taskIdResolved],
     queryFn: async () => (await apiClient.get(`/api/tasks/${taskIdResolved}/dependencies`)).data.data || [],
     enabled: open && !!taskIdResolved,
+  });
+
+  const { data: projectTasks = [] } = useQuery({
+    queryKey: ['task-project-tasks-modal', resolvedTask?.projectId],
+    queryFn: async () => {
+      if (!resolvedTask?.projectId) return [];
+      return (await apiClient.get(`/api/tasks/project/${resolvedTask.projectId}`)).data.data || [];
+    },
+    enabled: open && !!resolvedTask?.projectId,
   });
 
   useEffect(() => {
@@ -247,6 +258,10 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
         actualStartDate: toInputDate(resolvedTask.actualStartDate),
         actualEndDate: toInputDate(resolvedTask.actualEndDate),
         assignedTo: resolvedTask.assignedTo || '',
+        startDate: toInputDate(resolvedTask.startDate),
+        endDate: toInputDate(resolvedTask.endDate),
+        duration: resolvedTask.duration ?? '',
+        durationUnit: resolvedTask.durationUnit || 'days',
         notes: resolvedTask.notes || '',
         progressPercentage: resolvedTask.progressPercentage ?? 0,
       });
@@ -264,11 +279,15 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     try {
       const payload = {
         status: editData.status,
+        startDate: editData.startDate || null,
+        endDate: editData.endDate || null,
         revisedStartDate: editData.revisedStartDate || null,
         revisedEndDate: editData.revisedEndDate || null,
         actualStartDate: editData.actualStartDate || null,
         actualEndDate: editData.actualEndDate || null,
         assignedTo: editData.assignedTo || null,
+        duration: editData.duration === '' ? null : Number(editData.duration),
+        durationUnit: editData.durationUnit || 'days',
         notes: editData.notes || null,
         progressPercentage: Number(editData.progressPercentage) || 0,
       };
@@ -300,6 +319,36 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   };
 
   const tabs = ['Details', ...(supportsValidation ? [taskType === 'preload_validation' ? 'Preload Quality' : 'Postload Quality'] : []), 'Defects'];
+  const scheduleLocked = editData?.status === 'in_progress' || editData?.status === 'blocked' || editData?.status === 'complete';
+  const hasDependencies = (deps as any[]).length > 0;
+  const hasDuration = Number(editData?.duration || 0) > 0;
+  const showPlanDates = !hasDependencies && !hasDuration;
+  const dependencyOptions = (projectTasks as any[])
+    .filter((t: any) => t.id !== taskIdResolved)
+    .filter((t: any) => !(deps as any[]).some((d: any) => d.dependsOnTaskId === t.id));
+
+  const addDependency = async () => {
+    if (!taskIdResolved || !newDependencyTaskId || scheduleLocked) return;
+    try {
+      setDependencySaving(true);
+      await apiClient.post(`/api/tasks/${taskIdResolved}/dependencies`, { dependsOnTaskId: newDependencyTaskId });
+      setNewDependencyTaskId('');
+      await queryClient.invalidateQueries({ queryKey: ['task-deps-modal', taskIdResolved] });
+    } finally {
+      setDependencySaving(false);
+    }
+  };
+
+  const removeDependency = async (dependsOnTaskId: string) => {
+    if (!taskIdResolved || scheduleLocked) return;
+    try {
+      setDependencySaving(true);
+      await apiClient.delete(`/api/tasks/${taskIdResolved}/dependencies/${dependsOnTaskId}`);
+      await queryClient.invalidateQueries({ queryKey: ['task-deps-modal', taskIdResolved] });
+    } finally {
+      setDependencySaving(false);
+    }
+  };
 
   const personLabel = (id?: string) => {
     if (!id) return 'Unassigned';
@@ -392,22 +441,63 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                     {people.map((p: any) => <MenuItem key={p.id} value={p.name || p.email}>{p.name || p.email}</MenuItem>)}
                   </TextField>
 
+                  {/* Duration */}
+                  <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 220px', gap: 1.5 }}>
+                    <TextField
+                      size="small"
+                      label="Duration"
+                      type="number"
+                      value={editData.duration}
+                      onChange={e => set('duration', e.target.value)}
+                      disabled={scheduleLocked}
+                      slotProps={{ htmlInput: { min: 0, step: 0.1 } }}
+                      sx={fieldSx}
+                    />
+                    <TextField
+                      size="small"
+                      select
+                      label="Duration Unit"
+                      value={editData.durationUnit || 'days'}
+                      onChange={e => set('durationUnit', e.target.value)}
+                      disabled={scheduleLocked}
+                      sx={fieldSx}
+                    >
+                      <MenuItem value="hours">Hours</MenuItem>
+                      <MenuItem value="days">Days</MenuItem>
+                    </TextField>
+                  </Box>
+
                   {/* ── Date sections ── */}
 
-                  {/* Plan dates — read-only info blocks */}
-                  <Box>
-                    <Typography variant="caption" sx={{ color: 'text.disabled', fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', fontSize: '0.63rem', display: 'block', mb: 0.75 }}>
-                      Plan Dates
-                    </Typography>
-                    <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5 }}>
-                      {[['Plan Start', resolvedTask?.startDate], ['Plan End', resolvedTask?.endDate]].map(([label, val]) => (
-                        <Box key={label as string} sx={{ px: 1.5, py: 1, borderRadius: 1, backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
-                          <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', display: 'block', mb: 0.15 }}>{label as string}</Typography>
-                          <Typography sx={{ fontSize: '0.85rem', color: 'text.secondary' }}>{val ? fmtDate(val as string) : '—'}</Typography>
-                        </Box>
-                      ))}
+                  {showPlanDates ? (
+                    <Box>
+                      <Typography variant="caption" sx={{ color: 'text.disabled', fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', fontSize: '0.63rem', display: 'block', mb: 0.75 }}>
+                        Plan Dates
+                      </Typography>
+                      <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5 }}>
+                        <TextField
+                          size="small"
+                          label="Plan Start"
+                          type="date"
+                          value={editData.startDate || ''}
+                          onChange={e => set('startDate', e.target.value)}
+                          disabled={scheduleLocked}
+                          InputLabelProps={{ shrink: true }}
+                          sx={fieldSx}
+                        />
+                        <TextField
+                          size="small"
+                          label="Plan End"
+                          type="date"
+                          value={editData.endDate || ''}
+                          onChange={e => set('endDate', e.target.value)}
+                          disabled={scheduleLocked}
+                          InputLabelProps={{ shrink: true }}
+                          sx={fieldSx}
+                        />
+                      </Box>
                     </Box>
-                  </Box>
+                  ) : null}
 
                   {/* Revised dates */}
                   <Box>
@@ -424,27 +514,11 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                     </Box>
                   </Box>
 
-                  {/* Actual dates */}
-                  <Box>
-                    <Typography variant="caption" sx={{ color: 'text.disabled', fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', fontSize: '0.63rem', display: 'block', mb: 0.75 }}>
-                      Actual Dates
+                  {over && over > 0 && (
+                    <Typography variant="caption" sx={{ color: '#ef5350', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 0.3, mt: -0.5 }}>
+                      ⚠ {over} day{over !== 1 ? 's' : ''} overdue
                     </Typography>
-                    <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5 }}>
-                      <TextField size="small" label="Actual Start" type="date" value={editData.actualStartDate || ''}
-                        onChange={e => set('actualStartDate', e.target.value)}
-                        InputLabelProps={{ shrink: true }} sx={fieldSx} />
-                      <Box>
-                        <TextField size="small" label="Actual End" type="date" value={editData.actualEndDate || ''}
-                          onChange={e => set('actualEndDate', e.target.value)}
-                          InputLabelProps={{ shrink: true }} sx={{ ...fieldSx, width: '100%' }} />
-                        {over && over > 0 && (
-                          <Typography variant="caption" sx={{ color: '#ef5350', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 0.3, mt: 0.3 }}>
-                            ⚠ {over} day{over !== 1 ? 's' : ''} overdue
-                          </Typography>
-                        )}
-                      </Box>
-                    </Box>
-                  </Box>
+                  )}
 
                   {/* Recalculate downstream */}
                   {(editData.revisedStartDate || editData.revisedEndDate) && (
@@ -488,22 +562,54 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                     onChange={e => set('notes', e.target.value)} sx={fieldSx} fullWidth />
 
                   {/* Dependencies */}
-                  {deps.length > 0 && (
-                    <Box>
-                      <Typography variant="caption" sx={{ color: 'text.disabled', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', fontSize: '0.65rem', display: 'block', mb: 0.75 }}>
-                        Dependencies ({deps.length})
-                      </Typography>
-                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                        {(deps as any[]).map((dep: any) => (
-                          <Box key={dep.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1.25, py: 0.6, borderRadius: 1, backgroundColor: toRgba(accent, 0.08), border: `1px solid ${toRgba(accent, 0.18)}` }}>
-                            <Box sx={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: STATUS_COLORS[(dep.status || 'not_started')] || accent, flexShrink: 0 }} />
-                            <Typography sx={{ fontWeight: 600, fontSize: '0.78rem' }}>{dep.objectId || dep.dependsOnName || dep.taskName || dep.name || 'Task'}</Typography>
-                            {dep.endDate && <Typography variant="caption" color="text.secondary" sx={{ ml: 'auto' }}>Due {fmtDate(dep.endDate)}</Typography>}
-                          </Box>
-                        ))}
+                  <Box>
+                    <Typography variant="caption" sx={{ color: 'text.disabled', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', fontSize: '0.65rem', display: 'block', mb: 0.75 }}>
+                      Dependencies ({deps.length})
+                    </Typography>
+                    {!scheduleLocked ? (
+                      <Box sx={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 1, mb: 1 }}>
+                        <TextField
+                          select
+                          size="small"
+                          label="Add dependency"
+                          value={newDependencyTaskId}
+                          onChange={e => setNewDependencyTaskId(e.target.value)}
+                          sx={fieldSx}
+                        >
+                          <MenuItem value=""><em>Select task</em></MenuItem>
+                          {dependencyOptions.map((t: any) => (
+                            <MenuItem key={t.id} value={t.id}>{t.name || t.taskName || t.id}</MenuItem>
+                          ))}
+                        </TextField>
+                        <Button
+                          variant="outlined"
+                          disabled={!newDependencyTaskId || dependencySaving}
+                          onClick={addDependency}
+                          sx={{ textTransform: 'none', borderColor: toRgba(accent, 0.35), color: accent }}
+                        >
+                          Add
+                        </Button>
                       </Box>
+                    ) : (
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.8 }}>
+                        Dependencies are locked once work is in progress.
+                      </Typography>
+                    )}
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                      {(deps as any[]).map((dep: any) => (
+                        <Box key={dep.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1.25, py: 0.6, borderRadius: 1, backgroundColor: toRgba(accent, 0.08), border: `1px solid ${toRgba(accent, 0.18)}` }}>
+                          <Box sx={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: STATUS_COLORS[(dep.status || 'not_started')] || accent, flexShrink: 0 }} />
+                          <Typography sx={{ fontWeight: 600, fontSize: '0.78rem' }}>{dep.objectId || dep.dependsOnName || dep.taskName || dep.name || 'Task'}</Typography>
+                          {dep.endDate && <Typography variant="caption" color="text.secondary" sx={{ ml: 'auto' }}>Due {fmtDate(dep.endDate)}</Typography>}
+                          {!scheduleLocked ? (
+                            <IconButton size="small" onClick={() => removeDependency(dep.dependsOnTaskId)} sx={{ ml: 0.5, opacity: 0.65, '&:hover': { opacity: 1, color: '#ef5350' } }}>
+                              <DeleteIcon sx={{ fontSize: '0.92rem' }} />
+                            </IconButton>
+                          ) : null}
+                        </Box>
+                      ))}
                     </Box>
-                  )}
+                  </Box>
                 </Box>
               )}
 
