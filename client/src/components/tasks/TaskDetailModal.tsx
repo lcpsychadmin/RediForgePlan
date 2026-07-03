@@ -251,6 +251,15 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     enabled: open && !!resolvedTask?.projectId,
   });
 
+  const { data: projectTaskGroups = [] } = useQuery({
+    queryKey: ['task-project-task-groups-modal', resolvedTask?.projectId],
+    queryFn: async () => {
+      if (!resolvedTask?.projectId) return [];
+      return (await apiClient.get(`/api/tasks/groups/project/${resolvedTask.projectId}`)).data.data || [];
+    },
+    enabled: open && !!resolvedTask?.projectId,
+  });
+
   useEffect(() => {
     if (!open) return;
     apiClient.get('/api/hierarchy-preferences/state')
@@ -693,13 +702,29 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
           />
           <Box sx={{ maxHeight: 420, overflowY: 'auto' }}>
             {(() => {
+              const formatObjectLabel = (obj?: any, fallbackObjectId?: string) => {
+                const objectId = String(obj?.objectId || fallbackObjectId || '').trim();
+                const description = String(obj?.description || obj?.subObjectDescription || '').trim();
+                if (objectId && description) return `${objectId} - ${description}`;
+                if (objectId) return objectId;
+                if (description) return description;
+                return 'Object';
+              };
+
+              const groupById = new Map<string, any>((projectTaskGroups as any[]).map((g: any) => [g.id, g]));
+
               const filtered = dependencyOptions.filter((t: any) => {
                 if (!depSearchTerm.trim()) return true;
                 const q = depSearchTerm.trim().toLowerCase();
+                const obj = t.projectObjectId ? (projectObjects as any[]).find((po: any) => po.id === t.projectObjectId) : null;
+                const objectLabel = formatObjectLabel(obj, t.objectId).toLowerCase();
+                const groupLabel = String(groupById.get(t.taskGroupId || '')?.name || t.groupLabel || '').toLowerCase();
                 return (
                   String(t.name || '').toLowerCase().includes(q)
                   || String(t.objectId || '').toLowerCase().includes(q)
                   || String(t.processArea || '').toLowerCase().includes(q)
+                  || objectLabel.includes(q)
+                  || groupLabel.includes(q)
                 );
               });
 
@@ -740,10 +765,11 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
               const ensureObjectNode = (
                 nodes: Record<string, TreeNode>,
                 objectId: string,
+                fallbackObjectId?: string,
               ): string => {
                 const obj = objectById.get(objectId);
                 const nodeKey = `obj-${objectId}`;
-                const label = obj?.objectId || 'Object';
+                const label = formatObjectLabel(obj, fallbackObjectId);
                 const parentId = obj?.parentProjectObjectId || null;
                 const parentNodeKey = parentId ? ensureObjectNode(nodes, parentId) : null;
 
@@ -778,14 +804,15 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
 
                 let nodeKey = '';
                 if (t.projectObjectId) {
-                  nodeKey = ensureObjectNode(nodes, t.projectObjectId);
+                  nodeKey = ensureObjectNode(nodes, t.projectObjectId, t.objectId);
                   nodes[nodeKey].tasks.push(t);
                 } else if (t.taskGroupId) {
                   nodeKey = `grp-${t.taskGroupId}`;
                   if (!nodes[nodeKey]) {
+                    const groupName = String(groupById.get(t.taskGroupId)?.name || t.groupLabel || '').trim();
                     nodes[nodeKey] = {
                       key: nodeKey,
-                      label: t.groupLabel || 'Task Group',
+                      label: groupName || 'Task Group',
                       type: 'taskGroup',
                       tasks: [],
                       children: [],
