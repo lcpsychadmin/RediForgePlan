@@ -307,6 +307,36 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     enabled: open && !!cycleIdResolved,
   });
 
+  const { data: siblingProjectObjects = [] } = useQuery({
+    queryKey: ['task-sibling-project-objects-modal', projectDetails?.programId, projectDetails?.name],
+    queryFn: async () => {
+      const programId = projectDetails?.programId;
+      const projectName = String(projectDetails?.name || resolvedTask?.projectName || '').trim().toLowerCase();
+      if (!programId || !projectName) return [];
+
+      const projects = (await apiClient.get(`/api/projects/by-program/${programId}`)).data.data || [];
+      const siblingIds = (projects as any[])
+        .filter((p: any) => String(p.name || '').trim().toLowerCase() === projectName)
+        .map((p: any) => p.id)
+        .filter(Boolean);
+
+      if (siblingIds.length === 0) return [];
+
+      const responses = await Promise.all(
+        siblingIds.map((id: string) =>
+          apiClient.get(`/api/project-objects/project/${id}`).then((r) => r.data.data || []).catch(() => [])
+        )
+      );
+
+      const deduped = new Map<string, any>();
+      responses.flat().forEach((obj: any) => {
+        if (obj?.id) deduped.set(obj.id, obj);
+      });
+      return Array.from(deduped.values());
+    },
+    enabled: open && !!projectDetails?.programId,
+  });
+
   useEffect(() => {
     if (!open) return;
     apiClient.get('/api/hierarchy-preferences/state')
@@ -763,7 +793,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
               const groupById = new Map<string, any>(allTaskGroups.map((g: any) => [g.id, g]));
               const allObjects = (() => {
                 const out = new Map<string, any>();
-                [...(projectObjects as any[]), ...(cycleObjects as any[])].forEach((obj: any) => {
+                [...(projectObjects as any[]), ...(cycleObjects as any[]), ...(siblingProjectObjects as any[])].forEach((obj: any) => {
                   if (!obj?.id) return;
                   out.set(obj.id, obj);
                 });
