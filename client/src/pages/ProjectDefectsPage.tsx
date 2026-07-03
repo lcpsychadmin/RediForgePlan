@@ -19,12 +19,10 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import PageContainer from '../layout/PageContainer';
 import ContentHeader from '../layout/ContentHeader';
 import apiClient from '../api/client';
-import { DefectStatus, ReportingSummary } from '../api/types';
+import { ReportingSummary } from '../api/types';
 import { useFilter } from '../contexts/FilterContext';
 import { useProjectDefects } from '../api/hooks';
 import DefectCommentsModal from '../components/DefectCommentsModal';
-
-const statusOptions: DefectStatus[] = ['open', 'in_progress', 'resolved', 'closed'];
 
 const surfaceSx = {
   border: '1px solid rgba(255,255,255,0.08)',
@@ -185,9 +183,9 @@ const ProjectDefectsPage: React.FC<ProjectDefectsPageProps> = ({ projectId: proj
             <Table size="small" stickyHeader>
               <TableHead>
                 <TableRow>
-                  <TableCell sx={tableTh}>ID</TableCell>
+                  <TableCell sx={tableTh}>Defect #</TableCell>
                   <TableCell sx={tableTh}>Title</TableCell>
-                  <TableCell sx={tableTh}>Task</TableCell>
+                  <TableCell sx={tableTh}>Root Cause</TableCell>
                   <TableCell sx={tableTh}>State</TableCell>
                 </TableRow>
               </TableHead>
@@ -201,15 +199,15 @@ const ProjectDefectsPage: React.FC<ProjectDefectsPageProps> = ({ projectId: proj
                     sx={{ cursor: 'pointer', '&:hover': { backgroundColor: 'rgba(255,255,255,0.035)' }, backgroundColor: 'rgba(255,255,255,0.01)' }}
                   >
                     <TableCell sx={tableTd}>
-                      <Typography sx={{ fontWeight: 700, fontSize: '0.78rem' }}>BUG {defect.id.slice(0, 8)}</Typography>
-                      <Typography variant="caption" color="text.secondary">{defect.issueCode || 'No issue code'}</Typography>
+                      <Typography sx={{ fontWeight: 700, fontSize: '0.78rem' }}>{defect.id}</Typography>
+                      <Typography variant="caption" color="text.secondary">{defect.taskName || 'Task'}</Typography>
                     </TableCell>
                     <TableCell sx={tableTd}>
                       <Typography sx={{ fontWeight: 600, fontSize: '0.8rem' }}>{defect.title}</Typography>
-                      <Typography variant="caption" color="text.secondary">{defect.description || 'No description.'}</Typography>
+                      <Typography variant="caption" color="text.secondary">{defect.defectDetails || 'No problem statement.'}</Typography>
                     </TableCell>
                     <TableCell sx={tableTd}>
-                      <Typography sx={{ fontSize: '0.78rem', color: 'text.secondary' }}>{defect.taskName || 'Task'}</Typography>
+                      <Typography sx={{ fontSize: '0.78rem', color: 'text.secondary' }}>{defect.rootCauseCategoryName || 'Unspecified'}</Typography>
                     </TableCell>
                     <TableCell sx={tableTd}>
                       <Stack spacing={0.5}>

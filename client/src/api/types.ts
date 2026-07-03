@@ -398,10 +398,16 @@ export type DefectStatus = 'open' | 'in_progress' | 'resolved' | 'closed';
 export interface Defect {
   id: string;
   taskId: string;
+  taskName?: string | null;
   projectObjectId?: string | null;
   issueTypeId?: string | null;
   title: string;
-  description?: string | null;
+  defectDetails?: string | null;
+  rootCauseDetails?: string | null;
+  resolutionDetails?: string | null;
+  rootCauseCategoryId?: string | null;
+  rootCauseCategoryName?: string | null;
+  targetResolutionDate?: string | null;
   severity: DefectSeverity;
   status: DefectStatus;
   assignedToUserId?: string | null;
@@ -429,7 +435,11 @@ export interface CreateDefectPayload {
   projectObjectId?: string | null;
   issueTypeId?: string | null;
   title: string;
-  description?: string;
+  defectDetails?: string;
+  rootCauseDetails?: string;
+  resolutionDetails?: string;
+  rootCauseCategoryId?: string | null;
+  targetResolutionDate?: string | null;
   severity: DefectSeverity;
   status?: DefectStatus;
   assignedToUserId?: string | null;
@@ -437,11 +447,44 @@ export interface CreateDefectPayload {
 
 export interface UpdateDefectPayload {
   title?: string;
-  description?: string;
+  defectDetails?: string;
+  rootCauseDetails?: string;
+  resolutionDetails?: string;
+  rootCauseCategoryId?: string | null;
+  targetResolutionDate?: string | null;
   severity?: DefectSeverity;
   status?: DefectStatus;
   assignedToUserId?: string | null;
-  resolvedAt?: string | null;
+}
+
+export interface DefectRootCauseCategory {
+  id: string;
+  name: string;
+  sortOrder: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DefectHistoryEvent {
+  id: string;
+  action: string;
+  beforeData?: Record<string, any> | null;
+  afterData?: Record<string, any> | null;
+  createdAt: string;
+  userId?: string | null;
+  userEmail?: string | null;
+}
+
+export interface DefectAttachment {
+  id: string;
+  defectId: string;
+  fileName: string;
+  mimeType: string;
+  fileSize: number;
+  uploadedByUserId?: string | null;
+  uploadedByUserEmail?: string | null;
+  createdAt: string;
 }
 
 // ============================================

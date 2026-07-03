@@ -32,7 +32,7 @@ interface PersonOption {
 
 const defaultState = {
   title: '',
-  description: '',
+  defectDetails: '',
   severity: 'medium' as DefectSeverity,
   status: 'open' as DefectStatus,
   assignedToUserId: '',
@@ -66,7 +66,7 @@ const DefectFormDialog: React.FC<DefectFormDialogProps> = ({
     if (defect) {
       setState({
         title: defect.title || '',
-        description: defect.description || '',
+        defectDetails: defect.defectDetails || '',
         severity: defect.severity,
         status: defect.status,
         assignedToUserId: defect.assignedToUserId || '',
@@ -84,7 +84,7 @@ const DefectFormDialog: React.FC<DefectFormDialogProps> = ({
   const handleSave = () => {
     const payload = {
       title: state.title.trim(),
-      description: state.description.trim(),
+      defectDetails: state.defectDetails.trim(),
       severity: state.severity,
       status: state.status,
       assignedToUserId: state.assignedToUserId || null,
@@ -115,8 +115,8 @@ const DefectFormDialog: React.FC<DefectFormDialogProps> = ({
 
           <TextField
             label="Description"
-            value={state.description}
-            onChange={(e) => setState((prev) => ({ ...prev, description: e.target.value }))}
+            value={state.defectDetails}
+            onChange={(e) => setState((prev) => ({ ...prev, defectDetails: e.target.value }))}
             multiline
             minRows={3}
             fullWidth

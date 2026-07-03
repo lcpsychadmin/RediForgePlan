@@ -426,8 +426,8 @@ const PrioritiesPage: React.FC = () => {
                       <TableRow key={defect.id} hover sx={{ '&:hover': { backgroundColor: 'rgba(255,255,255,0.035)' } }}>
                         <TableCell sx={td}>
                           <Typography sx={{ fontWeight: 600, fontSize: '0.8rem' }}>{defect.title || 'Untitled Defect'}</Typography>
-                          {defect.description && (
-                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 340 }}>{defect.description}</Typography>
+                          {defect.defectDetails && (
+                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 340 }}>{defect.defectDetails}</Typography>
                           )}
                         </TableCell>
                         <TableCell sx={td}>

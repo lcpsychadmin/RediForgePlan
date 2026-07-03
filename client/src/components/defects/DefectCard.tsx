@@ -53,9 +53,9 @@ const DefectCard: React.FC<DefectCardProps> = ({ defect, users, onEdit, onStatus
           </Tooltip>
         </Box>
 
-        {defect.description ? (
+        {defect.defectDetails ? (
           <Typography variant="body2" color="text.secondary">
-            {defect.description}
+            {defect.defectDetails}
           </Typography>
         ) : null}
 

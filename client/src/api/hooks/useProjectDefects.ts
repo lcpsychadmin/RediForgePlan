@@ -9,7 +9,7 @@ export interface ProjectDefectFilters {
 
 export function useProjectDefects(projectId: string, filters?: ProjectDefectFilters) {
   return useQuery({
-    queryKey: ['projectDefects', projectId, filters],
+    queryKey: ['project-defects', projectId, filters],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (filters?.statuses?.length) {
