@@ -989,6 +989,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                                   const nodeOpen = searching
                                     ? (forcedExpanded.has(nodeExpKey) || nodeManual === true)
                                     : (nodeManual ?? forcedExpanded.has(nodeExpKey));
+                                  const showNodeTasks = nodeData.children.length === 0;
 
                                   return (
                                     <Box key={nodeKey} sx={{ ml: depth * 2.2, mb: 0.2 }}>
@@ -1000,7 +1001,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                                         <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500, fontSize: '0.72rem' }}>{nodeData.label}</Typography>
                                       </Box>
 
-                                      {nodeOpen && nodeData.tasks.map((t: any) => {
+                                      {nodeOpen && showNodeTasks && nodeData.tasks.map((t: any) => {
                                         const isDep = depIds.has(t.id);
                                         return (
                                           <Box
