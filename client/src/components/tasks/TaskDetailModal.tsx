@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  Dialog, DialogContent, Box, Typography, IconButton, TextField, MenuItem,
+  Dialog, DialogContent, DialogTitle, DialogActions, Box, Typography, IconButton, TextField, MenuItem,
   Chip, CircularProgress, Alert, LinearProgress, Divider, Avatar, Button,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
@@ -209,7 +209,8 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   const [saveError, setSaveError] = useState<string | null>(null);
   const [tab, setTab] = useState(0);
   const [globalProcessAreaAccents, setGlobalProcessAreaAccents] = useState<Record<string, string>>({});
-  const [newDependencyTaskId, setNewDependencyTaskId] = useState('');
+  const [depPickerOpen, setDepPickerOpen] = useState(false);
+  const [depSearchTerm, setDepSearchTerm] = useState('');
   const [dependencySaving, setDependencySaving] = useState(false);
 
   const { data: fetched, isLoading } = useQuery({
@@ -261,7 +262,6 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
         startDate: toInputDate(resolvedTask.startDate),
         endDate: toInputDate(resolvedTask.endDate),
         duration: resolvedTask.duration ?? '',
-        durationUnit: resolvedTask.durationUnit || 'days',
         notes: resolvedTask.notes || '',
         progressPercentage: resolvedTask.progressPercentage ?? 0,
       });
@@ -287,7 +287,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
         actualEndDate: editData.actualEndDate || null,
         assignedTo: editData.assignedTo || null,
         duration: editData.duration === '' ? null : Number(editData.duration),
-        durationUnit: editData.durationUnit || 'days',
+        durationUnit: 'days',
         notes: editData.notes || null,
         progressPercentage: Number(editData.progressPercentage) || 0,
       };
@@ -322,17 +322,26 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   const scheduleLocked = editData?.status === 'in_progress' || editData?.status === 'blocked' || editData?.status === 'complete';
   const hasDependencies = (deps as any[]).length > 0;
   const hasDuration = Number(editData?.duration || 0) > 0;
-  const showPlanDates = !hasDependencies && !hasDuration;
+  const planDatesEditable = !scheduleLocked && !hasDependencies && !hasDuration;
   const dependencyOptions = (projectTasks as any[])
     .filter((t: any) => t.id !== taskIdResolved)
     .filter((t: any) => !(deps as any[]).some((d: any) => d.dependsOnTaskId === t.id));
 
-  const addDependency = async () => {
-    if (!taskIdResolved || !newDependencyTaskId || scheduleLocked) return;
+  const filteredDependencyOptions = dependencyOptions.filter((t: any) => {
+    if (!depSearchTerm.trim()) return true;
+    const q = depSearchTerm.trim().toLowerCase();
+    return (
+      String(t.name || '').toLowerCase().includes(q)
+      || String(t.objectId || '').toLowerCase().includes(q)
+      || String(t.processArea || '').toLowerCase().includes(q)
+    );
+  });
+
+  const addDependency = async (dependsOnTaskId: string) => {
+    if (!taskIdResolved || !dependsOnTaskId || scheduleLocked) return;
     try {
       setDependencySaving(true);
-      await apiClient.post(`/api/tasks/${taskIdResolved}/dependencies`, { dependsOnTaskId: newDependencyTaskId });
-      setNewDependencyTaskId('');
+      await apiClient.post(`/api/tasks/${taskIdResolved}/dependencies`, { dependsOnTaskId });
       await queryClient.invalidateQueries({ queryKey: ['task-deps-modal', taskIdResolved] });
     } finally {
       setDependencySaving(false);
@@ -442,7 +451,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                   </TextField>
 
                   {/* Duration */}
-                  <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 220px', gap: 1.5 }}>
+                  <Box sx={{ display: 'grid', gridTemplateColumns: '1fr', gap: 1.5 }}>
                     <TextField
                       size="small"
                       label="Duration"
@@ -453,51 +462,42 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                       slotProps={{ htmlInput: { min: 0, step: 0.1 } }}
                       sx={fieldSx}
                     />
-                    <TextField
-                      size="small"
-                      select
-                      label="Duration Unit"
-                      value={editData.durationUnit || 'days'}
-                      onChange={e => set('durationUnit', e.target.value)}
-                      disabled={scheduleLocked}
-                      sx={fieldSx}
-                    >
-                      <MenuItem value="hours">Hours</MenuItem>
-                      <MenuItem value="days">Days</MenuItem>
-                    </TextField>
                   </Box>
 
                   {/* ── Date sections ── */}
 
-                  {showPlanDates ? (
-                    <Box>
-                      <Typography variant="caption" sx={{ color: 'text.disabled', fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', fontSize: '0.63rem', display: 'block', mb: 0.75 }}>
-                        Plan Dates
-                      </Typography>
-                      <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5 }}>
-                        <TextField
-                          size="small"
-                          label="Plan Start"
-                          type="date"
-                          value={editData.startDate || ''}
-                          onChange={e => set('startDate', e.target.value)}
-                          disabled={scheduleLocked}
-                          InputLabelProps={{ shrink: true }}
-                          sx={fieldSx}
-                        />
-                        <TextField
-                          size="small"
-                          label="Plan End"
-                          type="date"
-                          value={editData.endDate || ''}
-                          onChange={e => set('endDate', e.target.value)}
-                          disabled={scheduleLocked}
-                          InputLabelProps={{ shrink: true }}
-                          sx={fieldSx}
-                        />
-                      </Box>
+                  <Box>
+                    <Typography variant="caption" sx={{ color: 'text.disabled', fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', fontSize: '0.63rem', display: 'block', mb: 0.75 }}>
+                      Plan Dates
+                    </Typography>
+                    <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5 }}>
+                      <TextField
+                        size="small"
+                        label="Plan Start"
+                        type="date"
+                        value={editData.startDate || ''}
+                        onChange={e => set('startDate', e.target.value)}
+                        disabled={!planDatesEditable}
+                        InputLabelProps={{ shrink: true }}
+                        sx={fieldSx}
+                      />
+                      <TextField
+                        size="small"
+                        label="Plan End"
+                        type="date"
+                        value={editData.endDate || ''}
+                        onChange={e => set('endDate', e.target.value)}
+                        disabled={!planDatesEditable}
+                        InputLabelProps={{ shrink: true }}
+                        sx={fieldSx}
+                      />
                     </Box>
-                  ) : null}
+                    {!planDatesEditable ? (
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                        Plan dates are editable only when task is Not Started and there are no dependencies or duration.
+                      </Typography>
+                    ) : null}
+                  </Box>
 
                   {/* Revised dates */}
                   <Box>
@@ -567,27 +567,13 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                       Dependencies ({deps.length})
                     </Typography>
                     {!scheduleLocked ? (
-                      <Box sx={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 1, mb: 1 }}>
-                        <TextField
-                          select
-                          size="small"
-                          label="Add dependency"
-                          value={newDependencyTaskId}
-                          onChange={e => setNewDependencyTaskId(e.target.value)}
-                          sx={fieldSx}
-                        >
-                          <MenuItem value=""><em>Select task</em></MenuItem>
-                          {dependencyOptions.map((t: any) => (
-                            <MenuItem key={t.id} value={t.id}>{t.name || t.taskName || t.id}</MenuItem>
-                          ))}
-                        </TextField>
+                      <Box sx={{ mb: 1 }}>
                         <Button
                           variant="outlined"
-                          disabled={!newDependencyTaskId || dependencySaving}
-                          onClick={addDependency}
+                          onClick={() => setDepPickerOpen(true)}
                           sx={{ textTransform: 'none', borderColor: toRgba(accent, 0.35), color: accent }}
                         >
-                          Add
+                          Manage Dependencies
                         </Button>
                       </Box>
                     ) : (
@@ -635,6 +621,52 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
           </>
         )}
       </DialogContent>
+
+      <Dialog open={depPickerOpen} onClose={() => setDepPickerOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ pb: 1 }}>Task Dependencies</DialogTitle>
+        <DialogContent sx={{ pb: 0 }}>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1.2 }}>
+            Select tasks that must complete before this task can start.
+          </Typography>
+          <TextField
+            fullWidth
+            size="small"
+            placeholder="Search tasks..."
+            value={depSearchTerm}
+            onChange={(e) => setDepSearchTerm(e.target.value)}
+            sx={{ mb: 1.2 }}
+          />
+          <Box sx={{ maxHeight: 420, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+            {filteredDependencyOptions.map((t: any) => (
+              <Box
+                key={t.id}
+                onClick={() => addDependency(t.id)}
+                sx={{
+                  px: 1,
+                  py: 0.7,
+                  borderRadius: 1,
+                  cursor: 'pointer',
+                  border: '1px solid rgba(255,255,255,0.08)',
+                  '&:hover': { backgroundColor: toRgba(accent, 0.12) },
+                }}
+              >
+                <Typography sx={{ fontSize: '0.82rem', fontWeight: 600 }}>{t.name || t.taskName || t.id}</Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {[(t.objectId || '').trim(), (t.processArea || '').trim()].filter(Boolean).join(' · ') || 'Task'}
+                </Typography>
+              </Box>
+            ))}
+            {filteredDependencyOptions.length === 0 ? (
+              <Typography variant="caption" color="text.secondary" sx={{ px: 0.5, py: 1 }}>
+                No available tasks found.
+              </Typography>
+            ) : null}
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDepPickerOpen(false)} sx={{ textTransform: 'none' }} disabled={dependencySaving}>Done</Button>
+        </DialogActions>
+      </Dialog>
     </Dialog>
   );
 };
