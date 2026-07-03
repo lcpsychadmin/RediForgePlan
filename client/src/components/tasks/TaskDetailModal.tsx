@@ -242,6 +242,35 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     enabled: open && !!resolvedTask?.projectId,
   });
 
+  const { data: projectDetails = null } = useQuery({
+    queryKey: ['task-project-details-modal', resolvedTask?.projectId],
+    queryFn: async () => {
+      if (!resolvedTask?.projectId) return null;
+      return (await apiClient.get(`/api/projects/${resolvedTask.projectId}`)).data.data || null;
+    },
+    enabled: open && !!resolvedTask?.projectId,
+  });
+
+  const cycleIdResolved = resolvedTask?.mockCycleId || projectDetails?.mockCycleId || null;
+
+  const { data: cycleDetails = null } = useQuery({
+    queryKey: ['task-cycle-details-modal', cycleIdResolved],
+    queryFn: async () => {
+      if (!cycleIdResolved) return null;
+      return (await apiClient.get(`/api/mock-cycles/${cycleIdResolved}`)).data.data || null;
+    },
+    enabled: open && !!cycleIdResolved,
+  });
+
+  const { data: cycleTasks = [] } = useQuery({
+    queryKey: ['task-cycle-tasks-modal', cycleIdResolved],
+    queryFn: async () => {
+      if (!cycleIdResolved) return [];
+      return (await apiClient.get(`/api/tasks/cycle/${cycleIdResolved}`)).data.data || [];
+    },
+    enabled: open && !!cycleIdResolved,
+  });
+
   const { data: projectObjects = [] } = useQuery({
     queryKey: ['task-project-objects-modal', resolvedTask?.projectId],
     queryFn: async () => {
@@ -252,12 +281,12 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   });
 
   const { data: cycleObjects = [] } = useQuery({
-    queryKey: ['task-cycle-objects-modal', resolvedTask?.mockCycleId],
+    queryKey: ['task-cycle-objects-modal', cycleIdResolved],
     queryFn: async () => {
-      if (!resolvedTask?.mockCycleId) return [];
-      return (await apiClient.get(`/api/project-objects/cycle/${resolvedTask.mockCycleId}`)).data.data || [];
+      if (!cycleIdResolved) return [];
+      return (await apiClient.get(`/api/project-objects/cycle/${cycleIdResolved}`)).data.data || [];
     },
-    enabled: open && !!resolvedTask?.mockCycleId,
+    enabled: open && !!cycleIdResolved,
   });
 
   const { data: projectTaskGroups = [] } = useQuery({
@@ -267,6 +296,15 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
       return (await apiClient.get(`/api/tasks/groups/project/${resolvedTask.projectId}`)).data.data || [];
     },
     enabled: open && !!resolvedTask?.projectId,
+  });
+
+  const { data: cycleTaskGroups = [] } = useQuery({
+    queryKey: ['task-cycle-task-groups-modal', cycleIdResolved],
+    queryFn: async () => {
+      if (!cycleIdResolved) return [];
+      return (await apiClient.get(`/api/tasks/groups/cycle/${cycleIdResolved}`)).data.data || [];
+    },
+    enabled: open && !!cycleIdResolved,
   });
 
   useEffect(() => {
@@ -353,9 +391,10 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   const hasDependencies = (deps as any[]).length > 0;
   const hasDuration = Number(editData?.duration || 0) > 0;
   const planDatesEditable = !scheduleLocked && !hasDependencies && !hasDuration;
+  const taskUniverse = (cycleTasks as any[]).length > 0 ? (cycleTasks as any[]) : (projectTasks as any[]);
   const dependencyOptions = (() => {
     const byId = new Map<string, any>();
-    (projectTasks as any[])
+    taskUniverse
       .filter((t: any) => t.id !== taskIdResolved)
       .forEach((t: any) => {
         byId.set(t.id, t);
@@ -720,7 +759,8 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                 return 'Object';
               };
 
-              const groupById = new Map<string, any>((projectTaskGroups as any[]).map((g: any) => [g.id, g]));
+              const allTaskGroups = (cycleTaskGroups as any[]).length > 0 ? (cycleTaskGroups as any[]) : (projectTaskGroups as any[]);
+              const groupById = new Map<string, any>(allTaskGroups.map((g: any) => [g.id, g]));
               const allObjects = (() => {
                 const out = new Map<string, any>();
                 [...(projectObjects as any[]), ...(cycleObjects as any[])].forEach((obj: any) => {
@@ -729,6 +769,8 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                 });
                 return Array.from(out.values());
               })();
+              const cycleDisplay = String(cycleDetails?.description || cycleDetails?.name || resolvedTask?.mockCycleDescription || resolvedTask?.mockCycleName || 'Current Cycle').trim();
+              const currentProjectDisplay = String(projectDetails?.description || projectDetails?.name || resolvedTask?.projectDescription || resolvedTask?.projectName || 'Project').trim();
 
               const filtered = dependencyOptions.filter((t: any) => {
                 if (!depSearchTerm.trim()) return true;
@@ -811,7 +853,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
 
               filtered.forEach((t: any) => {
                 const projectId = t.projectId || resolvedTask?.projectId || 'project';
-                const projectName = t.projectName || resolvedTask?.projectName || 'Project';
+                const projectName = t.projectName || currentProjectDisplay || 'Project';
                 const projectColor = t.projectAccentColor || accent;
                 const projectEntry = ensureProject(projectId, projectName, projectColor);
 
@@ -872,7 +914,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                   <Box sx={{ px: 0.5, pb: 0.5, display: 'flex', alignItems: 'center', gap: 0.75 }}>
                     <SyncIcon sx={{ fontSize: '0.8rem', color: 'text.disabled' }} />
                     <Typography variant="caption" sx={{ color: 'text.disabled', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', fontSize: '0.65rem' }}>
-                      {resolvedTask?.mockCycleName || 'Current Cycle'}
+                      {cycleDisplay}
                     </Typography>
                   </Box>
 
