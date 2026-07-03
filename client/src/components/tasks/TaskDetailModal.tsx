@@ -251,6 +251,15 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     enabled: open && !!resolvedTask?.projectId,
   });
 
+  const { data: cycleObjects = [] } = useQuery({
+    queryKey: ['task-cycle-objects-modal', resolvedTask?.mockCycleId],
+    queryFn: async () => {
+      if (!resolvedTask?.mockCycleId) return [];
+      return (await apiClient.get(`/api/project-objects/cycle/${resolvedTask.mockCycleId}`)).data.data || [];
+    },
+    enabled: open && !!resolvedTask?.mockCycleId,
+  });
+
   const { data: projectTaskGroups = [] } = useQuery({
     queryKey: ['task-project-task-groups-modal', resolvedTask?.projectId],
     queryFn: async () => {
@@ -712,11 +721,19 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
               };
 
               const groupById = new Map<string, any>((projectTaskGroups as any[]).map((g: any) => [g.id, g]));
+              const allObjects = (() => {
+                const out = new Map<string, any>();
+                [...(projectObjects as any[]), ...(cycleObjects as any[])].forEach((obj: any) => {
+                  if (!obj?.id) return;
+                  out.set(obj.id, obj);
+                });
+                return Array.from(out.values());
+              })();
 
               const filtered = dependencyOptions.filter((t: any) => {
                 if (!depSearchTerm.trim()) return true;
                 const q = depSearchTerm.trim().toLowerCase();
-                const obj = t.projectObjectId ? (projectObjects as any[]).find((po: any) => po.id === t.projectObjectId) : null;
+                const obj = t.projectObjectId ? allObjects.find((po: any) => po.id === t.projectObjectId) : null;
                 const objectLabel = formatObjectLabel(obj, t.objectId).toLowerCase();
                 const groupLabel = String(groupById.get(t.taskGroupId || '')?.name || t.groupLabel || '').toLowerCase();
                 return (
@@ -753,7 +770,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                   projectMap[projectId] = { name: projectName || 'Project', color: color || accent, areas: {} };
                 }
                 return projectMap[projectId];
-              };
+                              const objectById = new Map<string, any>(allObjects.map((po: any) => [po.id, po]));
 
               const ensureArea = (projectEntry: { areas: Record<string, { nodes: Record<string, TreeNode> }> }, areaName: string) => {
                 if (!projectEntry.areas[areaName]) {
@@ -768,7 +785,8 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                 fallbackObjectId?: string,
               ): string => {
                 const obj = objectById.get(objectId);
-                const nodeKey = `obj-${objectId}`;
+                const fallbackKey = String(fallbackObjectId || '').trim().toLowerCase().replace(/\s+/g, '_');
+                const nodeKey = obj ? `obj-${objectId}` : (fallbackKey ? `obj-fallback-${fallbackKey}` : `obj-${objectId}`);
                 const label = formatObjectLabel(obj, fallbackObjectId);
                 const parentId = obj?.parentProjectObjectId || null;
                 const parentNodeKey = parentId ? ensureObjectNode(nodes, parentId) : null;
