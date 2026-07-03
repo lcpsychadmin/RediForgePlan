@@ -8591,14 +8591,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
             >
               <EditIcon fontSize="small" sx={{ mr: 1 }} /> Task Details
             </MenuItem>
-            <MenuItem
-              onClick={() => {
-                openTaskDetails(taskRowMenuTask, (taskRowMenuTask.taskType === 'preload_validation' || taskRowMenuTask.taskType === 'postload_validation') ? 2 : 1);
-                closeTaskRowMenu();
-              }}
-            >
-              <WarningAmberIcon fontSize="small" sx={{ mr: 1 }} /> Add Defect
-            </MenuItem>
             {(taskRowMenuTask.taskType === 'preload_validation' || taskRowMenuTask.taskType === 'postload_validation') && (
               <MenuItem
                 onClick={() => {

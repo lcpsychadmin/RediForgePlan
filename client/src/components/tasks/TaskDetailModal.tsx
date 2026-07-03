@@ -53,6 +53,8 @@ const toRgba = (hex: string, alpha: number) => {
   return `rgba(${r},${g},${b},${alpha})`;
 };
 
+const isHexColor = (value?: string | null) => typeof value === 'string' && /^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/.test(value.trim());
+
 // ── types ─────────────────────────────────────────────────────────────────────
 
 interface TaskDetailModalProps {
@@ -206,6 +208,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [tab, setTab] = useState(0);
+  const [globalProcessAreaAccents, setGlobalProcessAreaAccents] = useState<Record<string, string>>({});
 
   const { data: fetched, isLoading } = useQuery({
     queryKey: ['task-details-modal', taskId],
@@ -223,6 +226,16 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     queryFn: async () => (await apiClient.get(`/api/tasks/${taskIdResolved}/dependencies`)).data.data || [],
     enabled: open && !!taskIdResolved,
   });
+
+  useEffect(() => {
+    if (!open) return;
+    apiClient.get('/api/hierarchy-preferences/state')
+      .then((response) => {
+        const state = response.data?.data || {};
+        setGlobalProcessAreaAccents(state.globalProcessAreaAccents || {});
+      })
+      .catch(() => setGlobalProcessAreaAccents({}));
+  }, [open]);
 
   // Reset edit data when task changes or modal opens
   useEffect(() => {
@@ -272,7 +285,11 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   // Effective end date for overdue calc: actual → revised → plan
   const effectiveEnd = editData?.actualEndDate || editData?.revisedEndDate || resolvedTask?.endDate;
   const over = daysOverdue(effectiveEnd);
-  const accent = accentColor || '#29b6f6';
+  const processAreaName = String(resolvedTask?.processArea || resolvedTask?.process_area || '').trim().toLowerCase();
+  const processAreaAccent = Object.entries(globalProcessAreaAccents).find(([key]) => key.trim().toLowerCase() === processAreaName)?.[1];
+  const accent = isHexColor(processAreaAccent)
+    ? processAreaAccent!.trim()
+    : (isHexColor(accentColor) ? accentColor : '#29b6f6');
 
   const fieldSx = {
     '& .MuiInputBase-root': { fontSize: '0.82rem' },
