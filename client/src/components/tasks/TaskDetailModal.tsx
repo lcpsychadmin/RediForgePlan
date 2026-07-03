@@ -9,6 +9,8 @@ import CloseIcon from '@mui/icons-material/Close';
 import SaveIcon from '@mui/icons-material/Save';
 import SendIcon from '@mui/icons-material/Send';
 import DeleteIcon from '@mui/icons-material/Delete';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import SyncIcon from '@mui/icons-material/Sync';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import apiClient from '../../api/client';
 import { useAuth } from '../../contexts/AuthContext';
@@ -211,6 +213,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   const [globalProcessAreaAccents, setGlobalProcessAreaAccents] = useState<Record<string, string>>({});
   const [depPickerOpen, setDepPickerOpen] = useState(false);
   const [depSearchTerm, setDepSearchTerm] = useState('');
+  const [depTreeExpanded, setDepTreeExpanded] = useState<Record<string, boolean>>({});
   const [dependencySaving, setDependencySaving] = useState(false);
 
   const { data: fetched, isLoading } = useQuery({
@@ -327,16 +330,6 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     .filter((t: any) => t.id !== taskIdResolved)
     .filter((t: any) => !(deps as any[]).some((d: any) => d.dependsOnTaskId === t.id));
 
-  const filteredDependencyOptions = dependencyOptions.filter((t: any) => {
-    if (!depSearchTerm.trim()) return true;
-    const q = depSearchTerm.trim().toLowerCase();
-    return (
-      String(t.name || '').toLowerCase().includes(q)
-      || String(t.objectId || '').toLowerCase().includes(q)
-      || String(t.processArea || '').toLowerCase().includes(q)
-    );
-  });
-
   const addDependency = async (dependsOnTaskId: string) => {
     if (!taskIdResolved || !dependsOnTaskId || scheduleLocked) return;
     try {
@@ -356,6 +349,14 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
       await queryClient.invalidateQueries({ queryKey: ['task-deps-modal', taskIdResolved] });
     } finally {
       setDependencySaving(false);
+    }
+  };
+
+  const toggleDependency = async (dependsOnTaskId: string) => {
+    if ((deps as any[]).some((d: any) => d.dependsOnTaskId === dependsOnTaskId)) {
+      await removeDependency(dependsOnTaskId);
+    } else {
+      await addDependency(dependsOnTaskId);
     }
   };
 
@@ -479,7 +480,18 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                         onChange={e => set('startDate', e.target.value)}
                         disabled={!planDatesEditable}
                         InputLabelProps={{ shrink: true }}
-                        sx={fieldSx}
+                        sx={{
+                          ...fieldSx,
+                          ...(planDatesEditable ? {} : {
+                            '& .MuiInputBase-root': {
+                              backgroundColor: 'rgba(255,255,255,0.04)',
+                            },
+                            '& .MuiOutlinedInput-notchedOutline': {
+                              borderStyle: 'dashed',
+                              borderColor: 'rgba(255,255,255,0.28)',
+                            },
+                          }),
+                        }}
                       />
                       <TextField
                         size="small"
@@ -489,14 +501,20 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                         onChange={e => set('endDate', e.target.value)}
                         disabled={!planDatesEditable}
                         InputLabelProps={{ shrink: true }}
-                        sx={fieldSx}
+                        sx={{
+                          ...fieldSx,
+                          ...(planDatesEditable ? {} : {
+                            '& .MuiInputBase-root': {
+                              backgroundColor: 'rgba(255,255,255,0.04)',
+                            },
+                            '& .MuiOutlinedInput-notchedOutline': {
+                              borderStyle: 'dashed',
+                              borderColor: 'rgba(255,255,255,0.28)',
+                            },
+                          }),
+                        }}
                       />
                     </Box>
-                    {!planDatesEditable ? (
-                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-                        Plan dates are editable only when task is Not Started and there are no dependencies or duration.
-                      </Typography>
-                    ) : null}
                   </Box>
 
                   {/* Revised dates */}
@@ -585,7 +603,9 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                       {(deps as any[]).map((dep: any) => (
                         <Box key={dep.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1.25, py: 0.6, borderRadius: 1, backgroundColor: toRgba(accent, 0.08), border: `1px solid ${toRgba(accent, 0.18)}` }}>
                           <Box sx={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: STATUS_COLORS[(dep.status || 'not_started')] || accent, flexShrink: 0 }} />
-                          <Typography sx={{ fontWeight: 600, fontSize: '0.78rem' }}>{dep.objectId || dep.dependsOnName || dep.taskName || dep.name || 'Task'}</Typography>
+                          <Typography sx={{ fontWeight: 600, fontSize: '0.78rem' }}>
+                            {[dep.objectId, dep.dependsOnName || dep.taskName || dep.name].filter(Boolean).join(' - ') || 'Task'}
+                          </Typography>
                           {dep.endDate && <Typography variant="caption" color="text.secondary" sx={{ ml: 'auto' }}>Due {fmtDate(dep.endDate)}</Typography>}
                           {!scheduleLocked ? (
                             <IconButton size="small" onClick={() => removeDependency(dep.dependsOnTaskId)} sx={{ ml: 0.5, opacity: 0.65, '&:hover': { opacity: 1, color: '#ef5350' } }}>
@@ -636,31 +656,118 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
             onChange={(e) => setDepSearchTerm(e.target.value)}
             sx={{ mb: 1.2 }}
           />
-          <Box sx={{ maxHeight: 420, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-            {filteredDependencyOptions.map((t: any) => (
-              <Box
-                key={t.id}
-                onClick={() => addDependency(t.id)}
-                sx={{
-                  px: 1,
-                  py: 0.7,
-                  borderRadius: 1,
-                  cursor: 'pointer',
-                  border: '1px solid rgba(255,255,255,0.08)',
-                  '&:hover': { backgroundColor: toRgba(accent, 0.12) },
-                }}
-              >
-                <Typography sx={{ fontSize: '0.82rem', fontWeight: 600 }}>{t.name || t.taskName || t.id}</Typography>
-                <Typography variant="caption" color="text.secondary">
-                  {[(t.objectId || '').trim(), (t.processArea || '').trim()].filter(Boolean).join(' · ') || 'Task'}
-                </Typography>
-              </Box>
-            ))}
-            {filteredDependencyOptions.length === 0 ? (
-              <Typography variant="caption" color="text.secondary" sx={{ px: 0.5, py: 1 }}>
-                No available tasks found.
-              </Typography>
-            ) : null}
+          <Box sx={{ maxHeight: 420, overflowY: 'auto' }}>
+            {(() => {
+              const filtered = dependencyOptions.filter((t: any) => {
+                if (!depSearchTerm.trim()) return true;
+                const q = depSearchTerm.trim().toLowerCase();
+                return (
+                  String(t.name || '').toLowerCase().includes(q)
+                  || String(t.objectId || '').toLowerCase().includes(q)
+                  || String(t.processArea || '').toLowerCase().includes(q)
+                );
+              });
+
+              const searching = depSearchTerm.trim().length > 0;
+              const tree: Record<string, Record<string, Record<string, any[]>>> = {};
+              filtered.forEach((t: any) => {
+                const project = t.projectName || 'Project';
+                const area = t.processArea || 'Unassigned';
+                const object = t.objectId || 'Other Tasks';
+                tree[project] = tree[project] || {};
+                tree[project][area] = tree[project][area] || {};
+                tree[project][area][object] = tree[project][area][object] || [];
+                tree[project][area][object].push(t);
+              });
+
+              return (
+                <Box>
+                  <Box sx={{ px: 0.5, pb: 0.5, display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                    <SyncIcon sx={{ fontSize: '0.8rem', color: 'text.disabled' }} />
+                    <Typography variant="caption" sx={{ color: 'text.disabled', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', fontSize: '0.65rem' }}>
+                      {resolvedTask?.mockCycleName || 'Current Cycle'}
+                    </Typography>
+                  </Box>
+
+                  {Object.entries(tree).map(([projectName, areas]) => {
+                    const projKey = `proj:${projectName}`;
+                    const projOpen = searching || depTreeExpanded[projKey] !== false;
+                    return (
+                      <Box key={projKey} sx={{ mb: 0.3 }}>
+                        <Box onClick={() => setDepTreeExpanded(prev => ({ ...prev, [projKey]: !projOpen }))}
+                          sx={{ display: 'flex', alignItems: 'center', gap: 0.75, py: 0.45, px: 0.75, borderRadius: 1, cursor: 'pointer', '&:hover': { backgroundColor: 'rgba(255,255,255,0.04)' } }}>
+                          <ChevronRightIcon sx={{ fontSize: '0.85rem', color: 'text.secondary', transform: projOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }} />
+                          <Box sx={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: accent, flexShrink: 0 }} />
+                          <Typography variant="caption" sx={{ fontWeight: 700, color: accent, fontSize: '0.95rem' }}>{projectName}</Typography>
+                        </Box>
+
+                        {projOpen && Object.entries(areas as Record<string, Record<string, any[]>>).map(([areaName, objects]) => {
+                          const areaKey = `${projKey}:area:${areaName}`;
+                          const areaOpen = searching || depTreeExpanded[areaKey] !== false;
+                          return (
+                            <Box key={areaKey} sx={{ ml: 2.5, mb: 0.2 }}>
+                              <Box onClick={() => setDepTreeExpanded(prev => ({ ...prev, [areaKey]: !areaOpen }))}
+                                sx={{ display: 'flex', alignItems: 'center', gap: 0.75, py: 0.35, px: 0.75, borderRadius: 1, cursor: 'pointer', '&:hover': { backgroundColor: 'rgba(255,255,255,0.04)' } }}>
+                                <ChevronRightIcon sx={{ fontSize: '0.75rem', color: 'text.disabled', transform: areaOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }} />
+                                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, fontSize: '0.72rem' }}>{areaName}</Typography>
+                              </Box>
+
+                              {areaOpen && Object.entries(objects as Record<string, any[]>).map(([objectName, tasks]) => {
+                                const objKey = `${areaKey}:obj:${objectName}`;
+                                const objOpen = searching || depTreeExpanded[objKey] !== false;
+                                return (
+                                  <Box key={objKey} sx={{ ml: 2.2, mb: 0.2 }}>
+                                    <Box onClick={() => setDepTreeExpanded(prev => ({ ...prev, [objKey]: !objOpen }))}
+                                      sx={{ display: 'flex', alignItems: 'center', gap: 0.75, py: 0.35, px: 0.75, borderRadius: 1, cursor: 'pointer', '&:hover': { backgroundColor: 'rgba(255,255,255,0.04)' } }}>
+                                      <ChevronRightIcon sx={{ fontSize: '0.72rem', color: 'text.disabled', transform: objOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }} />
+                                      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500, fontSize: '0.72rem' }}>{objectName}</Typography>
+                                    </Box>
+
+                                    {objOpen && (tasks as any[]).map((t: any) => {
+                                      const isDep = (deps as any[]).some((d: any) => d.dependsOnTaskId === t.id);
+                                      return (
+                                        <Box
+                                          key={t.id}
+                                          onClick={() => toggleDependency(t.id)}
+                                          sx={{
+                                            ml: 2.2,
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: 1.1,
+                                            py: 0.45,
+                                            px: 0.75,
+                                            borderRadius: 1,
+                                            cursor: 'pointer',
+                                            backgroundColor: isDep ? toRgba(accent, 0.2) : 'transparent',
+                                            '&:hover': { backgroundColor: isDep ? toRgba(accent, 0.24) : 'rgba(255,255,255,0.05)' },
+                                          }}
+                                        >
+                                          <Box sx={{ width: 14, height: 14, borderRadius: '3px', border: '1.5px solid', borderColor: isDep ? accent : 'rgba(255,255,255,0.3)', backgroundColor: isDep ? accent : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                            {isDep && <Box sx={{ width: 6, height: 6, backgroundColor: 'white', borderRadius: '1px' }} />}
+                                          </Box>
+                                          <Typography variant="body2" sx={{ fontSize: '0.82rem', flex: 1 }}>{t.name || 'Unnamed task'}</Typography>
+                                          <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.7rem', textTransform: 'lowercase' }}>{String(t.status || 'not_started').replace(/_/g, ' ')}</Typography>
+                                        </Box>
+                                      );
+                                    })}
+                                  </Box>
+                                );
+                              })}
+                            </Box>
+                          );
+                        })}
+                      </Box>
+                    );
+                  })}
+
+                  {Object.keys(tree).length === 0 ? (
+                    <Typography variant="caption" color="text.secondary" sx={{ px: 0.5, py: 1 }}>
+                      No available tasks found.
+                    </Typography>
+                  ) : null}
+                </Box>
+              );
+            })()}
           </Box>
         </DialogContent>
         <DialogActions>
