@@ -3,10 +3,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Dialog, DialogContent, DialogTitle, DialogActions, Box, Typography, IconButton, TextField, MenuItem,
-  Chip, CircularProgress, Alert, LinearProgress, Divider, Avatar, Button,
+  Chip, CircularProgress, Alert, LinearProgress, Divider, Avatar, Button, Stack,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
-import SaveIcon from '@mui/icons-material/Save';
 import SendIcon from '@mui/icons-material/Send';
 import DeleteIcon from '@mui/icons-material/Delete';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
@@ -554,58 +553,61 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="lg"
       PaperProps={{ sx: { borderRadius: 2.5, border: `1px solid ${toRgba(accent, 0.3)}`, overflow: 'hidden', maxHeight: '92vh', display: 'flex', flexDirection: 'column' } }}>
       {/* Header */}
-      <Box sx={{ backgroundColor: toRgba(accent, 0.1), borderBottom: `1px solid ${toRgba(accent, 0.2)}`, px: 3, py: 1.75, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 2, flexShrink: 0 }}>
-        <Box sx={{ minWidth: 0 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.4 }}>
-            <Box sx={{ width: 4, height: 20, borderRadius: 1, backgroundColor: accent, flexShrink: 0 }} />
-            <Typography variant="h5" sx={{ fontWeight: 800, lineHeight: 1.2 }}>
-              {resolvedTask?.taskName || resolvedTask?.name || 'Task Details'}
-            </Typography>
-            {resolvedTask?.taskType && (
-              <Chip label={(resolvedTask.taskType).replace(/_/g, ' ')} size="small"
-                sx={{ fontSize: '0.65rem', height: 18, backgroundColor: toRgba(accent, 0.18), color: accent, fontWeight: 700, textTransform: 'uppercase' }} />
-            )}
-          </Box>
-          <Typography variant="caption" color="text.secondary" sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', pl: 0.75 }}>
-            {[resolvedTask?.programName, resolvedTask?.mockCycleName, resolvedTask?.projectName, resolvedTask?.objectId].filter(Boolean).map((item, i, arr) => (
-              <React.Fragment key={i}><span>{item}</span>{i < arr.length - 1 && <span style={{ opacity: 0.4 }}>·</span>}</React.Fragment>
-            ))}
-          </Typography>
-          <Typography variant="body2" sx={{ mt: 0.85, pl: 0.75, color: 'rgba(255,255,255,0.88)', fontWeight: 600 }}>
-            {assignmentHeadline}
-          </Typography>
-          <Box
-            sx={{
-              mt: 0.95,
-              ml: 0.75,
-              border: '1px solid rgba(255,255,255,0.12)',
-              borderRadius: 1.5,
-              backgroundColor: 'rgba(255,255,255,0.06)',
-              p: 1,
-              maxWidth: '100%',
-            }}
-          >
-            <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.7)' }}>
-              Assignment Context
-            </Typography>
-            <Box sx={{ mt: 0.75, display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', md: 'repeat(3, minmax(0, 1fr))' }, gap: 0.75 }}>
-              <Chip size="small" sx={{ justifyContent: 'flex-start', backgroundColor: 'rgba(255,255,255,0.14)' }} label={`Object: ${objectContextLabel || 'Not linked'}`} />
-              <Chip size="small" sx={{ justifyContent: 'flex-start', backgroundColor: 'rgba(255,255,255,0.14)' }} label={`Plan Group: ${planGroupContextLabel || 'Not set'}`} />
-              <Chip size="small" sx={{ justifyContent: 'flex-start', backgroundColor: 'rgba(255,255,255,0.14)' }} label={`Assigned To: ${editData?.assignedTo || resolvedTask?.assignedTo || 'Unassigned'}`} />
-              <Chip size="small" sx={{ justifyContent: 'flex-start', backgroundColor: 'rgba(255,255,255,0.14)' }} label={`Process Area: ${getProcessAreaDisplayName(resolvedTask?.projectId || '', resolvedTask?.processArea || resolvedTask?.process_area || '')}`} />
-              <Chip size="small" sx={{ justifyContent: 'flex-start', backgroundColor: 'rgba(255,255,255,0.14)' }} label={`Program: ${resolvedTask?.programName || 'Unknown'}`} />
-              <Chip size="small" sx={{ justifyContent: 'flex-start', backgroundColor: 'rgba(255,255,255,0.14)' }} label={`Project: ${resolvedTask?.projectName || 'Unknown'}`} />
-              <Chip size="small" sx={{ justifyContent: 'flex-start', backgroundColor: 'rgba(255,255,255,0.14)' }} label={`Mock Cycle: ${resolvedTask?.mockCycleName || 'Unknown'}`} />
+      <Box
+        sx={{
+          borderBottom: '1px solid rgba(255,255,255,0.08)',
+          px: 3,
+          py: 1.5,
+          flexShrink: 0,
+          background: `linear-gradient(180deg, ${toRgba(accent, 0.28)} 0%, ${toRgba(accent, 0.08)} 52%, ${toRgba(accent, 0)} 100%)`,
+        }}
+      >
+        <Stack direction="row" justifyContent="space-between" alignItems="flex-start" gap={2}>
+          <Box sx={{ minWidth: 0, flex: 1 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.35 }}>
+              <Box sx={{ width: 4, height: 20, borderRadius: 1, backgroundColor: accent, flexShrink: 0 }} />
+              <Typography variant="h5" sx={{ fontWeight: 800, lineHeight: 1.2 }}>
+                {resolvedTask?.taskName || resolvedTask?.name || 'Task Details'}
+              </Typography>
             </Box>
+            <Typography variant="body2" sx={{ mt: 0.55, color: 'rgba(255,255,255,0.9)', fontWeight: 600 }}>
+              {assignmentHeadline}
+            </Typography>
           </Box>
-        </Box>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0 }}>
-          <Box
-            component="button" onClick={handleSave} disabled={saving || !editData}
-            sx={{ display: 'flex', alignItems: 'center', gap: 0.75, px: 1.5, py: 0.6, borderRadius: 1.5, border: 'none', cursor: 'pointer', backgroundColor: toRgba(accent, 0.25), color: accent, fontWeight: 700, fontSize: '0.8rem', '&:hover': { backgroundColor: toRgba(accent, 0.4) }, '&:disabled': { opacity: 0.5, cursor: 'not-allowed' } }}>
-            <SaveIcon sx={{ fontSize: '1rem' }} />{saving ? 'Saving…' : 'Save Changes'}
+
+          <Stack direction="row" spacing={1} alignItems="center" sx={{ flexShrink: 0 }}>
+            <Button
+              variant="contained"
+              sx={{ textTransform: 'none', backgroundColor: 'rgba(255,255,255,0.22)', '&:hover': { backgroundColor: 'rgba(255,255,255,0.3)' } }}
+              onClick={handleSave}
+              disabled={saving || !editData}
+            >
+              {saving ? 'Saving...' : 'Save'}
+            </Button>
+            <IconButton onClick={onClose} size="small">
+              <CloseIcon sx={{ fontSize: '1.1rem' }} />
+            </IconButton>
+          </Stack>
+        </Stack>
+
+        <Box
+          sx={{
+            mt: 1.1,
+            border: '1px solid rgba(255,255,255,0.12)',
+            borderRadius: 1.5,
+            backgroundColor: 'rgba(255,255,255,0.06)',
+            p: 1,
+            width: '100%',
+          }}
+        >
+          <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.7)' }}>
+            Assignment Context
+          </Typography>
+          <Box sx={{ mt: 0.75, display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 0.75 }}>
+            <Chip size="small" sx={{ justifyContent: 'flex-start', backgroundColor: 'rgba(255,255,255,0.14)' }} label={`Program: ${resolvedTask?.programName || 'Unknown'}`} />
+            <Chip size="small" sx={{ justifyContent: 'flex-start', backgroundColor: 'rgba(255,255,255,0.14)' }} label={`Project: ${resolvedTask?.projectName || 'Unknown'}`} />
+            <Chip size="small" sx={{ justifyContent: 'flex-start', backgroundColor: 'rgba(255,255,255,0.14)' }} label={`Mock Cycle: ${resolvedTask?.mockCycleName || 'Unknown'}`} />
           </Box>
-          <IconButton onClick={onClose} size="small" sx={{ ml: 0.5 }}><CloseIcon sx={{ fontSize: '1.1rem' }} /></IconButton>
         </Box>
       </Box>
 
