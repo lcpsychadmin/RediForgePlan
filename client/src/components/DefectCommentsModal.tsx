@@ -487,7 +487,11 @@ const DefectCommentsModal: React.FC<DefectCommentsModalProps> = ({ open, defect,
         <Tabs
           value={tab}
           onChange={(_event, value) => setTab(value)}
-          sx={{ mb: 1.5 }}
+          sx={{
+            mb: 1.5,
+            '& .MuiTab-root.Mui-selected': { color: headerAccent },
+            '& .MuiTabs-indicator': { backgroundColor: headerAccent },
+          }}
         >
           <Tab value="details" label="Details" />
           <Tab value="history" label="History" />
@@ -499,7 +503,7 @@ const DefectCommentsModal: React.FC<DefectCommentsModalProps> = ({ open, defect,
             <Box sx={{ ...cardSx, p: 1.5, backgroundColor: 'rgba(255,255,255,0.05)' }}>
               <Stack spacing={1.5}>
                 <Box sx={{ border: '1px solid rgba(255,255,255,0.13)', borderRadius: 1.5, backgroundColor: 'rgba(255,255,255,0.06)', p: 1 }}>
-                  <Typography variant="overline" sx={{ display: 'block', color: '#8fc4ff', letterSpacing: '0.09em' }}>
+                  <Typography variant="overline" sx={{ display: 'block', color: headerAccent, letterSpacing: '0.09em' }}>
                     Defect Details
                   </Typography>
                   <TextField
@@ -515,7 +519,7 @@ const DefectCommentsModal: React.FC<DefectCommentsModalProps> = ({ open, defect,
                   />
                 </Box>
                 <Box sx={{ border: '1px solid rgba(255,255,255,0.13)', borderRadius: 1.5, backgroundColor: 'rgba(255,255,255,0.06)', p: 1 }}>
-                  <Typography variant="overline" sx={{ display: 'block', color: '#8fc4ff', letterSpacing: '0.09em' }}>
+                  <Typography variant="overline" sx={{ display: 'block', color: headerAccent, letterSpacing: '0.09em' }}>
                     Root Cause
                   </Typography>
                   <TextField
@@ -531,7 +535,7 @@ const DefectCommentsModal: React.FC<DefectCommentsModalProps> = ({ open, defect,
                   />
                 </Box>
                 <Box sx={{ border: '1px solid rgba(255,255,255,0.13)', borderRadius: 1.5, backgroundColor: 'rgba(255,255,255,0.06)', p: 1 }}>
-                  <Typography variant="overline" sx={{ display: 'block', color: '#8fc4ff', letterSpacing: '0.09em' }}>
+                  <Typography variant="overline" sx={{ display: 'block', color: headerAccent, letterSpacing: '0.09em' }}>
                     Resolution Plan
                   </Typography>
                   <TextField
