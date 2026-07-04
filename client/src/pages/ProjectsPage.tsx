@@ -1641,7 +1641,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
             ? getProgressAverage(tasks.map((task: any) => Number(task.progressPercentage ?? 0)))
             : 0;
 
-          return [projectId, {
+          return [compositeKey, {
             processAreas: processAreaSummary,
             projectProgressPct,
             projectObjectCount: objects.length,
