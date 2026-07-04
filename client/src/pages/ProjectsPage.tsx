@@ -5443,7 +5443,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                     const isCycleExpanded = expandedCycles.has(cycle.id);
                                     const cycleColor = cycle.accentColor || '#64B5F6';
                                     const processAreas = getProcessAreasForProjectCycle(realProject.id, cycle.id);
-                                    const cycleProgressPct = Number(realProject.progressPercentage || 0);
+                                    const cycleProjectsInCycle = projectsByMockCycle[cycle.id] || [];
+                                    const cycleProgressValues = cycleProjectsInCycle.map((p: Project) => Number(p.progressPercentage || 0));
+                                    const cycleProgressPct = cycleProgressValues.length > 0 ? getProgressAverage(cycleProgressValues) : 0;
                                     return (
                                       <Box key={`pc-${project.name}-${cycle.id}`}>
                                         <Box
