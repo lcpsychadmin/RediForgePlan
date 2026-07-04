@@ -4,7 +4,9 @@ import {
   Box,
   Chip,
   CircularProgress,
+  IconButton,
   MenuItem,
+  TableContainer,
   Stack,
   TextField,
   Table,
@@ -14,6 +16,8 @@ import {
   TableRow,
   Typography,
 } from '@mui/material';
+import SearchIcon from '@mui/icons-material/Search';
+import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import { useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import PageContainer from '../layout/PageContainer';
@@ -47,6 +51,25 @@ const tableTd = {
   fontSize: '0.8rem',
   borderBottom: '1px solid rgba(255,255,255,0.04)',
 };
+
+const filterFieldSx = {
+  minWidth: 150,
+  '& .MuiInputBase-root': { fontSize: '0.78rem', height: 32 },
+  '& .MuiInputLabel-root': { fontSize: '0.78rem' },
+};
+
+const Section: React.FC<{ title: string; count?: number; accent: string; children: React.ReactNode }> = ({ title, count, accent, children }) => (
+  <Box sx={{ border: '1px solid rgba(255,255,255,0.08)', borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.04)', overflow: 'hidden' }}>
+    <Box sx={{ px: 2.5, py: 1.5, display: 'flex', alignItems: 'center', gap: 1.5, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: 'rgba(255,255,255,0.02)' }}>
+      <Box sx={{ width: 4, height: 18, borderRadius: 2, backgroundColor: accent, flexShrink: 0 }} />
+      <Typography sx={{ fontWeight: 700, fontSize: '0.95rem' }}>{title}</Typography>
+      {typeof count === 'number' ? (
+        <Box sx={{ px: 0.8, py: 0.1, borderRadius: 1, backgroundColor: `${accent}28`, color: accent, fontWeight: 700, fontSize: '0.75rem' }}>{count}</Box>
+      ) : null}
+    </Box>
+    {children}
+  </Box>
+);
 
 const formatDefectNumber = (defect: any) => {
   const parsedNumber = typeof defect?.defectNumber === 'number'
@@ -168,49 +191,40 @@ const ProjectDefectsPage: React.FC<ProjectDefectsPageProps> = ({ projectId: proj
     <PageContainer>
       <ContentHeader title="Defects" />
 
-      <Box sx={{ ...surfaceSx, mb: 3 }}>
-        <Box sx={{ px: 2.5, py: 1.5, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: 'rgba(255,255,255,0.02)' }}>
-          <Typography variant="subtitle2" fontWeight={700}>Defect Search</Typography>
+      <Section title="Defect Search" accent="#ef5350">
+        <Box sx={{ px: 2, py: 1.25, display: 'flex', gap: 1.25, flexWrap: 'wrap', alignItems: 'center' }}>
+          <TextField
+            size="small"
+            placeholder="Search defects..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            sx={{ width: 320, ...filterFieldSx }}
+            slotProps={{ input: { startAdornment: <SearchIcon sx={{ fontSize: '1rem', mr: 0.5, color: 'text.secondary' }} /> } }}
+          />
+          <TextField
+            size="small"
+            select
+            label="Visibility"
+            value={statusMode}
+            onChange={(e) => setStatusMode(e.target.value as 'active' | 'closed' | 'all')}
+            sx={filterFieldSx}
+          >
+            <MenuItem value="active">Active defects</MenuItem>
+            <MenuItem value="closed">Closed defects</MenuItem>
+            <MenuItem value="all">All defects</MenuItem>
+          </TextField>
         </Box>
-        <Box sx={{ px: 2.5, py: 1.5 }}>
-          <Stack spacing={1.5}>
-            <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
-              <TextField
-                size="small"
-                label="Search defects"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                sx={{ minWidth: 280 }}
-              />
-              <TextField
-                size="small"
-                select
-                label="Visibility"
-                value={statusMode}
-                onChange={(e) => setStatusMode(e.target.value as 'active' | 'closed' | 'all')}
-                sx={{ minWidth: 180 }}
-              >
-                <MenuItem value="active">Active defects</MenuItem>
-                <MenuItem value="closed">Closed defects</MenuItem>
-                <MenuItem value="all">All defects</MenuItem>
-              </TextField>
-            </Stack>
-          </Stack>
-        </Box>
-      </Box>
+      </Section>
 
       {defectsLoading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
           <CircularProgress />
         </Box>
       ) : defects.length === 0 ? (
-        <Alert severity="info">No defects found for the selected filters.</Alert>
+        <Alert severity="info" sx={{ mt: 3 }}>No defects found for the selected filters.</Alert>
       ) : (
-        <Box sx={{ ...surfaceSx, mb: 3, maxHeight: 760, overflow: 'hidden' }}>
-          <Box sx={{ px: 2, py: 1, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: 'rgba(255,255,255,0.02)' }}>
-            <Typography variant="subtitle2" fontWeight={700}>Defect Queue ({defects.length})</Typography>
-          </Box>
-          <Box sx={{ maxHeight: 716, overflow: 'auto' }}>
+        <Section title="Defect Queue" count={defects.length} accent="#ef5350">
+          <TableContainer sx={{ maxHeight: 716 }}>
             <Table size="small" stickyHeader>
               <TableHead>
                 <TableRow>
@@ -222,6 +236,7 @@ const ProjectDefectsPage: React.FC<ProjectDefectsPageProps> = ({ projectId: proj
                   <TableCell sx={tableTh}>Project</TableCell>
                   <TableCell sx={tableTh}>Mock Cycle</TableCell>
                   <TableCell sx={tableTh}>State</TableCell>
+                  <TableCell sx={{ ...tableTh, width: 48, p: 0 }}></TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -262,12 +277,17 @@ const ProjectDefectsPage: React.FC<ProjectDefectsPageProps> = ({ projectId: proj
                         <Chip size="small" label={defect.severity} color={defect.severity === 'critical' ? 'error' : defect.severity === 'high' ? 'warning' : 'default'} />
                       </Stack>
                     </TableCell>
+                    <TableCell sx={{ ...tableTd, width: 48, p: 0 }}>
+                      <IconButton size="small" onClick={() => setSelectedDefectId(defect.id)}>
+                        <OpenInNewIcon sx={{ fontSize: '0.95rem' }} />
+                      </IconButton>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
-          </Box>
-        </Box>
+          </TableContainer>
+        </Section>
       )}
 
       <DefectCommentsModal
