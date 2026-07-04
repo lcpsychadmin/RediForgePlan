@@ -1573,26 +1573,24 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
 
   useEffect(() => {
     const loadHierarchySummaries = async () => {
-      // Build a map of projectId → cycleId so we can fetch cycle-scoped data
-      // while still keying the summary cache by projectId (used by getProcessAreaProgress).
-      const projectToCycle = new Map<string, string>();
+      // Build a map of (projectId, cycleId) pairs for cycle-scoped data
+      // Use composite key to handle projects with multiple cycles
+      const projectCyclePairs: Array<[string, string]> = [];
       for (const [cycleId, projects] of Object.entries(projectsByMockCycle)) {
         for (const project of projects as any[]) {
-          projectToCycle.set(project.id, cycleId);
+          projectCyclePairs.push([project.id, cycleId]);
         }
       }
 
-      const projectIds = Array.from(projectToCycle.keys());
-
-      if (projectIds.length === 0) {
+      if (projectCyclePairs.length === 0) {
         setProjectHierarchySummaries({});
         return;
       }
 
       try {
-        const entries = await Promise.all(projectIds.map(async (projectId: string) => {
-          const cycleId = projectToCycle.get(projectId);
-          if (!cycleId) return [projectId, { processAreas: {}, projectProgressPct: 0, projectObjectCount: 0, projectTaskGroupCount: 0 }] as const;
+        const entries = await Promise.all(projectCyclePairs.map(async ([projectId, cycleId]) => {
+          const compositeKey = `${projectId}_${cycleId}`;
+          if (!cycleId) return [compositeKey, { processAreas: {}, projectProgressPct: 0, projectObjectCount: 0, projectTaskGroupCount: 0 }] as const;
           const [objectsRes, groupsRes, tasksRes] = await Promise.all([
             apiClient.get(`/api/project-objects/cycle/${cycleId}`),
             apiClient.get(`/api/tasks/groups/cycle/${cycleId}`),
@@ -2268,8 +2266,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
     return Math.round(values.reduce((sum, value) => sum + Math.max(0, Math.min(100, value || 0)), 0) / values.length);
   };
 
-  const getProcessAreaProgress = (projectId: string, area: string, fallbackPct: number) => {
-    const cachedProcessAreas = projectHierarchySummaries[projectId]?.processAreas || {};
+  const getProcessAreaProgress = (projectId: string, area: string, fallbackPct: number, cycleId?: string) => {
+    const summaryKey = cycleId ? `${projectId}_${cycleId}` : projectId;
+    const cachedProcessAreas = projectHierarchySummaries[summaryKey]?.processAreas || {};
     if (cachedProcessAreas[area]) {
       return cachedProcessAreas[area].progressPct;
     }
@@ -2917,7 +2916,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
         const cycleProjects = projectsByMockCycle[cycleId] || [];
         cycleProjects.forEach((project: Project) => {
           const areaLabels = new Set<string>();
-          const cachedAreas = projectHierarchySummaries[project.id]?.processAreas || {};
+          const summaryKey = `${project.id}_${cycleId}`;
+          const cachedAreas = projectHierarchySummaries[summaryKey]?.processAreas || {};
           Object.keys(cachedAreas).forEach((area) => {
             const label = (area || '').trim();
             if (label) areaLabels.add(label);
@@ -5443,9 +5443,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                     const isCycleExpanded = expandedCycles.has(cycle.id);
                                     const cycleColor = cycle.accentColor || '#64B5F6';
                                     const processAreas = getProcessAreasForProjectCycle(realProject.id, cycle.id);
-                                    const cycleProjectsInCycle = projectsByMockCycle[cycle.id] || [];
-                                    const cycleProgressValues = cycleProjectsInCycle.map((p: Project) => Number(p.progressPercentage || 0));
-                                    const cycleProgressPct = cycleProgressValues.length > 0 ? getProgressAverage(cycleProgressValues) : 0;
+                                    const summaryKey = `${realProject.id}_${cycle.id}`;
+                                    const cycleSummary = projectHierarchySummaries[summaryKey];
+                                    const cycleProgressPct = cycleSummary?.projectProgressPct ?? 0;
                                     return (
                                       <Box key={`pc-${project.name}-${cycle.id}`}>
                                         <Box
@@ -5547,7 +5547,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                         <Box sx={{ ml: 2.5 }}>
                                           {processAreas.map((area) => {
                                             const normalizedArea = (area || '').trim().toLowerCase();
-                                            const cachedAreaSummary = projectHierarchySummaries[realProject.id]?.processAreas?.[area];
+                                            const summaryKeyForArea = `${realProject.id}_${cycle.id}`;
+                                            const cachedAreaSummary = projectHierarchySummaries[summaryKeyForArea]?.processAreas?.[area];
                                             const activeAreaObjectCount = projectInventoryItems.filter((item: any) => item.projectId === realProject.id && ((item.processArea || '').trim().toLowerCase() === normalizedArea)).length;
                                             const activeAreaTaskGroupCount = projectTaskGroups.filter((group: any) => group.projectId === realProject.id && ((group.processArea || '').trim().toLowerCase() === normalizedArea)).length;
                                             const areaObjectCount = activeProjectId === realProject.id
@@ -5563,7 +5564,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                                   return objectInArea || groupInArea;
                                                 }).length
                                               : (cachedAreaSummary?.taskCount ?? 0);
-                                            const processAreaProgressPct = getProcessAreaProgress(realProject.id, area, cycleProgressPct);
+                                            const processAreaProgressPct = getProcessAreaProgress(realProject.id, area, cycleProgressPct, cycle.id);
                                             const processAreaAccent = getProcessAreaAccent(realProject.id, area, cycleColor, cycle.id);
                                             const isProcessAreaSelected =
                                               selectedItem?.type === 'processArea' &&
@@ -5941,7 +5942,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                       return getTaskGroupProcessArea(group).toLowerCase() === normalizedProcessAreaFilter;
                     });
                     const projectProcessAreas = new Set<string>();
-                    Object.keys(projectHierarchySummaries[project.id]?.processAreas || {}).forEach((area) => {
+                    const summaryKey = parentCycleId ? `${project.id}_${parentCycleId}` : project.id;
+                    Object.keys(projectHierarchySummaries[summaryKey]?.processAreas || {}).forEach((area) => {
                       const label = (area || '').trim();
                       if (label) projectProcessAreas.add(label);
                     });
@@ -5956,7 +5958,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                     const processAreaSummaryRows = Array.from(projectProcessAreas)
                       .sort((a, b) => a.localeCompare(b))
                       .map((area) => {
-                        const summary = projectHierarchySummaries[project.id]?.processAreas?.[area];
+                        const summary = projectHierarchySummaries[summaryKey]?.processAreas?.[area];
                         return {
                           area,
                           taskCount: summary?.taskCount ?? 0,
