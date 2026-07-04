@@ -464,6 +464,9 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   const assignmentHeadline = objectContextLabel
     ? `Object: ${objectContextLabel}`
     : (planGroupContextLabel ? `Plan Group: ${planGroupContextLabel}` : 'No object or plan group linked');
+  const dependencyHeaderObject = objectContextLabel || planGroupContextLabel || 'Not linked';
+  const dependencyHeaderTask = String(resolvedTask?.taskName || resolvedTask?.name || 'Untitled Task').trim();
+  const dependencyHeaderTaskDescription = String(resolvedTask?.notes || '').trim();
   const getProcessAreaDisplayName = (projectId: string, area: string) => {
     const key = String(area || '').trim();
     if (!key) return 'Unassigned';
@@ -843,7 +846,15 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
       </DialogContent>
 
       <Dialog open={depPickerOpen} onClose={() => setDepPickerOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle sx={{ pb: 1 }}>Task Dependencies</DialogTitle>
+        <DialogTitle sx={{ pb: 1 }}>
+          Task Dependencies
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.35 }}>
+            Object: {dependencyHeaderObject}
+          </Typography>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.1 }}>
+            Task: {dependencyHeaderTask}{dependencyHeaderTaskDescription ? ` - ${dependencyHeaderTaskDescription}` : ''}
+          </Typography>
+        </DialogTitle>
         <DialogContent sx={{ pb: 0 }}>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 1.2 }}>
             Select tasks that must complete before this task can start.
