@@ -198,6 +198,7 @@ const ProjectDefectsPage: React.FC<ProjectDefectsPageProps> = ({ projectId: proj
 
   React.useEffect(() => {
     setStats(defectStats);
+    return () => setStats([]);
   }, [defectStats, setStats]);
 
   return (

@@ -131,6 +131,7 @@ const SchedulePage: React.FC = () => {
 
   useEffect(() => {
     setStats(scheduleStats);
+    return () => setStats([]);
   }, [scheduleStats, setStats]);
 
   const handlePreviousWeek = () => {

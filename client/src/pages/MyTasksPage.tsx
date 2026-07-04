@@ -336,6 +336,7 @@ const MyTasksPage: React.FC = () => {
 
   React.useEffect(() => {
     setStats(myTasksStats);
+    return () => setStats([]);
   }, [myTasksStats, setStats]);
 
   return (

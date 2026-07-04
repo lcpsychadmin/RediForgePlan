@@ -254,6 +254,7 @@ const PrioritiesPage: React.FC = () => {
 
   React.useEffect(() => {
     setStats(priorityStats);
+    return () => setStats([]);
   }, [priorityStats, setStats]);
 
   return (
