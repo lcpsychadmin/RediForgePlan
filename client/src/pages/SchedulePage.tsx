@@ -108,7 +108,7 @@ const SchedulePage: React.FC = () => {
   };
 
   return (
-    <PageContainer maxWidth="xl">
+    <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 3 }}>
       <ContentHeader
         title="Schedule"
         actions={projectId ? <ExportMenu projectId={projectId} variant="icon" /> : null}
@@ -208,7 +208,7 @@ const SchedulePage: React.FC = () => {
           />
         )}
       </Box>
-    </PageContainer>
+    </Box>
   );
 };
 

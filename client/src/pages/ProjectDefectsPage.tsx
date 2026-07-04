@@ -20,7 +20,6 @@ import SearchIcon from '@mui/icons-material/Search';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import { useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import PageContainer from '../layout/PageContainer';
 import ContentHeader from '../layout/ContentHeader';
 import apiClient from '../api/client';
 import { useFilter } from '../contexts/FilterContext';
@@ -188,7 +187,7 @@ const ProjectDefectsPage: React.FC<ProjectDefectsPageProps> = ({ projectId: proj
   };
 
   return (
-    <PageContainer maxWidth="xl">
+    <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 3 }}>
       <ContentHeader title="Defects" />
 
       <Section title="Defect Queue" count={defects.length} accent="#ef5350">
@@ -296,7 +295,7 @@ const ProjectDefectsPage: React.FC<ProjectDefectsPageProps> = ({ projectId: proj
         onSaved={handleDefectSaved}
       />
 
-    </PageContainer>
+    </Box>
   );
 };
 

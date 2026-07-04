@@ -19,7 +19,6 @@ import SearchIcon from '@mui/icons-material/Search';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Layout from '../components/Layout';
-import PageContainer from '../layout/PageContainer';
 import ContentHeader from '../layout/ContentHeader';
 import TaskDetailModal from '../components/tasks/TaskDetailModal';
 import DefectCommentsModal from '../components/DefectCommentsModal';
@@ -327,7 +326,7 @@ const MyTasksPage: React.FC = () => {
 
   return (
     <Layout>
-      <PageContainer maxWidth="xl">
+      <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 3 }}>
         <ContentHeader title="My Tasks" />
 
         {isLoading ? (
@@ -486,7 +485,7 @@ const MyTasksPage: React.FC = () => {
           onClose={() => setSelectedDefectId('')}
           onSaved={handleDefectSaved}
         />
-      </PageContainer>
+      </Box>
     </Layout>
   );
 };
