@@ -739,6 +739,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                         <TextField size="small" label="Revised Start" type="date" value={editData.revisedStartDate || ''}
                           onChange={e => set('revisedStartDate', e.target.value)}
                           InputLabelProps={{ shrink: true }}
+                          fullWidth
                           sx={{ ...fieldSx, ...(!editData.revisedStartDate ? { '& input': { color: 'transparent' }, '& input:focus': { color: 'inherit' }, '& input::-webkit-calendar-picker-indicator': { opacity: 0 }, '& input:focus::-webkit-calendar-picker-indicator': { opacity: 1 } } : {}) }} />
                         {!editData.revisedStartDate && (
                           <Box className="revised-start-placeholder" sx={{ position: 'absolute', inset: 0, pl: 1.5, display: 'flex', alignItems: 'center', pointerEvents: 'none', fontSize: '0.72rem', color: 'text.disabled' }}>
@@ -750,6 +751,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                         <TextField size="small" label="Revised End" type="date" value={editData.revisedEndDate || ''}
                           onChange={e => set('revisedEndDate', e.target.value)}
                           InputLabelProps={{ shrink: true }}
+                          fullWidth
                           sx={{ ...fieldSx, ...(!editData.revisedEndDate ? { '& input': { color: 'transparent' }, '& input:focus': { color: 'inherit' }, '& input::-webkit-calendar-picker-indicator': { opacity: 0 }, '& input:focus::-webkit-calendar-picker-indicator': { opacity: 1 } } : {}) }} />
                         {!editData.revisedEndDate && (
                           <Box className="revised-end-placeholder" sx={{ position: 'absolute', inset: 0, pl: 1.5, display: 'flex', alignItems: 'center', pointerEvents: 'none', fontSize: '0.72rem', color: 'text.disabled' }}>
