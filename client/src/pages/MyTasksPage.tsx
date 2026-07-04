@@ -326,7 +326,8 @@ const MyTasksPage: React.FC = () => {
   const fsx = { minWidth: 130, '& .MuiInputBase-root': { fontSize: '0.78rem', height: 32 }, '& .MuiInputLabel-root': { fontSize: '0.78rem' } };
 
   return (
-    <PageContainer maxWidth="xl">
+    <Layout>
+      <PageContainer maxWidth="xl">
         <ContentHeader title="My Tasks" />
 
         {isLoading ? (
@@ -486,6 +487,7 @@ const MyTasksPage: React.FC = () => {
           onSaved={handleDefectSaved}
         />
       </PageContainer>
+    </Layout>
   );
 };
 
