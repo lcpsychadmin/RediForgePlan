@@ -108,7 +108,7 @@ const SchedulePage: React.FC = () => {
   };
 
   return (
-    <PageContainer>
+    <PageContainer maxWidth="xl">
       <ContentHeader
         title="Schedule"
         actions={projectId ? <ExportMenu projectId={projectId} variant="icon" /> : null}
