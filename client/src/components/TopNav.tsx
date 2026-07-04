@@ -91,6 +91,8 @@ const TopNav: React.FC<TopNavProps> = ({
   const activeSubNavItems = isPlanningPage ? planningSubNavItems : executionSubNavItems;
   // Sub-nav pills only shown on planning and execution pages (not dashboard/settings)
   const showSubNav = isPlanningPage || isExecutionRelated;
+  // Show progress bar only on plan page
+  const showProgressBar = isExecutionPage;
 
   const loadNotifications = React.useCallback(() => {
     return apiClient.get('/api/comments/notifications/me').then(r => {
@@ -263,7 +265,8 @@ const TopNav: React.FC<TopNavProps> = ({
                     </Box>
                   </>
                 )}
-                {/* Progress bar + percentage */}
+                {/* Progress bar + percentage — only on plan page */}
+                {showProgressBar && (
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   <LinearProgress
                     variant="determinate"
@@ -280,6 +283,7 @@ const TopNav: React.FC<TopNavProps> = ({
                     {completionPercentage}%
                   </Typography>
                 </Box>
+                )}
               </Box>
               </>
               )}
