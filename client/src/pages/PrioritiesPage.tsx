@@ -10,6 +10,7 @@ import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import TaskDetailModal from '../components/tasks/TaskDetailModal';
+import ContentHeader from '../layout/ContentHeader';
 import { usePriorities } from '../hooks/usePriorities';
 import { useGlobalObjects } from '../api/hooks';
 import { useParams } from 'react-router-dom';
@@ -241,10 +242,17 @@ const PrioritiesPage: React.FC = () => {
   const td = { py: 0.75, px: 1.5, fontSize: '0.8rem', borderBottom: '1px solid rgba(255,255,255,0.04)' };
   const fsx = { minWidth: 130, '& .MuiInputBase-root': { fontSize: '0.78rem', height: 32 }, '& .MuiInputLabel-root': { fontSize: '0.78rem' } };
 
+  const lateTasks = useMemo(() => allPriorityTasks.filter(t => t._category === 'overdue').length, [allPriorityTasks]);
+  const criticalDefects = useMemo(() => defects.filter((d: any) => d.severity === 'critical' && d.status !== 'closed').length, [defects]);
+  const priorityStats = useMemo(() => [
+    { label: 'Late Tasks', value: lateTasks },
+    { label: 'Critical Defects', value: criticalDefects },
+  ], [lateTasks, criticalDefects]);
+
   return (
     <>
       <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 3 }}>
-        <Typography variant="h4" sx={{ fontWeight: 700 }}>Priorities</Typography>
+        <ContentHeader title="Priorities" stats={priorityStats} />
 
         {isLoading && !rawTasks.length && (
           <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}><CircularProgress /></Box>

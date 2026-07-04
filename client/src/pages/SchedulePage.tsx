@@ -99,6 +99,33 @@ const SchedulePage: React.FC = () => {
 
   const weekEnd = addDays(weekStart, 6);
 
+  const today = new Date();
+  const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+
+  const scheduledThisWeek = useMemo(() =>
+    scheduleItems.filter((i: any) => {
+      if (!i.startDate) return false;
+      const start = new Date(i.startDate);
+      return start >= weekStart && start <= weekEnd;
+    }).length,
+    [scheduleItems, weekStart, weekEnd]
+  );
+
+  const overdueItems = useMemo(() =>
+    scheduleItems.filter((i: any) => {
+      if (!i.endDate || i.status === 'complete') return false;
+      const end = new Date(i.endDate);
+      const endDay = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+      return endDay < todayStart;
+    }).length,
+    [scheduleItems]
+  );
+
+  const scheduleStats = useMemo(() => [
+    { label: 'Scheduled This Week', value: scheduledThisWeek },
+    { label: 'Overdue', value: overdueItems },
+  ], [scheduledThisWeek, overdueItems]);
+
   const handlePreviousWeek = () => {
     setWeekStart(subDays(weekStart, 7));
   };
@@ -111,6 +138,7 @@ const SchedulePage: React.FC = () => {
     <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 3 }}>
       <ContentHeader
         title="Schedule"
+        stats={scheduleStats}
         actions={projectId ? <ExportMenu projectId={projectId} variant="icon" /> : null}
       />
 

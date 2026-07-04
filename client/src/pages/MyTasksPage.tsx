@@ -324,10 +324,17 @@ const MyTasksPage: React.FC = () => {
   const td = { py: 0.75, px: 1.5, fontSize: '0.8rem', borderBottom: '1px solid rgba(255,255,255,0.04)' };
   const fsx = { minWidth: 130, '& .MuiInputBase-root': { fontSize: '0.78rem', height: 32 }, '& .MuiInputLabel-root': { fontSize: '0.78rem' } };
 
+  const inProgressTasks = React.useMemo(() => (data?.tasks || []).filter((t: any) => t.status === 'in_progress').length, [data?.tasks]);
+  const criticalAssignedDefects = React.useMemo(() => (data?.defects || []).filter((d: any) => d.severity === 'critical' && d.status !== 'closed').length, [data?.defects]);
+  const myTasksStats = React.useMemo(() => [
+    { label: 'In Progress', value: inProgressTasks },
+    { label: 'Critical Defects', value: criticalAssignedDefects },
+  ], [inProgressTasks, criticalAssignedDefects]);
+
   return (
     <Layout>
       <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 3 }}>
-        <ContentHeader title="My Tasks" />
+        <ContentHeader title="My Tasks" stats={myTasksStats} />
 
         {isLoading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>

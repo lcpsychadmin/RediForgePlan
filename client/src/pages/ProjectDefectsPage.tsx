@@ -186,9 +186,16 @@ const ProjectDefectsPage: React.FC<ProjectDefectsPageProps> = ({ projectId: proj
     await queryClient.invalidateQueries({ queryKey: ['project-defects-summary', resolvedProjectId] });
   };
 
+  const criticalDefects = React.useMemo(() => defects.filter((d: any) => d.severity === 'critical').length, [defects]);
+  const openDefects = React.useMemo(() => defects.filter((d: any) => d.status === 'open' || d.status === 'in_progress').length, [defects]);
+  const defectStats = React.useMemo(() => [
+    { label: 'Critical', value: criticalDefects },
+    { label: 'Open', value: openDefects },
+  ], [criticalDefects, openDefects]);
+
   return (
     <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 3 }}>
-      <ContentHeader title="Defects" />
+      <ContentHeader title="Defects" stats={defectStats} />
 
       <Section title="Defect Queue" count={defects.length} accent="#ef5350">
         <Box sx={{ px: 2, py: 1.25, display: 'flex', gap: 1.25, flexWrap: 'wrap', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
