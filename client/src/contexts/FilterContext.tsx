@@ -88,18 +88,56 @@ export const FilterProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const { data: projects = [], isLoading: projectsLoading } = useQuery({
     queryKey: ['projects-for-filter', selectedProgramId],
     queryFn: async () => {
+      const scoreProject = (project: any) => {
+        const stats = project?.stats || {};
+        const taskCount = Number(stats.taskCount ?? stats.task_count ?? 0);
+        const objectCount = Number(stats.objectCount ?? stats.object_count ?? 0);
+        const cycleCount = Number(stats.mockCycleCount ?? stats.mock_cycle_count ?? 0);
+        const progress = Number(project?.progressPercentage ?? project?.progress_percentage ?? 0);
+        const updatedAt = new Date(project?.updatedAt || project?.updated_at || 0).getTime() || 0;
+        return (taskCount * 1_000_000) + (objectCount * 10_000) + (cycleCount * 100) + progress + (updatedAt / 1_000_000_000_000);
+      };
+
+      const chooseCanonicalProjects = async (items: any[]) => {
+        const grouped = new Map<string, any[]>();
+        items.forEach((project: any) => {
+          const programId = String(project?.programId || project?.program_id || '').trim();
+          const projectName = String(project?.name || '').trim().toLowerCase();
+          if (!programId || !projectName) return;
+          const key = `${programId}:${projectName}`;
+          if (!grouped.has(key)) grouped.set(key, []);
+          grouped.get(key)!.push(project);
+        });
+
+        const canonical = await Promise.all(
+          Array.from(grouped.values()).map(async (group) => {
+            if (group.length === 1) return group[0];
+
+            const enriched = await Promise.all(
+              group.map(async (project) => {
+                try {
+                  const response = await apiClient.get(`/api/projects/${project.id}`);
+                  return { ...project, ...(response.data?.data || {}) };
+                } catch {
+                  return project;
+                }
+              })
+            );
+
+            return enriched.sort((a, b) => scoreProject(b) - scoreProject(a))[0];
+          })
+        );
+
+        return canonical;
+      };
+
       if (selectedProgramId) {
         const projectsResponse = await apiClient.get(`/api/projects/by-program/${selectedProgramId}`);
-        const rawProjects = projectsResponse.data.data || [];
-        const dedupedByName = new Map<string, any>();
-        rawProjects.forEach((project: any) => {
-          const key = String(project?.name || '').trim().toLowerCase();
-          if (!key) return;
-          if (!dedupedByName.has(key)) {
-            dedupedByName.set(key, project);
-          }
-        });
-        return Array.from(dedupedByName.values());
+        const rawProjects = (projectsResponse.data.data || []).map((project: any) => ({
+          ...project,
+          programId: project.programId || project.program_id || selectedProgramId,
+        }));
+        return await chooseCanonicalProjects(rawProjects);
       }
 
       const allProgramsResponse = await apiClient.get('/api/programs');
@@ -114,15 +152,7 @@ export const FilterProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         })
       );
 
-      const deduped = new Map<string, any>();
-      projectGroups.flat().forEach((project: any) => {
-        const programId = String(project?.programId || project?.program_id || '').trim();
-        const projectName = String(project?.name || '').trim().toLowerCase();
-        if (!programId || !projectName) return;
-        const key = `${programId}:${projectName}`;
-        if (!deduped.has(key)) deduped.set(key, project);
-      });
-      return Array.from(deduped.values());
+      return await chooseCanonicalProjects(projectGroups.flat());
     },
     enabled: programs.length > 0,
     staleTime: 30000,
