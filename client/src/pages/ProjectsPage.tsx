@@ -48,7 +48,6 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import CloseIcon from '@mui/icons-material/Close';
 import GroupIcon from '@mui/icons-material/Group';
-import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutline';
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 import SaveIcon from '@mui/icons-material/Save';
 import { TaskCommentsModal } from '../components/TaskCommentsModal';
@@ -6529,9 +6528,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                                             </Box>
                                                           )}
                                                           <Box sx={{ display: 'flex', gap: 0.25, alignItems: 'center' }}>
-                                                            <IconButton size="small" title="Discussion" onClick={() => setCommentModalTask({ id: task.id, name: task.name || 'Task' })}
-                                                              sx={{ opacity: (taskCommentCounts[task.id] || 0) > 0 ? 1 : 0.6, color: (taskCommentCounts[task.id] || 0) > 0 ? planAccentColor : 'inherit', '&:hover': { opacity: 1, color: planAccentColor } }}>
-                                                              <ChatBubbleOutlineIcon sx={{ fontSize: '0.9rem' }} />
+                                                            <IconButton size="small" title="Task Details" onClick={() => openTaskDetails(task, 0)}
+                                                              sx={{ opacity: 0.6, '&:hover': { opacity: 1, color: planAccentColor } }}>
+                                                              <AssignmentIcon sx={{ fontSize: '0.9rem' }} />
                                                             </IconButton>
                                                             <IconButton size="small" title="Dependencies" onClick={async () => {
                                                               await loadTaskDeps(task.id);
@@ -6800,9 +6799,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                             )}
                                             {/* Actions */}
                                             <Box sx={{ display: 'flex', gap: 0.25, alignItems: 'center' }}>
-                                              <IconButton size="small" title="Discussion" onClick={() => setCommentModalTask({ id: task.id, name: task.name || 'Task' })}
-                                                sx={{ opacity: (taskCommentCounts[task.id] || 0) > 0 ? 1 : 0.6, color: (taskCommentCounts[task.id] || 0) > 0 ? planAccentColor : 'inherit', '&:hover': { opacity: 1, color: planAccentColor } }}>
-                                                <ChatBubbleOutlineIcon sx={{ fontSize: '0.9rem' }} />
+                                              <IconButton size="small" title="Task Details" onClick={() => openTaskDetails(task, 0)}
+                                                sx={{ opacity: 0.6, '&:hover': { opacity: 1, color: planAccentColor } }}>
+                                                <AssignmentIcon sx={{ fontSize: '0.9rem' }} />
                                               </IconButton>
                                               <IconButton size="small" title="Dependencies" onClick={async () => {
                                                 await loadTaskDeps(task.id);
@@ -7300,9 +7299,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                               </Box>
                                             )}
                                             <Box sx={{ display: 'flex', gap: 0.25, alignItems: 'center' }}>
-                                              <IconButton size="small" title="Discussion" onClick={() => setCommentModalTask({ id: task.id, name: task.name || 'Task' })}
-                                                sx={{ opacity: (taskCommentCounts[task.id] || 0) > 0 ? 1 : 0.6, color: (taskCommentCounts[task.id] || 0) > 0 ? planAccentColor : 'inherit', '&:hover': { opacity: 1, color: planAccentColor } }}>
-                                                <ChatBubbleOutlineIcon sx={{ fontSize: '0.9rem' }} />
+                                              <IconButton size="small" title="Task Details" onClick={() => openTaskDetails(task, 0)}
+                                                sx={{ opacity: 0.6, '&:hover': { opacity: 1, color: planAccentColor } }}>
+                                                <AssignmentIcon sx={{ fontSize: '0.9rem' }} />
                                               </IconButton>
                                               <IconButton size="small" onClick={async () => {
                                                 await loadTaskDeps(task.id);
