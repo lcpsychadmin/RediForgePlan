@@ -14,8 +14,6 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import apiClient from '../../api/client';
 import { useAuth } from '../../contexts/AuthContext';
 import DefectsSection from '../defects/DefectsSection';
-import ValidationStatsSection from '../validation/ValidationStatsSection';
-import IssueTypesSection from '../validation/IssueTypesSection';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -225,8 +223,6 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
 
   const resolvedTask = fetched || task || null;
   const taskIdResolved = resolvedTask?.id || resolvedTask?.taskId || taskId || '';
-  const taskType = (resolvedTask?.taskType || '').toLowerCase();
-  const supportsValidation = taskType === 'preload_validation' || taskType === 'postload_validation';
 
   const { data: deps = [] } = useQuery({
     queryKey: ['task-deps-modal', taskIdResolved],
@@ -423,7 +419,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     '& .MuiInputLabel-root.Mui-focused': { color: accent },
   };
 
-  const tabs = ['Details', ...(supportsValidation ? [taskType === 'preload_validation' ? 'Preload Quality' : 'Postload Quality'] : []), 'Defects'];
+  const tabs = ['Details', 'Defects'];
   const scheduleLocked = editData?.status === 'in_progress' || editData?.status === 'blocked' || editData?.status === 'complete';
   const hasDependencies = (deps as any[]).length > 0;
   const hasDuration = Number(editData?.duration || 0) > 0;
@@ -832,17 +828,8 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                 </Box>
               )}
 
-              {/* Validation tab */}
-              {supportsValidation && tab === 1 && (
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  <Alert severity="info" sx={{ fontSize: '0.8rem' }}>Capture load validation metrics here.</Alert>
-                  <ValidationStatsSection taskId={taskIdResolved} />
-                  <IssueTypesSection taskId={taskIdResolved} />
-                </Box>
-              )}
-
               {/* Defects tab */}
-              {((supportsValidation && tab === 2) || (!supportsValidation && tab === 1)) && (
+              {tab === 1 && (
                 <DefectsSection taskId={taskIdResolved} accentColor={accent} />
               )}
             </Box>
