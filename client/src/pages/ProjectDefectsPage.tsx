@@ -188,7 +188,7 @@ const ProjectDefectsPage: React.FC<ProjectDefectsPageProps> = ({ projectId: proj
   };
 
   return (
-    <PageContainer>
+    <PageContainer maxWidth="xl">
       <ContentHeader title="Defects" />
 
       <Section title="Defect Queue" count={defects.length} accent="#ef5350">
