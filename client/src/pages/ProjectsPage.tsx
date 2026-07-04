@@ -2272,7 +2272,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
     if (cachedProcessAreas[area]) {
       return cachedProcessAreas[area].progressPct;
     }
-    if (activeProjectId !== projectId) return fallbackPct;
+    // For hierarchy area rows, never inherit cycle/project progress on cache miss.
+    // If this area has no scoped task data, it should display 0%.
+    if (activeProjectId !== projectId) return 0;
     const normalizedArea = (area || '').trim().toLowerCase();
     const areaObjectIds = new Set(
       projectInventoryItems
@@ -2288,7 +2290,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
       (task.projectObjectId && areaObjectIds.has(task.projectObjectId)) ||
       (task.taskGroupId && areaGroupIds.has(task.taskGroupId))
     );
-    if (areaTasks.length === 0) return fallbackPct;
+    if (areaTasks.length === 0) return 0;
     return getProgressAverage(areaTasks.map((task: any) => Number(task.progressPercentage ?? 0)));
   };
 
