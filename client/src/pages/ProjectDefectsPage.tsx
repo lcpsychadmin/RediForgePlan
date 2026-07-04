@@ -191,8 +191,8 @@ const ProjectDefectsPage: React.FC<ProjectDefectsPageProps> = ({ projectId: proj
     <PageContainer>
       <ContentHeader title="Defects" />
 
-      <Section title="Defect Search" accent="#ef5350">
-        <Box sx={{ px: 2, py: 1.25, display: 'flex', gap: 1.25, flexWrap: 'wrap', alignItems: 'center' }}>
+      <Section title="Defect Queue" count={defects.length} accent="#ef5350">
+        <Box sx={{ px: 2, py: 1.25, display: 'flex', gap: 1.25, flexWrap: 'wrap', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
           <TextField
             size="small"
             placeholder="Search defects..."
@@ -214,16 +214,14 @@ const ProjectDefectsPage: React.FC<ProjectDefectsPageProps> = ({ projectId: proj
             <MenuItem value="all">All defects</MenuItem>
           </TextField>
         </Box>
-      </Section>
 
-      {defectsLoading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
-          <CircularProgress />
-        </Box>
-      ) : defects.length === 0 ? (
-        <Alert severity="info" sx={{ mt: 3 }}>No defects found for the selected filters.</Alert>
-      ) : (
-        <Section title="Defect Queue" count={defects.length} accent="#ef5350">
+        {defectsLoading ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
+            <CircularProgress />
+          </Box>
+        ) : defects.length === 0 ? (
+          <Alert severity="info" sx={{ m: 2 }}>No defects found for the selected filters.</Alert>
+        ) : (
           <TableContainer sx={{ maxHeight: 716 }}>
             <Table size="small" stickyHeader>
               <TableHead>
@@ -287,8 +285,8 @@ const ProjectDefectsPage: React.FC<ProjectDefectsPageProps> = ({ projectId: proj
               </TableBody>
             </Table>
           </TableContainer>
-        </Section>
-      )}
+        )}
+      </Section>
 
       <DefectCommentsModal
         open={Boolean(activeDefect)}
