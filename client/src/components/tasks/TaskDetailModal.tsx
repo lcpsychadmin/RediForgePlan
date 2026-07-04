@@ -220,6 +220,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   const [newSubtaskStatus, setNewSubtaskStatus] = useState('not_started');
   const [subtaskSaving, setSubtaskSaving] = useState(false);
   const [subtasksExpanded, setSubtasksExpanded] = useState(false);
+  const [subtaskDrafts, setSubtaskDrafts] = useState<Record<string, { title: string; description: string }>>({});
 
   const { data: fetched, isLoading } = useQuery({
     queryKey: ['task-details-modal', taskId],
@@ -383,6 +384,18 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
       setSubtasksExpanded(false);
     }
   }, [open, taskIdResolved, resolvedTask?.status]);
+
+  useEffect(() => {
+    const nextDrafts: Record<string, { title: string; description: string }> = {};
+    (subtasks as any[]).forEach((subtask: any) => {
+      if (!subtask?.id) return;
+      nextDrafts[subtask.id] = {
+        title: String(subtask.title || ''),
+        description: String(subtask.description || ''),
+      };
+    });
+    setSubtaskDrafts(nextDrafts);
+  }, [subtasks]);
 
   const set = (field: string, value: any) => setEditData((prev: any) => prev ? { ...prev, [field]: value } : null);
 
@@ -576,6 +589,19 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   const deleteSubtask = async (subtaskId: string) => {
     if (!subtaskId) return;
     await apiClient.delete(`/api/tasks/subtasks/${subtaskId}`);
+    await queryClient.invalidateQueries({ queryKey: ['task-subtasks-modal', taskIdResolved] });
+  };
+
+  const saveSubtaskText = async (subtaskId: string) => {
+    const draft = subtaskDrafts[subtaskId];
+    if (!draft) return;
+    const title = String(draft.title || '').trim();
+    if (!title) return;
+
+    await apiClient.patch(`/api/tasks/subtasks/${subtaskId}`, {
+      title,
+      description: String(draft.description || '').trim() || null,
+    });
     await queryClient.invalidateQueries({ queryKey: ['task-subtasks-modal', taskIdResolved] });
   };
 
@@ -933,8 +959,30 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.6 }}>
                             {(subtasks as any[]).map((subtask: any) => (
                               <Box key={subtask.id} sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1.1fr 1.5fr 1fr 0.9fr auto' }, gap: 1, alignItems: 'center', px: 1.1, py: 0.8, borderRadius: 1, backgroundColor: toRgba(accent, 0.06), border: `1px solid ${toRgba(accent, 0.16)}` }}>
-                                <Typography sx={{ fontSize: '0.78rem', fontWeight: 600 }}>{subtask.title}</Typography>
-                                <Typography sx={{ fontSize: '0.76rem', color: 'text.secondary' }}>{subtask.description || '—'}</Typography>
+                                <TextField
+                                  size="small"
+                                  value={subtaskDrafts[subtask.id]?.title ?? ''}
+                                  onChange={(e) => setSubtaskDrafts((prev) => ({
+                                    ...prev,
+                                    [subtask.id]: {
+                                      title: e.target.value,
+                                      description: prev[subtask.id]?.description ?? String(subtask.description || ''),
+                                    },
+                                  }))}
+                                  sx={fieldSx}
+                                />
+                                <TextField
+                                  size="small"
+                                  value={subtaskDrafts[subtask.id]?.description ?? ''}
+                                  onChange={(e) => setSubtaskDrafts((prev) => ({
+                                    ...prev,
+                                    [subtask.id]: {
+                                      title: prev[subtask.id]?.title ?? String(subtask.title || ''),
+                                      description: e.target.value,
+                                    },
+                                  }))}
+                                  sx={fieldSx}
+                                />
                                 <TextField
                                   select
                                   size="small"
@@ -957,9 +1005,20 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                                   <MenuItem value="blocked">Blocked</MenuItem>
                                   <MenuItem value="complete">Complete</MenuItem>
                                 </TextField>
-                                <IconButton size="small" onClick={() => deleteSubtask(subtask.id)} sx={{ opacity: 0.65, '&:hover': { opacity: 1, color: '#ef5350' } }}>
-                                  <DeleteIcon sx={{ fontSize: '0.9rem' }} />
-                                </IconButton>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.35 }}>
+                                  <Button
+                                    size="small"
+                                    variant="outlined"
+                                    onClick={() => saveSubtaskText(subtask.id)}
+                                    disabled={!String(subtaskDrafts[subtask.id]?.title || '').trim()}
+                                    sx={{ minWidth: 'auto', px: 0.9, textTransform: 'none', borderColor: toRgba(accent, 0.32), color: accent, fontSize: '0.7rem' }}
+                                  >
+                                    Save
+                                  </Button>
+                                  <IconButton size="small" onClick={() => deleteSubtask(subtask.id)} sx={{ opacity: 0.65, '&:hover': { opacity: 1, color: '#ef5350' } }}>
+                                    <DeleteIcon sx={{ fontSize: '0.9rem' }} />
+                                  </IconButton>
+                                </Box>
                               </Box>
                             ))}
                           </Box>
