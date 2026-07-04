@@ -5053,13 +5053,38 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
     setPriorityModalTask(task);
   };
 
+  const headerCompletionPercentage = (() => {
+    if (selectedItem?.type === 'program') {
+      const programProjects = (mockCycles[selectedItem.id] || []).flatMap((cycle: MockCycle) => projectsByMockCycle[cycle.id] || []);
+      const values = programProjects.map((p: Project) => Number(p.progressPercentage || 0));
+      return values.length > 0 ? getProgressAverage(values) : 0;
+    } else if (selectedItem?.type === 'cycle') {
+      const cycleProjects = projectsByMockCycle[selectedItem.id] || [];
+      const values = cycleProjects.map((p: Project) => Number(p.progressPercentage || 0));
+      return values.length > 0 ? getProgressAverage(values) : 0;
+    } else if (selectedItem?.type === 'project') {
+      const proj = Object.values(projectsByMockCycle).flat().find((p: Project) => p.id === selectedItem.id);
+      return Number(proj?.progressPercentage || 0);
+    } else if (activeCycleId) {
+      const cycleProjects = projectsByMockCycle[activeCycleId] || [];
+      const values = cycleProjects.map((p: Project) => Number(p.progressPercentage || 0));
+      return values.length > 0 ? getProgressAverage(values) : 0;
+    } else if (activeProjectId) {
+      const proj = Object.values(projectsByMockCycle).flat().find((p: Project) => p.id === activeProjectId);
+      return Number(proj?.progressPercentage || 0);
+    }
+    const allProjects = Object.values(projectsByMockCycle).flat();
+    const values = allProjects.map((p: Project) => Number(p.progressPercentage || 0));
+    return values.length > 0 ? getProgressAverage(values) : 0;
+  })();
+
   return (
     <Layout
       onMenuClick={() => setIsHierarchySidebarOpen(true)}
       programCount={programs.length}
       cycleCount={cycleCount}
       objectCount={projectInventoryItems.length}
-      completionPercentage={0}
+      completionPercentage={headerCompletionPercentage}
       tabValue={tabValue}
       onPeopleClick={() => setPeopleSidebarOpen(true)}
     >
