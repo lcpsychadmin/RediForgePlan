@@ -90,7 +90,16 @@ export const FilterProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     queryFn: async () => {
       if (selectedProgramId) {
         const projectsResponse = await apiClient.get(`/api/projects/by-program/${selectedProgramId}`);
-        return projectsResponse.data.data || [];
+        const rawProjects = projectsResponse.data.data || [];
+        const dedupedByName = new Map<string, any>();
+        rawProjects.forEach((project: any) => {
+          const key = String(project?.name || '').trim().toLowerCase();
+          if (!key) return;
+          if (!dedupedByName.has(key)) {
+            dedupedByName.set(key, project);
+          }
+        });
+        return Array.from(dedupedByName.values());
       }
 
       const allProgramsResponse = await apiClient.get('/api/programs');
@@ -107,8 +116,11 @@ export const FilterProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
       const deduped = new Map<string, any>();
       projectGroups.flat().forEach((project: any) => {
-        if (!project?.id) return;
-        deduped.set(project.id, project);
+        const programId = String(project?.programId || project?.program_id || '').trim();
+        const projectName = String(project?.name || '').trim().toLowerCase();
+        if (!programId || !projectName) return;
+        const key = `${programId}:${projectName}`;
+        if (!deduped.has(key)) deduped.set(key, project);
       });
       return Array.from(deduped.values());
     },

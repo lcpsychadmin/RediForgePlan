@@ -10,27 +10,67 @@ import PageContainer from '../layout/PageContainer';
 import ContentHeader from '../layout/ContentHeader';
 import { ExportMenu } from '../components/export';
 import DraggableScheduleGrid from '../components/schedule/DraggableScheduleGrid';
-import { useSchedule } from '../api/hooks';
 import { useParams } from 'react-router-dom';
 import { addDays, startOfWeek, subDays, format } from 'date-fns';
 import { useFilter } from '../contexts/FilterContext';
 
 const SchedulePage: React.FC = () => {
   const { projectId: routeProjectId } = useParams<{ projectId: string }>();
-  const { selectedProjectId } = useFilter();
+  const { selectedProgramId, selectedProjectId } = useFilter();
   const projectId = routeProjectId || selectedProjectId || '';
   const [weekStart, setWeekStart] = useState(startOfWeek(new Date()));
   const [filterProcessArea, setFilterProcessArea] = useState('');
   const [filterMockCycle, setFilterMockCycle] = useState('');
 
-  const { data: scheduleItems = [], isLoading, error } = useSchedule(projectId!);
+  const { data: scheduleItems = [], isLoading, error } = useQuery({
+    queryKey: ['schedule-scoped', projectId, selectedProgramId],
+    queryFn: async () => {
+      const fetchProjectSchedule = async (pid: string) => {
+        const response = await apiClient.get(`/api/schedule/project/${pid}`);
+        return response.data.data || [];
+      };
+
+      if (projectId) {
+        return await fetchProjectSchedule(projectId);
+      }
+
+      const programs = selectedProgramId
+        ? [{ id: selectedProgramId }]
+        : ((await apiClient.get('/api/programs')).data.data || []);
+
+      const projectGroups = await Promise.all(
+        programs.map(async (program: any) => {
+          const projectsResponse = await apiClient.get(`/api/projects/by-program/${program.id}`);
+          return projectsResponse.data.data || [];
+        })
+      );
+
+      const projects = projectGroups.flat();
+      const scheduleGroups = await Promise.all(
+        projects.map(async (project: any) => {
+          try {
+            return await fetchProjectSchedule(project.id);
+          } catch {
+            return [];
+          }
+        })
+      );
+
+      const deduped = new Map<string, any>();
+      scheduleGroups.flat().forEach((item: any) => {
+        if (!item?.id) return;
+        deduped.set(item.id, item);
+      });
+      return Array.from(deduped.values());
+    },
+  });
+
   const { data: hierarchyState = {} } = useQuery({
     queryKey: ['hierarchy-preferences-state'],
     queryFn: async () => {
       const response = await apiClient.get('/api/hierarchy-preferences/state');
       return response.data?.data || {};
     },
-    enabled: !!projectId,
   });
 
   const processAreaAccentOverrides =
@@ -56,10 +96,6 @@ const SchedulePage: React.FC = () => {
     }),
     [scheduleItems, filterProcessArea, filterMockCycle]
   );
-
-  if (!projectId) {
-    return <Alert severity="info">Select a project using the global filter to view schedule.</Alert>;
-  }
 
   const weekEnd = addDays(weekStart, 6);
 

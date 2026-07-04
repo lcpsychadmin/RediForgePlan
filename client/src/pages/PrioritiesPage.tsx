@@ -67,7 +67,7 @@ const Section: React.FC<{ title: string; count: number; accent: string; children
 
 const PrioritiesPage: React.FC = () => {
   const { projectId: routeProjectId } = useParams<{ projectId: string }>();
-  const { selectedProjectId } = useFilter();
+  const { selectedProgramId, selectedProjectId } = useFilter();
   const projectId = routeProjectId || selectedProjectId || '';
   const [selectedTask, setSelectedTask] = useState<any | null>(null);
   const [taskSearch, setTaskSearch] = useState('');
@@ -90,9 +90,41 @@ const PrioritiesPage: React.FC = () => {
   });
 
   const { data: rawTasksRaw = [] } = useQuery({
-    queryKey: ['priorities-fallback-tasks', projectId],
-    queryFn: async () => (await apiClient.get(`/api/tasks/project/${projectId}`)).data.data || [],
-    enabled: !!projectId,
+    queryKey: ['priorities-fallback-tasks', projectId, selectedProgramId],
+    queryFn: async () => {
+      if (projectId) {
+        return (await apiClient.get(`/api/tasks/project/${projectId}`)).data.data || [];
+      }
+
+      const programs = selectedProgramId
+        ? [{ id: selectedProgramId }]
+        : ((await apiClient.get('/api/programs')).data.data || []);
+
+      const projectGroups = await Promise.all(
+        programs.map(async (program: any) => {
+          const projectsResponse = await apiClient.get(`/api/projects/by-program/${program.id}`);
+          return projectsResponse.data.data || [];
+        })
+      );
+
+      const projects = projectGroups.flat();
+      const taskGroups = await Promise.all(
+        projects.map(async (project: any) => {
+          try {
+            return (await apiClient.get(`/api/tasks/project/${project.id}`)).data.data || [];
+          } catch {
+            return [];
+          }
+        })
+      );
+
+      const deduped = new Map<string, any>();
+      taskGroups.flat().forEach((task: any) => {
+        if (!task?.id) return;
+        deduped.set(task.id, task);
+      });
+      return Array.from(deduped.values());
+    },
   });
   // Deduplicate tasks by name+objectId (not DB id) — guards against duplicate seeding
   const rawTasks = useMemo(() => {
@@ -115,7 +147,7 @@ const PrioritiesPage: React.FC = () => {
       const res = await Promise.all(taskIds.map((id: string) => apiClient.get(`/api/tasks/${id}/defects`).catch(() => ({ data: { data: [] } }))));
       return res.flatMap((r: any) => r?.data?.data || []);
     },
-    enabled: !!projectId && taskIds.length > 0,
+    enabled: taskIds.length > 0,
   });
 
   const peopleById = useMemo(() => Object.fromEntries((people || []).map((p: any) => [p.id, p])), [people]);
@@ -208,12 +240,6 @@ const PrioritiesPage: React.FC = () => {
   const th = { py: 0.8, px: 1.5, fontSize: '0.68rem', letterSpacing: '0.06em', color: 'rgba(255,255,255,0.45)', backgroundColor: 'rgba(0,0,0,0.18)', textTransform: 'uppercase' as const, fontWeight: 700, borderBottom: '1px solid rgba(255,255,255,0.07)' };
   const td = { py: 0.75, px: 1.5, fontSize: '0.8rem', borderBottom: '1px solid rgba(255,255,255,0.04)' };
   const fsx = { minWidth: 130, '& .MuiInputBase-root': { fontSize: '0.78rem', height: 32 }, '& .MuiInputLabel-root': { fontSize: '0.78rem' } };
-
-  if (!projectId) {
-    return (
-      <Box sx={{ p: 3 }}><Alert severity="info">Select a project using the global filter to view priorities.</Alert></Box>
-    );
-  }
 
   return (
     <>

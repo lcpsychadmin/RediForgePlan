@@ -42,8 +42,9 @@ const GlobalFilterBar: React.FC = () => {
     const nameKey = base.trim().toLowerCase();
     if ((projectNameCounts[nameKey] || 0) <= 1) return base;
     const programName = String(project?.programName || '').trim();
-    if (programName) return `${base} (${programName})`;
     const shortId = String(project?.id || '').slice(0, 8);
+    if (programName && shortId) return `${base} (${programName} • ${shortId})`;
+    if (programName) return `${base} (${programName})`;
     return shortId ? `${base} (${shortId})` : base;
   };
 
