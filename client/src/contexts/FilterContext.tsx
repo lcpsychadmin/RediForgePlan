@@ -7,8 +7,10 @@ import { useQuery } from '@tanstack/react-query';
 import apiClient from '../api/client';
 
 const STORAGE_KEY = 'rf_global_filter';
+const STORAGE_VERSION = 2;
 
 interface FilterState {
+  version?: number;
   programId: string | null;
   projectId: string | null;
 }
@@ -31,6 +33,9 @@ function loadFromStorage(): FilterState {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return { programId: null, projectId: null };
     const parsed = JSON.parse(raw);
+    if (parsed.version !== STORAGE_VERSION) {
+      return { programId: null, projectId: null };
+    }
     return {
       programId: typeof parsed.programId === 'string' ? parsed.programId : null,
       projectId: typeof parsed.projectId === 'string' ? parsed.projectId : null,
@@ -47,7 +52,10 @@ export const FilterProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
   // Persist to localStorage whenever selection changes
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ programId: selectedProgramId, projectId: selectedProjectId }));
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ version: STORAGE_VERSION, programId: selectedProgramId, projectId: selectedProjectId })
+    );
   }, [selectedProgramId, selectedProjectId]);
 
   const setSelectedProgramId = (id: string | null) => {
@@ -90,7 +98,10 @@ export const FilterProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       const projectGroups = await Promise.all(
         allPrograms.map(async (program: any) => {
           const projectsResponse = await apiClient.get(`/api/projects/by-program/${program.id}`);
-          return projectsResponse.data.data || [];
+          return (projectsResponse.data.data || []).map((project: any) => ({
+            ...project,
+            programName: program.name,
+          }));
         })
       );
 

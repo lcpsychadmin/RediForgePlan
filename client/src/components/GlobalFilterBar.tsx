@@ -27,6 +27,26 @@ const GlobalFilterBar: React.FC = () => {
     projectsLoading,
   } = useFilter();
 
+  const projectNameCounts = React.useMemo(() => {
+    const counts: Record<string, number> = {};
+    (projects || []).forEach((project: any) => {
+      const key = String(project?.name || '').trim().toLowerCase();
+      if (!key) return;
+      counts[key] = (counts[key] || 0) + 1;
+    });
+    return counts;
+  }, [projects]);
+
+  const formatProjectLabel = (project: any) => {
+    const base = String(project?.name || 'Project');
+    const nameKey = base.trim().toLowerCase();
+    if ((projectNameCounts[nameKey] || 0) <= 1) return base;
+    const programName = String(project?.programName || '').trim();
+    if (programName) return `${base} (${programName})`;
+    const shortId = String(project?.id || '').slice(0, 8);
+    return shortId ? `${base} (${shortId})` : base;
+  };
+
   return (
     <Box
       sx={{
@@ -92,7 +112,7 @@ const GlobalFilterBar: React.FC = () => {
             </MenuItem>
             {projects.map((p: any) => (
               <MenuItem key={p.id} value={p.id} sx={{ fontSize: '0.875rem' }}>
-                {p.name}
+                {formatProjectLabel(p)}
               </MenuItem>
             ))}
           </Select>

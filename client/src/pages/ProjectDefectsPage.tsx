@@ -19,9 +19,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import PageContainer from '../layout/PageContainer';
 import ContentHeader from '../layout/ContentHeader';
 import apiClient from '../api/client';
-import { ReportingSummary } from '../api/types';
 import { useFilter } from '../contexts/FilterContext';
-import { useProjectDefects } from '../api/hooks';
 import DefectCommentsModal from '../components/DefectCommentsModal';
 
 const surfaceSx = {
@@ -66,7 +64,7 @@ interface ProjectDefectsPageProps {
 
 const ProjectDefectsPage: React.FC<ProjectDefectsPageProps> = ({ projectId: projectIdProp }) => {
   const { projectId: routeProjectId } = useParams<{ projectId: string }>();
-  const { selectedProjectId } = useFilter();
+  const { selectedProgramId, selectedProjectId } = useFilter();
   const resolvedProjectId = projectIdProp || routeProjectId || selectedProjectId || '';
   const [statusMode, setStatusMode] = React.useState<'active' | 'closed' | 'all'>('active');
   const [searchTerm, setSearchTerm] = React.useState('');
@@ -87,9 +85,57 @@ const ProjectDefectsPage: React.FC<ProjectDefectsPageProps> = ({ projectId: proj
     return ['open', 'in_progress', 'resolved', 'closed'];
   }, [statusMode]);
 
-  const { data: defects = [], isLoading: defectsLoading } = useProjectDefects(resolvedProjectId, {
-    statuses: defectStatuses,
-    search: searchTerm,
+  const { data: defects = [], isLoading: defectsLoading } = useQuery({
+    queryKey: ['project-defects', resolvedProjectId, selectedProgramId, defectStatuses, searchTerm],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (defectStatuses.length) {
+        params.append('statuses', defectStatuses.join(','));
+      }
+      if (searchTerm.trim()) {
+        params.append('search', searchTerm.trim());
+      }
+
+      const fetchProjectDefects = async (projectId: string) => {
+        const response = await apiClient.get(`/api/projects/${projectId}/defects`, {
+          params: Object.fromEntries(params),
+        });
+        return response.data.data || [];
+      };
+
+      if (resolvedProjectId) {
+        return await fetchProjectDefects(resolvedProjectId);
+      }
+
+      const programs = selectedProgramId
+        ? [{ id: selectedProgramId }]
+        : ((await apiClient.get('/api/programs')).data.data || []);
+
+      const projectGroups = await Promise.all(
+        programs.map(async (program: any) => {
+          const projectsResponse = await apiClient.get(`/api/projects/by-program/${program.id}`);
+          return projectsResponse.data.data || [];
+        })
+      );
+
+      const projects = projectGroups.flat();
+      const defectGroups = await Promise.all(
+        projects.map(async (project: any) => {
+          try {
+            return await fetchProjectDefects(project.id);
+          } catch {
+            return [];
+          }
+        })
+      );
+
+      const deduped = new Map<string, any>();
+      defectGroups.flat().forEach((defect: any) => {
+        if (!defect?.id) return;
+        deduped.set(defect.id, defect);
+      });
+      return Array.from(deduped.values());
+    },
   });
 
   const { data: people = [] } = useQuery({
@@ -117,10 +163,6 @@ const ProjectDefectsPage: React.FC<ProjectDefectsPageProps> = ({ projectId: proj
     await queryClient.invalidateQueries({ queryKey: ['project-defects', resolvedProjectId] });
     await queryClient.invalidateQueries({ queryKey: ['project-defects-summary', resolvedProjectId] });
   };
-
-  if (!resolvedProjectId) {
-    return <Alert severity="info">Select a project using the global filter to view defects.</Alert>;
-  }
 
   return (
     <PageContainer>
