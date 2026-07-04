@@ -1,6 +1,6 @@
 // client/src/pages/SchedulePage.tsx
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Box, CircularProgress, Alert, Button, Stack, MenuItem, Select, FormControl, InputLabel, Typography } from '@mui/material';
 import { useQuery } from '@tanstack/react-query';
 import apiClient from '../api/client';
@@ -13,6 +13,7 @@ import DraggableScheduleGrid from '../components/schedule/DraggableScheduleGrid'
 import { useParams } from 'react-router-dom';
 import { addDays, startOfWeek, subDays, format } from 'date-fns';
 import { useFilter } from '../contexts/FilterContext';
+import { usePageStats } from '../contexts/PageStatsContext';
 
 const SchedulePage: React.FC = () => {
   const { projectId: routeProjectId } = useParams<{ projectId: string }>();
@@ -121,10 +122,16 @@ const SchedulePage: React.FC = () => {
     [scheduleItems]
   );
 
+  const { setStats } = usePageStats();
+
   const scheduleStats = useMemo(() => [
     { label: 'Scheduled This Week', value: scheduledThisWeek },
     { label: 'Overdue', value: overdueItems },
   ], [scheduledThisWeek, overdueItems]);
+
+  useEffect(() => {
+    setStats(scheduleStats);
+  }, [scheduleStats, setStats]);
 
   const handlePreviousWeek = () => {
     setWeekStart(subDays(weekStart, 7));
@@ -138,7 +145,6 @@ const SchedulePage: React.FC = () => {
     <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 3 }}>
       <ContentHeader
         title="Schedule"
-        stats={scheduleStats}
         actions={projectId ? <ExportMenu projectId={projectId} variant="icon" /> : null}
       />
 

@@ -24,6 +24,7 @@ import TimelineIcon from '@mui/icons-material/Timeline';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import { useAuth } from '../contexts/AuthContext';
+import { usePageStats } from '../contexts/PageStatsContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import apiClient from '../api/client';
 
@@ -64,6 +65,7 @@ const TopNav: React.FC<TopNavProps> = ({
   onPeopleClick
 }) => {
   const { user, logout } = useAuth();
+  const { stats: pageStats } = usePageStats();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const navigate = useNavigate();
@@ -224,28 +226,43 @@ const TopNav: React.FC<TopNavProps> = ({
 
               {/* Stats */}
               <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                  <Typography variant="caption" sx={{ whiteSpace: 'nowrap', opacity: 0.75 }}>
-                    Programs:
-                  </Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                    {programCount}
-                  </Typography>
-                </Box>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                  <Typography variant="caption" sx={{ whiteSpace: 'nowrap', opacity: 0.75 }}>                    Cycles:
-                  </Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                    {cycleCount}
-                  </Typography>
-                </Box>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                  <Typography variant="caption" sx={{ whiteSpace: 'nowrap', opacity: 0.75 }}>                    Objects:
-                  </Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                    {objectCount}
-                  </Typography>
-                </Box>
+                {pageStats && pageStats.length > 0 ? (
+                  pageStats.map((stat, index) => (
+                    <Box key={index} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                      <Typography variant="caption" sx={{ whiteSpace: 'nowrap', opacity: 0.75 }}>
+                        {stat.label}:
+                      </Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                        {stat.value}
+                      </Typography>
+                    </Box>
+                  ))
+                ) : (
+                  <>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                      <Typography variant="caption" sx={{ whiteSpace: 'nowrap', opacity: 0.75 }}>
+                        Programs:
+                      </Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                        {programCount}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                      <Typography variant="caption" sx={{ whiteSpace: 'nowrap', opacity: 0.75 }}>                    Cycles:
+                      </Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                        {cycleCount}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                      <Typography variant="caption" sx={{ whiteSpace: 'nowrap', opacity: 0.75 }}>                    Objects:
+                      </Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                        {objectCount}
+                      </Typography>
+                    </Box>
+                  </>
+                )}
                 {/* Progress bar + percentage */}
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   <LinearProgress

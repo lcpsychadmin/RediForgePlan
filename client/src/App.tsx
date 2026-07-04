@@ -5,6 +5,7 @@ import CssBaseline from '@mui/material/CssBaseline';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { FilterProvider } from './contexts/FilterContext';
+import { PageStatsProvider } from './contexts/PageStatsContext';
 import { ProtectedRoute, RoleRoute } from './components/ProtectedRoute';
 import { setLogoutCallback } from './api/client';
 import queryClient from './api/queryClient';
@@ -311,8 +312,10 @@ const App: React.FC = () => {
         <Router>
           <AuthProvider>
             <FilterProvider>
-              <LogoutCallbackRegistration />
-              <AppRoutes />
+              <PageStatsProvider>
+                <LogoutCallbackRegistration />
+                <AppRoutes />
+              </PageStatsProvider>
             </FilterProvider>
           </AuthProvider>
         </Router>

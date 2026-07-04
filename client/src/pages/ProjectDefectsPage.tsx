@@ -23,6 +23,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import ContentHeader from '../layout/ContentHeader';
 import apiClient from '../api/client';
 import { useFilter } from '../contexts/FilterContext';
+import { usePageStats } from '../contexts/PageStatsContext';
 import DefectCommentsModal from '../components/DefectCommentsModal';
 
 const surfaceSx = {
@@ -186,6 +187,8 @@ const ProjectDefectsPage: React.FC<ProjectDefectsPageProps> = ({ projectId: proj
     await queryClient.invalidateQueries({ queryKey: ['project-defects-summary', resolvedProjectId] });
   };
 
+  const { setStats } = usePageStats();
+
   const criticalDefects = React.useMemo(() => defects.filter((d: any) => d.severity === 'critical').length, [defects]);
   const openDefects = React.useMemo(() => defects.filter((d: any) => d.status === 'open' || d.status === 'in_progress').length, [defects]);
   const defectStats = React.useMemo(() => [
@@ -193,9 +196,13 @@ const ProjectDefectsPage: React.FC<ProjectDefectsPageProps> = ({ projectId: proj
     { label: 'Open', value: openDefects },
   ], [criticalDefects, openDefects]);
 
+  React.useEffect(() => {
+    setStats(defectStats);
+  }, [defectStats, setStats]);
+
   return (
     <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 3 }}>
-      <ContentHeader title="Defects" stats={defectStats} />
+      <ContentHeader title="Defects" />
 
       <Section title="Defect Queue" count={defects.length} accent="#ef5350">
         <Box sx={{ px: 2, py: 1.25, display: 'flex', gap: 1.25, flexWrap: 'wrap', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>

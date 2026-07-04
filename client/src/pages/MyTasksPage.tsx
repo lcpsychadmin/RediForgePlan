@@ -25,6 +25,7 @@ import DefectCommentsModal from '../components/DefectCommentsModal';
 import apiClient from '../api/client';
 import { useAuth } from '../contexts/AuthContext';
 import { useFilter } from '../contexts/FilterContext';
+import { usePageStats } from '../contexts/PageStatsContext';
 
 const normalizeValue = (value?: string | null) => (value || '').trim().toLowerCase();
 
@@ -324,6 +325,8 @@ const MyTasksPage: React.FC = () => {
   const td = { py: 0.75, px: 1.5, fontSize: '0.8rem', borderBottom: '1px solid rgba(255,255,255,0.04)' };
   const fsx = { minWidth: 130, '& .MuiInputBase-root': { fontSize: '0.78rem', height: 32 }, '& .MuiInputLabel-root': { fontSize: '0.78rem' } };
 
+  const { setStats } = usePageStats();
+
   const inProgressTasks = React.useMemo(() => (data?.tasks || []).filter((t: any) => t.status === 'in_progress').length, [data?.tasks]);
   const criticalAssignedDefects = React.useMemo(() => (data?.defects || []).filter((d: any) => d.severity === 'critical' && d.status !== 'closed').length, [data?.defects]);
   const myTasksStats = React.useMemo(() => [
@@ -331,10 +334,14 @@ const MyTasksPage: React.FC = () => {
     { label: 'Critical Defects', value: criticalAssignedDefects },
   ], [inProgressTasks, criticalAssignedDefects]);
 
+  React.useEffect(() => {
+    setStats(myTasksStats);
+  }, [myTasksStats, setStats]);
+
   return (
     <Layout>
       <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 3 }}>
-        <ContentHeader title="My Tasks" stats={myTasksStats} />
+        <ContentHeader title="My Tasks" />
 
         {isLoading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
