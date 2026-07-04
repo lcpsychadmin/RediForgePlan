@@ -9542,7 +9542,32 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
 
       {/* Task Dependency Dialog */}
       <Dialog open={!!depDialogTaskId} onClose={() => setDepDialogTaskId(null)} maxWidth="sm" fullWidth>
-        <DialogTitle sx={{ pb: 1 }}>Task Dependencies</DialogTitle>
+        <DialogTitle sx={{ pb: 1 }}>
+          {(() => {
+            const depTask = (cycleTasksForDep || []).find((t: any) => t.id === depDialogTaskId)
+              || (projectTasks || []).find((t: any) => t.id === depDialogTaskId)
+              || null;
+            const objectId = String(depTask?.objectLabel || '').trim();
+            const groupLabel = String(depTask?.groupLabel || '').trim();
+            const objectContext = objectId || (groupLabel ? `Plan Group: ${groupLabel}` : 'Not linked');
+            const taskName = String(depTask?.name || 'Task').trim();
+            const taskDescription = String(depTask?.notes || '').trim();
+
+            return (
+              <>
+                <Typography variant="h6" sx={{ fontWeight: 700, lineHeight: 1.2 }}>
+                  Task Dependencies
+                </Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.35 }}>
+                  Object: {objectContext}
+                </Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.1 }}>
+                  Task: {taskName}{taskDescription ? ` - ${taskDescription}` : ''}
+                </Typography>
+              </>
+            );
+          })()}
+        </DialogTitle>
         <DialogContent sx={{ pb: 0 }}>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
             Select tasks that must complete before this task can start.
