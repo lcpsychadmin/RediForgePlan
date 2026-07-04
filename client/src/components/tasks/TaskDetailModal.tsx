@@ -214,6 +214,10 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   const [depSearchTerm, setDepSearchTerm] = useState('');
   const [depTreeExpanded, setDepTreeExpanded] = useState<Record<string, boolean>>({});
   const [dependencySaving, setDependencySaving] = useState(false);
+  const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
+  const [newSubtaskDescription, setNewSubtaskDescription] = useState('');
+  const [newSubtaskStatus, setNewSubtaskStatus] = useState('not_started');
+  const [subtaskSaving, setSubtaskSaving] = useState(false);
 
   const { data: fetched, isLoading } = useQuery({
     queryKey: ['task-details-modal', taskId],
@@ -227,6 +231,12 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   const { data: deps = [] } = useQuery({
     queryKey: ['task-deps-modal', taskIdResolved],
     queryFn: async () => (await apiClient.get(`/api/tasks/${taskIdResolved}/dependencies`)).data.data || [],
+    enabled: open && !!taskIdResolved,
+  });
+
+  const { data: subtasks = [] } = useQuery({
+    queryKey: ['task-subtasks-modal', taskIdResolved],
+    queryFn: async () => (await apiClient.get(`/api/tasks/${taskIdResolved}/subtasks`)).data.data || [],
     enabled: open && !!taskIdResolved,
   });
 
@@ -534,6 +544,36 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     }
   };
 
+  const addSubtask = async () => {
+    if (!taskIdResolved || !newSubtaskTitle.trim()) return;
+    try {
+      setSubtaskSaving(true);
+      await apiClient.post(`/api/tasks/${taskIdResolved}/subtasks`, {
+        title: newSubtaskTitle.trim(),
+        description: newSubtaskDescription.trim() || null,
+        status: newSubtaskStatus,
+      });
+      setNewSubtaskTitle('');
+      setNewSubtaskDescription('');
+      setNewSubtaskStatus('not_started');
+      await queryClient.invalidateQueries({ queryKey: ['task-subtasks-modal', taskIdResolved] });
+    } finally {
+      setSubtaskSaving(false);
+    }
+  };
+
+  const updateSubtaskStatus = async (subtaskId: string, status: string) => {
+    if (!subtaskId) return;
+    await apiClient.patch(`/api/tasks/subtasks/${subtaskId}`, { status });
+    await queryClient.invalidateQueries({ queryKey: ['task-subtasks-modal', taskIdResolved] });
+  };
+
+  const deleteSubtask = async (subtaskId: string) => {
+    if (!subtaskId) return;
+    await apiClient.delete(`/api/tasks/subtasks/${subtaskId}`);
+    await queryClient.invalidateQueries({ queryKey: ['task-subtasks-modal', taskIdResolved] });
+  };
+
   const toggleDependency = async (dependsOnTaskId: string) => {
     if ((deps as any[]).some((d: any) => d.dependsOnTaskId === dependsOnTaskId)) {
       await removeDependency(dependsOnTaskId);
@@ -808,6 +848,79 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                   {/* Notes */}
                   <TextField size="small" label="Notes / Description" multiline rows={4} value={editData.notes || ''}
                     onChange={e => set('notes', e.target.value)} sx={fieldSx} fullWidth />
+
+                  {/* Sub tasks */}
+                  <Box>
+                    <Typography variant="caption" sx={{ color: 'text.disabled', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', fontSize: '0.65rem', display: 'block', mb: 0.75 }}>
+                      Sub Tasks ({(subtasks as any[]).length})
+                    </Typography>
+
+                    <Box sx={{ display: 'grid', gridTemplateColumns: '1.1fr 1.6fr 0.9fr auto', gap: 1, mb: 1.25 }}>
+                      <TextField
+                        size="small"
+                        label="Title"
+                        value={newSubtaskTitle}
+                        onChange={(e) => setNewSubtaskTitle(e.target.value)}
+                        sx={fieldSx}
+                      />
+                      <TextField
+                        size="small"
+                        label="Description"
+                        value={newSubtaskDescription}
+                        onChange={(e) => setNewSubtaskDescription(e.target.value)}
+                        sx={fieldSx}
+                      />
+                      <TextField
+                        select
+                        size="small"
+                        label="Status"
+                        value={newSubtaskStatus}
+                        onChange={(e) => setNewSubtaskStatus(e.target.value)}
+                        sx={fieldSx}
+                      >
+                        <MenuItem value="not_started">Not Started</MenuItem>
+                        <MenuItem value="in_progress">In Progress</MenuItem>
+                        <MenuItem value="blocked">Blocked</MenuItem>
+                        <MenuItem value="complete">Complete</MenuItem>
+                      </TextField>
+                      <Button
+                        variant="outlined"
+                        onClick={addSubtask}
+                        disabled={subtaskSaving || !newSubtaskTitle.trim()}
+                        sx={{ textTransform: 'none', borderColor: toRgba(accent, 0.35), color: accent }}
+                      >
+                        Add
+                      </Button>
+                    </Box>
+
+                    {(subtasks as any[]).length === 0 ? (
+                      <Typography variant="caption" color="text.secondary">No sub tasks yet.</Typography>
+                    ) : (
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.6 }}>
+                        {(subtasks as any[]).map((subtask: any) => (
+                          <Box key={subtask.id} sx={{ display: 'grid', gridTemplateColumns: '1.1fr 1.6fr 0.9fr auto', gap: 1, alignItems: 'center', px: 1.1, py: 0.8, borderRadius: 1, backgroundColor: toRgba(accent, 0.06), border: `1px solid ${toRgba(accent, 0.16)}` }}>
+                            <Typography sx={{ fontSize: '0.78rem', fontWeight: 600 }}>{subtask.title}</Typography>
+                            <Typography sx={{ fontSize: '0.76rem', color: 'text.secondary' }}>{subtask.description || '—'}</Typography>
+                            <TextField
+                              select
+                              size="small"
+                              value={subtask.status || 'not_started'}
+                              onChange={(e) => updateSubtaskStatus(subtask.id, e.target.value)}
+                              sx={fieldSx}
+                            >
+                              <MenuItem value="not_started">Not Started</MenuItem>
+                              <MenuItem value="in_progress">In Progress</MenuItem>
+                              <MenuItem value="blocked">Blocked</MenuItem>
+                              <MenuItem value="complete">Complete</MenuItem>
+                            </TextField>
+                            <IconButton size="small" onClick={() => deleteSubtask(subtask.id)} sx={{ opacity: 0.65, '&:hover': { opacity: 1, color: '#ef5350' } }}>
+                              <DeleteIcon sx={{ fontSize: '0.9rem' }} />
+                            </IconButton>
+                          </Box>
+                        ))}
+                      </Box>
+                    )}
+                  </Box>
 
                   {/* Dependencies */}
                   <Box>

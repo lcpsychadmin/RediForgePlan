@@ -24,8 +24,15 @@ interface TaskInput {
   notes?: string;
 }
 
+interface TaskSubtaskInput {
+  title: string;
+  description?: string | null;
+  status?: 'not_started' | 'in_progress' | 'blocked' | 'complete';
+}
+
 export class TaskService {
   private taskGroupProcessAreaSupported: boolean | null = null;
+  private taskSubtasksTableReady: boolean | null = null;
 
   private async supportsTaskGroupProcessArea() {
     if (this.taskGroupProcessAreaSupported !== null) {
@@ -39,6 +46,29 @@ export class TaskService {
     );
     this.taskGroupProcessAreaSupported = result.rows.length > 0;
     return this.taskGroupProcessAreaSupported;
+  }
+
+  private async ensureTaskSubtasksTable() {
+    if (this.taskSubtasksTableReady) return;
+
+    await db.query(
+      `CREATE TABLE IF NOT EXISTS task_subtasks (
+         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+         task_id UUID NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+         title TEXT NOT NULL,
+         description TEXT,
+         status VARCHAR(20) NOT NULL DEFAULT 'not_started'
+           CHECK (status IN ('not_started', 'in_progress', 'blocked', 'complete')),
+         created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+         updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+       )`
+    );
+
+    await db.query(
+      'CREATE INDEX IF NOT EXISTS idx_task_subtasks_task_id ON task_subtasks(task_id)'
+    );
+
+    this.taskSubtasksTableReady = true;
   }
 
   // Timezone-safe date formatter: always returns YYYY-MM-DD string
@@ -415,6 +445,88 @@ export class TaskService {
     return result.rows.length > 0;
   }
 
+  // Task subtasks
+  async getTaskSubtasks(taskId: string) {
+    await this.ensureTaskSubtasksTable();
+    const result = await db.query(
+      `SELECT id, task_id, title, description, status, created_at, updated_at
+       FROM task_subtasks
+       WHERE task_id = $1
+       ORDER BY created_at ASC`,
+      [taskId]
+    );
+    return result.rows.map((row: any) => this.formatTaskSubtask(row));
+  }
+
+  async createTaskSubtask(taskId: string, data: TaskSubtaskInput) {
+    await this.ensureTaskSubtasksTable();
+    const result = await db.query(
+      `INSERT INTO task_subtasks (task_id, title, description, status)
+       VALUES ($1, $2, $3, $4)
+       RETURNING id, task_id, title, description, status, created_at, updated_at`,
+      [
+        taskId,
+        data.title,
+        data.description || null,
+        data.status || 'not_started',
+      ]
+    );
+    return this.formatTaskSubtask(result.rows[0]);
+  }
+
+  async updateTaskSubtask(subtaskId: string, data: Partial<TaskSubtaskInput>) {
+    await this.ensureTaskSubtasksTable();
+    const fields: string[] = [];
+    const values: any[] = [subtaskId];
+    let paramCount = 2;
+
+    if (data.title !== undefined) {
+      fields.push(`title = $${paramCount}`);
+      values.push(data.title);
+      paramCount++;
+    }
+    if (data.description !== undefined) {
+      fields.push(`description = $${paramCount}`);
+      values.push(data.description || null);
+      paramCount++;
+    }
+    if (data.status !== undefined) {
+      fields.push(`status = $${paramCount}`);
+      values.push(data.status);
+      paramCount++;
+    }
+
+    if (fields.length === 0) {
+      const current = await db.query(
+        `SELECT id, task_id, title, description, status, created_at, updated_at
+         FROM task_subtasks
+         WHERE id = $1`,
+        [subtaskId]
+      );
+      return current.rows.length > 0 ? this.formatTaskSubtask(current.rows[0]) : null;
+    }
+
+    fields.push('updated_at = CURRENT_TIMESTAMP');
+
+    const result = await db.query(
+      `UPDATE task_subtasks
+       SET ${fields.join(', ')}
+       WHERE id = $1
+       RETURNING id, task_id, title, description, status, created_at, updated_at`,
+      values
+    );
+    return result.rows.length > 0 ? this.formatTaskSubtask(result.rows[0]) : null;
+  }
+
+  async deleteTaskSubtask(subtaskId: string) {
+    await this.ensureTaskSubtasksTable();
+    const result = await db.query(
+      'DELETE FROM task_subtasks WHERE id = $1 RETURNING id',
+      [subtaskId]
+    );
+    return result.rows.length > 0;
+  }
+
   // Default task templates
   async getDefaultTaskTemplates() {
     const result = await db.query(
@@ -630,6 +742,18 @@ export class TaskService {
       draUserId: row.dra_user_id,
       developerUserId: row.developer_user_id,
       notes: row.notes,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    };
+  }
+
+  private formatTaskSubtask(row: any) {
+    return {
+      id: row.id,
+      taskId: row.task_id,
+      title: row.title,
+      description: row.description,
+      status: row.status,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };

@@ -338,6 +338,79 @@ router.delete('/:taskId/dependencies/:dependsOnTaskId', requireAuth, requireRole
   } catch (error) { next(error); }
 });
 
+// ===== TASK SUBTASKS =====
+
+router.get('/:taskId/subtasks', requireAuth, async (req, res, next) => {
+  try {
+    const task = await taskService.getTaskById(req.params.taskId);
+    if (!task) throw new ApiError(404, 'Task not found', 'NOT_FOUND');
+    const subtasks = await taskService.getTaskSubtasks(req.params.taskId);
+    res.json(formatListResponse(subtasks, subtasks.length));
+  } catch (error) { next(error); }
+});
+
+router.post('/:taskId/subtasks', requireAuth, requireRole('analyst', 'admin'), async (req, res, next) => {
+  try {
+    const task = await taskService.getTaskById(req.params.taskId);
+    if (!task) throw new ApiError(404, 'Task not found', 'NOT_FOUND');
+
+    const { title, description, status } = req.body || {};
+    if (!title || !String(title).trim()) {
+      throw new ApiError(400, 'Subtask title is required', 'MISSING_FIELD');
+    }
+
+    const allowedStatuses = ['not_started', 'in_progress', 'blocked', 'complete'];
+    const normalizedStatus = status ? String(status).trim() : 'not_started';
+    if (!allowedStatuses.includes(normalizedStatus)) {
+      throw new ApiError(400, 'Invalid subtask status', 'INVALID_FIELD');
+    }
+
+    const subtask = await taskService.createTaskSubtask(req.params.taskId, {
+      title: String(title).trim(),
+      description: description ? String(description) : null,
+      status: normalizedStatus as any,
+    });
+    res.status(201).json(formatSingleResponse(subtask));
+  } catch (error) { next(error); }
+});
+
+router.patch('/subtasks/:subtaskId', requireAuth, requireRole('analyst', 'admin'), async (req, res, next) => {
+  try {
+    const { title, description, status } = req.body || {};
+    const updates: any = {};
+
+    if (title !== undefined) {
+      if (!String(title).trim()) {
+        throw new ApiError(400, 'Subtask title cannot be empty', 'INVALID_FIELD');
+      }
+      updates.title = String(title).trim();
+    }
+    if (description !== undefined) {
+      updates.description = description ? String(description) : null;
+    }
+    if (status !== undefined) {
+      const normalizedStatus = String(status).trim();
+      const allowedStatuses = ['not_started', 'in_progress', 'blocked', 'complete'];
+      if (!allowedStatuses.includes(normalizedStatus)) {
+        throw new ApiError(400, 'Invalid subtask status', 'INVALID_FIELD');
+      }
+      updates.status = normalizedStatus;
+    }
+
+    const subtask = await taskService.updateTaskSubtask(req.params.subtaskId, updates);
+    if (!subtask) throw new ApiError(404, 'Subtask not found', 'NOT_FOUND');
+    res.json(formatSingleResponse(subtask));
+  } catch (error) { next(error); }
+});
+
+router.delete('/subtasks/:subtaskId', requireAuth, requireRole('analyst', 'admin'), async (req, res, next) => {
+  try {
+    const deleted = await taskService.deleteTaskSubtask(req.params.subtaskId);
+    if (!deleted) throw new ApiError(404, 'Subtask not found', 'NOT_FOUND');
+    res.json({ success: true });
+  } catch (error) { next(error); }
+});
+
 // ===== DEFAULT TASK TEMPLATES =====
 
 router.get('/templates/defaults', requireAuth, async (req, res, next) => {
