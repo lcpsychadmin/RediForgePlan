@@ -12,6 +12,8 @@ interface TaskInput {
   status?: string;
   startDate?: string;
   endDate?: string;
+  revisedStartDate?: string;
+  revisedEndDate?: string;
   assignedTo?: string;
   duration?: number;
   durationUnit?: string;
@@ -243,10 +245,12 @@ export class TaskService {
     const result = await db.query(
       `INSERT INTO tasks (
         project_id, project_object_id, task_group_id, task_type, name, status,
-        start_date, end_date, assigned_to, duration, duration_unit, schedule_mode_override, progress_percentage, dra_user_id, developer_user_id, notes
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+        start_date, end_date, revised_start_date, revised_end_date,
+        assigned_to, duration, duration_unit, schedule_mode_override, progress_percentage, dra_user_id, developer_user_id, notes
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
        RETURNING id, project_id, mock_cycle_id, project_object_id, task_group_id, task_type, name, status,
-                 start_date, end_date, assigned_to, duration, duration_unit, schedule_mode_override, progress_percentage,
+                 start_date, end_date, revised_start_date, revised_end_date,
+                 assigned_to, duration, duration_unit, schedule_mode_override, progress_percentage,
                  dra_user_id, developer_user_id, notes, created_at, updated_at`,
       [
         projectId,
@@ -257,6 +261,8 @@ export class TaskService {
         data.status || 'not_started',
         data.startDate || null,
         data.endDate || null,
+        data.revisedStartDate || null,
+        data.revisedEndDate || null,
         data.assignedTo || null,
         data.duration || null,
         data.durationUnit || 'days',
@@ -543,11 +549,13 @@ export class TaskService {
     const result = await db.query(
       `INSERT INTO tasks (
         project_id, mock_cycle_id, project_object_id, task_group_id, task_type, name, status,
-        start_date, end_date, assigned_to, duration, duration_unit, schedule_mode_override,
+        start_date, end_date, revised_start_date, revised_end_date,
+        assigned_to, duration, duration_unit, schedule_mode_override,
         progress_percentage, dra_user_id, developer_user_id, notes
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
        RETURNING id, project_id, mock_cycle_id, project_object_id, task_group_id, task_type, name, status,
-                 start_date, end_date, assigned_to, duration, duration_unit, schedule_mode_override,
+                 start_date, end_date, revised_start_date, revised_end_date,
+                 assigned_to, duration, duration_unit, schedule_mode_override,
                  progress_percentage, dra_user_id, developer_user_id, notes, created_at, updated_at`,
       [
         projectId, mockCycleId,
@@ -555,6 +563,7 @@ export class TaskService {
         data.taskType, data.name || null,
         data.status || 'not_started',
         data.startDate || null, data.endDate || null,
+        data.revisedStartDate || null, data.revisedEndDate || null,
         data.assignedTo || null, data.duration || null,
         data.durationUnit || 'days', data.scheduleModeOverride || null,
         data.progressPercentage || 0,

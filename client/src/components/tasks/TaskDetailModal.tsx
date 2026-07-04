@@ -735,12 +735,28 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                       Revised Dates
                     </Typography>
                     <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5 }}>
-                      <TextField size="small" label="Revised Start" type="date" value={editData.revisedStartDate || ''}
-                        onChange={e => set('revisedStartDate', e.target.value)}
-                        InputLabelProps={{ shrink: true }} sx={fieldSx} />
-                      <TextField size="small" label="Revised End" type="date" value={editData.revisedEndDate || ''}
-                        onChange={e => set('revisedEndDate', e.target.value)}
-                        InputLabelProps={{ shrink: true }} sx={fieldSx} />
+                      <Box sx={{ position: 'relative', '&:focus-within .revised-start-placeholder': { display: 'none' } }}>
+                        <TextField size="small" label="Revised Start" type="date" value={editData.revisedStartDate || ''}
+                          onChange={e => set('revisedStartDate', e.target.value)}
+                          InputLabelProps={{ shrink: true }}
+                          sx={{ ...fieldSx, ...(!editData.revisedStartDate ? { '& input': { color: 'transparent' }, '& input:focus': { color: 'inherit' }, '& input::-webkit-calendar-picker-indicator': { opacity: 0 }, '& input:focus::-webkit-calendar-picker-indicator': { opacity: 1 } } : {}) }} />
+                        {!editData.revisedStartDate && (
+                          <Box className="revised-start-placeholder" sx={{ position: 'absolute', inset: 0, pl: 1.5, display: 'flex', alignItems: 'center', pointerEvents: 'none', fontSize: '0.72rem', color: 'text.disabled' }}>
+                            Select Date
+                          </Box>
+                        )}
+                      </Box>
+                      <Box sx={{ position: 'relative', '&:focus-within .revised-end-placeholder': { display: 'none' } }}>
+                        <TextField size="small" label="Revised End" type="date" value={editData.revisedEndDate || ''}
+                          onChange={e => set('revisedEndDate', e.target.value)}
+                          InputLabelProps={{ shrink: true }}
+                          sx={{ ...fieldSx, ...(!editData.revisedEndDate ? { '& input': { color: 'transparent' }, '& input:focus': { color: 'inherit' }, '& input::-webkit-calendar-picker-indicator': { opacity: 0 }, '& input:focus::-webkit-calendar-picker-indicator': { opacity: 1 } } : {}) }} />
+                        {!editData.revisedEndDate && (
+                          <Box className="revised-end-placeholder" sx={{ position: 'absolute', inset: 0, pl: 1.5, display: 'flex', alignItems: 'center', pointerEvents: 'none', fontSize: '0.72rem', color: 'text.disabled' }}>
+                            Select Date
+                          </Box>
+                        )}
+                      </Box>
                     </Box>
                   </Box>
 
