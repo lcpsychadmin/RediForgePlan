@@ -325,19 +325,10 @@ const MyTasksPage: React.FC = () => {
   const td = { py: 0.75, px: 1.5, fontSize: '0.8rem', borderBottom: '1px solid rgba(255,255,255,0.04)' };
   const fsx = { minWidth: 130, '& .MuiInputBase-root': { fontSize: '0.78rem', height: 32 }, '& .MuiInputLabel-root': { fontSize: '0.78rem' } };
 
-  const stats = [
-    { label: 'Assigned Tasks', value: data?.tasks?.length ?? 0 },
-    { label: 'Assigned Defects', value: data?.defects?.length ?? 0 },
-  ];
-
   return (
     <Layout>
       <PageContainer maxWidth="xl">
-        <ContentHeader
-          title="My Tasks"
-          subtitle={isAdmin ? 'Items assigned across all programs and projects.' : effectiveProjectId ? 'Items assigned to you in the selected project.' : effectiveProgramId ? 'Items assigned to you in the selected program.' : 'Items assigned to you across all programs and projects.'}
-          stats={stats}
-        />
+        <ContentHeader title="My Tasks" />
 
         {isLoading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>

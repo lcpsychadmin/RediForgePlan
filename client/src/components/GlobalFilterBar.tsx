@@ -62,6 +62,9 @@ const GlobalFilterBar: React.FC = () => {
             onChange={(e) => setSelectedProgramId(e.target.value || null)}
             sx={{ fontSize: '0.875rem' }}
           >
+            <MenuItem value="" sx={{ fontSize: '0.875rem' }}>
+              All Programs
+            </MenuItem>
             {programs.map((p: any) => (
               <MenuItem key={p.id} value={p.id} sx={{ fontSize: '0.875rem' }}>
                 {p.name}
@@ -75,7 +78,7 @@ const GlobalFilterBar: React.FC = () => {
       {projectsLoading ? (
         <Skeleton variant="rounded" width={200} height={32} />
       ) : (
-        <FormControl size="small" sx={{ minWidth: 200 }} disabled={!selectedProgramId}>
+        <FormControl size="small" sx={{ minWidth: 200 }}>
           <InputLabel id="global-project-label">Project</InputLabel>
           <Select
             labelId="global-project-label"
@@ -84,6 +87,9 @@ const GlobalFilterBar: React.FC = () => {
             onChange={(e) => setSelectedProjectId(e.target.value || null)}
             sx={{ fontSize: '0.875rem' }}
           >
+            <MenuItem value="" sx={{ fontSize: '0.875rem' }}>
+              All Projects
+            </MenuItem>
             {projects.map((p: any) => (
               <MenuItem key={p.id} value={p.id} sx={{ fontSize: '0.875rem' }}>
                 {p.name}

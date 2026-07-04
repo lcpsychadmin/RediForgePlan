@@ -122,29 +122,13 @@ const ProjectDefectsPage: React.FC<ProjectDefectsPageProps> = ({ projectId: proj
     return <Alert severity="info">Select a project using the global filter to view defects.</Alert>;
   }
 
-  const defectCount = defects.length;
-  const activeCount = defects.filter((defect: any) => defect.status === 'open' || defect.status === 'in_progress').length;
-  const closedCount = defects.filter((defect: any) => defect.status === 'closed').length;
-  const resolvedCount = defects.filter((defect: any) => defect.status === 'resolved').length;
-
   return (
     <PageContainer>
-      <ContentHeader
-        title={`${project?.name || 'Project'} Defects`}
-        stats={[
-          { label: 'Displayed', value: defectCount },
-          { label: 'Active', value: activeCount },
-          { label: 'Closed', value: closedCount },
-          { label: 'Resolved', value: resolvedCount },
-        ]}
-      />
+      <ContentHeader title="Defects" />
 
       <Box sx={{ ...surfaceSx, mb: 3 }}>
         <Box sx={{ px: 2.5, py: 1.5, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: 'rgba(255,255,255,0.02)' }}>
           <Typography variant="subtitle2" fontWeight={700}>Defect Search</Typography>
-          <Typography variant="body2" color="text.secondary">
-            Search defects across the project. Active defects are shown by default; switch to closed or all defects when needed.
-          </Typography>
         </Box>
         <Box sx={{ px: 2.5, py: 1.5 }}>
           <Stack spacing={1.5}>
@@ -169,11 +153,6 @@ const ProjectDefectsPage: React.FC<ProjectDefectsPageProps> = ({ projectId: proj
                 <MenuItem value="all">All defects</MenuItem>
               </TextField>
             </Stack>
-            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-              <Chip size="small" label={`Active: ${activeCount}`} />
-              <Chip size="small" label={`Closed: ${closedCount}`} />
-              <Chip size="small" label={`Resolved: ${resolvedCount}`} />
-            </Box>
           </Stack>
         </Box>
       </Box>

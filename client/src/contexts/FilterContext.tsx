@@ -69,56 +69,47 @@ export const FilterProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     staleTime: 60000,
   });
 
-  // Auto-select first program if none selected
-  useEffect(() => {
-    if (!selectedProgramId && programs.length > 0) {
-      setSelectedProgramIdState(programs[0].id);
-    }
-  }, [programs, selectedProgramId]);
-
   // Validate saved programId still exists
   useEffect(() => {
     if (selectedProgramId && programs.length > 0) {
       const exists = programs.some((p: any) => p.id === selectedProgramId);
-      if (!exists) setSelectedProgramIdState(programs[0]?.id ?? null);
+      if (!exists) setSelectedProgramIdState(null);
     }
   }, [programs, selectedProgramId]);
 
   const { data: projects = [], isLoading: projectsLoading } = useQuery({
     queryKey: ['projects-for-filter', selectedProgramId],
     queryFn: async () => {
-      const cycles: any[] = [];
-      const cyclesResponse = await apiClient.get(`/api/programs/${selectedProgramId}/mock-cycles`);
-      const mockCycles = cyclesResponse.data.data || [];
-      await Promise.all(
-        mockCycles.map(async (cycle: any) => {
-          const resp = await apiClient.get(`/api/projects/by-cycle/${cycle.id}`);
-          (resp.data.data || []).forEach((project: any) => {
-            if (!cycles.find((p) => p.id === project.id)) {
-              cycles.push({ ...project, mockCycleName: cycle.name });
-            }
-          });
+      if (selectedProgramId) {
+        const projectsResponse = await apiClient.get(`/api/projects/by-program/${selectedProgramId}`);
+        return projectsResponse.data.data || [];
+      }
+
+      const allProgramsResponse = await apiClient.get('/api/programs');
+      const allPrograms = allProgramsResponse.data.data || [];
+      const projectGroups = await Promise.all(
+        allPrograms.map(async (program: any) => {
+          const projectsResponse = await apiClient.get(`/api/projects/by-program/${program.id}`);
+          return projectsResponse.data.data || [];
         })
       );
-      return cycles;
+
+      const deduped = new Map<string, any>();
+      projectGroups.flat().forEach((project: any) => {
+        if (!project?.id) return;
+        deduped.set(project.id, project);
+      });
+      return Array.from(deduped.values());
     },
-    enabled: !!selectedProgramId,
+    enabled: programs.length > 0,
     staleTime: 30000,
   });
 
-  // Auto-select first project if none selected
-  useEffect(() => {
-    if (!selectedProjectId && projects.length > 0) {
-      setSelectedProjectIdState(projects[0].id);
-    }
-  }, [projects, selectedProjectId]);
-
   // Validate saved projectId still exists in selected program's projects
   useEffect(() => {
-    if (selectedProjectId && projects.length > 0) {
-      const exists = projects.some((p: any) => p.id === selectedProjectId);
-      if (!exists) setSelectedProjectIdState(projects[0]?.id ?? null);
-    }
+    if (!selectedProjectId) return;
+    const exists = projects.some((p: any) => p.id === selectedProjectId);
+    if (!exists) setSelectedProjectIdState(null);
   }, [projects, selectedProjectId]);
 
   const value = useMemo<FilterContextType>(() => ({
