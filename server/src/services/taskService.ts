@@ -28,6 +28,7 @@ interface TaskSubtaskInput {
   title: string;
   description?: string | null;
   status?: 'not_started' | 'in_progress' | 'blocked' | 'complete';
+  assignedTo?: string | null;
 }
 
 export class TaskService {
@@ -57,12 +58,15 @@ export class TaskService {
          task_id UUID NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
          title TEXT NOT NULL,
          description TEXT,
+         assigned_to TEXT,
          status VARCHAR(20) NOT NULL DEFAULT 'not_started'
            CHECK (status IN ('not_started', 'in_progress', 'blocked', 'complete')),
          created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
          updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
        )`
     );
+
+    await db.query('ALTER TABLE task_subtasks ADD COLUMN IF NOT EXISTS assigned_to TEXT');
 
     await db.query(
       'CREATE INDEX IF NOT EXISTS idx_task_subtasks_task_id ON task_subtasks(task_id)'
@@ -449,7 +453,7 @@ export class TaskService {
   async getTaskSubtasks(taskId: string) {
     await this.ensureTaskSubtasksTable();
     const result = await db.query(
-      `SELECT id, task_id, title, description, status, created_at, updated_at
+      `SELECT id, task_id, title, description, assigned_to, status, created_at, updated_at
        FROM task_subtasks
        WHERE task_id = $1
        ORDER BY created_at ASC`,
@@ -461,13 +465,14 @@ export class TaskService {
   async createTaskSubtask(taskId: string, data: TaskSubtaskInput) {
     await this.ensureTaskSubtasksTable();
     const result = await db.query(
-      `INSERT INTO task_subtasks (task_id, title, description, status)
-       VALUES ($1, $2, $3, $4)
-       RETURNING id, task_id, title, description, status, created_at, updated_at`,
+      `INSERT INTO task_subtasks (task_id, title, description, assigned_to, status)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id, task_id, title, description, assigned_to, status, created_at, updated_at`,
       [
         taskId,
         data.title,
         data.description || null,
+        data.assignedTo || null,
         data.status || 'not_started',
       ]
     );
@@ -490,6 +495,11 @@ export class TaskService {
       values.push(data.description || null);
       paramCount++;
     }
+    if (data.assignedTo !== undefined) {
+      fields.push(`assigned_to = $${paramCount}`);
+      values.push(data.assignedTo || null);
+      paramCount++;
+    }
     if (data.status !== undefined) {
       fields.push(`status = $${paramCount}`);
       values.push(data.status);
@@ -498,7 +508,7 @@ export class TaskService {
 
     if (fields.length === 0) {
       const current = await db.query(
-        `SELECT id, task_id, title, description, status, created_at, updated_at
+        `SELECT id, task_id, title, description, assigned_to, status, created_at, updated_at
          FROM task_subtasks
          WHERE id = $1`,
         [subtaskId]
@@ -512,7 +522,7 @@ export class TaskService {
       `UPDATE task_subtasks
        SET ${fields.join(', ')}
        WHERE id = $1
-       RETURNING id, task_id, title, description, status, created_at, updated_at`,
+       RETURNING id, task_id, title, description, assigned_to, status, created_at, updated_at`,
       values
     );
     return result.rows.length > 0 ? this.formatTaskSubtask(result.rows[0]) : null;
@@ -753,6 +763,7 @@ export class TaskService {
       taskId: row.task_id,
       title: row.title,
       description: row.description,
+      assignedTo: row.assigned_to,
       status: row.status,
       createdAt: row.created_at,
       updatedAt: row.updated_at,

@@ -354,7 +354,7 @@ router.post('/:taskId/subtasks', requireAuth, requireRole('analyst', 'admin'), a
     const task = await taskService.getTaskById(req.params.taskId);
     if (!task) throw new ApiError(404, 'Task not found', 'NOT_FOUND');
 
-    const { title, description, status } = req.body || {};
+    const { title, description, status, assignedTo } = req.body || {};
     if (!title || !String(title).trim()) {
       throw new ApiError(400, 'Subtask title is required', 'MISSING_FIELD');
     }
@@ -368,6 +368,7 @@ router.post('/:taskId/subtasks', requireAuth, requireRole('analyst', 'admin'), a
     const subtask = await taskService.createTaskSubtask(req.params.taskId, {
       title: String(title).trim(),
       description: description ? String(description) : null,
+      assignedTo: assignedTo ? String(assignedTo).trim() : null,
       status: normalizedStatus as any,
     });
     res.status(201).json(formatSingleResponse(subtask));
@@ -376,7 +377,7 @@ router.post('/:taskId/subtasks', requireAuth, requireRole('analyst', 'admin'), a
 
 router.patch('/subtasks/:subtaskId', requireAuth, requireRole('analyst', 'admin'), async (req, res, next) => {
   try {
-    const { title, description, status } = req.body || {};
+    const { title, description, status, assignedTo } = req.body || {};
     const updates: any = {};
 
     if (title !== undefined) {
@@ -387,6 +388,9 @@ router.patch('/subtasks/:subtaskId', requireAuth, requireRole('analyst', 'admin'
     }
     if (description !== undefined) {
       updates.description = description ? String(description) : null;
+    }
+    if (assignedTo !== undefined) {
+      updates.assignedTo = assignedTo ? String(assignedTo).trim() : null;
     }
     if (status !== undefined) {
       const normalizedStatus = String(status).trim();
