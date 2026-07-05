@@ -279,16 +279,18 @@ export const DraggableScheduleGrid: React.FC<DraggableScheduleGridProps> = ({
                       variant="caption"
                       sx={{
                         display: 'block',
-                        opacity: 0.92,
+                        color: alpha(color, 0.96),
+                        textShadow: `0 0 10px ${alpha(color, 0.22)}`,
                         whiteSpace: 'normal',
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
                         fontSize: '0.62rem',
-                        fontWeight: 500,
+                        fontWeight: 700,
+                        letterSpacing: '0.01em',
                         lineHeight: 1.15,
                       }}
                     >
-                      Task: {taskDescription}
+                      {taskDescription}
                     </Typography>
                   ) : null}
                   <Typography
