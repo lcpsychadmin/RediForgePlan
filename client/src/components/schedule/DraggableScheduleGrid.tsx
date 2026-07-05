@@ -231,6 +231,11 @@ export const DraggableScheduleGrid: React.FC<DraggableScheduleGridProps> = ({
               const description = item.objectDescription || item.taskName || '';
               const taskDescription = (item.taskDescription || item.taskName || formatTaskTypeLabel(item.taskType) || '').trim();
               const statusLine = `${formatStatusLabel(item.taskStatus)}  ·  ${Math.max(0, Math.min(100, Number(item.progressPercentage ?? 0)))}%`;
+              const isComplete = item.taskStatus === 'complete';
+              const descriptionColor = isComplete ? alpha('#ffffff', 0.72) : alpha(color, 0.96);
+              const descriptionGlow = isComplete ? 'none' : `0 0 10px ${alpha(color, 0.22)}`;
+              const statusColor = isComplete ? '#66bb6a' : alpha(color, 0.9);
+              const statusGlow = isComplete ? `0 0 10px ${alpha('#66bb6a', 0.28)}` : `0 0 8px ${alpha(color, 0.18)}`;
 
               return (
                 <Paper
@@ -242,19 +247,20 @@ export const DraggableScheduleGrid: React.FC<DraggableScheduleGridProps> = ({
                     alignSelf: 'start',
                     mt: `${lane * (laneCardHeight + laneGapPx)}px`,
                     minHeight: laneCardHeight,
-                    backgroundColor: alpha(color, 0.28),
-                    color: '#fff',
+                    backgroundColor: isComplete ? 'rgba(148,163,184,0.20)' : alpha(color, 0.28),
+                    color: isComplete ? 'rgba(255,255,255,0.82)' : '#fff',
                     p: 1,
                     borderRadius: 1.25,
                     boxShadow: 1,
                     pointerEvents: 'auto',
                     cursor: 'pointer',
                     overflow: 'hidden',
-                    border: `2px dashed ${color}`,
+                    border: `2px dashed ${isComplete ? 'rgba(148,163,184,0.55)' : color}`,
                     backdropFilter: 'blur(2px)',
                     display: 'flex',
                     flexDirection: 'column',
                     gap: 0.25,
+                    opacity: isComplete ? 0.86 : 1,
                     transition: 'transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease',
                     '&:hover': {
                       transform: 'translateY(-1px)',
@@ -267,8 +273,8 @@ export const DraggableScheduleGrid: React.FC<DraggableScheduleGridProps> = ({
                       variant="caption"
                       sx={{
                         display: 'block',
-                        color: alpha(color, 0.96),
-                        textShadow: `0 0 10px ${alpha(color, 0.22)}`,
+                        color: descriptionColor,
+                        textShadow: descriptionGlow,
                         whiteSpace: 'normal',
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
@@ -285,8 +291,8 @@ export const DraggableScheduleGrid: React.FC<DraggableScheduleGridProps> = ({
                     variant="caption"
                     sx={{
                       display: 'block',
-                      color: alpha(color, 0.9),
-                      textShadow: `0 0 8px ${alpha(color, 0.18)}`,
+                      color: statusColor,
+                      textShadow: statusGlow,
                       whiteSpace: 'normal',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
