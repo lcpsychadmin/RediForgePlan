@@ -1628,7 +1628,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
             const area = objectArea || groupArea || null;
             if (!area) return;
             if (!progressBuckets[area]) progressBuckets[area] = [];
-            progressBuckets[area].push(Number(task.progressPercentage ?? 0));
+            progressBuckets[area].push(getEffectiveTaskProgress(task));
           });
 
           Object.keys(processAreaSummary).forEach((area) => {
@@ -1638,7 +1638,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
           });
 
           const projectProgressPct = tasks.length > 0
-            ? getProgressAverage(tasks.map((task: any) => Number(task.progressPercentage ?? 0)))
+            ? getProgressAverage(tasks.map((task: any) => getEffectiveTaskProgress(task)))
             : 0;
 
           return [compositeKey, {
@@ -2287,6 +2287,12 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
     return Math.round(values.reduce((sum, value) => sum + Math.max(0, Math.min(100, value || 0)), 0) / values.length);
   };
 
+  const getEffectiveTaskProgress = (task: any) => {
+    const pct = Number(task?.progressPercentage ?? 0);
+    if (pct > 0) return pct;
+    return task?.status === 'complete' ? 100 : 0;
+  };
+
   const getProcessAreaProgress = (projectId: string, area: string, fallbackPct: number, cycleId?: string) => {
     const summaryKey = cycleId ? `${projectId}_${cycleId}` : projectId;
     const resolvedArea = getResolvedProcessAreaKey(projectId, area, cycleId);
@@ -2324,7 +2330,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
       (task.taskGroupId && areaGroupIds.has(task.taskGroupId))
     );
     if (areaTasks.length === 0) return 0;
-    return getProgressAverage(areaTasks.map((task: any) => Number(task.progressPercentage ?? 0)));
+    return getProgressAverage(areaTasks.map((task: any) => getEffectiveTaskProgress(task)));
   };
 
   const handleAddAdditionalGroup = (cycleId: string) => {
