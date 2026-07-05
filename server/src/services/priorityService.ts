@@ -66,7 +66,7 @@ export class ScheduleService {
        FROM tasks t
        LEFT JOIN schedule_items si ON si.task_id = t.id
        WHERE t.project_id = $1
-         AND t.task_type IN ('extract', 'extract_validation', 'transform', 'transformation', 'preload_validation', 'load', 'postload_validation')
+         AND t.task_type IN ('extract', 'transform', 'preload_validation', 'load', 'postload_validation', 'custom')
          AND COALESCE(t.end_date, t.start_date) IS NOT NULL
          AND si.id IS NULL
        ON CONFLICT (task_id, scheduled_date) DO NOTHING`,

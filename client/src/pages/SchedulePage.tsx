@@ -25,6 +25,25 @@ const TASK_TYPE_OPTIONS = [
   { value: 'postload_validation', label: 'Postload Validation' },
 ];
 
+const matchesTaskTypeFilter = (item: any, filterTaskType: string) => {
+  if (filterTaskType === 'all') return true;
+
+  const taskType = (item?.taskType || '').toLowerCase();
+  const taskName = (item?.taskName || '').toLowerCase();
+
+  if (filterTaskType === 'extract_validation') {
+    // Legacy data stores Extract Validation as custom task type.
+    return taskType === 'extract_validation' || (taskType === 'custom' && taskName.includes('extract validation'));
+  }
+
+  if (filterTaskType === 'transform') {
+    // Support both transform and transformation labels.
+    return taskType === 'transform' || taskType === 'transformation';
+  }
+
+  return taskType === filterTaskType;
+};
+
 const SchedulePage: React.FC = () => {
   const { projectId: routeProjectId } = useParams<{ projectId: string }>();
   const { selectedProgramId, selectedProjectId } = useFilter();
@@ -102,7 +121,7 @@ const SchedulePage: React.FC = () => {
 
   const filteredItems = useMemo(() =>
     scheduleItems.filter((i: any) => {
-      if (filterTaskType !== 'all' && (i.taskType || '') !== filterTaskType) return false;
+      if (!matchesTaskTypeFilter(i, filterTaskType)) return false;
       if (filterProcessArea && i.processArea !== filterProcessArea) return false;
       if (filterMockCycle && i.mockCycleName !== filterMockCycle) return false;
       return true;
