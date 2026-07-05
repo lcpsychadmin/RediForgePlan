@@ -15,6 +15,16 @@ import { addDays, startOfWeek, subDays, format } from 'date-fns';
 import { useFilter } from '../contexts/FilterContext';
 import { usePageStats } from '../contexts/PageStatsContext';
 
+const TASK_TYPE_OPTIONS = [
+  { value: 'all', label: 'All' },
+  { value: 'extract', label: 'Extract' },
+  { value: 'extract_validation', label: 'Extract Validation' },
+  { value: 'transform', label: 'Transformation' },
+  { value: 'preload_validation', label: 'Preload Validation' },
+  { value: 'load', label: 'Load' },
+  { value: 'postload_validation', label: 'Postload Validation' },
+];
+
 const SchedulePage: React.FC = () => {
   const { projectId: routeProjectId } = useParams<{ projectId: string }>();
   const { selectedProgramId, selectedProjectId } = useFilter();
@@ -22,6 +32,7 @@ const SchedulePage: React.FC = () => {
   const [weekStart, setWeekStart] = useState(startOfWeek(new Date()));
   const [filterProcessArea, setFilterProcessArea] = useState('');
   const [filterMockCycle, setFilterMockCycle] = useState('');
+  const [filterTaskType, setFilterTaskType] = useState('load');
 
   const { data: scheduleItems = [], isLoading, error } = useQuery({
     queryKey: ['schedule-scoped', projectId, selectedProgramId],
@@ -91,11 +102,12 @@ const SchedulePage: React.FC = () => {
 
   const filteredItems = useMemo(() =>
     scheduleItems.filter((i: any) => {
+      if (filterTaskType !== 'all' && (i.taskType || '') !== filterTaskType) return false;
       if (filterProcessArea && i.processArea !== filterProcessArea) return false;
       if (filterMockCycle && i.mockCycleName !== filterMockCycle) return false;
       return true;
     }),
-    [scheduleItems, filterProcessArea, filterMockCycle]
+    [scheduleItems, filterTaskType, filterProcessArea, filterMockCycle]
   );
 
   const weekEnd = addDays(weekStart, 6);
@@ -183,6 +195,21 @@ const SchedulePage: React.FC = () => {
         <Typography variant="caption" sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'text.secondary', mr: 0.5 }}>
           Filter
         </Typography>
+        <FormControl size="small" sx={{ minWidth: 220 }}>
+          <InputLabel id="task-type-filter-label">Task Type</InputLabel>
+          <Select
+            labelId="task-type-filter-label"
+            label="Task Type"
+            value={filterTaskType}
+            onChange={(e) => setFilterTaskType(e.target.value)}
+          >
+            {TASK_TYPE_OPTIONS.map((taskTypeOption) => (
+              <MenuItem key={taskTypeOption.value} value={taskTypeOption.value}>
+                {taskTypeOption.label}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
         <FormControl size="small" sx={{ minWidth: 180 }}>
           <InputLabel id="pa-filter-label">Process Area</InputLabel>
           <Select
@@ -211,8 +238,8 @@ const SchedulePage: React.FC = () => {
             ))}
           </Select>
         </FormControl>
-        {(filterProcessArea || filterMockCycle) && (
-          <Button size="small" onClick={() => { setFilterProcessArea(''); setFilterMockCycle(''); }}>
+        {(filterTaskType !== 'load' || filterProcessArea || filterMockCycle) && (
+          <Button size="small" onClick={() => { setFilterTaskType('load'); setFilterProcessArea(''); setFilterMockCycle(''); }}>
             Clear
           </Button>
         )}

@@ -211,6 +211,7 @@ export const DraggableScheduleGrid: React.FC<DraggableScheduleGridProps> = ({
             {positionedItems.map(({ item, startCol, endCol, lane, color }) => {
               const idLine = item.objectId || item.taskName || 'Object';
               const description = item.objectDescription || item.taskName || '';
+              const taskDescription = item.taskDescription || '';
 
               return (
                 <Paper
@@ -265,6 +266,23 @@ export const DraggableScheduleGrid: React.FC<DraggableScheduleGridProps> = ({
                   >
                     {description}
                   </Typography>
+                  {taskDescription ? (
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        display: 'block',
+                        opacity: 0.92,
+                        whiteSpace: 'normal',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        fontSize: '0.62rem',
+                        fontWeight: 500,
+                        lineHeight: 1.15,
+                      }}
+                    >
+                      {taskDescription}
+                    </Typography>
+                  ) : null}
                   <Typography
                     variant="caption"
                     sx={{

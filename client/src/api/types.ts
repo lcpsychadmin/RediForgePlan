@@ -595,6 +595,7 @@ export interface ScheduleItem {
   projectId: string;
   taskId: string;
   taskName?: string;
+  taskDescription?: string;
   taskStatus?: string;
   taskType?: string;
   startDate?: string;

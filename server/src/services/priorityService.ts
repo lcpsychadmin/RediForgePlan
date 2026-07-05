@@ -55,7 +55,7 @@ export class DependencyService {
 
 export class ScheduleService {
   async getScheduleByProject(projectId: string) {
-    // Backfill schedule rows from load-task dates so projects with existing load dates
+    // Backfill schedule rows from default task dates so projects with existing task dates
     // render on the schedule page even when explicit schedule_items were never created.
     await db.query(
       `INSERT INTO schedule_items (project_id, task_id, scheduled_date)
@@ -66,7 +66,7 @@ export class ScheduleService {
        FROM tasks t
        LEFT JOIN schedule_items si ON si.task_id = t.id
        WHERE t.project_id = $1
-         AND t.task_type = 'load'
+         AND t.task_type IN ('extract', 'extract_validation', 'transform', 'transformation', 'preload_validation', 'load', 'postload_validation')
          AND COALESCE(t.end_date, t.start_date) IS NOT NULL
          AND si.id IS NULL
        ON CONFLICT (task_id, scheduled_date) DO NOTHING`,
@@ -75,7 +75,7 @@ export class ScheduleService {
 
     const result = await db.query(
       `SELECT si.id, si.project_id, si.task_id, si.scheduled_date, si.created_at,
-              t.task_type, t.name, t.status, t.start_date, t.end_date,
+              t.task_type, t.name, t.notes AS task_description, t.status, t.start_date, t.end_date,
               po.id as project_object_id,
               COALESCE(go.object_id, po.id::text) as object_id,
               COALESCE(NULLIF(po.sub_object_description, ''), go.description) as object_description,
@@ -114,7 +114,7 @@ export class ScheduleService {
     // Fetch with full data
     const full = await db.query(
       `SELECT si.id, si.project_id, si.task_id, si.scheduled_date, si.created_at,
-              t.task_type, t.name, t.status, t.start_date, t.end_date,
+              t.task_type, t.name, t.notes AS task_description, t.status, t.start_date, t.end_date,
               po.id as project_object_id,
               COALESCE(go.object_id, po.id::text) as object_id,
               COALESCE(NULLIF(po.sub_object_description, ''), go.description) as object_description,
@@ -154,7 +154,7 @@ export class ScheduleService {
 
     const full = await db.query(
       `SELECT si.id, si.project_id, si.task_id, si.scheduled_date, si.created_at,
-              t.task_type, t.name, t.status, t.start_date, t.end_date,
+              t.task_type, t.name, t.notes AS task_description, t.status, t.start_date, t.end_date,
               po.id as project_object_id,
               COALESCE(go.object_id, po.id::text) as object_id,
               COALESCE(NULLIF(po.sub_object_description, ''), go.description) as object_description,
@@ -199,6 +199,7 @@ export class ScheduleService {
       taskId: row.task_id,
       taskType: row.task_type,
       taskName: row.name,
+      taskDescription: row.task_description || null,
       taskStatus: row.status,
       startDate: row.start_date,
       endDate: row.end_date,
