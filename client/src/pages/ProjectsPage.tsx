@@ -1623,9 +1623,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
 
           const progressBuckets: Record<string, number[]> = {};
           tasks.forEach((task: any) => {
+            const taskArea = (task.processArea || '').trim();
             const objectArea = task.projectObjectId ? objectAreaMap.get(task.projectObjectId) : null;
             const groupArea = task.taskGroupId ? groupAreaMap.get(task.taskGroupId) : null;
-            const area = objectArea || groupArea || null;
+            const area = taskArea || objectArea || groupArea || null;
             if (!area) return;
             if (!progressBuckets[area]) progressBuckets[area] = [];
             progressBuckets[area].push(getEffectiveTaskProgress(task));
@@ -2293,6 +2294,23 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
     return task?.status === 'complete' ? 100 : 0;
   };
 
+  const taskMatchesProcessArea = (projectId: string, task: any, requestedArea: string, cycleId?: string) => {
+    const resolvedRequested = getResolvedProcessAreaKey(projectId, requestedArea, cycleId);
+    const requestedNorm = (requestedArea || '').trim().toLowerCase();
+    const resolvedNorm = (resolvedRequested || '').trim().toLowerCase();
+    const requestedDisplayNorm = getProcessAreaDisplayName(projectId, resolvedRequested || requestedArea || '').trim().toLowerCase();
+
+    const taskRaw = (task?.processArea || '').trim();
+    const taskRawNorm = taskRaw.toLowerCase();
+    const taskDisplayNorm = getProcessAreaDisplayName(projectId, taskRaw).trim().toLowerCase();
+
+    if (taskRawNorm) {
+      return taskRawNorm === resolvedNorm || taskRawNorm === requestedNorm || taskDisplayNorm === requestedDisplayNorm || taskDisplayNorm === requestedNorm;
+    }
+
+    return false;
+  };
+
   const getProcessAreaProgress = (projectId: string, area: string, fallbackPct: number, cycleId?: string) => {
     const summaryKey = cycleId ? `${projectId}_${cycleId}` : projectId;
     const resolvedArea = getResolvedProcessAreaKey(projectId, area, cycleId);
@@ -2325,10 +2343,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
         })
         .map((group: any) => group.id)
     );
-    const areaTasks = projectTasks.filter((task: any) =>
-      (task.projectObjectId && areaObjectIds.has(task.projectObjectId)) ||
-      (task.taskGroupId && areaGroupIds.has(task.taskGroupId))
-    );
+    const areaTasks = projectTasks.filter((task: any) => {
+      if (taskMatchesProcessArea(projectId, task, resolvedArea, cycleId)) return true;
+      return (task.projectObjectId && areaObjectIds.has(task.projectObjectId)) ||
+        (task.taskGroupId && areaGroupIds.has(task.taskGroupId));
+    });
     if (areaTasks.length === 0) return 0;
     return getProgressAverage(areaTasks.map((task: any) => getEffectiveTaskProgress(task)));
   };
@@ -5930,7 +5949,12 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                       .map((cycle: MockCycle) => (projectsByMockCycle[cycle.id] || []).find((p: Project) => (p.name || '').trim().toLowerCase() === normalizedProjectName))
                       .filter(Boolean) as Project[];
                     const allPlanTasks = projectTasks.filter(t => t.projectObjectId || t.taskGroupId);
-                    const progressPct = allPlanTasks.length > 0 ? Math.round(allPlanTasks.reduce((s, t) => s + (t.progressPercentage ?? 0), 0) / allPlanTasks.length) : 0;
+                    const scopedPlanTasks = selectedItem.type === 'processArea'
+                      ? allPlanTasks.filter((t: any) => taskMatchesProcessArea(project.id, t, selectedItem.area, parentCycleId || undefined))
+                      : allPlanTasks;
+                    const progressPct = scopedPlanTasks.length > 0
+                      ? getProgressAverage(scopedPlanTasks.map((t: any) => getEffectiveTaskProgress(t)))
+                      : 0;
                     // Filter by the raw area code, not the display label, so it correctly
                     // matches global_objects.process_area values on first click (before the
                     // selectedExecutionProcessArea state has been set by the useEffect).
@@ -6000,7 +6024,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                     const processAreaSummaryRows = Array.from(projectProcessAreas)
                       .sort((a, b) => a.localeCompare(b))
                       .map((area) => {
-                        const summary = projectHierarchySummaries[summaryKey]?.processAreas?.[area];
+                        const resolvedAreaKey = getResolvedProcessAreaKey(project.id, area, parentCycleId || undefined);
+                        const summary = projectHierarchySummaries[summaryKey]?.processAreas?.[resolvedAreaKey];
                         return {
                           area,
                           taskCount: summary?.taskCount ?? 0,
