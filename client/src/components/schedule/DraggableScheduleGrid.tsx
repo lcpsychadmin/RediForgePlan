@@ -58,6 +58,14 @@ export const DraggableScheduleGrid: React.FC<DraggableScheduleGridProps> = ({
     return areaPalette[hash % areaPalette.length];
   };
 
+  const formatTaskTypeLabel = (taskType?: string) => {
+    const value = (taskType || '').trim();
+    if (!value) return 'Task';
+    return value
+      .replace(/_/g, ' ')
+      .replace(/\b\w/g, (char) => char.toUpperCase());
+  };
+
   const getAreaColor = (item: ScheduleItemType) => {
     const processArea = (item.processArea || 'Unassigned').trim();
     // Priority: global setting > per-project override > hash-based color
@@ -211,7 +219,7 @@ export const DraggableScheduleGrid: React.FC<DraggableScheduleGridProps> = ({
             {positionedItems.map(({ item, startCol, endCol, lane, color }) => {
               const idLine = item.objectId || item.taskName || 'Object';
               const description = item.objectDescription || item.taskName || '';
-              const taskDescription = item.taskDescription || '';
+              const taskDescription = (item.taskDescription || item.taskName || formatTaskTypeLabel(item.taskType) || '').trim();
 
               return (
                 <Paper
@@ -280,7 +288,7 @@ export const DraggableScheduleGrid: React.FC<DraggableScheduleGridProps> = ({
                         lineHeight: 1.15,
                       }}
                     >
-                      {taskDescription}
+                      Task: {taskDescription}
                     </Typography>
                   ) : null}
                   <Typography
