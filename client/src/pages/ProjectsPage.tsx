@@ -2182,6 +2182,27 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
     return description || area;
   };
 
+  const getResolvedProcessAreaKey = (projectId: string, area: string, cycleId?: string) => {
+    const requested = (area || '').trim();
+    if (!requested) return requested;
+    const requestedNorm = requested.toLowerCase();
+    const summaryKey = cycleId ? `${projectId}_${cycleId}` : projectId;
+    const cachedKeys = Object.keys(projectHierarchySummaries[summaryKey]?.processAreas || {});
+
+    const exact = cachedKeys.find((key) => key === requested);
+    if (exact) return exact;
+
+    const caseInsensitive = cachedKeys.find((key) => (key || '').trim().toLowerCase() === requestedNorm);
+    if (caseInsensitive) return caseInsensitive;
+
+    const byDisplayName = cachedKeys.find((key) =>
+      (getProcessAreaDisplayName(projectId, key) || '').trim().toLowerCase() === requestedNorm
+    );
+    if (byDisplayName) return byDisplayName;
+
+    return requested;
+  };
+
   const renderHierarchyIcon = (level: HierarchyLevel, color: string, size: string, overrideKey?: string, overrideArea?: string) => {
     // Global settings (from Settings page) take priority over per-cycle overrides and defaults.
     const globalIcon = overrideArea ? globalProcessAreaIcons[overrideArea] : undefined;
@@ -2268,22 +2289,34 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
 
   const getProcessAreaProgress = (projectId: string, area: string, fallbackPct: number, cycleId?: string) => {
     const summaryKey = cycleId ? `${projectId}_${cycleId}` : projectId;
+    const resolvedArea = getResolvedProcessAreaKey(projectId, area, cycleId);
     const cachedProcessAreas = projectHierarchySummaries[summaryKey]?.processAreas || {};
-    if (cachedProcessAreas[area]) {
-      return cachedProcessAreas[area].progressPct;
+    if (cachedProcessAreas[resolvedArea]) {
+      return cachedProcessAreas[resolvedArea].progressPct;
     }
     // For hierarchy area rows, never inherit cycle/project progress on cache miss.
     // If this area has no scoped task data, it should display 0%.
     if (activeProjectId !== projectId) return 0;
-    const normalizedArea = (area || '').trim().toLowerCase();
+    const normalizedArea = (resolvedArea || '').trim().toLowerCase();
+    const requestedAreaDisplayNorm = (area || '').trim().toLowerCase();
     const areaObjectIds = new Set(
       projectInventoryItems
-        .filter((item: any) => item.projectId === projectId && ((item.processArea || '').trim().toLowerCase() === normalizedArea))
+        .filter((item: any) => {
+          if (item.projectId !== projectId) return false;
+          const raw = (item.processArea || '').trim().toLowerCase();
+          const display = getProcessAreaDisplayName(projectId, item.processArea || '').trim().toLowerCase();
+          return raw === normalizedArea || display === requestedAreaDisplayNorm;
+        })
         .map((item: any) => item.id)
     );
     const areaGroupIds = new Set(
       projectTaskGroups
-        .filter((group: any) => group.projectId === projectId && ((group.processArea || '').trim().toLowerCase() === normalizedArea))
+        .filter((group: any) => {
+          if (group.projectId !== projectId) return false;
+          const raw = (group.processArea || '').trim().toLowerCase();
+          const display = getProcessAreaDisplayName(projectId, group.processArea || '').trim().toLowerCase();
+          return raw === normalizedArea || display === requestedAreaDisplayNorm;
+        })
         .map((group: any) => group.id)
     );
     const areaTasks = projectTasks.filter((task: any) =>
@@ -5550,7 +5583,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                           {processAreas.map((area) => {
                                             const normalizedArea = (area || '').trim().toLowerCase();
                                             const summaryKeyForArea = `${realProject.id}_${cycle.id}`;
-                                            const cachedAreaSummary = projectHierarchySummaries[summaryKeyForArea]?.processAreas?.[area];
+                                            const resolvedAreaKey = getResolvedProcessAreaKey(realProject.id, area, cycle.id);
+                                            const cachedAreaSummary = projectHierarchySummaries[summaryKeyForArea]?.processAreas?.[resolvedAreaKey];
                                             const activeAreaObjectCount = projectInventoryItems.filter((item: any) => item.projectId === realProject.id && ((item.processArea || '').trim().toLowerCase() === normalizedArea)).length;
                                             const activeAreaTaskGroupCount = projectTaskGroups.filter((group: any) => group.projectId === realProject.id && ((group.processArea || '').trim().toLowerCase() === normalizedArea)).length;
                                             const areaObjectCount = activeProjectId === realProject.id
