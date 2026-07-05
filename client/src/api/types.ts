@@ -598,6 +598,7 @@ export interface ScheduleItem {
   taskDescription?: string;
   taskStatus?: string;
   taskType?: string;
+  progressPercentage?: number;
   startDate?: string;
   endDate?: string;
   projectObjectId?: string;

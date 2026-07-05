@@ -10,6 +10,7 @@ import PageContainer from '../layout/PageContainer';
 import ContentHeader from '../layout/ContentHeader';
 import { ExportMenu } from '../components/export';
 import DraggableScheduleGrid from '../components/schedule/DraggableScheduleGrid';
+import TaskDetailModal from '../components/tasks/TaskDetailModal';
 import { useParams } from 'react-router-dom';
 import { addDays, startOfWeek, subDays, format } from 'date-fns';
 import { useFilter } from '../contexts/FilterContext';
@@ -52,6 +53,9 @@ const SchedulePage: React.FC = () => {
   const [filterProcessArea, setFilterProcessArea] = useState('');
   const [filterMockCycle, setFilterMockCycle] = useState('');
   const [filterTaskType, setFilterTaskType] = useState('load');
+  const [selectedTaskId, setSelectedTaskId] = useState<string>('');
+  const [taskModalOpen, setTaskModalOpen] = useState(false);
+  const [taskModalAccentColor, setTaskModalAccentColor] = useState('#29b6f6');
 
   const { data: scheduleItems = [], isLoading, error } = useQuery({
     queryKey: ['schedule-scoped', projectId, selectedProgramId],
@@ -173,6 +177,13 @@ const SchedulePage: React.FC = () => {
     setWeekStart(addDays(weekStart, 7));
   };
 
+  const handleScheduleItemClick = (item: any, accentColor: string) => {
+    if (!item?.taskId) return;
+    setSelectedTaskId(item.taskId);
+    setTaskModalAccentColor(accentColor || '#29b6f6');
+    setTaskModalOpen(true);
+  };
+
   return (
     <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 3 }}>
       <ContentHeader
@@ -286,9 +297,20 @@ const SchedulePage: React.FC = () => {
             projectId={projectId}
             processAreaAccentOverrides={processAreaAccentOverrides}
             globalProcessAreaAccents={globalProcessAreaAccents}
+            onItemClick={handleScheduleItemClick}
           />
         )}
       </Box>
+
+      <TaskDetailModal
+        open={taskModalOpen}
+        onClose={() => {
+          setTaskModalOpen(false);
+          setSelectedTaskId('');
+        }}
+        taskId={selectedTaskId || undefined}
+        accentColor={taskModalAccentColor}
+      />
     </Box>
   );
 };

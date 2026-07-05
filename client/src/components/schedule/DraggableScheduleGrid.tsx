@@ -14,6 +14,7 @@ interface DraggableScheduleGridProps {
   projectId: string;
   processAreaAccentOverrides?: Record<string, Record<string, string>>;
   globalProcessAreaAccents?: Record<string, string>;
+  onItemClick?: (item: ScheduleItemType, accentColor: string) => void;
 }
 
 interface PositionedItem {
@@ -35,6 +36,7 @@ export const DraggableScheduleGrid: React.FC<DraggableScheduleGridProps> = ({
   projectId,
   processAreaAccentOverrides = {},
   globalProcessAreaAccents = {},
+  onItemClick,
 }) => {
   const laneCardHeight = 92;
   const laneGapPx = 8;
@@ -61,6 +63,14 @@ export const DraggableScheduleGrid: React.FC<DraggableScheduleGridProps> = ({
   const formatTaskTypeLabel = (taskType?: string) => {
     const value = (taskType || '').trim();
     if (!value) return 'Task';
+    return value
+      .replace(/_/g, ' ')
+      .replace(/\b\w/g, (char) => char.toUpperCase());
+  };
+
+  const formatStatusLabel = (status?: string) => {
+    const value = (status || '').trim();
+    if (!value) return 'Not Started';
     return value
       .replace(/_/g, ' ')
       .replace(/\b\w/g, (char) => char.toUpperCase());
@@ -220,10 +230,12 @@ export const DraggableScheduleGrid: React.FC<DraggableScheduleGridProps> = ({
               const idLine = item.objectId || item.taskName || 'Object';
               const description = item.objectDescription || item.taskName || '';
               const taskDescription = (item.taskDescription || item.taskName || formatTaskTypeLabel(item.taskType) || '').trim();
+              const statusLine = `${formatStatusLabel(item.taskStatus)}  ·  ${Math.max(0, Math.min(100, Number(item.progressPercentage ?? 0)))}%`;
 
               return (
                 <Paper
                   key={item.id}
+                  onClick={() => onItemClick?.(item, color)}
                   sx={{
                     gridColumn: `${startCol} / ${endCol + 1}`,
                     gridRow: 1,
@@ -236,12 +248,18 @@ export const DraggableScheduleGrid: React.FC<DraggableScheduleGridProps> = ({
                     borderRadius: 1.25,
                     boxShadow: 1,
                     pointerEvents: 'auto',
+                    cursor: 'pointer',
                     overflow: 'hidden',
                     border: `2px dashed ${color}`,
                     backdropFilter: 'blur(2px)',
                     display: 'flex',
                     flexDirection: 'column',
                     gap: 0.25,
+                    transition: 'transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease',
+                    '&:hover': {
+                      transform: 'translateY(-1px)',
+                      boxShadow: 3,
+                    },
                   }}
                 >
                   {taskDescription ? (
@@ -263,6 +281,23 @@ export const DraggableScheduleGrid: React.FC<DraggableScheduleGridProps> = ({
                       {taskDescription}
                     </Typography>
                   ) : null}
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      display: 'block',
+                      color: alpha(color, 0.9),
+                      textShadow: `0 0 8px ${alpha(color, 0.18)}`,
+                      whiteSpace: 'normal',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      fontSize: '0.66rem',
+                      fontWeight: 700,
+                      letterSpacing: '0.01em',
+                      lineHeight: 1.1,
+                    }}
+                  >
+                    {statusLine}
+                  </Typography>
                   <Typography
                     variant="caption"
                     sx={{

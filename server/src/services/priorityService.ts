@@ -75,7 +75,7 @@ export class ScheduleService {
 
     const result = await db.query(
       `SELECT si.id, si.project_id, si.task_id, si.scheduled_date, si.created_at,
-              t.task_type, t.name, t.notes AS task_description, t.status, t.start_date, t.end_date,
+              t.task_type, t.name, t.notes AS task_description, t.status, t.progress_percentage, t.start_date, t.end_date,
               po.id as project_object_id,
               COALESCE(go.object_id, po.id::text) as object_id,
               COALESCE(NULLIF(po.sub_object_description, ''), go.description) as object_description,
@@ -114,7 +114,7 @@ export class ScheduleService {
     // Fetch with full data
     const full = await db.query(
       `SELECT si.id, si.project_id, si.task_id, si.scheduled_date, si.created_at,
-              t.task_type, t.name, t.notes AS task_description, t.status, t.start_date, t.end_date,
+              t.task_type, t.name, t.notes AS task_description, t.status, t.progress_percentage, t.start_date, t.end_date,
               po.id as project_object_id,
               COALESCE(go.object_id, po.id::text) as object_id,
               COALESCE(NULLIF(po.sub_object_description, ''), go.description) as object_description,
@@ -154,7 +154,7 @@ export class ScheduleService {
 
     const full = await db.query(
       `SELECT si.id, si.project_id, si.task_id, si.scheduled_date, si.created_at,
-              t.task_type, t.name, t.notes AS task_description, t.status, t.start_date, t.end_date,
+              t.task_type, t.name, t.notes AS task_description, t.status, t.progress_percentage, t.start_date, t.end_date,
               po.id as project_object_id,
               COALESCE(go.object_id, po.id::text) as object_id,
               COALESCE(NULLIF(po.sub_object_description, ''), go.description) as object_description,
@@ -201,6 +201,7 @@ export class ScheduleService {
       taskName: row.name,
       taskDescription: row.task_description || null,
       taskStatus: row.status,
+      progressPercentage: row.progress_percentage ?? 0,
       startDate: row.start_date,
       endDate: row.end_date,
       projectObjectId: row.project_object_id,
