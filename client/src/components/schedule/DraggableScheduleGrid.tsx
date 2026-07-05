@@ -244,6 +244,25 @@ export const DraggableScheduleGrid: React.FC<DraggableScheduleGridProps> = ({
                     gap: 0.25,
                   }}
                 >
+                  {taskDescription ? (
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        display: 'block',
+                        color: alpha(color, 0.96),
+                        textShadow: `0 0 10px ${alpha(color, 0.22)}`,
+                        whiteSpace: 'normal',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        fontSize: '0.72rem',
+                        fontWeight: 700,
+                        letterSpacing: '0.01em',
+                        lineHeight: 1.15,
+                      }}
+                    >
+                      {taskDescription}
+                    </Typography>
+                  ) : null}
                   <Typography
                     variant="caption"
                     sx={{
@@ -274,25 +293,6 @@ export const DraggableScheduleGrid: React.FC<DraggableScheduleGridProps> = ({
                   >
                     {description}
                   </Typography>
-                  {taskDescription ? (
-                    <Typography
-                      variant="caption"
-                      sx={{
-                        display: 'block',
-                        color: alpha(color, 0.96),
-                        textShadow: `0 0 10px ${alpha(color, 0.22)}`,
-                        whiteSpace: 'normal',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        fontSize: '0.62rem',
-                        fontWeight: 700,
-                        letterSpacing: '0.01em',
-                        lineHeight: 1.15,
-                      }}
-                    >
-                      {taskDescription}
-                    </Typography>
-                  ) : null}
                   <Typography
                     variant="caption"
                     sx={{
