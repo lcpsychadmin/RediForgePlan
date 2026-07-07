@@ -74,7 +74,7 @@ const MyTasksPage: React.FC = () => {
   const [taskSearch, setTaskSearch] = React.useState('');
   const [taskStatusFilter, setTaskStatusFilter] = React.useState('not_complete');
   const [defectSearch, setDefectSearch] = React.useState('');
-  const [defectStatusFilter, setDefectStatusFilter] = React.useState('open');
+  const [defectStatusFilter, setDefectStatusFilter] = React.useState('not_resolved_closed');
   const [severityFilter, setSeverityFilter] = React.useState('all');
   const queryClient = useQueryClient();
 
@@ -319,6 +319,8 @@ const MyTasksPage: React.FC = () => {
   const filteredDefects = React.useMemo(() => {
     const all = (data?.defects || []) as any[];
     return all.filter((defect: any) => {
+      const status = defect.status || 'open';
+      if (defectStatusFilter === 'not_resolved_closed' && (status === 'resolved' || status === 'closed')) return false;
       if (defectStatusFilter !== 'all' && (defect.status || 'open') !== defectStatusFilter) return false;
       if (severityFilter !== 'all' && (defect.severity || 'low') !== severityFilter) return false;
       if (!defectSearch) return true;
@@ -476,6 +478,7 @@ const MyTasksPage: React.FC = () => {
                   sx={{ width: 220, ...fsx }}
                   slotProps={{ input: { startAdornment: <SearchIcon sx={{ fontSize: '1rem', mr: 0.5, color: 'text.secondary' }} /> } }} />
                 <TextField select size="small" label="Status" value={defectStatusFilter} onChange={e => setDefectStatusFilter(e.target.value)} sx={fsx}>
+                  <MenuItem value="not_resolved_closed">Not Resolved or Closed</MenuItem>
                   <MenuItem value="all">All Statuses</MenuItem>
                   <MenuItem value="open">Open</MenuItem>
                   <MenuItem value="in_progress">In Progress</MenuItem>
