@@ -329,25 +329,13 @@ class DefectsController {
       const authorName = authorEmail.split('@')[0] || 'User';
       const comment = await defectCommentsService.addComment(req.params.defectId, authorName, authorEmail, content);
 
-      // Parse @mentions and create notifications for mentioned users.
-      // Supports handles/emails like @admin, @wes.collins, @user@company.com.
-      const mentionTokens = Array.from(content.matchAll(/(?:^|\s)@([a-zA-Z0-9._-]+(?:@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})?)/g))
-        .map((match) => (match[1] || '').trim())
-        .filter(Boolean);
-
-      const actorUserId = String((req as any).userId || '').trim();
-      const notified = new Set<string>();
-      for (const token of mentionTokens) {
-        const recipientId = await commentsService.findUserIdByMention(token);
-        if (!recipientId || recipientId === actorUserId || notified.has(recipientId)) continue;
-
-        notified.add(recipientId);
-        await commentsService.createNotification(
-          recipientId,
-          defect.taskId,
-          `${authorName} mentioned you in a defect discussion: "${content.slice(0, 80)}${content.length > 80 ? '...' : ''}"`
-        );
-      }
+      await commentsService.createMentionNotifications(
+        content,
+        String((req as any).userId || '').trim(),
+        String(defect.taskId || ''),
+        authorName,
+        'a defect discussion'
+      );
 
       await defectsService.recordAuditAction(
         req.params.defectId,

@@ -35,6 +35,8 @@ interface TaskCommentsModalProps {
   onCommentsChange?: (commentCount: number) => void;
 }
 
+const mentionTokenPattern = /(@[a-zA-Z0-9._-]+(?:@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})?)/g;
+
 export const TaskCommentsModal: React.FC<TaskCommentsModalProps> = ({
   open, onClose, taskId, taskName, accentColor, people, onCommentsChange,
 }) => {
@@ -122,10 +124,26 @@ export const TaskCommentsModal: React.FC<TaskCommentsModalProps> = ({
   };
 
   const renderContent = (text: string) => {
-    const parts = text.split(/(@[a-zA-Z0-9._-]+(?:\s+[a-zA-Z0-9._-]+)*)/g);
+    const parts = text.split(mentionTokenPattern);
     return parts.map((part, i) =>
       part.startsWith('@') ? (
-        <Box key={i} component="span" sx={{ color: accentColor, fontWeight: 600 }}>{part}</Box>
+        <Box
+          key={i}
+          component="span"
+          sx={{
+            display: 'inline-block',
+            px: 0.45,
+            py: 0.05,
+            borderRadius: 0.75,
+            border: `1px solid ${accentColor}66`,
+            backgroundColor: `${accentColor}2A`,
+            color: accentColor,
+            fontWeight: 700,
+            lineHeight: 1.2,
+          }}
+        >
+          {part}
+        </Box>
       ) : part
     );
   };

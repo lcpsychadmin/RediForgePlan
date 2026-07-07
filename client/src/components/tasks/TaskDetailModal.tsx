@@ -52,6 +52,8 @@ const toRgba = (hex: string, alpha: number) => {
   return `rgba(${r},${g},${b},${alpha})`;
 };
 
+const mentionTokenPattern = /(@[a-zA-Z0-9._-]+(?:@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})?)/g;
+
 const isHexColor = (value?: string | null) => typeof value === 'string' && /^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/.test(value.trim());
 
 // ── types ─────────────────────────────────────────────────────────────────────
@@ -125,8 +127,26 @@ const InlineDiscussion: React.FC<{ taskId: string; accent: string; people: any[]
     setComments(prev => prev.filter(c => c.id !== id));
   };
 
-  const renderText = (text: string) => text.split(/(@[a-zA-Z0-9._-]+(?:\s+[a-zA-Z0-9._-]+)*)/g).map((part, i) =>
-    part.startsWith('@') ? <Box key={i} component="span" sx={{ color: accent, fontWeight: 600 }}>{part}</Box> : part
+  const renderText = (text: string) => text.split(mentionTokenPattern).map((part, i) =>
+    part.startsWith('@') ? (
+      <Box
+        key={i}
+        component="span"
+        sx={{
+          display: 'inline-block',
+          px: 0.45,
+          py: 0.05,
+          borderRadius: 0.75,
+          border: `1px solid ${toRgba(accent, 0.35)}`,
+          backgroundColor: toRgba(accent, 0.16),
+          color: accent,
+          fontWeight: 700,
+          lineHeight: 1.2,
+        }}
+      >
+        {part}
+      </Box>
+    ) : part
   );
 
   return (

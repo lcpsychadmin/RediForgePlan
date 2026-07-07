@@ -92,6 +92,33 @@ const hexToRgba = (hex: string, alpha: number) => {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 };
 
+const mentionTokenPattern = /(@[a-zA-Z0-9._-]+(?:@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})?)/g;
+
+const renderMentionContent = (text: string, accent: string) => {
+  const parts = String(text || '').split(mentionTokenPattern);
+  return parts.map((part, i) => (
+    part.startsWith('@') ? (
+      <Box
+        key={i}
+        component="span"
+        sx={{
+          display: 'inline-block',
+          px: 0.45,
+          py: 0.05,
+          borderRadius: 0.75,
+          border: `1px solid ${hexToRgba(accent, 0.38)}`,
+          backgroundColor: hexToRgba(accent, 0.18),
+          color: accent,
+          fontWeight: 700,
+          lineHeight: 1.2,
+        }}
+      >
+        {part}
+      </Box>
+    ) : part
+  ));
+};
+
 const DefectCommentsModal: React.FC<DefectCommentsModalProps> = ({ open, defect, people, onClose, onSaved }) => {
   const { user } = useAuth();
   const [tab, setTab] = React.useState<TabValue>('details');
@@ -577,7 +604,7 @@ const DefectCommentsModal: React.FC<DefectCommentsModalProps> = ({ open, defect,
                               {comment.authorName} · {new Date(comment.createdAt).toLocaleString()}
                             </Typography>
                             <Typography variant="body2" sx={{ mt: 0.3, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                              {comment.content}
+                              {renderMentionContent(comment.content, headerAccent)}
                             </Typography>
                           </Box>
                           {isMine ? (

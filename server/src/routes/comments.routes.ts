@@ -40,24 +40,13 @@ router.post('/task/:taskId', requireAuth, async (req: any, res, next) => {
       content
     );
 
-    // Parse @mentions and create notifications.
-    // Supports handles/emails like @admin, @wes.collins, @user@company.com.
-    const mentionTokens = Array.from(content.matchAll(/(?:^|\s)@([a-zA-Z0-9._-]+(?:@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})?)/g))
-      .map(m => (m[1] || '').trim())
-      .filter(Boolean);
-
-    const notified = new Set<string>();
-    for (const token of mentionTokens) {
-      const recipientId = await commentsService.findUserIdByMention(token);
-      if (recipientId && !notified.has(recipientId)) {
-        notified.add(recipientId);
-        await commentsService.createNotification(
-          recipientId,
-          req.params.taskId,
-          `${authorName} mentioned you in a comment: "${content.slice(0, 80)}${content.length > 80 ? '...' : ''}"`
-        );
-      }
-    }
+    await commentsService.createMentionNotifications(
+      content,
+      String(userId || ''),
+      req.params.taskId,
+      authorName,
+      'a comment'
+    );
 
     res.status(201).json(formatSingleResponse(comment));
   } catch (e) { next(e); }

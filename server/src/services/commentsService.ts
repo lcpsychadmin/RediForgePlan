@@ -1,6 +1,15 @@
 import db from '../db.js';
 
 export class CommentsService {
+  private mentionRegex = /(?:^|\s)@([a-zA-Z0-9._-]+(?:@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})?)/g;
+
+  extractMentionTokens(content: string): string[] {
+    if (!content) return [];
+    return Array.from(content.matchAll(this.mentionRegex))
+      .map((match) => String(match[1] || '').trim())
+      .filter(Boolean);
+  }
+
   async getMentionCandidates(queryText?: string) {
     const q = (queryText || '').trim();
     if (!q) {
@@ -82,6 +91,33 @@ export class CommentsService {
     );
   }
 
+  async createMentionNotifications(
+    content: string,
+    actorUserId: string,
+    taskId: string,
+    authorName: string,
+    contextLabel: string
+  ): Promise<number> {
+    if (!taskId) return 0;
+
+    const mentionTokens = this.extractMentionTokens(content);
+    const notified = new Set<string>();
+
+    for (const token of mentionTokens) {
+      const recipientId = await this.findUserIdByMention(token);
+      if (!recipientId || recipientId === actorUserId || notified.has(recipientId)) continue;
+
+      notified.add(recipientId);
+      await this.createNotification(
+        recipientId,
+        taskId,
+        `${authorName} mentioned you in ${contextLabel}: "${content.slice(0, 80)}${content.length > 80 ? '...' : ''}"`
+      );
+    }
+
+    return notified.size;
+  }
+
   async getNotifications(userId: string) {
     const result = await db.query(
       `SELECT n.id, n.task_id, n.message, n.is_read, n.created_at,
@@ -133,7 +169,7 @@ export class CommentsService {
 
   // Resolve mention to user id. Prefer real user account, then fallback via people email mapping.
   async findUserIdByMention(mentionRaw: string): Promise<string | null> {
-    const mention = (mentionRaw || '').trim();
+    const mention = (mentionRaw || '').trim().replace(/^@+/, '');
     if (!mention) return null;
 
     // 1) Direct user email match (if mention includes @domain)
@@ -153,9 +189,27 @@ export class CommentsService {
     );
     if (byHandle.rows.length > 0) return byHandle.rows[0].id;
 
-    // 3) Fallback to people.name -> people.email -> users.email mapping
+    // 3) Tolerate punctuation variants in handles, e.g. wes.collins <-> wescollins
+    const compactMention = mention.replace(/[^a-zA-Z0-9]/g, '');
+    if (compactMention) {
+      const byCompactHandle = await db.query(
+        `SELECT id
+         FROM users
+         WHERE LOWER(regexp_replace(split_part(email, '@', 1), '[^a-zA-Z0-9]', '', 'g')) = LOWER($1)
+         LIMIT 1`,
+        [compactMention]
+      );
+      if (byCompactHandle.rows.length > 0) return byCompactHandle.rows[0].id;
+    }
+
+    // 4) Fallback to people.name -> people.email -> users.email mapping
     const personResult = await db.query(
-      'SELECT email FROM people WHERE LOWER(name) = LOWER($1) LIMIT 1',
+      `SELECT email
+       FROM people
+       WHERE LOWER(name) = LOWER($1)
+          OR LOWER(replace(name, ' ', '.')) = LOWER($1)
+          OR LOWER(replace(name, ' ', '')) = LOWER($1)
+       LIMIT 1`,
       [mention]
     );
     if (personResult.rows.length === 0 || !personResult.rows[0].email) return null;
