@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { Box, CircularProgress, Alert, Button, Stack, MenuItem, Select, FormControl, InputLabel, Typography } from '@mui/material';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import apiClient from '../api/client';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
@@ -58,6 +58,7 @@ const SchedulePage: React.FC = () => {
   const [selectedTaskId, setSelectedTaskId] = useState<string>('');
   const [taskModalOpen, setTaskModalOpen] = useState(false);
   const [taskModalAccentColor, setTaskModalAccentColor] = useState('#29b6f6');
+  const queryClient = useQueryClient();
 
   const { data: scheduleItems = [], isLoading, error } = useQuery({
     queryKey: ['schedule-scoped', projectId, selectedProgramId],
@@ -320,6 +321,11 @@ const SchedulePage: React.FC = () => {
 
       <TaskDetailModal
         open={taskModalOpen}
+        onSaved={() => {
+          queryClient.invalidateQueries({ queryKey: ['schedule-scoped', projectId, selectedProgramId] });
+          queryClient.invalidateQueries({ queryKey: ['schedule-scoped'] });
+          queryClient.invalidateQueries({ queryKey: ['schedule'] });
+        }}
         onClose={() => {
           setTaskModalOpen(false);
           setSelectedTaskId('');

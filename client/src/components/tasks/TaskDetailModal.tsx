@@ -450,6 +450,8 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
       const res = await apiClient.patch(`/api/tasks/${taskIdResolved}`, payload);
       onSaved?.(res.data.data);
       queryClient.invalidateQueries({ queryKey: ['task-details-modal', taskId] });
+      queryClient.invalidateQueries({ queryKey: ['schedule-scoped'] });
+      queryClient.invalidateQueries({ queryKey: ['schedule'] });
     } catch (e: any) {
       setSaveError(e.response?.data?.error || 'Failed to save');
     } finally {
@@ -897,6 +899,8 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                             });
                             onSaved?.({ id: taskIdResolved, startDate: newStart, endDate: newEnd });
                             queryClient.invalidateQueries({ queryKey: ['task-details-modal', taskId] });
+                            queryClient.invalidateQueries({ queryKey: ['schedule-scoped'] });
+                            queryClient.invalidateQueries({ queryKey: ['schedule'] });
                           } catch { /* ignore */ }
                         }}
                         sx={{ display: 'flex', alignItems: 'center', gap: 0.75, px: 1.5, py: 0.65, borderRadius: 1.5, border: `1px solid ${toRgba(accent, 0.4)}`, cursor: 'pointer', backgroundColor: toRgba(accent, 0.08), color: accent, fontWeight: 600, fontSize: '0.78rem', '&:hover': { backgroundColor: toRgba(accent, 0.18) } }}>
