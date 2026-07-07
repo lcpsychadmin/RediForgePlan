@@ -974,6 +974,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   const tabValue = planningView ? (planningViewToTab[planningView] ?? 0) : 0;
   const setTabValue = (_v: number) => {}; // navigation-driven; kept for compat
   const isPlanningMaintainTab = sectionMode === 'planning' && planningView === 'structure';
+  const hideProcessAreasInStrategyHierarchy = sectionMode === 'planning' && tabValue === 0;
   
   // Dialog states
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -5611,7 +5612,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                     const isCycleSelected = selectedItem?.type === 'cycle' && selectedItem?.id === cycle.id && selectedItem?.projectId === realProject.id;
                                     const isCycleExpanded = expandedCycles.has(cycle.id);
                                     const cycleColor = cycle.accentColor || '#64B5F6';
-                                    const processAreas = getProcessAreasForProjectCycle(realProject.id, cycle.id);
+                                    const processAreas = hideProcessAreasInStrategyHierarchy
+                                      ? []
+                                      : getProcessAreasForProjectCycle(realProject.id, cycle.id);
                                     const summaryKey = `${realProject.id}_${cycle.id}`;
                                     const cycleSummary = projectHierarchySummaries[summaryKey];
                                     const cycleProgressPct = cycleSummary?.projectProgressPct ?? 0;
@@ -5841,7 +5844,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                               </Box>
                                             );
                                           })}
-                                          {canManageHierarchy && (
+                                          {canManageHierarchy && !hideProcessAreasInStrategyHierarchy && (
                                             <Button
                                               size="small"
                                               variant="text"
