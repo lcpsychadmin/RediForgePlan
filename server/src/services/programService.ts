@@ -4,6 +4,18 @@
 import db from '../db.js';
 
 export class ProgramService {
+  private mockCycleCriteriaColumnsReady: boolean | null = null;
+
+  private async ensureMockCycleCriteriaColumns() {
+    if (this.mockCycleCriteriaColumnsReady) return;
+    await db.query(
+      `ALTER TABLE mock_cycles
+         ADD COLUMN IF NOT EXISTS entry_criteria TEXT,
+         ADD COLUMN IF NOT EXISTS exit_criteria TEXT`
+    );
+    this.mockCycleCriteriaColumnsReady = true;
+  }
+
   // Programs
   async getAllPrograms() {
     const result = await db.query(
@@ -85,9 +97,10 @@ export class ProgramService {
 
   // Mock Cycles
   async getMockCyclesByProgram(programId: string) {
+    await this.ensureMockCycleCriteriaColumns();
     // Hierarchy view: only cycles marked in_hierarchy = true
     const result = await db.query(
-      `SELECT mc.id, p.program_id, mc.project_id, mc.name, mc.start_date, mc.end_date, mc.accent_color, mc.schedule_mode, mc.in_hierarchy, mc.created_at, mc.updated_at
+      `SELECT mc.id, p.program_id, mc.project_id, mc.name, mc.start_date, mc.end_date, mc.accent_color, mc.schedule_mode, mc.entry_criteria, mc.exit_criteria, mc.in_hierarchy, mc.created_at, mc.updated_at
        FROM mock_cycles mc
        JOIN projects p ON p.id = mc.project_id
        WHERE p.program_id = $1
@@ -99,10 +112,11 @@ export class ProgramService {
   }
 
   async getAllMockCyclesByProgram(programId: string) {
+    await this.ensureMockCycleCriteriaColumns();
     // Maintain view: only active cycles (in_hierarchy = true)
     // Both hierarchy and maintain views show the same filtered list
     const result = await db.query(
-      `SELECT mc.id, p.program_id, mc.project_id, mc.name, mc.start_date, mc.end_date, mc.accent_color, mc.schedule_mode, mc.in_hierarchy, mc.created_at, mc.updated_at
+      `SELECT mc.id, p.program_id, mc.project_id, mc.name, mc.start_date, mc.end_date, mc.accent_color, mc.schedule_mode, mc.entry_criteria, mc.exit_criteria, mc.in_hierarchy, mc.created_at, mc.updated_at
        FROM mock_cycles mc
        JOIN projects p ON p.id = mc.project_id
        WHERE p.program_id = $1
@@ -114,8 +128,9 @@ export class ProgramService {
   }
 
   async getMockCyclesByProject(projectId: string) {
+    await this.ensureMockCycleCriteriaColumns();
     const result = await db.query(
-      `SELECT mc.id, p.program_id, mc.project_id, mc.name, mc.start_date, mc.end_date, mc.accent_color, mc.schedule_mode, mc.in_hierarchy, mc.created_at, mc.updated_at
+      `SELECT mc.id, p.program_id, mc.project_id, mc.name, mc.start_date, mc.end_date, mc.accent_color, mc.schedule_mode, mc.entry_criteria, mc.exit_criteria, mc.in_hierarchy, mc.created_at, mc.updated_at
        FROM mock_cycles mc
        JOIN projects p ON p.id = mc.project_id
        WHERE mc.project_id = $1
@@ -126,8 +141,9 @@ export class ProgramService {
   }
 
   async getMockCycleById(mockCycleId: string) {
+    await this.ensureMockCycleCriteriaColumns();
     const result = await db.query(
-      `SELECT mc.id, p.program_id, mc.project_id, mc.name, mc.start_date, mc.end_date, mc.accent_color, mc.schedule_mode, mc.in_hierarchy, mc.created_at, mc.updated_at
+      `SELECT mc.id, p.program_id, mc.project_id, mc.name, mc.start_date, mc.end_date, mc.accent_color, mc.schedule_mode, mc.entry_criteria, mc.exit_criteria, mc.in_hierarchy, mc.created_at, mc.updated_at
        FROM mock_cycles mc
        JOIN projects p ON p.id = mc.project_id
        WHERE mc.id = $1`,
@@ -145,6 +161,7 @@ export class ProgramService {
     scheduleMode: string = 'all_days',
     accentColor?: string
   ) {
+    await this.ensureMockCycleCriteriaColumns();
     const result = await db.query(
       `INSERT INTO mock_cycles (project_id, name, start_date, end_date, schedule_mode, accent_color)
        VALUES ($1, $2, $3, $4, $5, $6)
@@ -157,8 +174,9 @@ export class ProgramService {
 
   async updateMockCycle(
     mockCycleId: string,
-    data: { name?: string; startDate?: string; endDate?: string; scheduleMode?: string; accentColor?: string }
+    data: { name?: string; startDate?: string; endDate?: string; scheduleMode?: string; accentColor?: string; entryCriteria?: string | null; exitCriteria?: string | null }
   ) {
+    await this.ensureMockCycleCriteriaColumns();
     const fields: string[] = [];
     const values: any[] = [mockCycleId];
     let paramCount = 2;
@@ -186,6 +204,16 @@ export class ProgramService {
     if (data.accentColor !== undefined) {
       fields.push(`accent_color = $${paramCount}`);
       values.push(data.accentColor || null);
+      paramCount++;
+    }
+    if (data.entryCriteria !== undefined) {
+      fields.push(`entry_criteria = $${paramCount}`);
+      values.push(data.entryCriteria || null);
+      paramCount++;
+    }
+    if (data.exitCriteria !== undefined) {
+      fields.push(`exit_criteria = $${paramCount}`);
+      values.push(data.exitCriteria || null);
       paramCount++;
     }
 
@@ -237,6 +265,7 @@ export class ProgramService {
   }
 
   async cloneMockCycle(sourceMockCycleId: string, data?: { name?: string }) {
+    await this.ensureMockCycleCriteriaColumns();
     const client = await db.connect();
     try {
       await client.query('BEGIN');
@@ -250,6 +279,8 @@ export class ProgramService {
                 mc.end_date,
                 mc.accent_color,
                 mc.schedule_mode,
+                mc.entry_criteria,
+                mc.exit_criteria,
                 mc.created_at,
                 mc.updated_at
          FROM mock_cycles mc
@@ -266,8 +297,8 @@ export class ProgramService {
       const newCycleName = (data?.name || `${sourceCycle.name} Copy`).trim();
 
       const newCycleResult = await client.query(
-        `INSERT INTO mock_cycles (project_id, name, start_date, end_date, schedule_mode, accent_color)
-         VALUES ($1, $2, $3, $4, $5, $6)
+        `INSERT INTO mock_cycles (project_id, name, start_date, end_date, schedule_mode, accent_color, entry_criteria, exit_criteria)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
          RETURNING id`,
         [
           sourceCycle.project_id,
@@ -276,6 +307,8 @@ export class ProgramService {
           sourceCycle.end_date,
           sourceCycle.schedule_mode || 'all_days',
           sourceCycle.accent_color || null,
+          sourceCycle.entry_criteria || null,
+          sourceCycle.exit_criteria || null,
         ]
       );
 
@@ -460,6 +493,7 @@ export class ProgramService {
   }
 
   async copyMockCycleToExisting(sourceMockCycleId: string, targetMockCycleId: string) {
+    await this.ensureMockCycleCriteriaColumns();
     const client = await db.connect();
     try {
       await client.query('BEGIN');
@@ -472,7 +506,9 @@ export class ProgramService {
                 mc.start_date,
                 mc.end_date,
                 mc.accent_color,
-                mc.schedule_mode
+                mc.schedule_mode,
+                mc.entry_criteria,
+                mc.exit_criteria
          FROM mock_cycles mc
          JOIN projects p ON p.id = mc.project_id
          WHERE mc.id = $1`;
@@ -666,6 +702,8 @@ export class ProgramService {
              end_date      = $3,
              schedule_mode = $4,
              accent_color  = $5,
+             entry_criteria = $6,
+             exit_criteria = $7,
              updated_at    = CURRENT_TIMESTAMP
          WHERE id = $1`,
         [
@@ -674,6 +712,8 @@ export class ProgramService {
           sourceCycle.end_date,
           sourceCycle.schedule_mode || 'all_days',
           sourceCycle.accent_color || null,
+          sourceCycle.entry_criteria || null,
+          sourceCycle.exit_criteria || null,
         ]
       );
 
@@ -723,6 +763,8 @@ export class ProgramService {
       endDate: row.end_date,
       accentColor: row.accent_color,
       scheduleMode: row.schedule_mode || 'all_days',
+      entryCriteria: row.entry_criteria,
+      exitCriteria: row.exit_criteria,
       inHierarchy: row.in_hierarchy !== false,
       createdAt: row.created_at,
       updatedAt: row.updated_at,

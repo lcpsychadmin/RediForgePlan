@@ -91,6 +91,8 @@ interface MockCycle {
   programId: string;
   name: string;
   description?: string;
+  entryCriteria?: string;
+  exitCriteria?: string;
   startDate: string;
   endDate: string;
   accentColor?: string;
@@ -953,6 +955,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   const canAccessInventory = sectionMode === 'planning';
   const [planningStrategyDraft, setPlanningStrategyDraft] = useState('');
   const [isSavingPlanningStrategy, setIsSavingPlanningStrategy] = useState(false);
+  const [cycleEntryCriteriaDraft, setCycleEntryCriteriaDraft] = useState('');
+  const [cycleExitCriteriaDraft, setCycleExitCriteriaDraft] = useState('');
+  const [isSavingCycleCriteria, setIsSavingCycleCriteria] = useState(false);
   const [planningAdditionalGroups, setPlanningAdditionalGroups] = useState<Record<string, string[]>>({});
   const [planningAdditionalProcessAreas, setPlanningAdditionalProcessAreas] = useState<Record<string, string[]>>({});
   const [hiddenProcessAreas, setHiddenProcessAreas] = useState<Record<string, string[]>>({});
@@ -4566,10 +4571,21 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
     if (selectedItem?.type === 'program') {
       const program = programs.find((p: Program) => p.id === selectedItem.id) as Program | undefined;
       setPlanningStrategyDraft(program?.description || '');
+      setCycleEntryCriteriaDraft('');
+      setCycleExitCriteriaDraft('');
+      return;
+    }
+    if (selectedItem?.type === 'cycle') {
+      const cycle = mockCycles[selectedItem.programId]?.find((c: MockCycle) => c.id === selectedItem.id) as MockCycle | undefined;
+      setCycleEntryCriteriaDraft(cycle?.entryCriteria || '');
+      setCycleExitCriteriaDraft(cycle?.exitCriteria || '');
+      setPlanningStrategyDraft('');
       return;
     }
     setPlanningStrategyDraft('');
-  }, [sectionMode, selectedItem, programs]);
+    setCycleEntryCriteriaDraft('');
+    setCycleExitCriteriaDraft('');
+  }, [sectionMode, selectedItem, programs, mockCycles]);
 
   if (isLoading) {
     return (
@@ -4622,6 +4638,24 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
       alert('Failed to save migration strategy. Please try again.');
     } finally {
       setIsSavingPlanningStrategy(false);
+    }
+  };
+
+  const handleSaveCycleCriteria = async () => {
+    if (sectionMode !== 'planning' || selectedItem?.type !== 'cycle') return;
+    try {
+      setIsSavingCycleCriteria(true);
+      await apiClient.patch(`/api/mock-cycles/${selectedItem.id}`, {
+        entryCriteria: cycleEntryCriteriaDraft.trim() || null,
+        exitCriteria: cycleExitCriteriaDraft.trim() || null,
+      });
+      queryClient.invalidateQueries({ queryKey: ['mockCycles'] });
+      queryClient.invalidateQueries({ queryKey: ['allMockCyclesForMaintain'] });
+    } catch (error) {
+      console.error('Failed to save cycle criteria:', error);
+      alert('Failed to save cycle criteria. Please try again.');
+    } finally {
+      setIsSavingCycleCriteria(false);
     }
   };
 
@@ -5959,6 +5993,38 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                   <Typography variant="body2" sx={{ mt: 0.5 }}>
                     Next deliverable: detail project-level data object inventory in the Inventory tab.
                   </Typography>
+
+                  <Box sx={{ mt: 2.25, display: 'flex', flexDirection: 'column', gap: 1.25 }}>
+                    <Typography variant="subtitle2">Mock Entry Criteria</Typography>
+                    <TextField
+                      multiline
+                      minRows={4}
+                      fullWidth
+                      placeholder="Define what must be true before this mock cycle can start (data readiness, environment readiness, ownership, approvals)."
+                      value={cycleEntryCriteriaDraft}
+                      onChange={(e) => setCycleEntryCriteriaDraft(e.target.value)}
+                    />
+
+                    <Typography variant="subtitle2">Mock Exit Criteria</Typography>
+                    <TextField
+                      multiline
+                      minRows={4}
+                      fullWidth
+                      placeholder="Define completion conditions for this mock cycle (defect thresholds, reconciliation, sign-off criteria, go/no-go checks)."
+                      value={cycleExitCriteriaDraft}
+                      onChange={(e) => setCycleExitCriteriaDraft(e.target.value)}
+                    />
+
+                    <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+                      <Button
+                        variant="contained"
+                        onClick={handleSaveCycleCriteria}
+                        disabled={isSavingCycleCriteria}
+                      >
+                        {isSavingCycleCriteria ? 'Saving...' : 'Save Entry / Exit Criteria'}
+                      </Button>
+                    </Box>
+                  </Box>
                 </Paper>
               ) : (
                 <Paper sx={{ p: 2 }}>

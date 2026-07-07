@@ -73,6 +73,8 @@ export interface MockCycle {
   programId: string;
   name: string;
   description?: string;
+  entryCriteria?: string;
+  exitCriteria?: string;
   cycleNumber: number;
   startDate: string;
   endDate: string;
@@ -86,6 +88,8 @@ export interface CreateMockCyclePayload {
   programId: string;
   name: string;
   description?: string;
+  entryCriteria?: string;
+  exitCriteria?: string;
   cycleNumber: number;
   startDate: string;
   endDate: string;
@@ -95,6 +99,8 @@ export interface CreateMockCyclePayload {
 export interface UpdateMockCyclePayload {
   name?: string;
   description?: string;
+  entryCriteria?: string;
+  exitCriteria?: string;
   cycleNumber?: number;
   startDate?: string;
   endDate?: string;
