@@ -320,8 +320,11 @@ const MyTasksPage: React.FC = () => {
     const all = (data?.defects || []) as any[];
     return all.filter((defect: any) => {
       const status = defect.status || 'open';
-      if (defectStatusFilter === 'not_resolved_closed' && (status === 'resolved' || status === 'closed')) return false;
-      if (defectStatusFilter !== 'all' && (defect.status || 'open') !== defectStatusFilter) return false;
+      if (defectStatusFilter === 'not_resolved_closed') {
+        if (status === 'resolved' || status === 'closed') return false;
+      } else if (defectStatusFilter !== 'all' && status !== defectStatusFilter) {
+        return false;
+      }
       if (severityFilter !== 'all' && (defect.severity || 'low') !== severityFilter) return false;
       if (!defectSearch) return true;
       const q = defectSearch.toLowerCase();
