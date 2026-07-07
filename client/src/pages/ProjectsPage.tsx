@@ -50,6 +50,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import GroupIcon from '@mui/icons-material/Group';
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 import SaveIcon from '@mui/icons-material/Save';
+import AltRouteIcon from '@mui/icons-material/AltRoute';
 import { TaskCommentsModal } from '../components/TaskCommentsModal';
 import FolderOutlinedIcon from '@mui/icons-material/FolderOutlined';
 import CorporateFareIcon from '@mui/icons-material/CorporateFare';
@@ -6529,6 +6530,14 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                                         <React.Fragment key={task.id}>
                                                         <Box sx={{ minWidth: 930, display: 'grid', gridTemplateColumns: 'minmax(180px,1fr) 120px 60px 150px 84px 44px 100px 100px 92px', gap: 0, px: 2, py: 0.5, alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.03)', '&:hover': { backgroundColor: 'rgba(255,255,255,0.02)' } }}>
                                                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                                                            <IconButton
+                                                              size="small"
+                                                              title="Subtasks"
+                                                              onClick={() => { toggleTaskSubtasks(task.id); }}
+                                                              sx={{ p: 0.25, opacity: (taskSubtasks[task.id] || []).length > 0 ? 1 : 0.7, color: expandedTaskSubtasks[task.id] ? planAccentColor : 'inherit', '&:hover': { opacity: 1, color: planAccentColor } }}
+                                                            >
+                                                              <ExpandMoreIcon sx={{ fontSize: '0.95rem', transform: expandedTaskSubtasks[task.id] ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform 0.2s' }} />
+                                                            </IconButton>
                                                             <Box sx={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: getTaskStatusColor(task.status), flexShrink: 0 }} />
                                                             <TextField size="small" value={task.name || ''} onBlur={e => updateTaskInline(task.id, 'name', e.target.value)}
                                                               onChange={e => setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, name: e.target.value } : t))}
@@ -6677,21 +6686,13 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                                               sx={{ opacity: 0.6, '&:hover': { opacity: 1, color: planAccentColor } }}>
                                                               <AssignmentIcon sx={{ fontSize: '0.9rem' }} />
                                                             </IconButton>
-                                                            <IconButton
-                                                              size="small"
-                                                              title="Subtasks"
-                                                              onClick={() => { toggleTaskSubtasks(task.id); }}
-                                                              sx={{ opacity: (taskSubtasks[task.id] || []).length > 0 ? 1 : 0.7, color: expandedTaskSubtasks[task.id] ? planAccentColor : 'inherit', '&:hover': { opacity: 1, color: planAccentColor } }}
-                                                            >
-                                                              <ExpandMoreIcon sx={{ fontSize: '0.95rem', transform: expandedTaskSubtasks[task.id] ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform 0.2s' }} />
-                                                            </IconButton>
                                                             <IconButton size="small" title="Dependencies" onClick={async () => {
                                                               await loadTaskDeps(task.id);
                                                               setDepDialogTaskId(task.id);
                                                               setDepSearchTerm('');
                                                               await loadCycleTasksForDep(task.id);
                                                             }} sx={{ opacity: (taskDeps[task.id] || []).length > 0 ? 1 : 0.6, color: (taskDeps[task.id] || []).length > 0 ? planAccentColor : 'inherit', '&:hover': { opacity: 1, color: planAccentColor } }}>
-                                                              <ChevronRightIcon sx={{ fontSize: '0.9rem' }} />
+                                                              <AltRouteIcon sx={{ fontSize: '0.9rem' }} />
                                                             </IconButton>
                                                             <IconButton size="small" title="More task actions" onClick={(e) => openTaskRowMenu(e, task)} sx={{ opacity: 0.6, '&:hover': { opacity: 1 } }}>
                                                               <MoreVertIcon sx={{ fontSize: '0.9rem' }} />
@@ -6842,6 +6843,14 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                                         <Box sx={{ minWidth: 930, display: 'grid', gridTemplateColumns: 'minmax(180px,1fr) 120px 60px 150px 84px 44px 100px 100px 92px', gap: 0, px: 2, py: 0.5, alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.03)', '&:hover': { backgroundColor: 'rgba(255,255,255,0.02)' } }}>
                                             {/* Task name */}
                                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                                              <IconButton
+                                                size="small"
+                                                title="Subtasks"
+                                                onClick={() => { toggleTaskSubtasks(task.id); }}
+                                                sx={{ p: 0.25, opacity: (taskSubtasks[task.id] || []).length > 0 ? 1 : 0.7, color: expandedTaskSubtasks[task.id] ? planAccentColor : 'inherit', '&:hover': { opacity: 1, color: planAccentColor } }}
+                                              >
+                                                <ExpandMoreIcon sx={{ fontSize: '0.95rem', transform: expandedTaskSubtasks[task.id] ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform 0.2s' }} />
+                                              </IconButton>
                                               <Box sx={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: getTaskStatusColor(task.status), flexShrink: 0 }} />
                                               <TextField size="small" value={task.name || ''} onBlur={e => updateTaskInline(task.id, 'name', e.target.value)}
                                                 onChange={e => setProjectTasks(prev => prev.map(t => t.id === task.id ? { ...t, name: e.target.value } : t))}
@@ -6997,21 +7006,13 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                                 sx={{ opacity: 0.6, '&:hover': { opacity: 1, color: planAccentColor } }}>
                                                 <AssignmentIcon sx={{ fontSize: '0.9rem' }} />
                                               </IconButton>
-                                                            <IconButton
-                                                              size="small"
-                                                              title="Subtasks"
-                                                              onClick={() => { toggleTaskSubtasks(task.id); }}
-                                                              sx={{ opacity: (taskSubtasks[task.id] || []).length > 0 ? 1 : 0.7, color: expandedTaskSubtasks[task.id] ? planAccentColor : 'inherit', '&:hover': { opacity: 1, color: planAccentColor } }}
-                                                            >
-                                                              <ExpandMoreIcon sx={{ fontSize: '0.95rem', transform: expandedTaskSubtasks[task.id] ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform 0.2s' }} />
-                                                            </IconButton>
                                               <IconButton size="small" title="Dependencies" onClick={async () => {
                                                 await loadTaskDeps(task.id);
                                                 setDepDialogTaskId(task.id);
                                                 setDepSearchTerm('');
                                                 await loadCycleTasksForDep(task.id);
                                               }} sx={{ opacity: (taskDeps[task.id] || []).length > 0 ? 1 : 0.6, color: (taskDeps[task.id] || []).length > 0 ? planAccentColor : 'inherit', '&:hover': { opacity: 1, color: planAccentColor } }}>
-                                                <ChevronRightIcon sx={{ fontSize: '0.9rem' }} />
+                                                <AltRouteIcon sx={{ fontSize: '0.9rem' }} />
                                               </IconButton>
                                               <IconButton size="small" title="More task actions" onClick={(e) => openTaskRowMenu(e, task)} sx={{ opacity: 0.6, '&:hover': { opacity: 1 } }}>
                                                 <MoreVertIcon sx={{ fontSize: '0.9rem' }} />
