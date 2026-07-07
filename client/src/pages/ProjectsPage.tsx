@@ -4871,6 +4871,32 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
     }
   };
 
+  const updateInlineSubtask = async (taskId: string, subtaskId: string, updates: Record<string, any>) => {
+    try {
+      const res = await apiClient.patch(`/api/tasks/subtasks/${subtaskId}`, updates);
+      const updated = res.data?.data;
+      if (!updated) return;
+      setTaskSubtasks((prev) => ({
+        ...prev,
+        [taskId]: (prev[taskId] || []).map((s: any) => (s.id === subtaskId ? updated : s)),
+      }));
+    } catch (e) {
+      console.error('Failed to update subtask', e);
+    }
+  };
+
+  const deleteInlineSubtask = async (taskId: string, subtaskId: string) => {
+    try {
+      await apiClient.delete(`/api/tasks/subtasks/${subtaskId}`);
+      setTaskSubtasks((prev) => ({
+        ...prev,
+        [taskId]: (prev[taskId] || []).filter((s: any) => s.id !== subtaskId),
+      }));
+    } catch (e) {
+      console.error('Failed to delete subtask', e);
+    }
+  };
+
   // Cascade date recalculation: for all tasks with deps+duration, propagate dates downstream.
   // tasks/deps are passed as snapshots so this works before React state flushes.
   const cascadeAllDates = async (tasks: any[], deps: Record<string, any[]>) => {
@@ -6708,11 +6734,72 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                                                 {(taskSubtasks[task.id] || []).length === 0 ? (
                                                                   <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.75 }}>No subtasks yet.</Typography>
                                                                 ) : (
-                                                                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.45, mb: 0.75 }}>
+                                                                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, mb: 0.75 }}>
                                                                     {(taskSubtasks[task.id] || []).map((subtask: any) => (
-                                                                      <Typography key={subtask.id} variant="caption" sx={{ color: 'text.secondary' }}>
-                                                                        • {subtask.title} ({String(subtask.status || 'not_started').replace('_', ' ')})
-                                                                      </Typography>
+                                                                      <Box key={subtask.id} sx={{ display: 'grid', gridTemplateColumns: 'minmax(180px,1fr) 120px 150px 28px', gap: 0.5, alignItems: 'center', minWidth: 0 }}>
+                                                                        <TextField
+                                                                          size="small"
+                                                                          value={subtask.title || ''}
+                                                                          onBlur={(e) => {
+                                                                            const nextTitle = String(e.target.value || '').trim();
+                                                                            if (nextTitle && nextTitle !== subtask.title) {
+                                                                              updateInlineSubtask(task.id, subtask.id, { title: nextTitle });
+                                                                            }
+                                                                          }}
+                                                                          onChange={(e) => {
+                                                                            const value = e.target.value;
+                                                                            setTaskSubtasks((prev) => ({
+                                                                              ...prev,
+                                                                              [task.id]: (prev[task.id] || []).map((s: any) => s.id === subtask.id ? { ...s, title: value } : s),
+                                                                            }));
+                                                                          }}
+                                                                          sx={taskFieldSx}
+                                                                        />
+                                                                        <TextField
+                                                                          select
+                                                                          size="small"
+                                                                          value={subtask.status || 'not_started'}
+                                                                          onChange={(e) => {
+                                                                            const status = e.target.value;
+                                                                            setTaskSubtasks((prev) => ({
+                                                                              ...prev,
+                                                                              [task.id]: (prev[task.id] || []).map((s: any) => s.id === subtask.id ? { ...s, status } : s),
+                                                                            }));
+                                                                            updateInlineSubtask(task.id, subtask.id, { status });
+                                                                          }}
+                                                                          sx={taskFieldSx}
+                                                                        >
+                                                                          <MenuItem value="not_started">Not Started</MenuItem>
+                                                                          <MenuItem value="in_progress">In Progress</MenuItem>
+                                                                          <MenuItem value="complete">Completed</MenuItem>
+                                                                          <MenuItem value="blocked">Blocked</MenuItem>
+                                                                        </TextField>
+                                                                        <TextField
+                                                                          select
+                                                                          size="small"
+                                                                          value={subtask.assignedTo || ''}
+                                                                          onChange={(e) => {
+                                                                            const assignedTo = e.target.value;
+                                                                            setTaskSubtasks((prev) => ({
+                                                                              ...prev,
+                                                                              [task.id]: (prev[task.id] || []).map((s: any) => s.id === subtask.id ? { ...s, assignedTo } : s),
+                                                                            }));
+                                                                            updateInlineSubtask(task.id, subtask.id, { assignedTo: assignedTo || null });
+                                                                          }}
+                                                                          sx={taskFieldSx}
+                                                                        >
+                                                                          <MenuItem value=""><em>Unassigned</em></MenuItem>
+                                                                          {people.map(p => <MenuItem key={p.id} value={p.name}>{p.name}</MenuItem>)}
+                                                                        </TextField>
+                                                                        <IconButton
+                                                                          size="small"
+                                                                          title="Delete subtask"
+                                                                          onClick={() => deleteInlineSubtask(task.id, subtask.id)}
+                                                                          sx={{ opacity: 0.5, justifySelf: 'end', '&:hover': { opacity: 1, color: '#ef5350' } }}
+                                                                        >
+                                                                          <DeleteIcon sx={{ fontSize: '0.9rem' }} />
+                                                                        </IconButton>
+                                                                      </Box>
                                                                     ))}
                                                                   </Box>
                                                                 )}
@@ -7028,11 +7115,72 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                                                 {(taskSubtasks[task.id] || []).length === 0 ? (
                                                                   <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.75 }}>No subtasks yet.</Typography>
                                                                 ) : (
-                                                                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.45, mb: 0.75 }}>
+                                                                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, mb: 0.75 }}>
                                                                     {(taskSubtasks[task.id] || []).map((subtask: any) => (
-                                                                      <Typography key={subtask.id} variant="caption" sx={{ color: 'text.secondary' }}>
-                                                                        • {subtask.title} ({String(subtask.status || 'not_started').replace('_', ' ')})
-                                                                      </Typography>
+                                                                      <Box key={subtask.id} sx={{ display: 'grid', gridTemplateColumns: 'minmax(180px,1fr) 120px 150px 28px', gap: 0.5, alignItems: 'center', minWidth: 0 }}>
+                                                                        <TextField
+                                                                          size="small"
+                                                                          value={subtask.title || ''}
+                                                                          onBlur={(e) => {
+                                                                            const nextTitle = String(e.target.value || '').trim();
+                                                                            if (nextTitle && nextTitle !== subtask.title) {
+                                                                              updateInlineSubtask(task.id, subtask.id, { title: nextTitle });
+                                                                            }
+                                                                          }}
+                                                                          onChange={(e) => {
+                                                                            const value = e.target.value;
+                                                                            setTaskSubtasks((prev) => ({
+                                                                              ...prev,
+                                                                              [task.id]: (prev[task.id] || []).map((s: any) => s.id === subtask.id ? { ...s, title: value } : s),
+                                                                            }));
+                                                                          }}
+                                                                          sx={taskFieldSx}
+                                                                        />
+                                                                        <TextField
+                                                                          select
+                                                                          size="small"
+                                                                          value={subtask.status || 'not_started'}
+                                                                          onChange={(e) => {
+                                                                            const status = e.target.value;
+                                                                            setTaskSubtasks((prev) => ({
+                                                                              ...prev,
+                                                                              [task.id]: (prev[task.id] || []).map((s: any) => s.id === subtask.id ? { ...s, status } : s),
+                                                                            }));
+                                                                            updateInlineSubtask(task.id, subtask.id, { status });
+                                                                          }}
+                                                                          sx={taskFieldSx}
+                                                                        >
+                                                                          <MenuItem value="not_started">Not Started</MenuItem>
+                                                                          <MenuItem value="in_progress">In Progress</MenuItem>
+                                                                          <MenuItem value="complete">Completed</MenuItem>
+                                                                          <MenuItem value="blocked">Blocked</MenuItem>
+                                                                        </TextField>
+                                                                        <TextField
+                                                                          select
+                                                                          size="small"
+                                                                          value={subtask.assignedTo || ''}
+                                                                          onChange={(e) => {
+                                                                            const assignedTo = e.target.value;
+                                                                            setTaskSubtasks((prev) => ({
+                                                                              ...prev,
+                                                                              [task.id]: (prev[task.id] || []).map((s: any) => s.id === subtask.id ? { ...s, assignedTo } : s),
+                                                                            }));
+                                                                            updateInlineSubtask(task.id, subtask.id, { assignedTo: assignedTo || null });
+                                                                          }}
+                                                                          sx={taskFieldSx}
+                                                                        >
+                                                                          <MenuItem value=""><em>Unassigned</em></MenuItem>
+                                                                          {people.map(p => <MenuItem key={p.id} value={p.name}>{p.name}</MenuItem>)}
+                                                                        </TextField>
+                                                                        <IconButton
+                                                                          size="small"
+                                                                          title="Delete subtask"
+                                                                          onClick={() => deleteInlineSubtask(task.id, subtask.id)}
+                                                                          sx={{ opacity: 0.5, justifySelf: 'end', '&:hover': { opacity: 1, color: '#ef5350' } }}
+                                                                        >
+                                                                          <DeleteIcon sx={{ fontSize: '0.9rem' }} />
+                                                                        </IconButton>
+                                                                      </Box>
                                                                     ))}
                                                                   </Box>
                                                                 )}
