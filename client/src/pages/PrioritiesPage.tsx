@@ -73,6 +73,7 @@ const PrioritiesPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const { selectedProgramId, selectedProjectId } = useFilter();
   const openTaskId = searchParams.get('openTask') || '';
+  const openDefectId = searchParams.get('openDefect') || '';
   const projectId = routeProjectId || selectedProjectId || '';
   const queryClient = useQueryClient();
   const [selectedTask, setSelectedTask] = useState<any | null>(null);
@@ -244,9 +245,20 @@ const PrioritiesPage: React.FC = () => {
     return true;
   }), [defects, defectStatusFilter, severityFilter, defectSearch, objectsByIdMap]);
 
+  const { data: notificationDefect = null } = useQuery({
+    queryKey: ['priorities-open-defect', openDefectId],
+    queryFn: async () => {
+      if (!openDefectId) return null;
+      const response = await apiClient.get(`/api/defects/${openDefectId}`);
+      return response.data?.data || null;
+    },
+    enabled: !!openDefectId,
+  });
+
   const activeDefect = useMemo(
-    () => filteredDefects.find((defect: any) => defect.id === selectedDefectId) || null,
-    [filteredDefects, selectedDefectId]
+    () => filteredDefects.find((defect: any) => defect.id === selectedDefectId)
+      || (notificationDefect?.id === selectedDefectId ? notificationDefect : null),
+    [filteredDefects, selectedDefectId, notificationDefect]
   );
 
   useEffect(() => {
@@ -258,6 +270,21 @@ const PrioritiesPage: React.FC = () => {
   const handleDefectSaved = async () => {
     await queryClient.invalidateQueries({ queryKey: ['priorities-defects'] });
   };
+
+  useEffect(() => {
+    if (!openDefectId) return;
+    setDefectStatusFilter('all');
+  }, [openDefectId]);
+
+  useEffect(() => {
+    if (!openDefectId) return;
+
+    if (filteredDefects.some((defect: any) => defect.id === openDefectId)
+      || defects.some((defect: any) => defect.id === openDefectId)
+      || (notificationDefect && notificationDefect.id === openDefectId)) {
+      setSelectedDefectId(openDefectId);
+    }
+  }, [openDefectId, filteredDefects, defects, notificationDefect]);
 
   useEffect(() => {
     if (!openTaskId) return;
@@ -565,7 +592,14 @@ const PrioritiesPage: React.FC = () => {
         open={Boolean(activeDefect)}
         defect={activeDefect}
         people={people || []}
-        onClose={() => setSelectedDefectId('')}
+        onClose={() => {
+          setSelectedDefectId('');
+          if (openDefectId) {
+            const next = new URLSearchParams(searchParams);
+            next.delete('openDefect');
+            setSearchParams(next, { replace: true });
+          }
+        }}
         onSaved={handleDefectSaved}
       />
     </>

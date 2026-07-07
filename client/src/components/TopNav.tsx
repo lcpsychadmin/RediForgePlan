@@ -151,9 +151,11 @@ const TopNav: React.FC<TopNavProps> = ({
 
     setNotifAnchorEl(null);
       if (n.defectId) {
+        const defectCapablePattern = /(\/defects|\/priorities|\/my-tasks)$/;
+        const defectTargetPath = defectCapablePattern.test(location.pathname) ? location.pathname : '/defects';
         const defectIdParam = encodeURIComponent(n.defectId || '');
         const projectIdParam = n.projectId ? `&projectId=${encodeURIComponent(n.projectId)}` : '';
-        navigate(`/defects?openDefect=${defectIdParam}${projectIdParam}`);
+        navigate(`${defectTargetPath}?openDefect=${defectIdParam}${projectIdParam}`);
         return;
       }
 

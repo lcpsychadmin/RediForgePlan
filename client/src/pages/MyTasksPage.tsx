@@ -65,6 +65,7 @@ const MyTasksPage: React.FC = () => {
   const { user } = useAuth();
   const { selectedProgramId, selectedProjectId } = useFilter();
   const openTaskId = searchParams.get('openTask') || '';
+  const openDefectId = searchParams.get('openDefect') || '';
   const isAdmin = user?.role === 'admin';
   const effectiveProgramId = isAdmin ? null : selectedProgramId;
   const effectiveProjectId = isAdmin ? null : selectedProjectId;
@@ -330,9 +331,37 @@ const MyTasksPage: React.FC = () => {
     });
   }, [data?.defects, defectSearch, defectStatusFilter, severityFilter]);
 
+  React.useEffect(() => {
+    if (!openDefectId) return;
+    setDefectStatusFilter('all');
+  }, [openDefectId]);
+
+  const { data: notificationDefect = null } = useQuery({
+    queryKey: ['mytasks-open-defect', openDefectId],
+    queryFn: async () => {
+      if (!openDefectId) return null;
+      const response = await apiClient.get(`/api/defects/${openDefectId}`);
+      return response.data?.data || null;
+    },
+    enabled: !!openDefectId,
+  });
+
+  React.useEffect(() => {
+    if (!openDefectId) return;
+
+    const found = filteredDefects.some((defect: any) => defect.id === openDefectId)
+      || (data?.defects || []).some((defect: any) => defect.id === openDefectId)
+      || (notificationDefect && notificationDefect.id === openDefectId);
+
+    if (found) {
+      setSelectedDefectId(openDefectId);
+    }
+  }, [openDefectId, filteredDefects, data?.defects, notificationDefect]);
+
   const activeDefect = React.useMemo(
-    () => filteredDefects.find((defect: any) => defect.id === selectedDefectId) || null,
-    [filteredDefects, selectedDefectId]
+    () => filteredDefects.find((defect: any) => defect.id === selectedDefectId)
+      || (notificationDefect?.id === selectedDefectId ? notificationDefect : null),
+    [filteredDefects, selectedDefectId, notificationDefect]
   );
 
   React.useEffect(() => {
@@ -528,7 +557,14 @@ const MyTasksPage: React.FC = () => {
           open={Boolean(activeDefect)}
           defect={activeDefect}
           people={people || []}
-          onClose={() => setSelectedDefectId('')}
+          onClose={() => {
+            setSelectedDefectId('');
+            if (openDefectId) {
+              const next = new URLSearchParams(searchParams);
+              next.delete('openDefect');
+              setSearchParams(next, { replace: true });
+            }
+          }}
           onSaved={handleDefectSaved}
         />
       </Box>
