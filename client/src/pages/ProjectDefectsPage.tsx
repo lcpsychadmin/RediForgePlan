@@ -18,7 +18,7 @@ import {
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import ContentHeader from '../layout/ContentHeader';
 import apiClient from '../api/client';
@@ -87,8 +87,11 @@ interface ProjectDefectsPageProps {
 
 const ProjectDefectsPage: React.FC<ProjectDefectsPageProps> = ({ projectId: projectIdProp }) => {
   const { projectId: routeProjectId } = useParams<{ projectId: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { selectedProgramId, selectedProjectId } = useFilter();
-  const resolvedProjectId = projectIdProp || routeProjectId || selectedProjectId || '';
+  const queryProjectId = searchParams.get('projectId') || '';
+  const openDefectId = searchParams.get('openDefect') || '';
+  const resolvedProjectId = projectIdProp || routeProjectId || queryProjectId || selectedProjectId || '';
   const [statusMode, setStatusMode] = React.useState<'active' | 'closed' | 'all'>('active');
   const [searchTerm, setSearchTerm] = React.useState('');
   const [selectedDefectId, setSelectedDefectId] = React.useState<string>('');
@@ -171,10 +174,36 @@ const ProjectDefectsPage: React.FC<ProjectDefectsPageProps> = ({ projectId: proj
 
   const queryClient = useQueryClient();
 
+  const { data: notificationDefect = null } = useQuery({
+    queryKey: ['project-defect-open-target', openDefectId],
+    queryFn: async () => {
+      if (!openDefectId) return null;
+      const response = await apiClient.get(`/api/defects/${openDefectId}`);
+      return response.data.data || null;
+    },
+    enabled: !!openDefectId,
+  });
+
   const activeDefect = React.useMemo(
-    () => defects.find((defect: any) => defect.id === selectedDefectId) || null,
-    [defects, selectedDefectId]
+    () => defects.find((defect: any) => defect.id === selectedDefectId)
+      || (notificationDefect?.id === selectedDefectId ? notificationDefect : null),
+    [defects, selectedDefectId, notificationDefect]
   );
+
+  React.useEffect(() => {
+    if (!openDefectId) return;
+    setStatusMode('all');
+    setSearchTerm('');
+  }, [openDefectId]);
+
+  React.useEffect(() => {
+    if (!openDefectId) return;
+
+    const existsInList = defects.some((defect: any) => defect.id === openDefectId);
+    if (existsInList || (notificationDefect && notificationDefect.id === openDefectId)) {
+      setSelectedDefectId(openDefectId);
+    }
+  }, [openDefectId, defects, notificationDefect]);
 
   React.useEffect(() => {
     if (selectedDefectId && !defects.some((defect: any) => defect.id === selectedDefectId)) {
@@ -306,7 +335,14 @@ const ProjectDefectsPage: React.FC<ProjectDefectsPageProps> = ({ projectId: proj
         open={Boolean(activeDefect)}
         defect={activeDefect}
         people={people || []}
-        onClose={() => setSelectedDefectId('')}
+        onClose={() => {
+          setSelectedDefectId('');
+          if (openDefectId) {
+            const next = new URLSearchParams(searchParams);
+            next.delete('openDefect');
+            setSearchParams(next, { replace: true });
+          }
+        }}
         onSaved={handleDefectSaved}
       />
 

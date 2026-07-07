@@ -334,7 +334,8 @@ class DefectsController {
         String((req as any).userId || '').trim(),
         String(defect.taskId || ''),
         authorName,
-        'a defect discussion'
+        'a defect discussion',
+        String(defect.id || '')
       );
 
       await defectsService.recordAuditAction(

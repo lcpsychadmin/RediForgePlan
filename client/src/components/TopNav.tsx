@@ -134,19 +134,33 @@ const TopNav: React.FC<TopNavProps> = ({
       setUnreadCount(prev => Math.max(0, prev - 1));
     }
 
-    if (n.projectId && n.taskId) {
+      if (n.projectId && n.defectId) {
+        sessionStorage.setItem('pendingNotificationTarget', JSON.stringify({
+          projectId: n.projectId,
+          defectId: n.defectId,
+          source: 'defect',
+        }));
+      } else if (n.projectId && n.taskId) {
       sessionStorage.setItem('pendingNotificationTarget', JSON.stringify({
         projectId: n.projectId,
         taskId: n.taskId,
         taskName: n.taskName || 'Task',
+          source: 'task',
       }));
     }
 
     setNotifAnchorEl(null);
-    const taskIdParam = encodeURIComponent(n.taskId || '');
-    const projectIdParam = n.projectId ? `&projectId=${encodeURIComponent(n.projectId)}` : '';
-    const taskNameParam = n.taskName ? `&taskName=${encodeURIComponent(n.taskName)}` : '';
-    navigate(`/projects?openTask=${taskIdParam}${projectIdParam}${taskNameParam}`);
+      if (n.defectId) {
+        const defectIdParam = encodeURIComponent(n.defectId || '');
+        const projectIdParam = n.projectId ? `&projectId=${encodeURIComponent(n.projectId)}` : '';
+        navigate(`/defects?openDefect=${defectIdParam}${projectIdParam}`);
+        return;
+      }
+
+      const taskIdParam = encodeURIComponent(n.taskId || '');
+      const projectIdParam = n.projectId ? `&projectId=${encodeURIComponent(n.projectId)}` : '';
+      const taskNameParam = n.taskName ? `&taskName=${encodeURIComponent(n.taskName)}` : '';
+      navigate(`/projects?openTask=${taskIdParam}${projectIdParam}${taskNameParam}`);
   };
 
   const handleDismissNotification = async (notificationId: string, isRead: boolean) => {

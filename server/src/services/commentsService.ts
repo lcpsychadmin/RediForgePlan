@@ -2,6 +2,22 @@ import db from '../db.js';
 
 export class CommentsService {
   private mentionRegex = /(?:^|\s)@([a-zA-Z0-9._-]+(?:@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})?)/g;
+  private notificationsSchemaReady: Promise<void> | null = null;
+
+  private async ensureNotificationsSchema() {
+    if (this.notificationsSchemaReady) return this.notificationsSchemaReady;
+
+    this.notificationsSchemaReady = (async () => {
+      await db.query(
+        'ALTER TABLE notifications ADD COLUMN IF NOT EXISTS defect_id UUID REFERENCES defects(id) ON DELETE CASCADE'
+      );
+      await db.query(
+        'CREATE INDEX IF NOT EXISTS idx_notifications_defect_id ON notifications(defect_id)'
+      );
+    })();
+
+    return this.notificationsSchemaReady;
+  }
 
   extractMentionTokens(content: string): string[] {
     if (!content) return [];
@@ -84,10 +100,11 @@ export class CommentsService {
   }
 
   // Notifications
-  async createNotification(recipientUserId: string, taskId: string, message: string) {
+  async createNotification(recipientUserId: string, taskId: string, message: string, defectId?: string | null) {
+    await this.ensureNotificationsSchema();
     await db.query(
-      'INSERT INTO notifications (recipient_user_id, task_id, message) VALUES ($1, $2, $3)',
-      [recipientUserId, taskId, message]
+      'INSERT INTO notifications (recipient_user_id, task_id, defect_id, message) VALUES ($1, $2, $3, $4)',
+      [recipientUserId, taskId || null, defectId || null, message]
     );
   }
 
@@ -96,9 +113,10 @@ export class CommentsService {
     actorUserId: string,
     taskId: string,
     authorName: string,
-    contextLabel: string
+    contextLabel: string,
+    defectId?: string | null
   ): Promise<number> {
-    if (!taskId) return 0;
+    if (!taskId && !defectId) return 0;
 
     const mentionTokens = this.extractMentionTokens(content);
     const notified = new Set<string>();
@@ -111,7 +129,8 @@ export class CommentsService {
       await this.createNotification(
         recipientId,
         taskId,
-        `${authorName} mentioned you in ${contextLabel}: "${content.slice(0, 80)}${content.length > 80 ? '...' : ''}"`
+        `${authorName} mentioned you in ${contextLabel}: "${content.slice(0, 80)}${content.length > 80 ? '...' : ''}"`,
+        defectId || null
       );
     }
 
@@ -119,8 +138,9 @@ export class CommentsService {
   }
 
   async getNotifications(userId: string) {
+    await this.ensureNotificationsSchema();
     const result = await db.query(
-      `SELECT n.id, n.task_id, n.message, n.is_read, n.created_at,
+      `SELECT n.id, n.task_id, n.defect_id, n.message, n.is_read, n.created_at,
               t.name AS task_name, t.project_id
        FROM notifications n
        LEFT JOIN tasks t ON n.task_id = t.id
@@ -132,6 +152,7 @@ export class CommentsService {
     return result.rows.map((r: any) => ({
       id: r.id,
       taskId: r.task_id,
+      defectId: r.defect_id,
       taskName: r.task_name,
       projectId: r.project_id,
       message: r.message,
@@ -141,6 +162,7 @@ export class CommentsService {
   }
 
   async getUnreadCount(userId: string): Promise<number> {
+    await this.ensureNotificationsSchema();
     const result = await db.query(
       'SELECT COUNT(*) FROM notifications WHERE recipient_user_id = $1 AND is_read = FALSE',
       [userId]
