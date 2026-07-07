@@ -6736,7 +6736,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                                                 ) : (
                                                                   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, mb: 0.75 }}>
                                                                     {(taskSubtasks[task.id] || []).map((subtask: any) => (
-                                                                      <Box key={subtask.id} sx={{ display: 'grid', gridTemplateColumns: 'minmax(180px,1fr) 120px 150px 28px', gap: 0.5, alignItems: 'center', minWidth: 0 }}>
+                                                                      <Box key={subtask.id} sx={{ display: 'grid', gridTemplateColumns: 'minmax(160px,1fr) minmax(180px,1.1fr) 120px 150px 28px', gap: 0.5, alignItems: 'center', minWidth: 0 }}>
                                                                         <TextField
                                                                           size="small"
                                                                           value={subtask.title || ''}
@@ -6751,6 +6751,26 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                                                             setTaskSubtasks((prev) => ({
                                                                               ...prev,
                                                                               [task.id]: (prev[task.id] || []).map((s: any) => s.id === subtask.id ? { ...s, title: value } : s),
+                                                                            }));
+                                                                          }}
+                                                                          sx={taskFieldSx}
+                                                                        />
+                                                                        <TextField
+                                                                          size="small"
+                                                                          value={subtask.description || ''}
+                                                                          placeholder="Description"
+                                                                          onBlur={(e) => {
+                                                                            const description = String(e.target.value || '').trim();
+                                                                            const current = String(subtask.description || '').trim();
+                                                                            if (description !== current) {
+                                                                              updateInlineSubtask(task.id, subtask.id, { description: description || null });
+                                                                            }
+                                                                          }}
+                                                                          onChange={(e) => {
+                                                                            const description = e.target.value;
+                                                                            setTaskSubtasks((prev) => ({
+                                                                              ...prev,
+                                                                              [task.id]: (prev[task.id] || []).map((s: any) => s.id === subtask.id ? { ...s, description } : s),
                                                                             }));
                                                                           }}
                                                                           sx={taskFieldSx}
@@ -7117,7 +7137,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                                                 ) : (
                                                                   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, mb: 0.75 }}>
                                                                     {(taskSubtasks[task.id] || []).map((subtask: any) => (
-                                                                      <Box key={subtask.id} sx={{ display: 'grid', gridTemplateColumns: 'minmax(180px,1fr) 120px 150px 28px', gap: 0.5, alignItems: 'center', minWidth: 0 }}>
+                                                                      <Box key={subtask.id} sx={{ display: 'grid', gridTemplateColumns: 'minmax(160px,1fr) minmax(180px,1.1fr) 120px 150px 28px', gap: 0.5, alignItems: 'center', minWidth: 0 }}>
                                                                         <TextField
                                                                           size="small"
                                                                           value={subtask.title || ''}
@@ -7132,6 +7152,26 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                                                             setTaskSubtasks((prev) => ({
                                                                               ...prev,
                                                                               [task.id]: (prev[task.id] || []).map((s: any) => s.id === subtask.id ? { ...s, title: value } : s),
+                                                                            }));
+                                                                          }}
+                                                                          sx={taskFieldSx}
+                                                                        />
+                                                                        <TextField
+                                                                          size="small"
+                                                                          value={subtask.description || ''}
+                                                                          placeholder="Description"
+                                                                          onBlur={(e) => {
+                                                                            const description = String(e.target.value || '').trim();
+                                                                            const current = String(subtask.description || '').trim();
+                                                                            if (description !== current) {
+                                                                              updateInlineSubtask(task.id, subtask.id, { description: description || null });
+                                                                            }
+                                                                          }}
+                                                                          onChange={(e) => {
+                                                                            const description = e.target.value;
+                                                                            setTaskSubtasks((prev) => ({
+                                                                              ...prev,
+                                                                              [task.id]: (prev[task.id] || []).map((s: any) => s.id === subtask.id ? { ...s, description } : s),
                                                                             }));
                                                                           }}
                                                                           sx={taskFieldSx}
