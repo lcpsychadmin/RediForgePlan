@@ -261,6 +261,15 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     enabled: open && !!resolvedTask?.projectId,
   });
 
+  const { data: programDetails = null } = useQuery({
+    queryKey: ['task-program-details-modal', projectDetails?.programId],
+    queryFn: async () => {
+      if (!projectDetails?.programId) return null;
+      return (await apiClient.get(`/api/programs/${projectDetails.programId}`)).data.data || null;
+    },
+    enabled: open && !!projectDetails?.programId,
+  });
+
   const cycleIdResolved = resolvedTask?.mockCycleId || projectDetails?.mockCycleId || null;
 
   const { data: cycleDetails = null } = useQuery({
@@ -490,6 +499,9 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   const assignmentHeadline = objectContextLabel
     ? `Object: ${objectContextLabel}`
     : (planGroupContextLabel ? `Plan Group: ${planGroupContextLabel}` : 'No object or plan group linked');
+  const assignmentProgramLabel = String(resolvedTask?.programName || programDetails?.name || '').trim() || 'Unknown';
+  const assignmentProjectLabel = String(resolvedTask?.projectName || projectDetails?.name || '').trim() || 'Unknown';
+  const assignmentCycleLabel = String(resolvedTask?.mockCycleName || cycleDetails?.name || '').trim() || 'Unknown';
   const dependencyHeaderObject = objectContextLabel || planGroupContextLabel || 'Not linked';
   const dependencyHeaderTask = String(resolvedTask?.taskName || resolvedTask?.name || 'Untitled Task').trim();
   const dependencyHeaderTaskDescription = String(resolvedTask?.notes || '').trim();
@@ -674,9 +686,9 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
             Assignment Context
           </Typography>
           <Box sx={{ mt: 0.75, display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 0.75 }}>
-            <Chip size="small" sx={{ justifyContent: 'flex-start', backgroundColor: 'rgba(255,255,255,0.14)' }} label={`Program: ${resolvedTask?.programName || 'Unknown'}`} />
-            <Chip size="small" sx={{ justifyContent: 'flex-start', backgroundColor: 'rgba(255,255,255,0.14)' }} label={`Project: ${resolvedTask?.projectName || 'Unknown'}`} />
-            <Chip size="small" sx={{ justifyContent: 'flex-start', backgroundColor: 'rgba(255,255,255,0.14)' }} label={`Mock Cycle: ${resolvedTask?.mockCycleName || 'Unknown'}`} />
+            <Chip size="small" sx={{ justifyContent: 'flex-start', backgroundColor: 'rgba(255,255,255,0.14)' }} label={`Program: ${assignmentProgramLabel}`} />
+            <Chip size="small" sx={{ justifyContent: 'flex-start', backgroundColor: 'rgba(255,255,255,0.14)' }} label={`Project: ${assignmentProjectLabel}`} />
+            <Chip size="small" sx={{ justifyContent: 'flex-start', backgroundColor: 'rgba(255,255,255,0.14)' }} label={`Mock Cycle: ${assignmentCycleLabel}`} />
           </Box>
         </Box>
       </Box>
