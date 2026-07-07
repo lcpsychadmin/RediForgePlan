@@ -105,7 +105,7 @@ export class CommentsService {
 
     for (const token of mentionTokens) {
       const recipientId = await this.findUserIdByMention(token);
-      if (!recipientId || recipientId === actorUserId || notified.has(recipientId)) continue;
+      if (!recipientId || notified.has(recipientId)) continue;
 
       notified.add(recipientId);
       await this.createNotification(
