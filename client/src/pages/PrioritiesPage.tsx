@@ -10,12 +10,13 @@ import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import TaskDetailModal from '../components/tasks/TaskDetailModal';
+import DefectCommentsModal from '../components/DefectCommentsModal';
 import ContentHeader from '../layout/ContentHeader';
 import { usePriorities } from '../hooks/usePriorities';
 import { usePageStats } from '../contexts/PageStatsContext';
 import { useGlobalObjects } from '../api/hooks';
 import { useParams } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import apiClient from '../api/client';
 import { useFilter } from '../contexts/FilterContext';
 
@@ -71,7 +72,9 @@ const PrioritiesPage: React.FC = () => {
   const { projectId: routeProjectId } = useParams<{ projectId: string }>();
   const { selectedProgramId, selectedProjectId } = useFilter();
   const projectId = routeProjectId || selectedProjectId || '';
+  const queryClient = useQueryClient();
   const [selectedTask, setSelectedTask] = useState<any | null>(null);
+  const [selectedDefectId, setSelectedDefectId] = useState('');
   const [taskSearch, setTaskSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [processAreaFilter, setProcessAreaFilter] = useState('all');
@@ -238,6 +241,21 @@ const PrioritiesPage: React.FC = () => {
     if (defectSearch) { const s = defectSearch.toLowerCase(); if (!(def.title || '').toLowerCase().includes(s) && !(def.issueCode || '').toLowerCase().includes(s)) return false; }
     return true;
   }), [defects, defectStatusFilter, severityFilter, defectSearch, objectsByIdMap]);
+
+  const activeDefect = useMemo(
+    () => filteredDefects.find((defect: any) => defect.id === selectedDefectId) || null,
+    [filteredDefects, selectedDefectId]
+  );
+
+  useEffect(() => {
+    if (selectedDefectId && !filteredDefects.some((defect: any) => defect.id === selectedDefectId)) {
+      setSelectedDefectId('');
+    }
+  }, [filteredDefects, selectedDefectId]);
+
+  const handleDefectSaved = async () => {
+    await queryClient.invalidateQueries({ queryKey: ['priorities-defects'] });
+  };
 
   const th = { py: 0.8, px: 1.5, fontSize: '0.68rem', letterSpacing: '0.06em', color: 'rgba(255,255,255,0.45)', backgroundColor: 'rgba(0,0,0,0.18)', textTransform: 'uppercase' as const, fontWeight: 700, borderBottom: '1px solid rgba(255,255,255,0.07)' };
   const td = { py: 0.75, px: 1.5, fontSize: '0.8rem', borderBottom: '1px solid rgba(255,255,255,0.04)' };
@@ -465,7 +483,12 @@ const PrioritiesPage: React.FC = () => {
                   {filteredDefects.map((defect: any) => {
                     const sevColor = SEVERITY_COLOR[defect.severity || 'low'] || '#78909c';
                     return (
-                      <TableRow key={defect.id} hover sx={{ '&:hover': { backgroundColor: 'rgba(255,255,255,0.035)' } }}>
+                      <TableRow
+                        key={defect.id}
+                        hover
+                        onClick={() => setSelectedDefectId(defect.id)}
+                        sx={{ cursor: 'pointer', '&:hover': { backgroundColor: 'rgba(255,255,255,0.035)' } }}
+                      >
                         <TableCell sx={td}>
                           <Typography sx={{ fontWeight: 600, fontSize: '0.8rem' }}>{defect.title || 'Untitled Defect'}</Typography>
                           {defect.defectDetails && (
@@ -506,6 +529,14 @@ const PrioritiesPage: React.FC = () => {
         peopleById={peopleById}
         people={people}
         accentColor="#ffa726"
+      />
+
+      <DefectCommentsModal
+        open={Boolean(activeDefect)}
+        defect={activeDefect}
+        people={people || []}
+        onClose={() => setSelectedDefectId('')}
+        onSaved={handleDefectSaved}
       />
     </>
   );
