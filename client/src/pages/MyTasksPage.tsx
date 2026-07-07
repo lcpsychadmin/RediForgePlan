@@ -22,6 +22,7 @@ import Layout from '../components/Layout';
 import ContentHeader from '../layout/ContentHeader';
 import TaskDetailModal from '../components/tasks/TaskDetailModal';
 import DefectCommentsModal from '../components/DefectCommentsModal';
+import { useSearchParams } from 'react-router-dom';
 import apiClient from '../api/client';
 import { useAuth } from '../contexts/AuthContext';
 import { useFilter } from '../contexts/FilterContext';
@@ -60,8 +61,10 @@ const Section: React.FC<{ title: string; count: number; accent: string; children
 );
 
 const MyTasksPage: React.FC = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
   const { selectedProgramId, selectedProjectId } = useFilter();
+  const openTaskId = searchParams.get('openTask') || '';
   const isAdmin = user?.role === 'admin';
   const effectiveProgramId = isAdmin ? null : selectedProgramId;
   const effectiveProjectId = isAdmin ? null : selectedProjectId;
@@ -290,6 +293,27 @@ const MyTasksPage: React.FC = () => {
     });
   }, [data?.tasks, taskSearch, taskStatusFilter]);
 
+  React.useEffect(() => {
+    if (!openTaskId) return;
+
+    const existing = filteredTasks.find((task: any) => (task.taskId || task.id) === openTaskId)
+      || (data?.tasks || []).find((task: any) => (task.taskId || task.id) === openTaskId);
+
+    if (existing) {
+      setSelectedTask(existing);
+      return;
+    }
+
+    apiClient.get(`/api/tasks/${openTaskId}`)
+      .then((response) => {
+        const task = response.data?.data;
+        if (task?.id) {
+          setSelectedTask({ ...task, taskId: task.id, taskName: task.name || task.taskName });
+        }
+      })
+      .catch(() => {});
+  }, [openTaskId, filteredTasks, data?.tasks]);
+
   const filteredDefects = React.useMemo(() => {
     const all = (data?.defects || []) as any[];
     return all.filter((defect: any) => {
@@ -486,7 +510,14 @@ const MyTasksPage: React.FC = () => {
 
         <TaskDetailModal
           open={!!selectedTask}
-          onClose={() => setSelectedTask(null)}
+          onClose={() => {
+            setSelectedTask(null);
+            if (openTaskId) {
+              const next = new URLSearchParams(searchParams);
+              next.delete('openTask');
+              setSearchParams(next, { replace: true });
+            }
+          }}
           taskId={selectedTask?.taskId || selectedTask?.id}
           task={selectedTask}
           peopleById={peopleById}

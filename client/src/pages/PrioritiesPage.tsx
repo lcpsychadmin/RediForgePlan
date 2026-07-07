@@ -15,7 +15,7 @@ import ContentHeader from '../layout/ContentHeader';
 import { usePriorities } from '../hooks/usePriorities';
 import { usePageStats } from '../contexts/PageStatsContext';
 import { useGlobalObjects } from '../api/hooks';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import apiClient from '../api/client';
 import { useFilter } from '../contexts/FilterContext';
@@ -70,7 +70,9 @@ const Section: React.FC<{ title: string; count: number; accent: string; children
 
 const PrioritiesPage: React.FC = () => {
   const { projectId: routeProjectId } = useParams<{ projectId: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { selectedProgramId, selectedProjectId } = useFilter();
+  const openTaskId = searchParams.get('openTask') || '';
   const projectId = routeProjectId || selectedProjectId || '';
   const queryClient = useQueryClient();
   const [selectedTask, setSelectedTask] = useState<any | null>(null);
@@ -256,6 +258,27 @@ const PrioritiesPage: React.FC = () => {
   const handleDefectSaved = async () => {
     await queryClient.invalidateQueries({ queryKey: ['priorities-defects'] });
   };
+
+  useEffect(() => {
+    if (!openTaskId) return;
+
+    const existing = allPriorityTasks.find((task: any) => (task.taskId || task.id) === openTaskId)
+      || rawTasks.find((task: any) => (task.taskId || task.id) === openTaskId);
+
+    if (existing) {
+      setSelectedTask(existing);
+      return;
+    }
+
+    apiClient.get(`/api/tasks/${openTaskId}`)
+      .then((response) => {
+        const task = response.data?.data;
+        if (task?.id) {
+          setSelectedTask({ ...task, taskId: task.id, taskName: task.name || task.taskName });
+        }
+      })
+      .catch(() => {});
+  }, [openTaskId, allPriorityTasks, rawTasks]);
 
   const th = { py: 0.8, px: 1.5, fontSize: '0.68rem', letterSpacing: '0.06em', color: 'rgba(255,255,255,0.45)', backgroundColor: 'rgba(0,0,0,0.18)', textTransform: 'uppercase' as const, fontWeight: 700, borderBottom: '1px solid rgba(255,255,255,0.07)' };
   const td = { py: 0.75, px: 1.5, fontSize: '0.8rem', borderBottom: '1px solid rgba(255,255,255,0.04)' };
@@ -523,7 +546,14 @@ const PrioritiesPage: React.FC = () => {
 
       <TaskDetailModal
         open={!!selectedTask}
-        onClose={() => setSelectedTask(null)}
+        onClose={() => {
+          setSelectedTask(null);
+          if (openTaskId) {
+            const next = new URLSearchParams(searchParams);
+            next.delete('openTask');
+            setSearchParams(next, { replace: true });
+          }
+        }}
         taskId={selectedTask?.taskId || selectedTask?.id}
         task={selectedTask}
         peopleById={peopleById}

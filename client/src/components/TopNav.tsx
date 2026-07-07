@@ -157,10 +157,12 @@ const TopNav: React.FC<TopNavProps> = ({
         return;
       }
 
+      const taskCapablePattern = /(\/projects|\/priorities|\/schedule|\/my-tasks)$/;
+      const targetPath = taskCapablePattern.test(location.pathname) ? location.pathname : '/projects';
       const taskIdParam = encodeURIComponent(n.taskId || '');
       const projectIdParam = n.projectId ? `&projectId=${encodeURIComponent(n.projectId)}` : '';
       const taskNameParam = n.taskName ? `&taskName=${encodeURIComponent(n.taskName)}` : '';
-      navigate(`/projects?openTask=${taskIdParam}${projectIdParam}${taskNameParam}`);
+      navigate(`${targetPath}?openTask=${taskIdParam}${projectIdParam}${taskNameParam}`);
   };
 
   const handleDismissNotification = async (notificationId: string, isRead: boolean) => {

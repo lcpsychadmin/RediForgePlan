@@ -3650,7 +3650,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
     selectNotificationProject();
   }, [projectsByMockCycle, mockCycles, selectedItem, location.search]);
 
-  // Once tasks load for the selected project, open the discussion modal for the target task.
+  // Once tasks load for the selected project, open the full task modal for the target task.
   useEffect(() => {
     const raw = sessionStorage.getItem('pendingNotificationTarget');
     if (!raw || !activeProjectId) return;
@@ -3660,9 +3660,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
 
     if (!target.projectId || !target.taskId || target.projectId !== activeProjectId) return;
 
-    const task = projectTasks.find((t: any) => t.id === target.taskId);
-
-    setCommentModalTask({ id: target.taskId, name: task?.name || target.taskName || 'Task' });
+    setEditingTaskInitialTab(0);
+    setEditingTaskId(target.taskId);
     sessionStorage.removeItem('pendingNotificationTarget');
   }, [activeProjectId, projectTasks, location.search]);
 

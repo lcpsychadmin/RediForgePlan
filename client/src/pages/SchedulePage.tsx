@@ -11,7 +11,7 @@ import ContentHeader from '../layout/ContentHeader';
 import { ExportMenu } from '../components/export';
 import DraggableScheduleGrid from '../components/schedule/DraggableScheduleGrid';
 import TaskDetailModal from '../components/tasks/TaskDetailModal';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { addDays, startOfWeek, subDays, format } from 'date-fns';
 import { useFilter } from '../contexts/FilterContext';
 import { usePageStats } from '../contexts/PageStatsContext';
@@ -47,7 +47,9 @@ const matchesTaskTypeFilter = (item: any, filterTaskType: string) => {
 
 const SchedulePage: React.FC = () => {
   const { projectId: routeProjectId } = useParams<{ projectId: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { selectedProgramId, selectedProjectId } = useFilter();
+  const openTaskId = searchParams.get('openTask') || '';
   const projectId = routeProjectId || selectedProjectId || '';
   const [weekStart, setWeekStart] = useState(startOfWeek(new Date()));
   const [filterProcessArea, setFilterProcessArea] = useState('');
@@ -184,6 +186,20 @@ const SchedulePage: React.FC = () => {
     setTaskModalOpen(true);
   };
 
+  useEffect(() => {
+    if (!openTaskId) return;
+
+    const matchingItem = scheduleItems.find((item: any) => item.taskId === openTaskId || item.id === openTaskId);
+    if (matchingItem) {
+      handleScheduleItemClick(matchingItem, matchingItem.accentColor || '#29b6f6');
+      return;
+    }
+
+    setSelectedTaskId(openTaskId);
+    setTaskModalAccentColor('#29b6f6');
+    setTaskModalOpen(true);
+  }, [openTaskId, scheduleItems]);
+
   return (
     <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 3 }}>
       <ContentHeader
@@ -307,6 +323,11 @@ const SchedulePage: React.FC = () => {
         onClose={() => {
           setTaskModalOpen(false);
           setSelectedTaskId('');
+          if (openTaskId) {
+            const next = new URLSearchParams(searchParams);
+            next.delete('openTask');
+            setSearchParams(next, { replace: true });
+          }
         }}
         taskId={selectedTaskId || undefined}
         accentColor={taskModalAccentColor}
