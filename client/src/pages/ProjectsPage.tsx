@@ -1226,6 +1226,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   const [depDialogTaskId, setDepDialogTaskId] = useState<string | null>(null);
   const [cycleTasksForDep, setCycleTasksForDep] = useState<any[]>([]);
   const [taskDeps, setTaskDeps] = useState<Record<string, any[]>>({});
+  const [taskSubtasks, setTaskSubtasks] = useState<Record<string, any[]>>({});
+  const [expandedTaskSubtasks, setExpandedTaskSubtasks] = useState<Record<string, boolean>>({});
+  const [taskSubtasksLoading, setTaskSubtasksLoading] = useState<Record<string, boolean>>({});
+  const [newSubtaskTitles, setNewSubtaskTitles] = useState<Record<string, string>>({});
   const [depSearchTerm, setDepSearchTerm] = useState('');
   const [depTreeExpanded, setDepTreeExpanded] = useState<Record<string, boolean>>({});
   const [defaultTaskOrder, setDefaultTaskOrder] = useState<string[]>([]);
@@ -4821,6 +4825,51 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
     return [] as any[];
   };
 
+  const loadTaskSubtasks = async (taskId: string) => {
+    setTaskSubtasksLoading((prev) => ({ ...prev, [taskId]: true }));
+    try {
+      const res = await apiClient.get(`/api/tasks/${taskId}/subtasks`);
+      const rows = res.data?.data || [];
+      setTaskSubtasks((prev) => ({ ...prev, [taskId]: rows }));
+      return rows as any[];
+    } catch {
+      return [] as any[];
+    } finally {
+      setTaskSubtasksLoading((prev) => ({ ...prev, [taskId]: false }));
+    }
+  };
+
+  const toggleTaskSubtasks = async (taskId: string) => {
+    const isExpanded = !!expandedTaskSubtasks[taskId];
+    if (isExpanded) {
+      setExpandedTaskSubtasks((prev) => ({ ...prev, [taskId]: false }));
+      return;
+    }
+
+    setExpandedTaskSubtasks((prev) => ({ ...prev, [taskId]: true }));
+    if (!taskSubtasks[taskId]) {
+      await loadTaskSubtasks(taskId);
+    }
+  };
+
+  const addInlineSubtask = async (taskId: string) => {
+    const title = String(newSubtaskTitles[taskId] || '').trim();
+    if (!title) return;
+    try {
+      const res = await apiClient.post(`/api/tasks/${taskId}/subtasks`, {
+        title,
+        description: null,
+        assignedTo: null,
+        status: 'not_started',
+      });
+      const created = res.data?.data;
+      setTaskSubtasks((prev) => ({ ...prev, [taskId]: [...(prev[taskId] || []), created] }));
+      setNewSubtaskTitles((prev) => ({ ...prev, [taskId]: '' }));
+    } catch (e) {
+      console.error('Failed to create subtask', e);
+    }
+  };
+
   // Cascade date recalculation: for all tasks with deps+duration, propagate dates downstream.
   // tasks/deps are passed as snapshots so this works before React state flushes.
   const cascadeAllDates = async (tasks: any[], deps: Record<string, any[]>) => {
@@ -6477,7 +6526,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                                       {childTasks.length === 0
                                                         ? <Typography variant="caption" color="text.disabled" sx={{ px: 2, py: 1, display: 'block', minWidth: 930 }}>No tasks</Typography>
                                                         : childTasks.map((task) => (
-                                                        <Box key={task.id} sx={{ minWidth: 930, display: 'grid', gridTemplateColumns: 'minmax(180px,1fr) 120px 60px 150px 84px 44px 100px 100px 92px', gap: 0, px: 2, py: 0.5, alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.03)', '&:hover': { backgroundColor: 'rgba(255,255,255,0.02)' } }}>
+                                                        <React.Fragment key={task.id}>
+                                                        <Box sx={{ minWidth: 930, display: 'grid', gridTemplateColumns: 'minmax(180px,1fr) 120px 60px 150px 84px 44px 100px 100px 92px', gap: 0, px: 2, py: 0.5, alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.03)', '&:hover': { backgroundColor: 'rgba(255,255,255,0.02)' } }}>
                                                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
                                                             <Box sx={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: getTaskStatusColor(task.status), flexShrink: 0 }} />
                                                             <TextField size="small" value={task.name || ''} onBlur={e => updateTaskInline(task.id, 'name', e.target.value)}
@@ -6627,6 +6677,14 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                                               sx={{ opacity: 0.6, '&:hover': { opacity: 1, color: planAccentColor } }}>
                                                               <AssignmentIcon sx={{ fontSize: '0.9rem' }} />
                                                             </IconButton>
+                                                            <IconButton
+                                                              size="small"
+                                                              title="Subtasks"
+                                                              onClick={() => { toggleTaskSubtasks(task.id); }}
+                                                              sx={{ opacity: (taskSubtasks[task.id] || []).length > 0 ? 1 : 0.7, color: expandedTaskSubtasks[task.id] ? planAccentColor : 'inherit', '&:hover': { opacity: 1, color: planAccentColor } }}
+                                                            >
+                                                              <ExpandMoreIcon sx={{ fontSize: '0.95rem', transform: expandedTaskSubtasks[task.id] ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform 0.2s' }} />
+                                                            </IconButton>
                                                             <IconButton size="small" title="Dependencies" onClick={async () => {
                                                               await loadTaskDeps(task.id);
                                                               setDepDialogTaskId(task.id);
@@ -6640,6 +6698,46 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                                             </IconButton>
                                                           </Box>
                                                         </Box>
+                                                        {expandedTaskSubtasks[task.id] && (
+                                                          <Box sx={{ minWidth: 930, px: 2.5, py: 0.8, borderBottom: '1px solid rgba(255,255,255,0.04)', backgroundColor: 'rgba(255,255,255,0.015)' }}>
+                                                            {taskSubtasksLoading[task.id] ? (
+                                                              <Typography variant="caption" color="text.secondary">Loading subtasks...</Typography>
+                                                            ) : (
+                                                              <>
+                                                                {(taskSubtasks[task.id] || []).length === 0 ? (
+                                                                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.75 }}>No subtasks yet.</Typography>
+                                                                ) : (
+                                                                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.45, mb: 0.75 }}>
+                                                                    {(taskSubtasks[task.id] || []).map((subtask: any) => (
+                                                                      <Typography key={subtask.id} variant="caption" sx={{ color: 'text.secondary' }}>
+                                                                        • {subtask.title} ({String(subtask.status || 'not_started').replace('_', ' ')})
+                                                                      </Typography>
+                                                                    ))}
+                                                                  </Box>
+                                                                )}
+                                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, maxWidth: 520 }}>
+                                                                  <TextField
+                                                                    size="small"
+                                                                    placeholder="New subtask title"
+                                                                    value={newSubtaskTitles[task.id] || ''}
+                                                                    onChange={(e) => setNewSubtaskTitles((prev) => ({ ...prev, [task.id]: e.target.value }))}
+                                                                    onKeyDown={(e) => {
+                                                                      if (e.key === 'Enter') {
+                                                                        e.preventDefault();
+                                                                        addInlineSubtask(task.id);
+                                                                      }
+                                                                    }}
+                                                                    sx={{ ...taskFieldSx, flex: 1 }}
+                                                                  />
+                                                                  <Button size="small" variant="text" onClick={() => addInlineSubtask(task.id)} sx={{ textTransform: 'none', color: planAccentColor }}>
+                                                                    Add Subtask
+                                                                  </Button>
+                                                                </Box>
+                                                              </>
+                                                            )}
+                                                          </Box>
+                                                        )}
+                                                        </React.Fragment>
                                                       ))
                                                       }
                                                     </Box>
@@ -6739,8 +6837,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                         </Box>
                                         {displayTasks.length === 0
                                           ? <Typography variant="caption" color="text.disabled" sx={{ px: 2, py: 1, display: 'block', minWidth: 930 }}>No tasks</Typography>
-                                          : displayTasks.map((task) => (
-                                          <Box key={task.id} sx={{ minWidth: 930, display: 'grid', gridTemplateColumns: 'minmax(180px,1fr) 120px 60px 150px 84px 44px 100px 100px 92px', gap: 0, px: 2, py: 0.5, alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.03)', '&:hover': { backgroundColor: 'rgba(255,255,255,0.02)' } }}>
+                                                      : displayTasks.map((task) => (
+                                                        <React.Fragment key={task.id}>
+                                                        <Box sx={{ minWidth: 930, display: 'grid', gridTemplateColumns: 'minmax(180px,1fr) 120px 60px 150px 84px 44px 100px 100px 92px', gap: 0, px: 2, py: 0.5, alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.03)', '&:hover': { backgroundColor: 'rgba(255,255,255,0.02)' } }}>
                                             {/* Task name */}
                                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
                                               <Box sx={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: getTaskStatusColor(task.status), flexShrink: 0 }} />
@@ -6898,6 +6997,14 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                                 sx={{ opacity: 0.6, '&:hover': { opacity: 1, color: planAccentColor } }}>
                                                 <AssignmentIcon sx={{ fontSize: '0.9rem' }} />
                                               </IconButton>
+                                                            <IconButton
+                                                              size="small"
+                                                              title="Subtasks"
+                                                              onClick={() => { toggleTaskSubtasks(task.id); }}
+                                                              sx={{ opacity: (taskSubtasks[task.id] || []).length > 0 ? 1 : 0.7, color: expandedTaskSubtasks[task.id] ? planAccentColor : 'inherit', '&:hover': { opacity: 1, color: planAccentColor } }}
+                                                            >
+                                                              <ExpandMoreIcon sx={{ fontSize: '0.95rem', transform: expandedTaskSubtasks[task.id] ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform 0.2s' }} />
+                                                            </IconButton>
                                               <IconButton size="small" title="Dependencies" onClick={async () => {
                                                 await loadTaskDeps(task.id);
                                                 setDepDialogTaskId(task.id);
@@ -6911,6 +7018,46 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                               </IconButton>
                                             </Box>
                                           </Box>
+                                                        {expandedTaskSubtasks[task.id] && (
+                                                          <Box sx={{ minWidth: 930, px: 2.5, py: 0.8, borderBottom: '1px solid rgba(255,255,255,0.04)', backgroundColor: 'rgba(255,255,255,0.015)' }}>
+                                                            {taskSubtasksLoading[task.id] ? (
+                                                              <Typography variant="caption" color="text.secondary">Loading subtasks...</Typography>
+                                                            ) : (
+                                                              <>
+                                                                {(taskSubtasks[task.id] || []).length === 0 ? (
+                                                                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.75 }}>No subtasks yet.</Typography>
+                                                                ) : (
+                                                                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.45, mb: 0.75 }}>
+                                                                    {(taskSubtasks[task.id] || []).map((subtask: any) => (
+                                                                      <Typography key={subtask.id} variant="caption" sx={{ color: 'text.secondary' }}>
+                                                                        • {subtask.title} ({String(subtask.status || 'not_started').replace('_', ' ')})
+                                                                      </Typography>
+                                                                    ))}
+                                                                  </Box>
+                                                                )}
+                                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, maxWidth: 520 }}>
+                                                                  <TextField
+                                                                    size="small"
+                                                                    placeholder="New subtask title"
+                                                                    value={newSubtaskTitles[task.id] || ''}
+                                                                    onChange={(e) => setNewSubtaskTitles((prev) => ({ ...prev, [task.id]: e.target.value }))}
+                                                                    onKeyDown={(e) => {
+                                                                      if (e.key === 'Enter') {
+                                                                        e.preventDefault();
+                                                                        addInlineSubtask(task.id);
+                                                                      }
+                                                                    }}
+                                                                    sx={{ ...taskFieldSx, flex: 1 }}
+                                                                  />
+                                                                  <Button size="small" variant="text" onClick={() => addInlineSubtask(task.id)} sx={{ textTransform: 'none', color: planAccentColor }}>
+                                                                    Add Subtask
+                                                                  </Button>
+                                                                </Box>
+                                                              </>
+                                                            )}
+                                                          </Box>
+                                                        )}
+                                                        </React.Fragment>
                                         ))}
                                         {subObjects.length > 0 && isExpanded && (
                                           <Box sx={{ borderTop: '1px solid rgba(255,255,255,0.06)', px: 2, py: 1.25 }}>
