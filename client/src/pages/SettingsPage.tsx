@@ -26,6 +26,7 @@ import {
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
+import EditIcon from '@mui/icons-material/Edit';
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 import FolderOutlinedIcon from '@mui/icons-material/FolderOutlined';
 import CorporateFareIcon from '@mui/icons-material/CorporateFare';
@@ -44,6 +45,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faDatabase, faServer, faCloud, faCode, faGears, faDiagramProject, faListCheck, faFileLines, faCircleNodes, faNetworkWired, faTableCells, faChartGantt, faClipboardList, faTriangleExclamation } from '@fortawesome/free-solid-svg-icons';
 import Layout from '../components/Layout';
 import apiClient from '../api/client';
+import { UNIFIED_ROLE_MODEL, type UnifiedRoleKey } from '../constants/unifiedRoleModel';
 
 interface Picklist {
   name: string;
@@ -169,6 +171,10 @@ const SettingsPage: React.FC = () => {
   const [processAreaDescriptions, setProcessAreaDescriptions] = useState<Record<string, string>>({});
   const [globalProcessAreaAccents, setGlobalProcessAreaAccents] = useState<Record<string, string>>({});
   const [globalProcessAreaIcons, setGlobalProcessAreaIcons] = useState<Record<string, HierarchyIconChoice>>({});
+  const [globalProcessAreaRoleAssignments, setGlobalProcessAreaRoleAssignments] = useState<Record<string, Partial<Record<UnifiedRoleKey, string>>>>({});
+  const [peopleDirectory, setPeopleDirectory] = useState<any[]>([]);
+  const [processAreaModalOpen, setProcessAreaModalOpen] = useState(false);
+  const [editingProcessArea, setEditingProcessArea] = useState<string | null>(null);
 
   // Default task templates
   const [templates, setTemplates] = useState<any[]>([]);
@@ -197,6 +203,10 @@ const SettingsPage: React.FC = () => {
       setRoles(res.data.data || []);
     }).catch(() => {});
 
+    apiClient.get('/api/people').then(res => {
+      setPeopleDirectory(res.data.data || []);
+    }).catch(() => {});
+
     apiClient.get('/api/applications').then(res => {
       setApplications(res.data.data || []);
     }).catch(() => {});
@@ -222,6 +232,9 @@ const SettingsPage: React.FC = () => {
       }
       if (parsed.globalProcessAreaDescriptions && typeof parsed.globalProcessAreaDescriptions === 'object') {
         setProcessAreaDescriptions(parsed.globalProcessAreaDescriptions);
+      }
+      if (parsed.globalProcessAreaRoleAssignments && typeof parsed.globalProcessAreaRoleAssignments === 'object') {
+        setGlobalProcessAreaRoleAssignments(parsed.globalProcessAreaRoleAssignments as Record<string, Partial<Record<UnifiedRoleKey, string>>>);
       }
       // Restore saved picklist values, merging over the hardcoded defaults
       if (parsed.picklistValues && typeof parsed.picklistValues === 'object') {
@@ -275,7 +288,47 @@ const SettingsPage: React.FC = () => {
         delete next[value];
         return next;
       });
+      setGlobalProcessAreaAccents((prev) => {
+        const next = { ...prev };
+        delete next[value];
+        return next;
+      });
+      setGlobalProcessAreaIcons((prev) => {
+        const next = { ...prev };
+        delete next[value];
+        return next;
+      });
+      setGlobalProcessAreaRoleAssignments((prev) => {
+        const next = { ...prev };
+        delete next[value];
+        return next;
+      });
     }
+  };
+
+  const openProcessAreaModal = (processArea: string) => {
+    setEditingProcessArea(processArea);
+    setProcessAreaModalOpen(true);
+  };
+
+  const closeProcessAreaModal = () => {
+    setProcessAreaModalOpen(false);
+    setEditingProcessArea(null);
+  };
+
+  const updateEditingProcessAreaRole = (roleKey: UnifiedRoleKey, userId: string) => {
+    if (!editingProcessArea) return;
+    setGlobalProcessAreaRoleAssignments((prev) => {
+      const next = { ...prev };
+      const roleMap = { ...(next[editingProcessArea] || {}) };
+      if (userId) {
+        roleMap[roleKey] = userId;
+      } else {
+        delete roleMap[roleKey];
+      }
+      next[editingProcessArea] = roleMap;
+      return next;
+    });
   };
 
   const handleSaveChanges = async () => {
@@ -287,6 +340,7 @@ const SettingsPage: React.FC = () => {
         globalProcessAreaAccents,
         globalProcessAreaIcons,
         globalProcessAreaDescriptions: processAreaDescriptions,
+        globalProcessAreaRoleAssignments,
         // Persist all picklist values so custom entries survive sessions
         picklistValues: Object.fromEntries(
           Object.entries(picklists).map(([key, pl]) => [key, pl.values])
@@ -454,58 +508,46 @@ const SettingsPage: React.FC = () => {
                     <Box sx={{ mt: 1, pt: 2, borderTop: '1px solid', borderColor: 'divider' }}>
                       <Typography variant="subtitle2" sx={{ mb: 0.5 }}>Descriptions, Colors &amp; Icons</Typography>
                       <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-                        Global defaults used in the hierarchy when no per-cycle override is set.
+                        Global defaults and role assignments used in the hierarchy and approval workflow when no project override is set.
                       </Typography>
                       {/* Column headers */}
-                      <Box sx={{ display: 'grid', gridTemplateColumns: '80px 1fr 44px 180px', gap: 1, alignItems: 'center', mb: 0.5 }}>
+                      <Box sx={{ display: 'grid', gridTemplateColumns: '80px 1fr 44px 130px 130px 90px', gap: 1, alignItems: 'center', mb: 0.5 }}>
                         <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.05em' }}>CODE</Typography>
                         <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.05em' }}>DESCRIPTION</Typography>
                         <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.05em' }}>COLOR</Typography>
                         <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.05em' }}>ICON</Typography>
+                        <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.05em' }}>GLOBAL ROLES</Typography>
+                        <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.05em' }}>ACTION</Typography>
                       </Box>
                       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
                         {picklists.processArea.values.map((value) => {
                           const accent = globalProcessAreaAccents[value] || '#64B5F6';
                           const icon: HierarchyIconChoice = globalProcessAreaIcons[value] || 'accountTree';
+                          const assignedRoles = Object.keys(globalProcessAreaRoleAssignments[value] || {}).length;
                           return (
-                            <Box key={`desc-${value}`} sx={{ display: 'grid', gridTemplateColumns: '80px 1fr 44px 180px', gap: 1, alignItems: 'center' }}>
+                            <Box key={`desc-${value}`} sx={{ display: 'grid', gridTemplateColumns: '80px 1fr 44px 130px 130px 90px', gap: 1, alignItems: 'center' }}>
                               <Typography variant="body2" sx={{ fontWeight: 700, fontFamily: 'monospace', color: accent }}>{value}</Typography>
-                              <TextField
-                                size="small"
-                                fullWidth
-                                placeholder="Optional description"
-                                value={processAreaDescriptions[value] || ''}
-                                onChange={(e) => setProcessAreaDescriptions((prev) => ({ ...prev, [value]: e.target.value }))}
-                              />
+                              <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.8rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {processAreaDescriptions[value]?.trim() || 'No description'}
+                              </Typography>
                               {/* Color swatch + picker */}
-                              <Box sx={{ position: 'relative', width: 36, height: 36 }}>
-                                <Box sx={{ width: 36, height: 36, borderRadius: 1, backgroundColor: accent, border: '2px solid rgba(255,255,255,0.15)', cursor: 'pointer', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                  <input
-                                    type="color"
-                                    value={accent}
-                                    onChange={e => setGlobalProcessAreaAccents(prev => ({ ...prev, [value]: e.target.value }))}
-                                    style={{ position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer', border: 'none', padding: 0 }}
-                                  />
-                                </Box>
+                              <Box sx={{ width: 36, height: 36, borderRadius: 1, backgroundColor: accent, border: '2px solid rgba(255,255,255,0.15)' }}>
                               </Box>
-                              {/* Icon select with preview */}
+                              {/* Icon preview */}
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
                                 <Box sx={{ width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                                   {renderIconPreview(icon, accent)}
                                 </Box>
-                                <TextField
-                                  select
-                                  size="small"
-                                  fullWidth
-                                  value={icon}
-                                  onChange={e => setGlobalProcessAreaIcons(prev => ({ ...prev, [value]: e.target.value as HierarchyIconChoice }))}
-                                  sx={{ '& .MuiInputBase-root': { fontSize: '0.75rem' } }}
-                                >
-                                  {ICON_OPTIONS.map(opt => (
-                                    <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
-                                  ))}
-                                </TextField>
+                                <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 90 }}>
+                                  {ICON_OPTIONS.find(opt => opt.value === icon)?.label || 'Hierarchy'}
+                                </Typography>
                               </Box>
+                              <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
+                                {assignedRoles}/7 assigned
+                              </Typography>
+                              <Button size="small" variant="outlined" startIcon={<EditIcon sx={{ fontSize: '0.95rem' }} />} onClick={() => openProcessAreaModal(value)} sx={{ textTransform: 'none' }}>
+                                Edit
+                              </Button>
                             </Box>
                           );
                         })}
@@ -705,6 +747,87 @@ const SettingsPage: React.FC = () => {
             setNewTemplateName(''); setNewTemplateDuration('8'); setNewTemplateUnit('hours');
             setAddTemplateOpen(false);
           }} disabled={!newTemplateName.trim()}>Add</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={processAreaModalOpen} onClose={closeProcessAreaModal} maxWidth="md" fullWidth>
+        <DialogTitle>{editingProcessArea ? `Edit ${editingProcessArea}` : 'Edit Process Area'}</DialogTitle>
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
+          {editingProcessArea && (
+            <>
+              <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 120px 220px', gap: 1.25, alignItems: 'center' }}>
+                <TextField
+                  label="Description"
+                  size="small"
+                  fullWidth
+                  placeholder="Optional description"
+                  value={processAreaDescriptions[editingProcessArea] || ''}
+                  onChange={(e) => setProcessAreaDescriptions((prev) => ({ ...prev, [editingProcessArea]: e.target.value }))}
+                />
+                <Box sx={{ position: 'relative', width: 104, height: 40 }}>
+                  <Box sx={{ width: 104, height: 40, borderRadius: 1, backgroundColor: globalProcessAreaAccents[editingProcessArea] || '#64B5F6', border: '2px solid rgba(255,255,255,0.15)', cursor: 'pointer', overflow: 'hidden' }}>
+                    <input
+                      type="color"
+                      value={globalProcessAreaAccents[editingProcessArea] || '#64B5F6'}
+                      onChange={e => setGlobalProcessAreaAccents(prev => ({ ...prev, [editingProcessArea]: e.target.value }))}
+                      style={{ position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer', border: 'none', padding: 0 }}
+                    />
+                  </Box>
+                </Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                  <Box sx={{ width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    {renderIconPreview(globalProcessAreaIcons[editingProcessArea] || 'accountTree', globalProcessAreaAccents[editingProcessArea] || '#64B5F6')}
+                  </Box>
+                  <TextField
+                    select
+                    size="small"
+                    fullWidth
+                    label="Icon"
+                    value={globalProcessAreaIcons[editingProcessArea] || 'accountTree'}
+                    onChange={e => setGlobalProcessAreaIcons(prev => ({ ...prev, [editingProcessArea]: e.target.value as HierarchyIconChoice }))}
+                    sx={{ '& .MuiInputBase-root': { fontSize: '0.8rem' } }}
+                  >
+                    {ICON_OPTIONS.map(opt => (
+                      <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
+                    ))}
+                  </TextField>
+                </Box>
+              </Box>
+
+              <Divider />
+
+              <Box>
+                <Typography variant="subtitle2" sx={{ mb: 0.5 }}>Global Roles</Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 1.25 }}>
+                  These assignments are the global defaults for this process area and are used for global workflows.
+                </Typography>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
+                  {UNIFIED_ROLE_MODEL.map((role) => (
+                    <Box key={`${editingProcessArea}-${role.key}`} sx={{ display: 'grid', gridTemplateColumns: '170px 1fr 260px', gap: 1, alignItems: 'center' }}>
+                      <Typography variant="body2" sx={{ fontWeight: 700 }}>{role.name}</Typography>
+                      <Typography variant="caption" color="text.secondary">{role.definition}</Typography>
+                      <TextField
+                        select
+                        size="small"
+                        value={globalProcessAreaRoleAssignments[editingProcessArea]?.[role.key] || ''}
+                        onChange={(e) => updateEditingProcessAreaRole(role.key, e.target.value)}
+                      >
+                        <MenuItem value="">Unassigned</MenuItem>
+                        {peopleDirectory.map((person) => (
+                          <MenuItem key={`assign-${editingProcessArea}-${role.key}-${person.id}`} value={person.id}>
+                            {person.name && person.email ? `${person.name} (${person.email})` : person.name || person.email || person.id}
+                          </MenuItem>
+                        ))}
+                      </TextField>
+                    </Box>
+                  ))}
+                </Box>
+              </Box>
+            </>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={closeProcessAreaModal} sx={{ textTransform: 'none' }}>Done</Button>
         </DialogActions>
       </Dialog>
 
