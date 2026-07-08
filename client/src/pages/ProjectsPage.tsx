@@ -4489,9 +4489,12 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
 
   // Handle edit inventory item
   const handleEditInventoryItem = (item: any) => {
+    const baseCatalogObject = inventoryObjects.find(obj => obj.id === item.globalObjectId) || null;
+    const baseObjectId = baseCatalogObject?.objectId || item.parentObjectId || item.dataObjectId || item.objectId || '';
+
     setEditingInventoryItemId(item.id);
     setProjectInventoryItem({
-      dataObjectId: item.dataObjectId || item.objectId || '',
+      dataObjectId: baseObjectId,
       parentProjectObjectId: item.parentProjectObjectId || '',
       subObjectSuffix: item.subObjectSuffix || '',
       subObjectDescription: item.subObjectDescription || '',
@@ -4519,10 +4522,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
     setInvDialogSubObjects([]);
     setInvDialogSubLoading(true);
 
-    const objectId = item.dataObjectId || item.objectId || '';
+    const objectId = baseObjectId;
     const targetApplicationId = item.targetApplicationId || '';
     const sourceApplicationId = item.sourceApplicationId || '';
-    const globalObj = inventoryObjects.find(obj => obj.objectId === objectId);
+    const globalObj = baseCatalogObject || inventoryObjects.find(obj => obj.objectId === objectId);
 
     if (!objectId || !globalObj) {
       setInvDialogSubLoading(false);
@@ -11263,8 +11266,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                     item.id === editingInventoryItemId 
                       ? {
                           ...item,
-                          dataObjectId: projectInventoryItem.dataObjectId,
-                          objectId: projectInventoryItem.dataObjectId,
+                          dataObjectId: item.isSubObject ? item.dataObjectId : projectInventoryItem.dataObjectId,
+                          objectId: item.isSubObject ? item.objectId : projectInventoryItem.dataObjectId,
                           parentProjectObjectId: projectInventoryItem.parentProjectObjectId,
                           subObjectSuffix: projectInventoryItem.subObjectSuffix,
                           subObjectDescription: projectInventoryItem.subObjectDescription,
