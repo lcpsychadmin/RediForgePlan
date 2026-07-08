@@ -2090,14 +2090,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   const getOrderedCycles = (programId: string) => {
     const source = mockCycles[programId] || [];
     const existing = treeOrder.cycles[programId] || [];
-    // Use treeOrder for ordering; also include any cycle that has local plan groups
-    // so a cycle is never accidentally hidden by a stale treeOrder.
-    const cyclesWithLocalData = source
-      .filter((c: MockCycle) => (planningAdditionalGroups[(projectsByMockCycle[c.id]?.[0] as any)?.id || ''] || []).length > 0)
-      .map((c: MockCycle) => c.id);
-    const ids = mergeOrder(existing, source.map((c: MockCycle) => c.id)).filter(
-      (id: string) => existing.includes(id) || cyclesWithLocalData.includes(id)
-    );
+    // Always include current source cycles so newly created cycles render immediately
+    // even before tree-order preferences are persisted.
+    const ids = mergeOrder(existing, source.map((c: MockCycle) => c.id));
     return ids.map((id: string) => source.find((c: MockCycle) => c.id === id)).filter(Boolean) as MockCycle[];
   };
 
@@ -3767,7 +3762,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
         });
         queryClient.invalidateQueries({ queryKey: ['programs'] });
       } else if (dialogMode === 'cycle' && contextProgramId) {
-        await apiClient.post(`/api/programs/${contextProgramId}/mock-cycles`, {
+        const response = await apiClient.post(`/api/programs/${contextProgramId}/mock-cycles`, {
           name: newItemName,
           startDate: new Date().toISOString().split('T')[0],
           endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
@@ -3775,8 +3770,34 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
           accentColor: newItemAccentColor || null,
           projectId: maintainPendingCycleProjectId || undefined,
         });
-        queryClient.invalidateQueries({ queryKey: ['mockCycles'] });
-        setExpandedPrograms(new Set(expandedPrograms).add(contextProgramId));
+        const createdCycle = response?.data?.data as MockCycle | undefined;
+        if (createdCycle?.id) {
+          setTreeOrder((prev) => {
+            const current = prev.cycles[contextProgramId] || [];
+            if (current.includes(createdCycle.id)) return prev;
+            return {
+              ...prev,
+              cycles: {
+                ...prev.cycles,
+                [contextProgramId]: [...current, createdCycle.id],
+              },
+            };
+          });
+          if (createdCycle.projectId) {
+            setSelectedExecutionProcessArea('');
+            handleHierarchySelection({ type: 'cycle', id: createdCycle.id, programId: contextProgramId, projectId: createdCycle.projectId });
+            setExpandedCycles((prev) => new Set(prev).add(createdCycle.id));
+          }
+        }
+        setExpandedPrograms((prev) => new Set(prev).add(contextProgramId));
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ['mockCycles'] }),
+          queryClient.invalidateQueries({ queryKey: ['allMockCyclesForMaintain'] }),
+          queryClient.invalidateQueries({ queryKey: ['projectsByMockCycle'] }),
+          queryClient.refetchQueries({ queryKey: ['mockCycles'], type: 'active' }),
+          queryClient.refetchQueries({ queryKey: ['allMockCyclesForMaintain'], type: 'active' }),
+          queryClient.refetchQueries({ queryKey: ['projectsByMockCycle'], type: 'active' }),
+        ]);
       } else if (dialogMode === 'project' && (contextProgramId || newProjectParentProgramId)) {
         const targetProgramId = newProjectParentProgramId || contextProgramId || '';
         if (!targetProgramId) {
