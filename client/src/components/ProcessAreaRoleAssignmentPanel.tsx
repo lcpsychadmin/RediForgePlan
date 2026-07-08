@@ -1,15 +1,22 @@
 import React from 'react';
 import {
-  Alert,
   Box,
   Button,
   Card,
   CardContent,
   Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  IconButton,
   MenuItem,
   TextField,
   Typography,
 } from '@mui/material';
+import AddIcon from '@mui/icons-material/Add';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import apiClient from '../api/client';
 import { UNIFIED_ROLE_MODEL, type UnifiedRoleKey } from '../constants/unifiedRoleModel';
 
@@ -29,9 +36,11 @@ type ResolvedAssignmentMap = Record<
 >;
 
 interface ProcessAreaRoleAssignmentPanelProps {
+  processAreaOptions: string[];
   people: Array<{ id: string; name?: string; email?: string }>;
   projects: Array<{ id: string; name: string; programId?: string }>;
   programs: Array<{ id: string; name: string }>;
+  openAddProcessAreaTrigger?: number;
 }
 
 const getPersonLabel = (person: { name?: string; email?: string }) => {
@@ -54,9 +63,11 @@ const sourceChipLabel = (source: 'project' | 'global' | 'unassigned') => {
 const cloneAssignments = (input: AssignmentMap) => JSON.parse(JSON.stringify(input || {})) as AssignmentMap;
 
 const ProcessAreaRoleAssignmentPanel: React.FC<ProcessAreaRoleAssignmentPanelProps> = ({
+  processAreaOptions,
   people,
   projects,
   programs,
+  openAddProcessAreaTrigger = 0,
 }) => {
   const [globalAssignments, setGlobalAssignments] = React.useState<AssignmentMap>({});
 
@@ -64,8 +75,12 @@ const ProcessAreaRoleAssignmentPanel: React.FC<ProcessAreaRoleAssignmentPanelPro
   const [isLoadingProject, setIsLoadingProject] = React.useState(false);
   const [isSavingProject, setIsSavingProject] = React.useState(false);
   const [projectProcessAreas, setProjectProcessAreas] = React.useState<string[]>([]);
+  const [manualProcessAreas, setManualProcessAreas] = React.useState<string[]>([]);
   const [projectAssignments, setProjectAssignments] = React.useState<AssignmentMap>({});
   const [resolvedAssignments, setResolvedAssignments] = React.useState<ResolvedAssignmentMap>({});
+  const [expandedProcessAreas, setExpandedProcessAreas] = React.useState<Set<string>>(new Set());
+  const [addProcessAreaDialogOpen, setAddProcessAreaDialogOpen] = React.useState(false);
+  const [newProcessAreaName, setNewProcessAreaName] = React.useState('');
 
   const [saveMessage, setSaveMessage] = React.useState<string | null>(null);
 
@@ -98,6 +113,7 @@ const ProcessAreaRoleAssignmentPanel: React.FC<ProcessAreaRoleAssignmentPanelPro
       const response = await apiClient.get(`/api/hierarchy-preferences/project-role-assignments/${projectId}`);
       const payload = response.data?.data || {};
       setProjectProcessAreas(payload.processAreas || []);
+      setManualProcessAreas(payload.manualProcessAreas || []);
       setProjectAssignments(payload.projectAssignments || {});
       setResolvedAssignments(payload.resolvedAssignments || {});
       setGlobalAssignments(payload.globalAssignments || {});
@@ -115,6 +131,22 @@ const ProcessAreaRoleAssignmentPanel: React.FC<ProcessAreaRoleAssignmentPanelPro
   React.useEffect(() => {
     loadProjectAssignments(selectedProjectId).catch(() => {});
   }, [selectedProjectId, loadProjectAssignments]);
+
+  React.useEffect(() => {
+    setExpandedProcessAreas((prev) => {
+      const next = new Set<string>();
+      projectProcessAreas.forEach((area) => {
+        if (prev.has(area)) next.add(area);
+      });
+      return next;
+    });
+  }, [projectProcessAreas]);
+
+  React.useEffect(() => {
+    if (openAddProcessAreaTrigger > 0) {
+      setAddProcessAreaDialogOpen(true);
+    }
+  }, [openAddProcessAreaTrigger]);
 
   const handleProjectRoleChange = (processArea: string, roleKey: UnifiedRoleKey, userId: string) => {
     setProjectAssignments((prev) => {
@@ -157,6 +189,7 @@ const ProcessAreaRoleAssignmentPanel: React.FC<ProcessAreaRoleAssignmentPanelPro
     try {
       await apiClient.put(`/api/hierarchy-preferences/project-role-assignments/${selectedProjectId}`, {
         assignments: projectAssignments,
+        manualProcessAreas,
       });
       setSaveMessage('Project role assignments saved.');
       await loadProjectAssignments(selectedProjectId);
@@ -165,13 +198,39 @@ const ProcessAreaRoleAssignmentPanel: React.FC<ProcessAreaRoleAssignmentPanelPro
     }
   };
 
+  const toggleProcessAreaExpanded = (processArea: string) => {
+    setExpandedProcessAreas((prev) => {
+      const next = new Set(prev);
+      if (next.has(processArea)) next.delete(processArea);
+      else next.add(processArea);
+      return next;
+    });
+  };
+
+  const handleAddProcessArea = () => {
+    const trimmed = newProcessAreaName.trim();
+    if (!trimmed) return;
+
+    const exists = projectProcessAreas.some((area) => area.toLowerCase() === trimmed.toLowerCase());
+    if (exists) {
+      setAddProcessAreaDialogOpen(false);
+      setNewProcessAreaName('');
+      return;
+    }
+
+    const nextManual = Array.from(new Set([...manualProcessAreas, trimmed])).sort((a, b) => a.localeCompare(b));
+    const nextAreas = Array.from(new Set([...projectProcessAreas, trimmed])).sort((a, b) => a.localeCompare(b));
+
+    setManualProcessAreas(nextManual);
+    setProjectProcessAreas(nextAreas);
+    setExpandedProcessAreas((prev) => new Set(prev).add(trimmed));
+    setAddProcessAreaDialogOpen(false);
+    setNewProcessAreaName('');
+  };
+
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <Alert severity="info" sx={{ borderRadius: 1.5 }}>
-        All roles are shown for every process area, even when unassigned. This page edits project-level assignments only.
-      </Alert>
-
-      {saveMessage && <Alert severity="success" sx={{ borderRadius: 1.5 }}>{saveMessage}</Alert>}
+      {saveMessage && <Typography variant="caption" sx={{ color: '#8FE39A', fontWeight: 600 }}>{saveMessage}</Typography>}
 
       <Card sx={{ backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 2 }}>
         <CardContent sx={{ p: 2 }}>
@@ -199,6 +258,9 @@ const ProcessAreaRoleAssignmentPanel: React.FC<ProcessAreaRoleAssignmentPanelPro
                   </MenuItem>
                 ))}
               </TextField>
+              <Button variant="outlined" startIcon={<AddIcon />} onClick={() => setAddProcessAreaDialogOpen(true)} disabled={!selectedProjectId} sx={{ textTransform: 'none' }}>
+                Process Area
+              </Button>
               <Button variant="contained" onClick={handleSaveProject} disabled={isSavingProject || isLoadingProject || !selectedProjectId} sx={{ textTransform: 'none' }}>
                 {isSavingProject ? 'Saving...' : 'Save Project Assignments'}
               </Button>
@@ -213,9 +275,13 @@ const ProcessAreaRoleAssignmentPanel: React.FC<ProcessAreaRoleAssignmentPanelPro
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
               {projectProcessAreas.map((processArea) => (
                 <Box key={`project-${processArea}`} sx={{ border: '1px solid rgba(255,255,255,0.12)', borderRadius: 1.5, overflow: 'hidden' }}>
-                  <Box sx={{ px: 1.25, py: 0.9, backgroundColor: 'rgba(255,255,255,0.06)', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                  <Box sx={{ px: 1.25, py: 0.9, backgroundColor: 'rgba(255,255,255,0.06)', borderBottom: expandedProcessAreas.has(processArea) ? '1px solid rgba(255,255,255,0.1)' : 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <Typography sx={{ fontWeight: 700, color: '#E2EBFF', fontSize: '0.9rem' }}>{processArea}</Typography>
+                    <IconButton size="small" onClick={() => toggleProcessAreaExpanded(processArea)}>
+                      {expandedProcessAreas.has(processArea) ? <ExpandLessIcon sx={{ fontSize: '1rem' }} /> : <ExpandMoreIcon sx={{ fontSize: '1rem' }} />}
+                    </IconButton>
                   </Box>
+                  {expandedProcessAreas.has(processArea) && (
                   <Box sx={{ display: 'grid', gridTemplateColumns: '1.2fr 2.4fr 1.4fr 1.4fr 0.8fr', gap: 0 }}>
                     {['Role', 'Definition', 'Project Assignment', 'Global Fallback', 'Source'].map((header) => (
                       <Box key={`${processArea}-${header}`} sx={{ p: 0.8, backgroundColor: 'rgba(255,255,255,0.03)', color: 'rgba(255,255,255,0.55)', fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.35px' }}>
@@ -270,12 +336,34 @@ const ProcessAreaRoleAssignmentPanel: React.FC<ProcessAreaRoleAssignmentPanelPro
                       );
                     })}
                   </Box>
+                  )}
                 </Box>
               ))}
             </Box>
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={addProcessAreaDialogOpen} onClose={() => setAddProcessAreaDialogOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>Add Process Area</DialogTitle>
+        <DialogContent sx={{ pt: 2, display: 'flex', flexDirection: 'column', gap: 1.25 }}>
+          <TextField
+            select
+            size="small"
+            label="Process Area"
+            value={newProcessAreaName}
+            onChange={(event) => setNewProcessAreaName(event.target.value)}
+          >
+            {processAreaOptions.map((area) => (
+              <MenuItem key={`process-area-option-${area}`} value={area}>{area}</MenuItem>
+            ))}
+          </TextField>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setAddProcessAreaDialogOpen(false)} sx={{ textTransform: 'none' }}>Cancel</Button>
+          <Button onClick={handleAddProcessArea} variant="contained" disabled={!newProcessAreaName.trim()} sx={{ textTransform: 'none' }}>Add</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

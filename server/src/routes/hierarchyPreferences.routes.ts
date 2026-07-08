@@ -199,15 +199,17 @@ router.put('/global-role-assignments', requireAuth, async (req: Request, res: Re
 router.get('/project-role-assignments/:projectId', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { projectId } = req.params;
-    const [projectAssignments, globalAssignments, discoveredProcessAreas] = await Promise.all([
+    const [projectAssignments, globalAssignments, discoveredProcessAreas, manualProcessAreas] = await Promise.all([
       processAreaRoleAssignmentService.getProjectRoleAssignments(projectId),
       processAreaRoleAssignmentService.getGlobalRoleAssignments(),
       processAreaRoleAssignmentService.getProjectProcessAreas(projectId),
+      processAreaRoleAssignmentService.getProjectManualProcessAreas(projectId),
     ]);
 
     const processAreaSet = new Set<string>(discoveredProcessAreas);
     Object.keys(projectAssignments).forEach((area) => processAreaSet.add(area));
     Object.keys(globalAssignments).forEach((area) => processAreaSet.add(area));
+    manualProcessAreas.forEach((area) => processAreaSet.add(area));
     const processAreas = Array.from(processAreaSet).sort((a, b) => a.localeCompare(b));
 
     const resolvedAssignments = processAreas.reduce((acc, processArea) => {
@@ -230,6 +232,7 @@ router.get('/project-role-assignments/:projectId', requireAuth, async (req: Requ
       projectId,
       roles: UNIFIED_ROLE_MODEL,
       processAreas,
+      manualProcessAreas,
       globalAssignments,
       projectAssignments,
       resolvedAssignments,
@@ -242,8 +245,11 @@ router.get('/project-role-assignments/:projectId', requireAuth, async (req: Requ
 router.put('/project-role-assignments/:projectId', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { projectId } = req.params;
-    const assignments = await processAreaRoleAssignmentService.saveProjectRoleAssignments(projectId, req.body?.assignments || {});
-    res.json(formatSingleResponse({ projectId, roles: UNIFIED_ROLE_MODEL, assignments }));
+    const [assignments, manualProcessAreas] = await Promise.all([
+      processAreaRoleAssignmentService.saveProjectRoleAssignments(projectId, req.body?.assignments || {}),
+      processAreaRoleAssignmentService.saveProjectManualProcessAreas(projectId, req.body?.manualProcessAreas || []),
+    ]);
+    res.json(formatSingleResponse({ projectId, roles: UNIFIED_ROLE_MODEL, assignments, manualProcessAreas }));
   } catch (error) {
     next(error);
   }

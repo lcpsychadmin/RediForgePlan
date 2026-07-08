@@ -1106,6 +1106,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   const [maintainProjectParentCycleId, setMaintainProjectParentCycleId] = useState('');
   const [maintainProjectFilterCycleId, setMaintainProjectFilterCycleId] = useState<'all' | string>('all');
   const [maintainPendingCycleProjectId, setMaintainPendingCycleProjectId] = useState<string | null>(null);
+  const [assignmentAddProcessAreaTrigger, setAssignmentAddProcessAreaTrigger] = useState(0);
   const [inventoryObjects, setInventoryObjects] = useState<{ id: string; objectId: string; description: string; processArea: string }[]>([]);
   const [projectInventoryItems, setProjectInventoryItems] = useState<any[]>([]);
   const [projectInventoryTaskObjectIds, setProjectInventoryTaskObjectIds] = useState<string[]>([]);
@@ -8574,6 +8575,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                             } else if (maintainFormView === 'cycle') {
                               setMaintainPendingCycleProjectId(maintainCycleParentProjectId || null);
                               openCreateDialog('cycle', maintainCycleParentProgramId);
+                            } else if (maintainFormView === 'assignment') {
+                              setAssignmentAddProcessAreaTrigger((prev) => prev + 1);
                             } else {
                               const targetProgramId = maintainProjectParentProgramId || programs[0]?.id || '';
                               if (!targetProgramId) { alert('Create a program first before adding a project.'); return; }
@@ -8581,12 +8584,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                             }
                           }}
                           disabled={
-                            maintainFormView === 'assignment'
-                              || (maintainFormView === 'cycle' && !maintainCycleParentProjectId)
+                            (maintainFormView === 'cycle' && !maintainCycleParentProjectId)
                               || (maintainFormView === 'project' && programs.length === 0)
                           }
                           sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', textTransform: 'none', fontWeight: 600, borderRadius: '10px', boxShadow: 'none' }}>
-                          {maintainFormView === 'assignment' ? 'Role Assignments' : 'Add New'}
+                          {maintainFormView === 'assignment' ? 'Process Area' : 'Add New'}
                         </Button>
                       </Box>
                     </Box>
@@ -8669,9 +8671,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
 
                       {maintainFormView === 'assignment' && (
                         <ProcessAreaRoleAssignmentPanel
+                          processAreaOptions={processAreaOptions}
                           people={people}
                           projects={allMaintainProjects}
                           programs={programs}
+                          openAddProcessAreaTrigger={assignmentAddProcessAreaTrigger}
                         />
                       )}
                     </Box>

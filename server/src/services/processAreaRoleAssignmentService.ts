@@ -16,6 +16,7 @@ type RoleResolutionResult = {
 
 const preferenceTable = 'global_hierarchy_preferences';
 const GLOBAL_ASSIGNMENT_KEY = 'globalProcessAreaRoleAssignments';
+const PROJECT_MANUAL_AREAS_KEY = 'projectManualProcessAreas';
 
 const isRoleKey = (value: string): value is UnifiedRoleKey =>
   (UNIFIED_ROLE_KEYS as string[]).includes(value);
@@ -72,6 +73,61 @@ class ProcessAreaRoleAssignmentService {
     );
 
     return sanitized;
+  }
+
+  async getProjectManualProcessAreas(projectId: string): Promise<string[]> {
+    const result = await db.query(
+      `SELECT hierarchy_state
+       FROM ${preferenceTable}
+       WHERE id = 1`
+    );
+
+    const root = result.rows[0]?.hierarchy_state?.[PROJECT_MANUAL_AREAS_KEY];
+    if (!root || typeof root !== 'object') return [];
+
+    const raw = (root as Record<string, unknown>)[projectId];
+    if (!Array.isArray(raw)) return [];
+
+    const clean = Array.from(new Set(raw
+      .map((entry) => (typeof entry === 'string' ? normalizeProcessArea(entry) : ''))
+      .filter(Boolean)))
+      .sort((a, b) => a.localeCompare(b));
+
+    return clean;
+  }
+
+  async saveProjectManualProcessAreas(projectId: string, processAreas: unknown): Promise<string[]> {
+    const clean = Array.isArray(processAreas)
+      ? Array.from(new Set(processAreas
+          .map((entry) => (typeof entry === 'string' ? normalizeProcessArea(entry) : ''))
+          .filter(Boolean)))
+          .sort((a, b) => a.localeCompare(b))
+      : [];
+
+    const currentResult = await db.query(
+      `SELECT hierarchy_state
+       FROM ${preferenceTable}
+       WHERE id = 1`
+    );
+    const currentState = currentResult.rows[0]?.hierarchy_state || {};
+    const currentMap = currentState?.[PROJECT_MANUAL_AREAS_KEY] && typeof currentState[PROJECT_MANUAL_AREAS_KEY] === 'object'
+      ? { ...(currentState[PROJECT_MANUAL_AREAS_KEY] as Record<string, unknown>) }
+      : {};
+
+    currentMap[projectId] = clean;
+
+    await db.query(
+      `INSERT INTO ${preferenceTable} (id, hierarchy_state, updated_at)
+       VALUES (1, jsonb_build_object($1, $2::jsonb), CURRENT_TIMESTAMP)
+       ON CONFLICT (id)
+       DO UPDATE SET
+         hierarchy_state = COALESCE(${preferenceTable}.hierarchy_state, '{}'::jsonb)
+           || jsonb_build_object($1, $2::jsonb),
+         updated_at = CURRENT_TIMESTAMP`,
+      [PROJECT_MANUAL_AREAS_KEY, JSON.stringify(currentMap)]
+    );
+
+    return clean;
   }
 
   async getProjectRoleAssignments(projectId: string): Promise<AssignmentMap> {
