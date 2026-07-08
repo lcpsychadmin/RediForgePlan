@@ -13,7 +13,6 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import AddIcon from '@mui/icons-material/Add';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import apiClient from '../api/client';
@@ -251,11 +250,8 @@ const ProcessAreaRoleAssignmentPanel: React.FC<ProcessAreaRoleAssignmentPanelPro
                 </MenuItem>
               ))}
             </TextField>
-            <Button variant="outlined" startIcon={<AddIcon />} onClick={() => setAddProcessAreaDialogOpen(true)} disabled={!selectedProjectId} sx={{ textTransform: 'none' }}>
-              Process Area
-            </Button>
             <Button variant="contained" onClick={handleSaveProject} disabled={isSavingProject || isLoadingProject || !selectedProjectId} sx={{ textTransform: 'none' }}>
-              {isSavingProject ? 'Saving...' : 'Save Project Assignments'}
+              {isSavingProject ? 'Saving...' : 'Save'}
             </Button>
           </Box>
         </Box>

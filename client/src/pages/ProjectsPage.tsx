@@ -8683,11 +8683,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                 </Card>
               )}
 
-              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                {[`Programs: ${programs.length}`, `Mock Cycles: ${allMaintainCycles.length}`, `Projects: ${allMaintainProjects.length}`].map(label => (
-                  <Box key={label} sx={{ px: 1.25, py: 0.5, borderRadius: 1, border: '1px solid rgba(255,255,255,0.15)', backgroundColor: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.6)', fontSize: '0.78rem', fontWeight: 600 }}>{label}</Box>
-                ))}
-              </Box>
             </Box>
           )}
 
