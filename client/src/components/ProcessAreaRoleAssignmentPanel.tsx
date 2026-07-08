@@ -13,6 +13,8 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
+import AddIcon from '@mui/icons-material/Add';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import apiClient from '../api/client';
@@ -38,7 +40,6 @@ interface ProcessAreaRoleAssignmentPanelProps {
   people: Array<{ id: string; name?: string; email?: string }>;
   projects: Array<{ id: string; name: string; programId?: string }>;
   programs: Array<{ id: string; name: string }>;
-  openAddProcessAreaTrigger?: number;
 }
 
 const getPersonLabel = (person: { name?: string; email?: string }) => {
@@ -65,7 +66,6 @@ const ProcessAreaRoleAssignmentPanel: React.FC<ProcessAreaRoleAssignmentPanelPro
   people,
   projects,
   programs,
-  openAddProcessAreaTrigger = 0,
 }) => {
   const [globalAssignments, setGlobalAssignments] = React.useState<AssignmentMap>({});
 
@@ -140,11 +140,28 @@ const ProcessAreaRoleAssignmentPanel: React.FC<ProcessAreaRoleAssignmentPanelPro
     });
   }, [projectProcessAreas]);
 
-  React.useEffect(() => {
-    if (openAddProcessAreaTrigger > 0) {
-      setAddProcessAreaDialogOpen(true);
+  const persistProjectState = React.useCallback(async (
+    nextAssignments: AssignmentMap,
+    nextManualProcessAreas: string[],
+    successMessage: string,
+  ) => {
+    if (!selectedProjectId) return;
+
+    setIsSavingProject(true);
+    setSaveMessage(null);
+    try {
+      await apiClient.put(`/api/hierarchy-preferences/project-role-assignments/${selectedProjectId}`, {
+        assignments: nextAssignments,
+        manualProcessAreas: nextManualProcessAreas,
+      });
+      setSaveMessage(successMessage);
+      await loadProjectAssignments(selectedProjectId);
+    } catch {
+      setSaveMessage('Unable to save changes. Please try again.');
+    } finally {
+      setIsSavingProject(false);
     }
-  }, [openAddProcessAreaTrigger]);
+  }, [selectedProjectId, loadProjectAssignments]);
 
   const handleProjectRoleChange = (processArea: string, roleKey: UnifiedRoleKey, userId: string) => {
     setProjectAssignments((prev) => {
@@ -181,19 +198,7 @@ const ProcessAreaRoleAssignmentPanel: React.FC<ProcessAreaRoleAssignmentPanelPro
   };
 
   const handleSaveProject = async () => {
-    if (!selectedProjectId) return;
-    setIsSavingProject(true);
-    setSaveMessage(null);
-    try {
-      await apiClient.put(`/api/hierarchy-preferences/project-role-assignments/${selectedProjectId}`, {
-        assignments: projectAssignments,
-        manualProcessAreas,
-      });
-      setSaveMessage('Project role assignments saved.');
-      await loadProjectAssignments(selectedProjectId);
-    } finally {
-      setIsSavingProject(false);
-    }
+    await persistProjectState(projectAssignments, manualProcessAreas, 'Project role assignments saved.');
   };
 
   const toggleProcessAreaExpanded = (processArea: string) => {
@@ -205,7 +210,7 @@ const ProcessAreaRoleAssignmentPanel: React.FC<ProcessAreaRoleAssignmentPanelPro
     });
   };
 
-  const handleAddProcessArea = () => {
+  const handleAddProcessArea = async () => {
     const trimmed = newProcessAreaName.trim();
     if (!trimmed) return;
 
@@ -218,12 +223,37 @@ const ProcessAreaRoleAssignmentPanel: React.FC<ProcessAreaRoleAssignmentPanelPro
 
     const nextManual = Array.from(new Set([...manualProcessAreas, trimmed])).sort((a, b) => a.localeCompare(b));
     const nextAreas = Array.from(new Set([...projectProcessAreas, trimmed])).sort((a, b) => a.localeCompare(b));
+    const nextAssignments = cloneAssignments(projectAssignments);
 
     setManualProcessAreas(nextManual);
     setProjectProcessAreas(nextAreas);
     setExpandedProcessAreas((prev) => new Set(prev).add(trimmed));
     setAddProcessAreaDialogOpen(false);
     setNewProcessAreaName('');
+
+    await persistProjectState(nextAssignments, nextManual, 'Process area added.');
+  };
+
+  const handleRemoveProcessArea = async (processArea: string) => {
+    const nextManual = manualProcessAreas.filter((area) => area.toLowerCase() !== processArea.toLowerCase());
+    const nextAssignments = cloneAssignments(projectAssignments);
+    delete nextAssignments[processArea];
+
+    setManualProcessAreas(nextManual);
+    setProjectProcessAreas((prev) => prev.filter((area) => area.toLowerCase() !== processArea.toLowerCase()));
+    setProjectAssignments(nextAssignments);
+    setResolvedAssignments((prev) => {
+      const next = { ...prev };
+      delete next[processArea];
+      return next;
+    });
+    setExpandedProcessAreas((prev) => {
+      const next = new Set(prev);
+      next.delete(processArea);
+      return next;
+    });
+
+    await persistProjectState(nextAssignments, nextManual, 'Process area removed.');
   };
 
   return (
@@ -250,6 +280,9 @@ const ProcessAreaRoleAssignmentPanel: React.FC<ProcessAreaRoleAssignmentPanelPro
                 </MenuItem>
               ))}
             </TextField>
+            <Button variant="outlined" startIcon={<AddIcon />} onClick={() => setAddProcessAreaDialogOpen(true)} disabled={!selectedProjectId || isSavingProject} sx={{ textTransform: 'none' }}>
+              Process Area
+            </Button>
             <Button variant="contained" onClick={handleSaveProject} disabled={isSavingProject || isLoadingProject || !selectedProjectId} sx={{ textTransform: 'none' }}>
               {isSavingProject ? 'Saving...' : 'Save'}
             </Button>
@@ -266,9 +299,16 @@ const ProcessAreaRoleAssignmentPanel: React.FC<ProcessAreaRoleAssignmentPanelPro
               <Box key={`project-${processArea}`} sx={{ border: '1px solid rgba(255,255,255,0.12)', borderRadius: 1.5, overflow: 'hidden' }}>
                 <Box sx={{ px: 1.25, py: 0.9, backgroundColor: 'rgba(255,255,255,0.06)', borderBottom: expandedProcessAreas.has(processArea) ? '1px solid rgba(255,255,255,0.1)' : 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <Typography sx={{ fontWeight: 700, color: '#E2EBFF', fontSize: '0.9rem' }}>{processArea}</Typography>
-                  <IconButton size="small" onClick={() => toggleProcessAreaExpanded(processArea)}>
-                    {expandedProcessAreas.has(processArea) ? <ExpandLessIcon sx={{ fontSize: '1rem' }} /> : <ExpandMoreIcon sx={{ fontSize: '1rem' }} />}
-                  </IconButton>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
+                    {manualProcessAreas.some((area) => area.toLowerCase() === processArea.toLowerCase()) && (
+                      <IconButton size="small" onClick={() => handleRemoveProcessArea(processArea)} title="Remove process area" disabled={isSavingProject}>
+                        <DeleteOutlineIcon sx={{ fontSize: '1rem' }} />
+                      </IconButton>
+                    )}
+                    <IconButton size="small" onClick={() => toggleProcessAreaExpanded(processArea)}>
+                      {expandedProcessAreas.has(processArea) ? <ExpandLessIcon sx={{ fontSize: '1rem' }} /> : <ExpandMoreIcon sx={{ fontSize: '1rem' }} />}
+                    </IconButton>
+                  </Box>
                 </Box>
                 {expandedProcessAreas.has(processArea) && (
                 <Box sx={{ display: 'grid', gridTemplateColumns: '1.2fr 2.4fr 1.4fr 1.4fr 0.8fr', gap: 0 }}>
