@@ -63,11 +63,11 @@ class ProcessAreaRoleAssignmentService {
 
     await db.query(
       `INSERT INTO ${preferenceTable} (id, hierarchy_state, updated_at)
-       VALUES (1, jsonb_build_object($1, $2::jsonb), CURRENT_TIMESTAMP)
+       VALUES (1, jsonb_build_object($1::text, $2::jsonb), CURRENT_TIMESTAMP)
        ON CONFLICT (id)
        DO UPDATE SET
          hierarchy_state = COALESCE(${preferenceTable}.hierarchy_state, '{}'::jsonb)
-           || jsonb_build_object($1, $2::jsonb),
+           || jsonb_build_object($1::text, $2::jsonb),
          updated_at = CURRENT_TIMESTAMP`,
       [GLOBAL_ASSIGNMENT_KEY, JSON.stringify(sanitized)]
     );
@@ -118,11 +118,11 @@ class ProcessAreaRoleAssignmentService {
 
     await db.query(
       `INSERT INTO ${preferenceTable} (id, hierarchy_state, updated_at)
-       VALUES (1, jsonb_build_object($1, $2::jsonb), CURRENT_TIMESTAMP)
+       VALUES (1, jsonb_build_object($1::text, $2::jsonb), CURRENT_TIMESTAMP)
        ON CONFLICT (id)
        DO UPDATE SET
          hierarchy_state = COALESCE(${preferenceTable}.hierarchy_state, '{}'::jsonb)
-           || jsonb_build_object($1, $2::jsonb),
+           || jsonb_build_object($1::text, $2::jsonb),
          updated_at = CURRENT_TIMESTAMP`,
       [PROJECT_MANUAL_AREAS_KEY, JSON.stringify(currentMap)]
     );
