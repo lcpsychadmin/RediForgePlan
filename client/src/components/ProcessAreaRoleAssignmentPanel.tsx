@@ -3,8 +3,6 @@ import {
   Alert,
   Box,
   Button,
-  Card,
-  CardContent,
   Chip,
   Dialog,
   DialogActions,
@@ -233,57 +231,51 @@ const ProcessAreaRoleAssignmentPanel: React.FC<ProcessAreaRoleAssignmentPanelPro
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       {saveMessage && <Typography variant="caption" sx={{ color: '#8FE39A', fontWeight: 600 }}>{saveMessage}</Typography>}
 
-      <Card sx={{ backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 2 }}>
-        <CardContent sx={{ p: 2 }}>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5, gap: 1, flexWrap: 'wrap' }}>
-            <Box>
-              <Typography variant="h6" sx={{ color: '#DCE6FF', fontWeight: 700, fontSize: '1rem' }}>
-                Process Area Assignment
-              </Typography>
-              <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.6)' }}>
-                Set project-specific assignees. Project values override global only for project workflows.
-              </Typography>
-            </Box>
-            <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-              <TextField
-                select
-                size="small"
-                label="Project"
-                value={selectedProjectId}
-                onChange={(event) => setSelectedProjectId(event.target.value)}
-                sx={{ minWidth: 260 }}
-              >
-                {projects.map((project) => (
-                  <MenuItem key={`project-${project.id}`} value={project.id}>
-                    {(programById[project.programId || ''] ? `${programById[project.programId || '']} / ` : '') + project.name}
-                  </MenuItem>
-                ))}
-              </TextField>
-              <Button variant="outlined" startIcon={<AddIcon />} onClick={() => setAddProcessAreaDialogOpen(true)} disabled={!selectedProjectId} sx={{ textTransform: 'none' }}>
-                Process Area
-              </Button>
-              <Button variant="contained" onClick={handleSaveProject} disabled={isSavingProject || isLoadingProject || !selectedProjectId} sx={{ textTransform: 'none' }}>
-                {isSavingProject ? 'Saving...' : 'Save Project Assignments'}
-              </Button>
-            </Box>
+      <Box>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5, gap: 1, flexWrap: 'wrap' }}>
+          <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.6)' }}>
+            Set project-specific assignees. Project values override global only for project workflows.
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+            <TextField
+              select
+              size="small"
+              label="Project"
+              value={selectedProjectId}
+              onChange={(event) => setSelectedProjectId(event.target.value)}
+              sx={{ minWidth: 260 }}
+            >
+              {projects.map((project) => (
+                <MenuItem key={`project-${project.id}`} value={project.id}>
+                  {(programById[project.programId || ''] ? `${programById[project.programId || '']} / ` : '') + project.name}
+                </MenuItem>
+              ))}
+            </TextField>
+            <Button variant="outlined" startIcon={<AddIcon />} onClick={() => setAddProcessAreaDialogOpen(true)} disabled={!selectedProjectId} sx={{ textTransform: 'none' }}>
+              Process Area
+            </Button>
+            <Button variant="contained" onClick={handleSaveProject} disabled={isSavingProject || isLoadingProject || !selectedProjectId} sx={{ textTransform: 'none' }}>
+              {isSavingProject ? 'Saving...' : 'Save Project Assignments'}
+            </Button>
           </Box>
+        </Box>
 
-          {projectProcessAreas.length === 0 ? (
-            <Alert severity="info" sx={{ borderRadius: 1.5 }}>
-              No process areas were found for the selected project yet.
-            </Alert>
-          ) : (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-              {projectProcessAreas.map((processArea) => (
-                <Box key={`project-${processArea}`} sx={{ border: '1px solid rgba(255,255,255,0.12)', borderRadius: 1.5, overflow: 'hidden' }}>
-                  <Box sx={{ px: 1.25, py: 0.9, backgroundColor: 'rgba(255,255,255,0.06)', borderBottom: expandedProcessAreas.has(processArea) ? '1px solid rgba(255,255,255,0.1)' : 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Typography sx={{ fontWeight: 700, color: '#E2EBFF', fontSize: '0.9rem' }}>{processArea}</Typography>
-                    <IconButton size="small" onClick={() => toggleProcessAreaExpanded(processArea)}>
-                      {expandedProcessAreas.has(processArea) ? <ExpandLessIcon sx={{ fontSize: '1rem' }} /> : <ExpandMoreIcon sx={{ fontSize: '1rem' }} />}
-                    </IconButton>
-                  </Box>
-                  {expandedProcessAreas.has(processArea) && (
-                  <Box sx={{ display: 'grid', gridTemplateColumns: '1.2fr 2.4fr 1.4fr 1.4fr 0.8fr', gap: 0 }}>
+        {projectProcessAreas.length === 0 ? (
+          <Alert severity="info" sx={{ borderRadius: 1.5 }}>
+            No process areas were found for the selected project yet.
+          </Alert>
+        ) : (
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+            {projectProcessAreas.map((processArea) => (
+              <Box key={`project-${processArea}`} sx={{ border: '1px solid rgba(255,255,255,0.12)', borderRadius: 1.5, overflow: 'hidden' }}>
+                <Box sx={{ px: 1.25, py: 0.9, backgroundColor: 'rgba(255,255,255,0.06)', borderBottom: expandedProcessAreas.has(processArea) ? '1px solid rgba(255,255,255,0.1)' : 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Typography sx={{ fontWeight: 700, color: '#E2EBFF', fontSize: '0.9rem' }}>{processArea}</Typography>
+                  <IconButton size="small" onClick={() => toggleProcessAreaExpanded(processArea)}>
+                    {expandedProcessAreas.has(processArea) ? <ExpandLessIcon sx={{ fontSize: '1rem' }} /> : <ExpandMoreIcon sx={{ fontSize: '1rem' }} />}
+                  </IconButton>
+                </Box>
+                {expandedProcessAreas.has(processArea) && (
+                <Box sx={{ display: 'grid', gridTemplateColumns: '1.2fr 2.4fr 1.4fr 1.4fr 0.8fr', gap: 0 }}>
                     {['Role', 'Definition', 'Project Assignment', 'Global Fallback', 'Source'].map((header) => (
                       <Box key={`${processArea}-${header}`} sx={{ p: 0.8, backgroundColor: 'rgba(255,255,255,0.03)', color: 'rgba(255,255,255,0.55)', fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.35px' }}>
                         {header.toUpperCase()}
@@ -336,14 +328,13 @@ const ProcessAreaRoleAssignmentPanel: React.FC<ProcessAreaRoleAssignmentPanelPro
                         </React.Fragment>
                       );
                     })}
-                  </Box>
-                  )}
                 </Box>
-              ))}
-            </Box>
-          )}
-        </CardContent>
-      </Card>
+                )}
+              </Box>
+            ))}
+          </Box>
+        )}
+      </Box>
 
       <Dialog open={addProcessAreaDialogOpen} onClose={() => setAddProcessAreaDialogOpen(false)} maxWidth="xs" fullWidth>
         <DialogTitle>Add Process Area</DialogTitle>

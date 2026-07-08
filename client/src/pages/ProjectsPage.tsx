@@ -8514,7 +8514,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
               {/* Tab pills — same style as Inventory sub-tabs */}
               <Box sx={{ display: 'flex', gap: 1 }}>
                 {(['program', 'project', 'cycle', 'assignment'] as const).map((view) => {
-                  const labels = { program: 'Programs', project: 'Projects', cycle: 'Mock Cycles', assignment: 'Process Area Assignment' };
+                  const labels = { program: 'Programs', project: 'Projects', cycle: 'Mock Cycles', assignment: 'Process Areas' };
                   const active = maintainFormView === view;
                   return (
                     <Button key={view} variant={active ? 'contained' : 'text'} onClick={() => setMaintainFormView(view)}
@@ -8546,7 +8546,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                             ? 'Projects'
                             : maintainFormView === 'cycle'
                               ? 'Mock Cycles'
-                              : 'Process Area Assignment'}
+                              : 'Process Areas'}
                       </Typography>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         {maintainFormView === 'cycle' && (
