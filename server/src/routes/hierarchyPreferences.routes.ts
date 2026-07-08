@@ -2,6 +2,9 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { requireAuth } from '../middleware/authMiddleware.js';
 import db from '../db.js';
 import { formatSingleResponse } from '../utils/responseFormatter.js';
+import processAreaRoleAssignmentService from '../services/processAreaRoleAssignmentService.js';
+import approvalWorkflowEngine from '../services/approvalWorkflowEngine.js';
+import { UNIFIED_ROLE_MODEL, type UnifiedRoleKey } from '../constants/unifiedRoleModel.js';
 const preferenceTable = 'global_hierarchy_preferences';
 
 const router = Router();
@@ -62,6 +65,7 @@ router.put('/state', requireAuth, async (req: Request, res: Response, next: Next
              'globalProcessAreaAccents',    COALESCE(${preferenceTable}.hierarchy_state->'globalProcessAreaAccents', '{}'::jsonb),
              'globalProcessAreaIcons',      COALESCE(${preferenceTable}.hierarchy_state->'globalProcessAreaIcons', '{}'::jsonb),
              'globalProcessAreaDescriptions', COALESCE(${preferenceTable}.hierarchy_state->'globalProcessAreaDescriptions', '{}'::jsonb),
+             'globalProcessAreaRoleAssignments', COALESCE(${preferenceTable}.hierarchy_state->'globalProcessAreaRoleAssignments', '{}'::jsonb),
              'picklistValues',              COALESCE(${preferenceTable}.hierarchy_state->'picklistValues', '{}'::jsonb),
              'roadmapItems',                COALESCE(${preferenceTable}.hierarchy_state->'roadmapItems', '[]'::jsonb),
              'roadmapLaneAssign',           COALESCE(${preferenceTable}.hierarchy_state->'roadmapLaneAssign', '{}'::jsonb),
@@ -105,6 +109,7 @@ router.put('/global-process-areas', requireAuth, async (req: Request, res: Respo
       globalProcessAreaAccents = {},
       globalProcessAreaIcons = {},
       globalProcessAreaDescriptions = {},
+      globalProcessAreaRoleAssignments = undefined,
       picklistValues = {},
       roadmapItems = undefined,
       roadmapRowOrder = undefined,
@@ -134,6 +139,10 @@ router.put('/global-process-areas', requireAuth, async (req: Request, res: Respo
       mergeKeys.push('roadmapLaneAssign');
       mergeValues.push(JSON.stringify(roadmapLaneAssign));
     }
+    if (globalProcessAreaRoleAssignments !== undefined) {
+      mergeKeys.push('globalProcessAreaRoleAssignments');
+      mergeValues.push(JSON.stringify(globalProcessAreaRoleAssignments));
+    }
 
     const keyValuePairs = mergeKeys.map((k, i) => `'${k}', $${i + 1}::jsonb`).join(', ');
 
@@ -148,10 +157,127 @@ router.put('/global-process-areas', requireAuth, async (req: Request, res: Respo
       mergeValues
     );
 
-    res.json(formatSingleResponse({ globalProcessAreaAccents, globalProcessAreaIcons, globalProcessAreaDescriptions, picklistValues, ...(roadmapItems !== undefined ? { roadmapItems } : {}) }));
+    res.json(formatSingleResponse({
+      globalProcessAreaAccents,
+      globalProcessAreaIcons,
+      globalProcessAreaDescriptions,
+      ...(globalProcessAreaRoleAssignments !== undefined ? { globalProcessAreaRoleAssignments } : {}),
+      picklistValues,
+      ...(roadmapItems !== undefined ? { roadmapItems } : {}),
+    }));
   } catch (error) {
     next(error);
   }
 });
+
+router.get('/role-model', requireAuth, async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    res.json(formatSingleResponse({ roles: UNIFIED_ROLE_MODEL }));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/global-role-assignments', requireAuth, async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    const assignments = await processAreaRoleAssignmentService.getGlobalRoleAssignments();
+    res.json(formatSingleResponse({ roles: UNIFIED_ROLE_MODEL, assignments }));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.put('/global-role-assignments', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const assignments = await processAreaRoleAssignmentService.saveGlobalRoleAssignments(req.body?.assignments || {});
+    res.json(formatSingleResponse({ roles: UNIFIED_ROLE_MODEL, assignments }));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/project-role-assignments/:projectId', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { projectId } = req.params;
+    const [projectAssignments, globalAssignments, discoveredProcessAreas] = await Promise.all([
+      processAreaRoleAssignmentService.getProjectRoleAssignments(projectId),
+      processAreaRoleAssignmentService.getGlobalRoleAssignments(),
+      processAreaRoleAssignmentService.getProjectProcessAreas(projectId),
+    ]);
+
+    const processAreaSet = new Set<string>(discoveredProcessAreas);
+    Object.keys(projectAssignments).forEach((area) => processAreaSet.add(area));
+    Object.keys(globalAssignments).forEach((area) => processAreaSet.add(area));
+    const processAreas = Array.from(processAreaSet).sort((a, b) => a.localeCompare(b));
+
+    const resolvedAssignments = processAreas.reduce((acc, processArea) => {
+      const roleMap = UNIFIED_ROLE_MODEL.reduce((roleAcc, roleDef) => {
+        const projectUserId = projectAssignments[processArea]?.[roleDef.key] || null;
+        const globalUserId = globalAssignments[processArea]?.[roleDef.key] || null;
+        roleAcc[roleDef.key] = {
+          userId: projectUserId || globalUserId || null,
+          source: projectUserId ? 'project' : globalUserId ? 'global' : 'unassigned',
+          projectUserId,
+          globalUserId,
+        };
+        return roleAcc;
+      }, {} as Record<UnifiedRoleKey, { userId: string | null; source: 'project' | 'global' | 'unassigned'; projectUserId: string | null; globalUserId: string | null }>);
+      acc[processArea] = roleMap;
+      return acc;
+    }, {} as Record<string, Record<UnifiedRoleKey, { userId: string | null; source: 'project' | 'global' | 'unassigned'; projectUserId: string | null; globalUserId: string | null }>>);
+
+    res.json(formatSingleResponse({
+      projectId,
+      roles: UNIFIED_ROLE_MODEL,
+      processAreas,
+      globalAssignments,
+      projectAssignments,
+      resolvedAssignments,
+    }));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.put('/project-role-assignments/:projectId', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { projectId } = req.params;
+    const assignments = await processAreaRoleAssignmentService.saveProjectRoleAssignments(projectId, req.body?.assignments || {});
+    res.json(formatSingleResponse({ projectId, roles: UNIFIED_ROLE_MODEL, assignments }));
+  } catch (error) {
+    next(error);
+  }
+});
+
+const resolveWorkflowRolesHandler = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const processArea = String(req.body?.processArea || '').trim();
+    const workflowScope = req.body?.workflowScope === 'project' ? 'project' : 'global';
+    const projectId = req.body?.projectId ? String(req.body.projectId) : null;
+    const roleKeys = Array.isArray(req.body?.roleKeys)
+      ? req.body.roleKeys
+      : req.body?.roleKey
+        ? [req.body.roleKey]
+        : ['approver'];
+
+    const validRoleKeys = roleKeys
+      .map((key: unknown) => String(key))
+      .filter((key: string): key is UnifiedRoleKey => UNIFIED_ROLE_MODEL.some((role) => role.key === key));
+
+    const resolution = await approvalWorkflowEngine.resolveAssignments({
+      processArea,
+      workflowScope,
+      projectId,
+      roleKeys: validRoleKeys,
+    });
+
+    res.json(formatSingleResponse(resolution));
+  } catch (error) {
+    next(error);
+  }
+};
+
+router.post('/workflow-role-resolution', requireAuth, resolveWorkflowRolesHandler);
+router.post('/approval-workflow/resolve', requireAuth, resolveWorkflowRolesHandler);
 
 export default router;

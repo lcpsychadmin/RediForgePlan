@@ -61,6 +61,22 @@ CREATE TABLE global_hierarchy_preferences (
 
 CREATE INDEX idx_global_hierarchy_preferences_updated_at ON global_hierarchy_preferences(updated_at);
 
+CREATE TABLE project_process_area_role_assignments (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  process_area VARCHAR(255) NOT NULL,
+  role_key VARCHAR(64) NOT NULL,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT project_process_area_role_assignments_unique
+    UNIQUE (project_id, process_area, role_key)
+);
+
+CREATE INDEX idx_ppara_project_id ON project_process_area_role_assignments(project_id);
+CREATE INDEX idx_ppara_project_process_area ON project_process_area_role_assignments(project_id, process_area);
+CREATE INDEX idx_ppara_user_id ON project_process_area_role_assignments(user_id);
+
 -- =====================================================
 -- CORE HIERARCHY TABLES
 -- =====================================================

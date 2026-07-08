@@ -75,6 +75,7 @@ import Menu from '@mui/material/Menu';
 import { useNavigate, useLocation } from 'react-router-dom';
 import apiClient from '../api/client';
 import Layout from '../components/Layout';
+import ProcessAreaRoleAssignmentPanel from '../components/ProcessAreaRoleAssignmentPanel';
 import TaskDetailModal from '../components/tasks/TaskDetailModal';
 import ProjectDefectsPage from './ProjectDefectsPage';
 import { useAuth } from '../contexts/AuthContext';
@@ -1097,7 +1098,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
 
   // Inventory states
   const [inventorySubTab, setInventorySubTab] = useState(0);
-  const [maintainFormView, setMaintainFormView] = useState<'program' | 'cycle' | 'project'>('program');
+  const [maintainFormView, setMaintainFormView] = useState<'program' | 'cycle' | 'project' | 'assignment'>('program');
   const [maintainCycleParentProjectId, setMaintainCycleParentProjectId] = useState('');
   const [maintainCycleParentProgramId, setMaintainCycleParentProgramId] = useState('');
   const [maintainCycleFilterProgramId, setMaintainCycleFilterProgramId] = useState<'all' | string>('all');
@@ -5491,6 +5492,21 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
               >
                 Mock Cycle
               </Button>
+              <Button
+                variant={maintainFormView === 'assignment' ? 'contained' : 'text'}
+                onClick={() => setMaintainFormView('assignment')}
+                sx={{
+                  textTransform: 'none',
+                  justifyContent: 'flex-start',
+                  fontWeight: 700,
+                  borderRadius: 1.6,
+                  color: maintainFormView === 'assignment' ? '#0D1933' : 'rgba(230,238,255,0.88)',
+                  backgroundColor: maintainFormView === 'assignment' ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.06)',
+                  '&:hover': { backgroundColor: maintainFormView === 'assignment' ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.12)' },
+                }}
+              >
+                Process Area Assignment
+              </Button>
             </Box>
           )}
 
@@ -8496,8 +8512,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, p: 2 }}>
               {/* Tab pills — same style as Inventory sub-tabs */}
               <Box sx={{ display: 'flex', gap: 1 }}>
-                {(['program', 'project', 'cycle'] as const).map((view) => {
-                  const labels = { program: 'Programs', project: 'Projects', cycle: 'Mock Cycles' };
+                {(['program', 'project', 'cycle', 'assignment'] as const).map((view) => {
+                  const labels = { program: 'Programs', project: 'Projects', cycle: 'Mock Cycles', assignment: 'Process Area Assignment' };
                   const active = maintainFormView === view;
                   return (
                     <Button key={view} variant={active ? 'contained' : 'text'} onClick={() => setMaintainFormView(view)}
@@ -8523,7 +8539,13 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                     {/* Header row: title left, controls + Add button right */}
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, gap: 1.5, flexWrap: 'wrap' }}>
                       <Typography variant="h6" sx={{ color: '#DCE6FF', fontWeight: 700, fontSize: '1rem' }}>
-                        {maintainFormView === 'program' ? 'Programs' : maintainFormView === 'project' ? 'Projects' : 'Mock Cycles'}
+                        {maintainFormView === 'program'
+                          ? 'Programs'
+                          : maintainFormView === 'project'
+                            ? 'Projects'
+                            : maintainFormView === 'cycle'
+                              ? 'Mock Cycles'
+                              : 'Process Area Assignment'}
                       </Typography>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         {maintainFormView === 'cycle' && (
@@ -8558,9 +8580,13 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                               openCreateDialog('project', targetProgramId);
                             }
                           }}
-                          disabled={(maintainFormView === 'cycle' && !maintainCycleParentProjectId) || (maintainFormView === 'project' && programs.length === 0)}
+                          disabled={
+                            maintainFormView === 'assignment'
+                              || (maintainFormView === 'cycle' && !maintainCycleParentProjectId)
+                              || (maintainFormView === 'project' && programs.length === 0)
+                          }
                           sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', textTransform: 'none', fontWeight: 600, borderRadius: '10px', boxShadow: 'none' }}>
-                          Add New
+                          {maintainFormView === 'assignment' ? 'Role Assignments' : 'Add New'}
                         </Button>
                       </Box>
                     </Box>
@@ -8639,6 +8665,15 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                             ))}
                           </Box>
                         </Box>
+                      )}
+
+                      {maintainFormView === 'assignment' && (
+                        <ProcessAreaRoleAssignmentPanel
+                          processAreaOptions={processAreaOptions}
+                          people={people}
+                          projects={allMaintainProjects}
+                          programs={programs}
+                        />
                       )}
                     </Box>
                   </CardContent>
