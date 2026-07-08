@@ -3888,6 +3888,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
     );
     setSelectedExistingProjectOptionId('');
     setNewCycleScheduleMode('all_days');
+    if (mode === 'cycle') {
+      const defaultParentProjectId = maintainCycleParentProjectId || maintainCycleParentProjectOptions[0]?.id || null;
+      setMaintainPendingCycleProjectId(defaultParentProjectId);
+    }
     setCreateDialogOpen(true);
   };
 
@@ -9122,6 +9126,20 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
           )}
           {dialogMode === 'cycle' && (
             <Box sx={{ mt: 1 }}>
+              <TextField
+                select
+                fullWidth
+                label="Parent Project"
+                value={maintainPendingCycleProjectId || ''}
+                onChange={(e) => setMaintainPendingCycleProjectId(e.target.value)}
+                variant="outlined"
+                size="small"
+                sx={{ mb: 2 }}
+              >
+                {maintainCycleParentProjectOptions.map((project) => (
+                  <MenuItem key={project.id} value={project.id}>{project.name}</MenuItem>
+                ))}
+              </TextField>
               <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Include Weekends</Typography>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <Checkbox
@@ -9143,6 +9161,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                 />
                 <Typography variant="body2" color="text.secondary">Used for mock cycle icon color in the tree</Typography>
               </Box>
+              <Box sx={{ mt: 1.25 }}>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>Mock Cycle Icon</Typography>
+                {renderIconPicker('cycle', newItemAccentColor || '#64B5F6')}
+              </Box>
             </Box>
           )}
         </DialogContent>
@@ -9154,6 +9176,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
             disabled={
               isCreating
               || ((dialogMode === 'project' && !isPlanningMaintainTab) ? !selectedExistingProjectOptionId : !newItemName.trim())
+              || (dialogMode === 'cycle' && !maintainPendingCycleProjectId)
               || (dialogMode === 'project' && isPlanningMaintainTab && !newProjectParentProgramId)
             }
             sx={{ textTransform: 'none' }}
