@@ -4640,6 +4640,13 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
     }
   };
 
+  const deletingInventoryItem = deletingInventoryItemId
+    ? projectInventoryItems.find((item: any) => item.id === deletingInventoryItemId) || null
+    : null;
+  const deletingInventoryDescendantItems = deletingInventoryItemId
+    ? projectInventoryItems.filter((item: any) => getObjectAndDescendantIds(deletingInventoryItemId).has(item.id) && item.id !== deletingInventoryItemId)
+    : [];
+
   const handleProjectInventoryInlineChange = async (itemId: string, field: string, value: string) => {
     try {
       if (field === 'processArea') {
@@ -11422,6 +11429,44 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
             <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mt: 1 }}>
               This action cannot be undone.
             </Typography>
+            {deletingInventoryItem && (
+              <Box sx={{ mt: 2, p: 1.5, borderRadius: 1.5, backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>
+                  Parent object
+                </Typography>
+                <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                  {deletingInventoryItem.objectId || deletingInventoryItem.dataObjectId || deletingInventoryItemName}
+                </Typography>
+                {deletingInventoryItem.subObjectDescription && (
+                  <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>
+                    {deletingInventoryItem.subObjectDescription}
+                  </Typography>
+                )}
+                <Typography variant="subtitle2" sx={{ fontWeight: 700, mt: 1.5, mb: 0.5 }}>
+                  Sub-objects to be removed
+                </Typography>
+                {deletingInventoryDescendantItems.length === 0 ? (
+                  <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                    None
+                  </Typography>
+                ) : (
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                    {deletingInventoryDescendantItems.map((subItem: any) => (
+                      <Box key={subItem.id} sx={{ px: 1, py: 0.75, borderRadius: 1, backgroundColor: 'rgba(255,255,255,0.04)' }}>
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                          {subItem.objectId || subItem.dataObjectId || 'Unnamed sub-object'}
+                        </Typography>
+                        {subItem.subObjectDescription && (
+                          <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }}>
+                            {subItem.subObjectDescription}
+                          </Typography>
+                        )}
+                      </Box>
+                    ))}
+                  </Box>
+                )}
+              </Box>
+            )}
           </Box>
         </DialogContent>
         <DialogActions>
