@@ -1135,6 +1135,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   const [cycleScheduleItems, setCycleScheduleItems] = useState<any[]>([]);
   const [isLoadingCycleSchedule, setIsLoadingCycleSchedule] = useState(false);
   const [editingInventoryItemId, setEditingInventoryItemId] = useState<string | null>(null);
+  const [deletingInventoryItemId, setDeletingInventoryItemId] = useState<string | null>(null);
+  const [deletingInventoryItemName, setDeletingInventoryItemName] = useState('');
+  const [isDeletingInventoryItem, setIsDeletingInventoryItem] = useState(false);
   const [selectedProjectForInventory, setSelectedProjectForInventory] = useState<string | null>(null);
   const [catalogObjectDialogOpen, setCatalogObjectDialogOpen] = useState(false);
   // Applications + Data Definitions
@@ -4613,14 +4616,27 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   };
 
   // Handle delete inventory item
-  const handleDeleteInventoryItem = async (item: any) => {
-    const idsToRemove = getObjectAndDescendantIds(item.id);
+  const handleDeleteInventoryItem = (item: any) => {
+    setDeletingInventoryItemId(item.id);
+    setDeletingInventoryItemName(item.dataObjectId || item.objectId || 'this item');
+  };
+
+  // Confirm delete inventory item
+  const confirmDeleteInventoryItem = async () => {
+    if (!deletingInventoryItemId) return;
+
+    const idsToRemove = getObjectAndDescendantIds(deletingInventoryItemId);
     try {
-      await apiClient.delete(`/api/project-objects/${item.id}`);
+      setIsDeletingInventoryItem(true);
+      await apiClient.delete(`/api/project-objects/${deletingInventoryItemId}`);
       setProjectInventoryItems(prev => prev.filter(entry => !idsToRemove.has(entry.id)));
+      setDeletingInventoryItemId(null);
+      setDeletingInventoryItemName('');
     } catch (error) {
       console.error('Failed to delete:', error);
       alert('Failed to delete item. Please try again.');
+    } finally {
+      setIsDeletingInventoryItem(false);
     }
   };
 
@@ -11391,6 +11407,34 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
             sx={{ textTransform: 'none' }}
           >
             {isCreatingProjectInventoryItem ? 'Saving...' : (editingInventoryItemId ? 'Update' : 'Add Item')}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete Inventory Item Confirmation Dialog */}
+      <Dialog open={deletingInventoryItemId !== null} onClose={() => setDeletingInventoryItemId(null)} maxWidth="sm" fullWidth>
+        <DialogTitle>Delete Item</DialogTitle>
+        <DialogContent>
+          <Box sx={{ pt: 2 }}>
+            <Typography>
+              Are you sure you want to delete <strong>{deletingInventoryItemName}</strong>?
+            </Typography>
+            <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mt: 1 }}>
+              This action cannot be undone.
+            </Typography>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeletingInventoryItemId(null)}>
+            Cancel
+          </Button>
+          <Button
+            onClick={confirmDeleteInventoryItem}
+            variant="contained"
+            color="error"
+            disabled={isDeletingInventoryItem}
+          >
+            {isDeletingInventoryItem ? 'Deleting...' : 'Delete'}
           </Button>
         </DialogActions>
       </Dialog>
