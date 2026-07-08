@@ -11639,7 +11639,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
       {/* ── Data Definitions Panel ──────────────────────────────────────────── */}
       <Dialog open={!!dataDefPanelObjectId} onClose={() => { setDataDefPanelObjectId(null); setDataDefPanelObject(null); setSelectedDataDefId(null); setDataDefFields([]); setDataDefSubObjects([]); setEditingFieldRow(null); setAddingFieldToSubObj(null); setCollapsedSubObjs(new Set()); setEditingSubObjId(null); }}
         fullWidth maxWidth="xl"
-        PaperProps={{ sx: { borderRadius: 2, maxHeight: '94vh', display: 'flex', flexDirection: 'column', background: 'linear-gradient(160deg, #141e35 0%, #0c1527 100%)', border: '1px solid rgba(255,255,255,0.1)' } }}>
+        PaperProps={{ sx: { borderRadius: 2, height: '80vh', maxHeight: '94vh', display: 'flex', flexDirection: 'column', background: 'linear-gradient(160deg, #141e35 0%, #0c1527 100%)', border: '1px solid rgba(255,255,255,0.1)' } }}>
         <DialogTitle sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', borderBottom: '1px solid rgba(255,255,255,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', pb: 1.5, flexShrink: 0 }}>
           <Box>
             <Typography sx={{ fontWeight: 700, fontSize: '1rem', fontFamily: 'monospace', color: '#fff' }}>{dataDefPanelObject?.objectId}</Typography>
