@@ -1135,9 +1135,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   const [cycleScheduleItems, setCycleScheduleItems] = useState<any[]>([]);
   const [isLoadingCycleSchedule, setIsLoadingCycleSchedule] = useState(false);
   const [editingInventoryItemId, setEditingInventoryItemId] = useState<string | null>(null);
-  const [deletingInventoryItemId, setDeletingInventoryItemId] = useState<string | null>(null);
-  const [deletingInventoryItemName, setDeletingInventoryItemName] = useState('');
-  const [isDeletingInventoryItem, setIsDeletingInventoryItem] = useState(false);
   const [selectedProjectForInventory, setSelectedProjectForInventory] = useState<string | null>(null);
   const [catalogObjectDialogOpen, setCatalogObjectDialogOpen] = useState(false);
   // Applications + Data Definitions
@@ -4318,8 +4315,13 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
     if (!addToInvObj || !addToInvProjectId) return;
     setIsAddingToInv(true);
     try {
+      const ddRes = await apiClient.get(`/api/applications/data-definitions/object/${addToInvObj.id}`);
+      const defs: any[] = ddRes.data.data || [];
+      const defaultApplicationId = defs[0]?.application_id || null;
       const res = await apiClient.post(`/api/project-objects/project/${addToInvProjectId}`, {
         globalObjectId: addToInvObj.id,
+        targetApplicationId: defaultApplicationId,
+        sourceApplicationId: defaultApplicationId,
         processArea: addToInvObj.processArea || null,
       });
       const parent = res.data.data;
@@ -4328,6 +4330,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
         dataObjectId: parent.objectId, objectId: parent.objectId,
         globalObjectId: parent.globalObjectId,
         parentProjectObjectId: '', isSubObject: false,
+        targetApplicationId: parent.targetApplicationId || defaultApplicationId || '',
+        targetApplicationName: parent.targetApplicationName || defs[0]?.application_name || '',
+        sourceApplicationId: parent.sourceApplicationId || defaultApplicationId || '',
+        sourceApplicationName: parent.sourceApplicationName || defs[0]?.application_name || '',
         processArea: parent.processArea,
         complexity: null, deploymentDisposition: null, buildType: null,
         objectType: null, cutoverPhase: null, ddmApproach: null,
@@ -4339,16 +4345,23 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
       for (const so of selectedSubs) {
         const subRes = await apiClient.post(`/api/project-objects/project/${addToInvProjectId}`, {
           parentProjectObjectId: parent.id,
+          targetApplicationId: defaultApplicationId,
+          sourceApplicationId: defaultApplicationId,
           subObjectSuffix: so.name,
           subObjectDescription: so.description || so.name,
         });
         const sub = subRes.data.data;
+        const derivedSubObjectId = sub.objectId || `${parent.objectId}-${so.name}`;
         newItems.push({
           id: sub.id, projectId: sub.projectId,
-          dataObjectId: sub.objectId, objectId: sub.objectId,
+          dataObjectId: derivedSubObjectId, objectId: derivedSubObjectId,
           globalObjectId: sub.globalObjectId,
           parentProjectObjectId: parent.id,
           isSubObject: true,
+          targetApplicationId: sub.targetApplicationId || defaultApplicationId || '',
+          targetApplicationName: sub.targetApplicationName || defs[0]?.application_name || '',
+          sourceApplicationId: sub.sourceApplicationId || defaultApplicationId || '',
+          sourceApplicationName: sub.sourceApplicationName || defs[0]?.application_name || '',
           subObjectSuffix: sub.subObjectSuffix || so.name,
           subObjectDescription: sub.subObjectDescription || so.description,
           processArea: sub.processArea,
@@ -4600,26 +4613,14 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   };
 
   // Handle delete inventory item
-  const handleDeleteInventoryItem = (item: any) => {
-    setDeletingInventoryItemId(item.id);
-    setDeletingInventoryItemName(item.dataObjectId);
-  };
-
-  // Confirm delete inventory item
-  const confirmDeleteInventoryItem = async () => {
-    if (!deletingInventoryItemId) return;
-    
+  const handleDeleteInventoryItem = async (item: any) => {
+    const idsToRemove = getObjectAndDescendantIds(item.id);
     try {
-      setIsDeletingInventoryItem(true);
-      await apiClient.delete(`/api/project-objects/${deletingInventoryItemId}`);
-      setProjectInventoryItems(projectInventoryItems.filter(item => item.id !== deletingInventoryItemId));
-      setDeletingInventoryItemId(null);
-      alert('Item deleted successfully');
+      await apiClient.delete(`/api/project-objects/${item.id}`);
+      setProjectInventoryItems(prev => prev.filter(entry => !idsToRemove.has(entry.id)));
     } catch (error) {
       console.error('Failed to delete:', error);
       alert('Failed to delete item. Please try again.');
-    } finally {
-      setIsDeletingInventoryItem(false);
     }
   };
 
@@ -11390,34 +11391,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
             sx={{ textTransform: 'none' }}
           >
             {isCreatingProjectInventoryItem ? 'Saving...' : (editingInventoryItemId ? 'Update' : 'Add Item')}
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* Delete Inventory Item Confirmation Dialog */}
-      <Dialog open={deletingInventoryItemId !== null} onClose={() => setDeletingInventoryItemId(null)} maxWidth="sm" fullWidth>
-        <DialogTitle>Delete Item</DialogTitle>
-        <DialogContent>
-          <Box sx={{ pt: 2 }}>
-            <Typography>
-              Are you sure you want to delete <strong>{deletingInventoryItemName}</strong>?
-            </Typography>
-            <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mt: 1 }}>
-              This action cannot be undone.
-            </Typography>
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeletingInventoryItemId(null)}>
-            Cancel
-          </Button>
-          <Button
-            onClick={confirmDeleteInventoryItem}
-            variant="contained"
-            color="error"
-            disabled={isDeletingInventoryItem}
-          >
-            {isDeletingInventoryItem ? 'Deleting...' : 'Delete'}
           </Button>
         </DialogActions>
       </Dialog>
