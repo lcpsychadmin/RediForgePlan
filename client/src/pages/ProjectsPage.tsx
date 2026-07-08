@@ -1787,9 +1787,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
       })
       .sort((a, b) => a.programName.localeCompare(b.programName) || a.cycleName.localeCompare(b.cycleName) || a.name.localeCompare(b.name))
   ), [allMaintainProjects, allMaintainCycles, programs]);
-  const visibleMaintainCycleRows = maintainCycleFilterProgramId === 'all'
-    ? maintainCycleRows
-    : maintainCycleRows.filter((row) => row.programId === maintainCycleFilterProgramId);
+  const visibleMaintainCycleRows = maintainCycleRows.filter((row) => {
+    const matchesProgram = maintainCycleFilterProgramId === 'all' || row.programId === maintainCycleFilterProgramId;
+    const matchesParentProject = !maintainCycleParentProjectId || row.linkedProjectId === maintainCycleParentProjectId;
+    return matchesProgram && matchesParentProject;
+  });
   const visibleMaintainProjectRows = React.useMemo(() => {
     const scopedRows = maintainProjectRows.filter((row) => row.programId === maintainProjectParentProgramId);
     const byName = new Map<string, typeof scopedRows[number]>();
@@ -2128,11 +2130,15 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
       .filter(Boolean) as Project[];
   };
 
-  const getCyclesForProjectInProgram = (programId: string, _projectName: string) => {
-    // Return all ordered cycles for the program regardless of project name —
-    // all cycles share the same project name so the name filter is redundant
-    // and was causing cycles to be hidden when projectsByMockCycle wasn't cached.
-    return getOrderedCycles(programId);
+  const getCyclesForProjectInProgram = (programId: string, projectId?: string | null) => {
+    const ordered = getOrderedCycles(programId);
+    if (!projectId) return ordered;
+
+    return ordered.filter((cycle: MockCycle) => {
+      if (cycle.projectId && cycle.projectId === projectId) return true;
+      const cycleProjects = (projectsByMockCycle[cycle.id] || []) as Project[];
+      return cycleProjects.some((project) => project.id === projectId);
+    });
   };
 
   const getPrimaryProjectIdForCycle = (cycleId: string) => {
@@ -3729,7 +3735,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
       }
 
       const targetProgramId = contextProgramId || selectedProject.programId || '';
-      const existingCycles = targetProgramId ? getCyclesForProjectInProgram(targetProgramId, selectedProject.name || '') : [];
+      const existingCycles = targetProgramId ? getCyclesForProjectInProgram(targetProgramId, selectedProject.id) : [];
       if (existingCycles.length > 0) {
         const firstCycle = existingCycles[0];
         setExpandedPrograms((prev) => new Set(prev).add(targetProgramId));
@@ -5643,7 +5649,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                           }} />
 
                           {getProjectsByProgram(program.id).map((project: Project) => {
-                            const projectCycles = getCyclesForProjectInProgram(program.id, project.name || '');
+                            const projectCycles = getCyclesForProjectInProgram(program.id, project.id);
                             const projectGroupKey = `${program.id}:${(project.name || '').trim().toLowerCase()}`;
                             const isProjectExpanded = expandedProjectGroups.has(projectGroupKey);
                             const projectAccent = project.accentColor || '#90caf9';
