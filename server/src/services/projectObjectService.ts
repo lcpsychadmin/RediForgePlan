@@ -199,6 +199,7 @@ export class ProjectObjectService {
     let parentProjectObjectId = data.parentProjectObjectId || null;
     let subObjectSuffix = (data.subObjectSuffix || '').trim().replace(/^[-\s]+/, '') || null;
     let subObjectDescription = (data.subObjectDescription || '').trim() || null;
+    let targetApplicationId = data.targetApplicationId || null;
 
     if (!globalObjectId && !parentProjectObjectId) {
       throw new Error('Global object ID is required');
@@ -217,7 +218,7 @@ export class ProjectObjectService {
       }
 
       const parentResult = await db.query(
-        `SELECT id, project_id, global_object_id, parent_project_object_id
+        `SELECT id, project_id, global_object_id, parent_project_object_id, target_application_id
          FROM project_objects
          WHERE id = $1`,
         [parentProjectObjectId]
@@ -236,6 +237,9 @@ export class ProjectObjectService {
       }
 
       globalObjectId = parentRow.global_object_id;
+      if (!targetApplicationId) {
+        targetApplicationId = parentRow.target_application_id || null;
+      }
 
       const duplicateResult = await db.query(
         `SELECT 1
@@ -271,7 +275,7 @@ export class ProjectObjectService {
       [
         projectId,
         globalObjectId,
-        data.targetApplicationId || null,
+        targetApplicationId,
         parentProjectObjectId,
         subObjectSuffix,
         subObjectDescription,
@@ -304,7 +308,7 @@ export class ProjectObjectService {
       [
         projectId,
         globalObjectId,
-        data.targetApplicationId || null,
+        targetApplicationId,
         data.complexity || null,
         data.deploymentDisposition || null,
         data.buildType || null,

@@ -11280,17 +11280,21 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                     try {
                       const subRes = await apiClient.post(`/api/project-objects/project/${selectedProjectForInventory}`, {
                         parentProjectObjectId: apiData.id,
+                        targetApplicationId: targetApplicationId || null,
                         subObjectSuffix: so.name,
                         subObjectDescription: so.description || so.name,
                       });
                       const sub = subRes.data.data;
+                      const derivedSubObjectId = sub.objectId || `${apiData.objectId}-${so.name}`;
                       newItems.push({
                         id: sub.id, projectId: sub.projectId,
-                        dataObjectId: sub.objectId, objectId: sub.objectId,
+                        dataObjectId: derivedSubObjectId, objectId: derivedSubObjectId,
                         globalObjectId: sub.globalObjectId,
                         parentProjectObjectId: apiData.id, isSubObject: true,
                         subObjectSuffix: sub.subObjectSuffix || so.name,
                         subObjectDescription: sub.subObjectDescription || so.description,
+                        targetApplicationId: sub.targetApplicationId || targetApplicationId || '',
+                        targetApplicationName: sub.targetApplicationName || selectedAppOption?.name || '',
                         processArea: sub.processArea,
                         complexity: null, deploymentDisposition: null, buildType: null,
                         objectType: null, cutoverPhase: null, ddmApproach: null,
