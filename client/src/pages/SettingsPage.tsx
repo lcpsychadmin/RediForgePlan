@@ -175,6 +175,7 @@ const SettingsPage: React.FC = () => {
   const [peopleDirectory, setPeopleDirectory] = useState<any[]>([]);
   const [processAreaModalOpen, setProcessAreaModalOpen] = useState(false);
   const [editingProcessArea, setEditingProcessArea] = useState<string | null>(null);
+  const [isSavingProcessAreaModal, setIsSavingProcessAreaModal] = useState(false);
 
   // Default task templates
   const [templates, setTemplates] = useState<any[]>([]);
@@ -329,6 +330,30 @@ const SettingsPage: React.FC = () => {
       next[editingProcessArea] = roleMap;
       return next;
     });
+  };
+
+  const saveProcessAreaModal = async () => {
+    setIsSavingProcessAreaModal(true);
+    setSaveStatus('saving');
+    try {
+      await apiClient.put('/api/hierarchy-preferences/global-process-areas', {
+        globalProcessAreaAccents,
+        globalProcessAreaIcons,
+        globalProcessAreaDescriptions: processAreaDescriptions,
+        globalProcessAreaRoleAssignments,
+        picklistValues: Object.fromEntries(
+          Object.entries(picklists).map(([key, pl]) => [key, pl.values])
+        ),
+      });
+      localStorage.setItem(SETTINGS_PROCESS_AREA_DESCRIPTIONS_KEY, JSON.stringify(processAreaDescriptions));
+      setSaveStatus('saved');
+      closeProcessAreaModal();
+    } catch (e) {
+      console.error('Failed to save process area settings', e);
+      setSaveStatus('error');
+    } finally {
+      setIsSavingProcessAreaModal(false);
+    }
   };
 
   const handleSaveChanges = async () => {
@@ -827,7 +852,10 @@ const SettingsPage: React.FC = () => {
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={closeProcessAreaModal} sx={{ textTransform: 'none' }}>Done</Button>
+          <Button onClick={closeProcessAreaModal} sx={{ textTransform: 'none' }}>Cancel</Button>
+          <Button onClick={saveProcessAreaModal} variant="contained" disabled={isSavingProcessAreaModal} sx={{ textTransform: 'none' }}>
+            {isSavingProcessAreaModal ? 'Saving...' : 'Save'}
+          </Button>
         </DialogActions>
       </Dialog>
 

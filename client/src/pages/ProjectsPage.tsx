@@ -8669,7 +8669,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
 
                       {maintainFormView === 'assignment' && (
                         <ProcessAreaRoleAssignmentPanel
-                          processAreaOptions={processAreaOptions}
                           people={people}
                           projects={allMaintainProjects}
                           programs={programs}
