@@ -1172,6 +1172,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   const [addToInvProjectId, setAddToInvProjectId] = useState('');
   const [addToInvLoading, setAddToInvLoading] = useState(false);
   const [isAddingToInv, setIsAddingToInv] = useState(false);
+  const [selectedInventoryProgramId, setSelectedInventoryProgramId] = useState('');
   // Application picker for Project Inventory dialog
   const [invDialogAppId, setInvDialogAppId] = useState('');
   const [invDialogSourceAppId, setInvDialogSourceAppId] = useState('');
@@ -1572,20 +1573,40 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
     return unique;
   }, [projectsByProgram]);
 
+  const inventoryProjectsForSelectedProgram = React.useMemo(() => {
+    if (!selectedInventoryProgramId) return inventoryProjects;
+    return inventoryProjects.filter((project: Project) => project.programId === selectedInventoryProgramId);
+  }, [inventoryProjects, selectedInventoryProgramId]);
+
   useEffect(() => {
-    if (inventoryProjects.length === 0) {
+    if (programs.length === 0) {
+      if (selectedInventoryProgramId !== '') setSelectedInventoryProgramId('');
+      return;
+    }
+
+    const stillExists = selectedInventoryProgramId
+      ? programs.some((program: Program) => program.id === selectedInventoryProgramId)
+      : false;
+
+    if (!stillExists) {
+      setSelectedInventoryProgramId(programs[0].id);
+    }
+  }, [programs, selectedInventoryProgramId]);
+
+  useEffect(() => {
+    if (inventoryProjectsForSelectedProgram.length === 0) {
       if (selectedProjectForInventory !== null) setSelectedProjectForInventory(null);
       return;
     }
 
     const stillExists = selectedProjectForInventory
-      ? inventoryProjects.some((project) => project.id === selectedProjectForInventory)
+      ? inventoryProjectsForSelectedProgram.some((project) => project.id === selectedProjectForInventory)
       : false;
 
     if (!stillExists) {
-      setSelectedProjectForInventory(inventoryProjects[0].id);
+      setSelectedProjectForInventory(inventoryProjectsForSelectedProgram[0].id);
     }
-  }, [inventoryProjects, selectedProjectForInventory]);
+  }, [inventoryProjectsForSelectedProgram, selectedProjectForInventory]);
 
   useEffect(() => {
     const loadHierarchySummaries = async () => {
@@ -4286,7 +4307,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
 
   const handleOpenAddToInv = async (obj: any) => {
     setAddToInvObj(obj);
-    setAddToInvProjectId(selectedProjectForInventory || inventoryProjects[0]?.id || '');
+    setAddToInvProjectId(selectedProjectForInventory || inventoryProjectsForSelectedProgram[0]?.id || '');
     setAddToInvSubObjects([]);
     setAddToInvSelectedSubs(new Set());
     setAddToInvOpen(true);
@@ -8300,30 +8321,39 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                 <Card sx={{ backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 2 }}>
                   <CardContent sx={{ p: 2 }}>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1.5, mb: 2, flexWrap: 'wrap' }}>
-                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                        {inventoryProjects.length === 0 ? (
-                          <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.4)' }}>
-                            No projects available
-                          </Typography>
-                        ) : (
-                          inventoryProjects.map((project: Project) => (
-                            <Box
-                              key={project.id}
-                              component="button"
-                              onClick={() => setSelectedProjectForInventory(project.id)}
-                              sx={{
-                                px: 1.6, py: 0.5, borderRadius: '999px',
-                                border: selectedProjectForInventory === project.id ? '1px solid rgba(102,163,255,0.7)' : '1px solid rgba(255,255,255,0.15)',
-                                background: selectedProjectForInventory === project.id ? 'linear-gradient(135deg, #4C8DFF 0%, #5FA2FF 100%)' : 'rgba(255,255,255,0.05)',
-                                color: selectedProjectForInventory === project.id ? '#F5FAFF' : 'rgba(255,255,255,0.6)',
-                                cursor: 'pointer', fontWeight: 700, fontSize: '0.78rem', lineHeight: 1.3,
-                                '&:hover': { background: selectedProjectForInventory === project.id ? 'linear-gradient(135deg, #4C8DFF 0%, #5FA2FF 100%)' : 'rgba(255,255,255,0.1)' },
-                              }}
-                            >
-                              {project.name}
-                            </Box>
-                          ))
-                        )}
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.25, alignItems: 'center', minWidth: 0 }}>
+                        <TextField
+                          select
+                          size="small"
+                          label="Program"
+                          value={selectedInventoryProgramId}
+                          onChange={(e) => setSelectedInventoryProgramId(e.target.value)}
+                          sx={{ minWidth: 220 }}
+                          disabled={programs.length === 0}
+                        >
+                          <MenuItem value=""><em>All programs</em></MenuItem>
+                          {programs.map((program: Program) => (
+                            <MenuItem key={program.id} value={program.id}>{program.name}</MenuItem>
+                          ))}
+                        </TextField>
+
+                        <TextField
+                          select
+                          size="small"
+                          label="Project"
+                          value={selectedProjectForInventory || ''}
+                          onChange={(e) => setSelectedProjectForInventory(e.target.value)}
+                          sx={{ minWidth: 260 }}
+                          disabled={inventoryProjectsForSelectedProgram.length === 0}
+                        >
+                          {inventoryProjectsForSelectedProgram.length === 0 ? (
+                            <MenuItem value=""><em>No projects available</em></MenuItem>
+                          ) : (
+                            inventoryProjectsForSelectedProgram.map((project: Project) => (
+                              <MenuItem key={project.id} value={project.id}>{project.name}</MenuItem>
+                            ))
+                          )}
+                        </TextField>
                       </Box>
 
                       <Button
