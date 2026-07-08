@@ -983,6 +983,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   const [newItemName, setNewItemName] = useState('');
   const [newItemDesc, setNewItemDesc] = useState('');
   const [newItemAccentColor, setNewItemAccentColor] = useState('');
+  const [newProjectParentProgramId, setNewProjectParentProgramId] = useState('');
   const [selectedExistingProjectOptionId, setSelectedExistingProjectOptionId] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [newCycleScheduleMode, setNewCycleScheduleMode] = useState<CalendarMode>('all_days');
@@ -3770,11 +3771,17 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
         });
         queryClient.invalidateQueries({ queryKey: ['mockCycles'] });
         setExpandedPrograms(new Set(expandedPrograms).add(contextProgramId));
-      } else if (dialogMode === 'project' && contextProgramId) {
-        await apiClient.post(`/api/projects/by-program/${contextProgramId}`, {
+      } else if (dialogMode === 'project' && (contextProgramId || newProjectParentProgramId)) {
+        const targetProgramId = newProjectParentProgramId || contextProgramId || '';
+        if (!targetProgramId) {
+          alert('Parent program is required.');
+          return;
+        }
+        await apiClient.post(`/api/projects/by-program/${targetProgramId}`, {
           name: newItemName,
           startDate: new Date().toISOString().split('T')[0],
           endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          accentColor: newItemAccentColor || null,
         });
         queryClient.invalidateQueries({ queryKey: ['projectsByProgram'] });
       }
@@ -3784,6 +3791,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
       setCreateDialogOpen(false);
       setContextProgramId(null);
       setContextCycleId(null);
+      setNewProjectParentProgramId('');
       setSelectedExistingProjectOptionId('');
       setMaintainPendingCycleProjectId(null);
     } catch (error) {
@@ -3791,6 +3799,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
       alert('Failed to create. Please try again.');
     } finally {
       setIsCreating(false);
+      setNewProjectParentProgramId('');
       setSelectedExistingProjectOptionId('');
       setMaintainPendingCycleProjectId(null);
     }
@@ -3872,6 +3881,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
     setNewItemName('');
     setNewItemDesc('');
     setNewItemAccentColor('');
+    setNewProjectParentProgramId(
+      mode === 'project'
+        ? (programId || maintainProjectParentProgramId || programs[0]?.id || '')
+        : ''
+    );
     setSelectedExistingProjectOptionId('');
     setNewCycleScheduleMode('all_days');
     setCreateDialogOpen(true);
@@ -4154,8 +4168,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
       } else if (editItemType === 'project') {
         await apiClient.patch(`/api/projects/${editItemId}`, {
           name: editItemName,
-          startDate: editStartDate,
-          endDate: editEndDate,
           accentColor: editAccentColor,
           programId: editProjectParentProgramId,
         });
@@ -9036,6 +9048,51 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
               sx={{ mb: 2, mt: 3 }}
             />
           )}
+          {dialogMode === 'project' && isPlanningMaintainTab && (
+            <>
+              <TextField
+                select
+                fullWidth
+                label="Program"
+                value={newProjectParentProgramId}
+                onChange={(e) => {
+                  setNewProjectParentProgramId(e.target.value);
+                  setContextProgramId(e.target.value);
+                }}
+                variant="outlined"
+                size="small"
+                sx={{ mb: 2 }}
+              >
+                {programs.map((program) => (
+                  <MenuItem key={program.id} value={program.id}>{program.name}</MenuItem>
+                ))}
+              </TextField>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
+                <TextField
+                  label="Accent Color"
+                  type="color"
+                  value={newItemAccentColor || '#90caf9'}
+                  onChange={(e) => setNewItemAccentColor(e.target.value)}
+                  sx={{ width: '100px' }}
+                  variant="outlined"
+                  size="small"
+                />
+                <Box
+                  sx={{
+                    width: '40px',
+                    height: '40px',
+                    backgroundColor: newItemAccentColor || '#90caf9',
+                    borderRadius: '4px',
+                    border: '1px solid #ddd',
+                  }}
+                />
+              </Box>
+              <Box>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>Project Icon</Typography>
+                {renderIconPicker('project', newItemAccentColor || '#90caf9')}
+              </Box>
+            </>
+          )}
           {dialogMode === 'program' && (
             <>
               <TextField
@@ -9094,7 +9151,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
           <Button
             onClick={handleCreateItem}
             variant="contained"
-            disabled={isCreating || ((dialogMode === 'project' && !isPlanningMaintainTab) ? !selectedExistingProjectOptionId : !newItemName.trim())}
+            disabled={
+              isCreating
+              || ((dialogMode === 'project' && !isPlanningMaintainTab) ? !selectedExistingProjectOptionId : !newItemName.trim())
+              || (dialogMode === 'project' && isPlanningMaintainTab && !newProjectParentProgramId)
+            }
             sx={{ textTransform: 'none' }}
           >
             {isCreating ? 'Creating...' : 'Create'}
@@ -9743,26 +9804,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                   <MenuItem key={program.id} value={program.id}>{program.name}</MenuItem>
                 ))}
               </TextField>
-              <TextField
-                label="Start Date"
-                type="date"
-                value={editStartDate}
-                onChange={(e) => setEditStartDate(e.target.value)}
-                InputLabelProps={{ shrink: true }}
-                fullWidth
-                variant="outlined"
-                size="small"
-              />
-              <TextField
-                label="End Date"
-                type="date"
-                value={editEndDate}
-                onChange={(e) => setEditEndDate(e.target.value)}
-                InputLabelProps={{ shrink: true }}
-                fullWidth
-                variant="outlined"
-                size="small"
-              />
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                 <TextField
                   label="Accent Color"
