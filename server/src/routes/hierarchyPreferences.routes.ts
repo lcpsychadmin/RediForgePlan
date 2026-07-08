@@ -210,7 +210,9 @@ router.get('/project-role-assignments/:projectId', requireAuth, async (req: Requ
 
     const processAreaSet = new Set<string>(discoveredProcessAreas);
     Object.keys(projectAssignments).forEach((area) => processAreaSet.add(area));
-    Object.keys(globalAssignments).forEach((area) => processAreaSet.add(area));
+    // Do not auto-inject global-only process areas into every project.
+    // A project should show areas that are discovered from its data,
+    // explicitly assigned on the project, or manually added for that project.
     manualProcessAreas.forEach((area) => processAreaSet.add(area));
     const processAreas = Array.from(processAreaSet).sort((a, b) => a.localeCompare(b));
 
