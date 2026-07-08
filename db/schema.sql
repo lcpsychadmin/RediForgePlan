@@ -132,6 +132,7 @@ CREATE TABLE project_objects (
   project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   global_object_id UUID NOT NULL REFERENCES global_objects(id) ON DELETE RESTRICT,
   target_application_id UUID,
+  source_application_id UUID,
   parent_project_object_id UUID REFERENCES project_objects(id) ON DELETE CASCADE,
   sub_object_suffix VARCHAR(50),
   sub_object_description TEXT,
