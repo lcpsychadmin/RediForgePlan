@@ -1174,7 +1174,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   const [isAddingToInv, setIsAddingToInv] = useState(false);
   // Application picker for Project Inventory dialog
   const [invDialogAppId, setInvDialogAppId] = useState('');
-  const [invDialogAppOptions, setInvDialogAppOptions] = useState<{id: string; name: string}[]>([]);
+  const [invDialogAppOptions, setInvDialogAppOptions] = useState<{id: string; name: string; applicationId: string}[]>([]);
   const [invDialogSubObjects, setInvDialogSubObjects] = useState<{name: string; description: string}[]>([]);
   const [invDialogSubLoading, setInvDialogSubLoading] = useState(false);
 
@@ -1187,6 +1187,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
     subObjectDescription: '',
     isSubObject: false,
     processArea: '',
+    targetApplicationId: '',
     complexity: '',
     deploymentDisposition: '',
     buildType: '',
@@ -1210,6 +1211,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
     subObjectDescription: '',
     isSubObject: false,
     processArea: '',
+    targetApplicationId: '',
     complexity: '',
     deploymentDisposition: '',
     buildType: '',
@@ -3192,6 +3194,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
             subObjectDescription: item.subObjectDescription || '',
             isSubObject: !!item.parentProjectObjectId,
             processArea: item.processArea,
+            targetApplicationId: item.targetApplicationId || '',
+            targetApplicationName: item.targetApplicationName || '',
             complexity: item.complexity,
             deploymentDisposition: item.deploymentDisposition,
             buildType: item.buildType,
@@ -4488,6 +4492,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
       subObjectDescription: item.subObjectDescription || '',
       isSubObject: !!item.parentProjectObjectId,
       processArea: item.processArea || '',
+      targetApplicationId: item.targetApplicationId || '',
       complexity: item.complexity || '',
       deploymentDisposition: item.deploymentDisposition || '',
       buildType: item.buildType || '',
@@ -4502,6 +4507,58 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
       factorType: item.factorType || '',
       loadMethod: item.loadMethod || '',
     });
+    setInvDialogAppId('');
+    setInvDialogAppOptions([]);
+    setInvDialogSubObjects([]);
+    setInvDialogSubLoading(true);
+
+    const objectId = item.dataObjectId || item.objectId || '';
+    const targetApplicationId = item.targetApplicationId || '';
+    const globalObj = inventoryObjects.find(obj => obj.objectId === objectId);
+
+    if (!objectId || !globalObj) {
+      setInvDialogSubLoading(false);
+      setProjectInventoryDialogOpen(true);
+      return;
+    }
+
+    apiClient.get(`/api/applications/data-definitions/object/${globalObj.id}`)
+      .then(async (ddRes) => {
+        const defs: any[] = ddRes.data.data || [];
+        const options = defs.map((d: any) => ({ id: d.id, name: d.application_name, applicationId: d.application_id }));
+        setInvDialogAppOptions(options);
+
+        if (targetApplicationId) {
+          const matched = options.find((opt: any) => opt.applicationId === targetApplicationId);
+          if (matched) {
+            setInvDialogAppId(matched.id);
+            const soRes = await apiClient.get(`/api/applications/data-definitions/${matched.id}/sub-objects`).catch(() => ({ data: { data: [] } }));
+            setInvDialogSubObjects(soRes.data.data || []);
+            return;
+          }
+        }
+
+        const seenNames = new Set<string>();
+        const allSubs: {name: string; description: string}[] = [];
+        await Promise.all(defs.map(async (dd: any) => {
+          const soRes = await apiClient.get(`/api/applications/data-definitions/${dd.id}/sub-objects`).catch(() => ({ data: { data: [] } }));
+          for (const so of (soRes.data.data || [])) {
+            if (!seenNames.has(so.name)) {
+              seenNames.add(so.name);
+              allSubs.push({ name: so.name, description: so.description || '' });
+            }
+          }
+        }));
+        setInvDialogSubObjects(allSubs);
+      })
+      .catch(() => {
+        setInvDialogAppOptions([]);
+        setInvDialogSubObjects([]);
+      })
+      .finally(() => {
+        setInvDialogSubLoading(false);
+      });
+
     setProjectInventoryDialogOpen(true);
   };
 
@@ -10816,7 +10873,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                   try {
                     const ddRes = await apiClient.get(`/api/applications/data-definitions/object/${globalObj.id}`);
                     const defs: any[] = ddRes.data.data || [];
-                    setInvDialogAppOptions(defs.map((d: any) => ({ id: d.id, name: d.application_name })));
+                    setInvDialogAppOptions(defs.map((d: any) => ({ id: d.id, name: d.application_name, applicationId: d.application_id })));
                     // Pre-load all sub-objects (shown when "All applications" stays selected)
                     const seenNames = new Set<string>();
                     const allSubs: {name: string; description: string}[] = [];
@@ -10844,7 +10901,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
             <TextField
               select
               fullWidth
-              label={invDialogAppOptions.length === 0 ? 'Application (none linked)' : 'Application'}
+              label={invDialogAppOptions.length === 0 ? 'Target Application (none linked)' : 'Target Application'}
               value={invDialogAppId}
               onChange={async (e) => {
                 const appDefId = e.target.value;
@@ -11134,11 +11191,14 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                 }
 
                 if (editingInventoryItemId) {
+                  const selectedAppOption = invDialogAppOptions.find((opt: any) => opt.id === invDialogAppId) || null;
+                  const targetApplicationId = selectedAppOption?.applicationId || null;
                   // Update existing item
                   await apiClient.patch(`/api/project-objects/${editingInventoryItemId}`, {
                     subObjectSuffix: projectInventoryItem.subObjectSuffix || null,
                     subObjectDescription: projectInventoryItem.subObjectDescription || null,
                     processArea: projectInventoryItem.processArea || null,
+                    targetApplicationId,
                     complexity: projectInventoryItem.complexity || null,
                     deploymentDisposition: projectInventoryItem.deploymentDisposition || null,
                     buildType: projectInventoryItem.buildType || null,
@@ -11163,6 +11223,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                           subObjectDescription: projectInventoryItem.subObjectDescription,
                           isSubObject: !!projectInventoryItem.parentProjectObjectId,
                           processArea: projectInventoryItem.processArea,
+                          targetApplicationId: targetApplicationId || '',
+                          targetApplicationName: selectedAppOption?.name || '',
                           complexity: projectInventoryItem.complexity,
                           deploymentDisposition: projectInventoryItem.deploymentDisposition,
                           buildType: projectInventoryItem.buildType,
@@ -11178,9 +11240,12 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                   ));
                   setEditingInventoryItemId(null);
                 } else {
+                  const selectedAppOption = invDialogAppOptions.find((opt: any) => opt.id === invDialogAppId) || null;
+                  const targetApplicationId = selectedAppOption?.applicationId || null;
                   // Add new item
                   const response = await apiClient.post(`/api/project-objects/project/${selectedProjectForInventory}`, {
                     globalObjectId: globalObj.id,
+                    targetApplicationId,
                     complexity: projectInventoryItem.complexity || null,
                     deploymentDisposition: projectInventoryItem.deploymentDisposition || null,
                     buildType: projectInventoryItem.buildType || null,
@@ -11200,6 +11265,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                     parentProjectObjectId: '', parentObjectId: '',
                     subObjectSuffix: '', subObjectDescription: '',
                     isSubObject: false,
+                    targetApplicationId: apiData.targetApplicationId || targetApplicationId || '',
+                    targetApplicationName: apiData.targetApplicationName || selectedAppOption?.name || '',
                     processArea: apiData.processArea, complexity: apiData.complexity,
                     deploymentDisposition: apiData.deploymentDisposition, buildType: apiData.buildType,
                     objectType: apiData.objectType, cutoverPhase: apiData.cutoverPhase,

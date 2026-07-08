@@ -5,6 +5,7 @@ import db from '../db.js';
 
 interface ProjectObjectInput {
   globalObjectId?: string;
+  targetApplicationId?: string;
   parentProjectObjectId?: string;
   subObjectSuffix?: string;
   subObjectDescription?: string;
@@ -28,6 +29,20 @@ interface ProjectObjectInput {
 
 export class ProjectObjectService {
   private subObjectColumnsSupported: boolean | null = null;
+  private targetApplicationColumnReady: boolean | null = null;
+
+  private async ensureTargetApplicationColumn() {
+    if (this.targetApplicationColumnReady) {
+      return;
+    }
+
+    await db.query(
+      `ALTER TABLE project_objects
+         ADD COLUMN IF NOT EXISTS target_application_id UUID`
+    );
+
+    this.targetApplicationColumnReady = true;
+  }
 
   private async supportsSubObjects() {
     if (this.subObjectColumnsSupported !== null) {
@@ -46,6 +61,7 @@ export class ProjectObjectService {
   }
 
   async getProjectObjectsByProject(projectId: string, filters?: { status?: string; draUserId?: string; developerUserId?: string; processArea?: string }) {
+    await this.ensureTargetApplicationColumn();
     const supportsSubObjects = await this.supportsSubObjects();
     let query = supportsSubObjects
       ? `
@@ -54,6 +70,8 @@ export class ProjectObjectService {
           parent_go.object_id AS parent_object_id,
           COALESCE(po.sub_object_description, go.description) AS description,
           COALESCE(go.process_area, parent_go.process_area) AS process_area,
+          po.target_application_id,
+          ta.name AS target_application_name,
           po.complexity, po.deployment_disposition,
              po.build_type, po.object_type, po.cutover_phase, po.ddm_approach, po.risk_security_type,
              po.migration_type, po.factor_type, po.load_method, po.start_date, po.end_date, po.status,
@@ -63,6 +81,7 @@ export class ProjectObjectService {
         LEFT JOIN global_objects go ON po.global_object_id = go.id
         LEFT JOIN project_objects parent_po ON po.parent_project_object_id = parent_po.id
         LEFT JOIN global_objects parent_go ON parent_po.global_object_id = parent_go.id
+        LEFT JOIN applications ta ON po.target_application_id = ta.id
       WHERE po.project_id = $1
     `
       : `
@@ -70,12 +89,15 @@ export class ProjectObjectService {
              go.object_id,
              go.description,
              go.process_area,
+             po.target_application_id,
+             ta.name AS target_application_name,
              po.complexity, po.deployment_disposition,
              po.build_type, po.object_type, po.cutover_phase, po.ddm_approach, po.risk_security_type,
              po.migration_type, po.factor_type, po.load_method, po.start_date, po.end_date, po.status,
              po.dra_user_id, po.developer_user_id, po.notes, po.created_at, po.updated_at
       FROM project_objects po
       JOIN global_objects go ON po.global_object_id = go.id
+      LEFT JOIN applications ta ON po.target_application_id = ta.id
       WHERE po.project_id = $1
     `;
     const params: any[] = [projectId];
@@ -128,6 +150,7 @@ export class ProjectObjectService {
   }
 
   async getProjectObjectById(projectObjectId: string) {
+    await this.ensureTargetApplicationColumn();
     const supportsSubObjects = await this.supportsSubObjects();
     const result = await db.query(
       supportsSubObjects
@@ -136,6 +159,8 @@ export class ProjectObjectService {
               parent_go.object_id AS parent_object_id,
               COALESCE(po.sub_object_description, go.description) AS description,
               COALESCE(go.process_area, parent_go.process_area) AS process_area,
+              po.target_application_id,
+              ta.name AS target_application_name,
               po.complexity, po.deployment_disposition,
               po.build_type, po.object_type, po.cutover_phase, po.ddm_approach, po.risk_security_type,
               po.migration_type, po.factor_type, po.load_method, po.start_date, po.end_date, po.status,
@@ -145,17 +170,21 @@ export class ProjectObjectService {
        LEFT JOIN global_objects go ON po.global_object_id = go.id
        LEFT JOIN project_objects parent_po ON po.parent_project_object_id = parent_po.id
        LEFT JOIN global_objects parent_go ON parent_po.global_object_id = parent_go.id
+      LEFT JOIN applications ta ON po.target_application_id = ta.id
       WHERE po.id = $1`
        : `SELECT po.id, po.project_id, po.global_object_id,
         go.object_id,
         go.description,
         go.process_area,
+        po.target_application_id,
+        ta.name AS target_application_name,
         po.complexity, po.deployment_disposition,
         po.build_type, po.object_type, po.cutover_phase, po.ddm_approach, po.risk_security_type,
         po.migration_type, po.factor_type, po.load_method, po.start_date, po.end_date, po.status,
         po.dra_user_id, po.developer_user_id, po.notes, po.created_at, po.updated_at
       FROM project_objects po
       JOIN global_objects go ON po.global_object_id = go.id
+      LEFT JOIN applications ta ON po.target_application_id = ta.id
       WHERE po.id = $1`,
       [projectObjectId]
     );
@@ -164,6 +193,7 @@ export class ProjectObjectService {
   }
 
   async createProjectObject(projectId: string, data: ProjectObjectInput) {
+    await this.ensureTargetApplicationColumn();
     const supportsSubObjects = await this.supportsSubObjects();
     let globalObjectId = data.globalObjectId;
     let parentProjectObjectId = data.parentProjectObjectId || null;
@@ -229,11 +259,11 @@ export class ProjectObjectService {
     const result = supportsSubObjects
       ? await db.query(
       `INSERT INTO project_objects (
-        project_id, global_object_id, parent_project_object_id, sub_object_suffix, sub_object_description,
+        project_id, global_object_id, target_application_id, parent_project_object_id, sub_object_suffix, sub_object_description,
         complexity, deployment_disposition, build_type, object_type,
         cutover_phase, ddm_approach, risk_security_type, migration_type, factor_type, load_method,
         start_date, end_date, status, dra_user_id, developer_user_id, notes
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
        RETURNING id, project_id, global_object_id, complexity, deployment_disposition, build_type,
                  object_type, cutover_phase, ddm_approach, risk_security_type, migration_type,
                  factor_type, load_method, start_date, end_date, status, dra_user_id,
@@ -241,6 +271,7 @@ export class ProjectObjectService {
       [
         projectId,
         globalObjectId,
+        data.targetApplicationId || null,
         parentProjectObjectId,
         subObjectSuffix,
         subObjectDescription,
@@ -264,15 +295,16 @@ export class ProjectObjectService {
     )
       : await db.query(
       `INSERT INTO project_objects (
-        project_id, global_object_id,
+        project_id, global_object_id, target_application_id,
         complexity, deployment_disposition, build_type, object_type,
         cutover_phase, ddm_approach, risk_security_type, migration_type, factor_type, load_method,
         start_date, end_date, status, dra_user_id, developer_user_id, notes
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
        RETURNING id`,
       [
         projectId,
         globalObjectId,
+        data.targetApplicationId || null,
         data.complexity || null,
         data.deploymentDisposition || null,
         data.buildType || null,
@@ -297,6 +329,7 @@ export class ProjectObjectService {
   }
 
   async updateProjectObject(projectObjectId: string, data: Partial<ProjectObjectInput>) {
+    await this.ensureTargetApplicationColumn();
     const supportsSubObjects = await this.supportsSubObjects();
     const fields: string[] = [];
     const values: any[] = [projectObjectId];
@@ -323,6 +356,7 @@ export class ProjectObjectService {
             subObjectDescription: 'sub_object_description',
           }
         : {}),
+      targetApplicationId: 'target_application_id',
       startDate: 'start_date',
       endDate: 'end_date',
       status: 'status',
@@ -377,6 +411,7 @@ export class ProjectObjectService {
   }
 
   async getProjectObjectsByCycle(mockCycleId: string, filters?: { status?: string; draUserId?: string; developerUserId?: string; processArea?: string }) {
+    await this.ensureTargetApplicationColumn();
     const supportsSubObjects = await this.supportsSubObjects();
     let query = supportsSubObjects
       ? `
@@ -385,6 +420,8 @@ export class ProjectObjectService {
           parent_go.object_id AS parent_object_id,
           COALESCE(po.sub_object_description, go.description) AS description,
           COALESCE(go.process_area, parent_go.process_area) AS process_area,
+          po.target_application_id,
+          ta.name AS target_application_name,
           po.complexity, po.deployment_disposition,
           po.build_type, po.object_type, po.cutover_phase, po.ddm_approach, po.risk_security_type,
           po.migration_type, po.factor_type, po.load_method, po.start_date, po.end_date, po.status,
@@ -394,17 +431,21 @@ export class ProjectObjectService {
         LEFT JOIN global_objects go ON po.global_object_id = go.id
         LEFT JOIN project_objects parent_po ON po.parent_project_object_id = parent_po.id
         LEFT JOIN global_objects parent_go ON parent_po.global_object_id = parent_go.id
+        LEFT JOIN applications ta ON po.target_application_id = ta.id
         WHERE po.mock_cycle_id = $1
       `
       : `
         SELECT po.id, po.project_id, po.global_object_id,
                go.object_id, go.description, go.process_area,
+           po.target_application_id,
+           ta.name AS target_application_name,
                po.complexity, po.deployment_disposition,
                po.build_type, po.object_type, po.cutover_phase, po.ddm_approach, po.risk_security_type,
                po.migration_type, po.factor_type, po.load_method, po.start_date, po.end_date, po.status,
                po.dra_user_id, po.developer_user_id, po.notes, po.created_at, po.updated_at
         FROM project_objects po
         JOIN global_objects go ON po.global_object_id = go.id
+        LEFT JOIN applications ta ON po.target_application_id = ta.id
         WHERE po.mock_cycle_id = $1
       `;
 
@@ -473,6 +514,8 @@ export class ProjectObjectService {
       objectId: row.object_id,
       description: row.description,
       processArea: row.process_area,
+      targetApplicationId: row.target_application_id || null,
+      targetApplicationName: row.target_application_name || null,
       complexity: row.complexity,
       deploymentDisposition: row.deployment_disposition,
       buildType: row.build_type,
