@@ -98,6 +98,22 @@ const ProcessAreaRoleAssignmentPanel: React.FC<ProcessAreaRoleAssignmentPanelPro
     return map;
   }, [programs]);
 
+  const selectableProjects = React.useMemo(() => {
+    const seen = new Set<string>();
+    const unique: Array<{ id: string; name: string; programId?: string }> = [];
+
+    projects.forEach((project) => {
+      const programName = (programById[project.programId || ''] || '').trim().toLowerCase();
+      const projectName = (project.name || '').trim().toLowerCase();
+      const key = `${programName}::${projectName}`;
+      if (!key || seen.has(key)) return;
+      seen.add(key);
+      unique.push(project);
+    });
+
+    return unique;
+  }, [projects, programById]);
+
   const loadProjectAssignments = React.useCallback(async (projectId: string) => {
     if (!projectId) {
       setProjectProcessAreas([]);
@@ -121,10 +137,16 @@ const ProcessAreaRoleAssignmentPanel: React.FC<ProcessAreaRoleAssignmentPanelPro
   }, []);
 
   React.useEffect(() => {
-    if (!selectedProjectId && projects.length > 0) {
-      setSelectedProjectId(projects[0].id);
+    if (selectableProjects.length === 0) {
+      if (selectedProjectId) setSelectedProjectId('');
+      return;
     }
-  }, [projects, selectedProjectId]);
+
+    const exists = selectableProjects.some((project) => project.id === selectedProjectId);
+    if (!selectedProjectId || !exists) {
+      setSelectedProjectId(selectableProjects[0].id);
+    }
+  }, [selectableProjects, selectedProjectId]);
 
   React.useEffect(() => {
     loadProjectAssignments(selectedProjectId).catch(() => {});
@@ -274,7 +296,7 @@ const ProcessAreaRoleAssignmentPanel: React.FC<ProcessAreaRoleAssignmentPanelPro
               onChange={(event) => setSelectedProjectId(event.target.value)}
               sx={{ minWidth: 260 }}
             >
-              {projects.map((project) => (
+              {selectableProjects.map((project) => (
                 <MenuItem key={`project-${project.id}`} value={project.id}>
                   {(programById[project.programId || ''] ? `${programById[project.programId || '']} / ` : '') + project.name}
                 </MenuItem>
