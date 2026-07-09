@@ -4,6 +4,105 @@
 import db from '../db.js';
 
 export class ProjectService {
+  private workflowRoleTableReady: boolean | null = null;
+
+  private async ensureProjectWorkflowRoleTable() {
+    if (this.workflowRoleTableReady) return;
+
+    await db.query(
+      `CREATE TABLE IF NOT EXISTS project_workflow_role_assignments (
+         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+         project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+         role_key VARCHAR(64) NOT NULL CHECK (role_key IN ('lead', 'project_manager')),
+         user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+         updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+         CONSTRAINT project_workflow_role_assignments_unique UNIQUE (project_id, role_key)
+       )`
+    );
+
+    await db.query('CREATE INDEX IF NOT EXISTS idx_pwra_project_id ON project_workflow_role_assignments(project_id)');
+    await db.query('CREATE INDEX IF NOT EXISTS idx_pwra_user_id ON project_workflow_role_assignments(user_id)');
+
+    this.workflowRoleTableReady = true;
+  }
+
+  async getProjectWorkflowRoles(projectId: string) {
+    await this.ensureProjectWorkflowRoleTable();
+    const result = await db.query(
+      `SELECT role_key, user_id
+       FROM project_workflow_role_assignments
+       WHERE project_id = $1`,
+      [projectId]
+    );
+
+    const payload: { leadUserId: string | null; projectManagerUserId: string | null } = {
+      leadUserId: null,
+      projectManagerUserId: null,
+    };
+
+    for (const row of result.rows) {
+      if (row.role_key === 'lead') payload.leadUserId = row.user_id;
+      if (row.role_key === 'project_manager') payload.projectManagerUserId = row.user_id;
+    }
+
+    return payload;
+  }
+
+  async saveProjectWorkflowRoles(
+    projectId: string,
+    data: { leadUserId?: string | null; projectManagerUserId?: string | null }
+  ) {
+    await this.ensureProjectWorkflowRoleTable();
+    await db.query('BEGIN');
+    try {
+      if (data.leadUserId !== undefined) {
+        if (data.leadUserId) {
+          await db.query(
+            `INSERT INTO project_workflow_role_assignments (project_id, role_key, user_id)
+             VALUES ($1, 'lead', $2)
+             ON CONFLICT (project_id, role_key)
+             DO UPDATE SET user_id = EXCLUDED.user_id, updated_at = CURRENT_TIMESTAMP`,
+            [projectId, data.leadUserId]
+          );
+        } else {
+          await db.query(
+            `DELETE FROM project_workflow_role_assignments
+             WHERE project_id = $1
+               AND role_key = 'lead'`,
+            [projectId]
+          );
+        }
+      }
+
+      if (data.projectManagerUserId !== undefined) {
+        if (data.projectManagerUserId) {
+          await db.query(
+            `INSERT INTO project_workflow_role_assignments (project_id, role_key, user_id)
+             VALUES ($1, 'project_manager', $2)
+             ON CONFLICT (project_id, role_key)
+             DO UPDATE SET user_id = EXCLUDED.user_id, updated_at = CURRENT_TIMESTAMP`,
+            [projectId, data.projectManagerUserId]
+          );
+        } else {
+          await db.query(
+            `DELETE FROM project_workflow_role_assignments
+             WHERE project_id = $1
+               AND role_key = 'project_manager'`,
+            [projectId]
+          );
+        }
+      }
+
+      await db.query('COMMIT');
+    } catch (error) {
+      await db.query('ROLLBACK');
+      throw error;
+    }
+
+    return this.getProjectWorkflowRoles(projectId);
+  }
+
   async getProjectsByProgram(programId: string) {
     const result = await db.query(
       `SELECT p.id,

@@ -2,6 +2,7 @@
 // Program and mock cycle database operations
 
 import db from '../db.js';
+import { buildDefaultCriteria, normalizeCriteria } from '../constants/mockCycleCriteria.js';
 
 export class ProgramService {
   private mockCycleCriteriaColumnsReady: boolean | null = null;
@@ -11,7 +12,22 @@ export class ProgramService {
     await db.query(
       `ALTER TABLE mock_cycles
          ADD COLUMN IF NOT EXISTS entry_criteria TEXT,
-         ADD COLUMN IF NOT EXISTS exit_criteria TEXT`
+         ADD COLUMN IF NOT EXISTS exit_criteria TEXT,
+         ADD COLUMN IF NOT EXISTS entry_criteria_items JSONB NOT NULL DEFAULT '[]'::jsonb,
+         ADD COLUMN IF NOT EXISTS exit_criteria_items JSONB NOT NULL DEFAULT '[]'::jsonb,
+         ADD COLUMN IF NOT EXISTS target_success_rate NUMERIC(5,2) NOT NULL DEFAULT 95,
+         ADD COLUMN IF NOT EXISTS target_coverage_rate NUMERIC(5,2) NOT NULL DEFAULT 95,
+         ADD COLUMN IF NOT EXISTS total_records_scope INTEGER NOT NULL DEFAULT 0,
+         ADD COLUMN IF NOT EXISTS invalid_records INTEGER NOT NULL DEFAULT 0,
+         ADD COLUMN IF NOT EXISTS records_attempted INTEGER NOT NULL DEFAULT 0,
+         ADD COLUMN IF NOT EXISTS load_errors INTEGER NOT NULL DEFAULT 0,
+         ADD COLUMN IF NOT EXISTS records_loaded INTEGER NOT NULL DEFAULT 0,
+         ADD COLUMN IF NOT EXISTS load_success_rate NUMERIC(5,2) NOT NULL DEFAULT 0,
+         ADD COLUMN IF NOT EXISTS load_coverage_rate NUMERIC(5,2) NOT NULL DEFAULT 0,
+         ADD COLUMN IF NOT EXISTS lead_approved_by UUID REFERENCES users(id) ON DELETE SET NULL,
+         ADD COLUMN IF NOT EXISTS lead_approved_at TIMESTAMP,
+         ADD COLUMN IF NOT EXISTS project_manager_approved_by UUID REFERENCES users(id) ON DELETE SET NULL,
+         ADD COLUMN IF NOT EXISTS project_manager_approved_at TIMESTAMP`
     );
     this.mockCycleCriteriaColumnsReady = true;
   }
@@ -100,7 +116,7 @@ export class ProgramService {
     await this.ensureMockCycleCriteriaColumns();
     // Hierarchy view: only cycles marked in_hierarchy = true
     const result = await db.query(
-      `SELECT mc.id, p.program_id, mc.project_id, mc.name, mc.start_date, mc.end_date, mc.accent_color, mc.schedule_mode, mc.entry_criteria, mc.exit_criteria, mc.in_hierarchy, mc.created_at, mc.updated_at
+      `SELECT mc.id, p.program_id, mc.project_id, mc.name, mc.start_date, mc.end_date, mc.accent_color, mc.schedule_mode, mc.entry_criteria, mc.exit_criteria, mc.entry_criteria_items, mc.exit_criteria_items, mc.target_success_rate, mc.target_coverage_rate, mc.total_records_scope, mc.invalid_records, mc.records_attempted, mc.load_errors, mc.records_loaded, mc.load_success_rate, mc.load_coverage_rate, mc.lead_approved_by, mc.lead_approved_at, mc.project_manager_approved_by, mc.project_manager_approved_at, mc.in_hierarchy, mc.created_at, mc.updated_at
        FROM mock_cycles mc
        JOIN projects p ON p.id = mc.project_id
        WHERE p.program_id = $1
@@ -116,7 +132,7 @@ export class ProgramService {
     // Maintain view: only active cycles (in_hierarchy = true)
     // Both hierarchy and maintain views show the same filtered list
     const result = await db.query(
-      `SELECT mc.id, p.program_id, mc.project_id, mc.name, mc.start_date, mc.end_date, mc.accent_color, mc.schedule_mode, mc.entry_criteria, mc.exit_criteria, mc.in_hierarchy, mc.created_at, mc.updated_at
+      `SELECT mc.id, p.program_id, mc.project_id, mc.name, mc.start_date, mc.end_date, mc.accent_color, mc.schedule_mode, mc.entry_criteria, mc.exit_criteria, mc.entry_criteria_items, mc.exit_criteria_items, mc.target_success_rate, mc.target_coverage_rate, mc.total_records_scope, mc.invalid_records, mc.records_attempted, mc.load_errors, mc.records_loaded, mc.load_success_rate, mc.load_coverage_rate, mc.lead_approved_by, mc.lead_approved_at, mc.project_manager_approved_by, mc.project_manager_approved_at, mc.in_hierarchy, mc.created_at, mc.updated_at
        FROM mock_cycles mc
        JOIN projects p ON p.id = mc.project_id
        WHERE p.program_id = $1
@@ -130,7 +146,7 @@ export class ProgramService {
   async getMockCyclesByProject(projectId: string) {
     await this.ensureMockCycleCriteriaColumns();
     const result = await db.query(
-      `SELECT mc.id, p.program_id, mc.project_id, mc.name, mc.start_date, mc.end_date, mc.accent_color, mc.schedule_mode, mc.entry_criteria, mc.exit_criteria, mc.in_hierarchy, mc.created_at, mc.updated_at
+      `SELECT mc.id, p.program_id, mc.project_id, mc.name, mc.start_date, mc.end_date, mc.accent_color, mc.schedule_mode, mc.entry_criteria, mc.exit_criteria, mc.entry_criteria_items, mc.exit_criteria_items, mc.target_success_rate, mc.target_coverage_rate, mc.total_records_scope, mc.invalid_records, mc.records_attempted, mc.load_errors, mc.records_loaded, mc.load_success_rate, mc.load_coverage_rate, mc.lead_approved_by, mc.lead_approved_at, mc.project_manager_approved_by, mc.project_manager_approved_at, mc.in_hierarchy, mc.created_at, mc.updated_at
        FROM mock_cycles mc
        JOIN projects p ON p.id = mc.project_id
        WHERE mc.project_id = $1
@@ -143,7 +159,7 @@ export class ProgramService {
   async getMockCycleById(mockCycleId: string) {
     await this.ensureMockCycleCriteriaColumns();
     const result = await db.query(
-      `SELECT mc.id, p.program_id, mc.project_id, mc.name, mc.start_date, mc.end_date, mc.accent_color, mc.schedule_mode, mc.entry_criteria, mc.exit_criteria, mc.in_hierarchy, mc.created_at, mc.updated_at
+      `SELECT mc.id, p.program_id, mc.project_id, mc.name, mc.start_date, mc.end_date, mc.accent_color, mc.schedule_mode, mc.entry_criteria, mc.exit_criteria, mc.entry_criteria_items, mc.exit_criteria_items, mc.target_success_rate, mc.target_coverage_rate, mc.total_records_scope, mc.invalid_records, mc.records_attempted, mc.load_errors, mc.records_loaded, mc.load_success_rate, mc.load_coverage_rate, mc.lead_approved_by, mc.lead_approved_at, mc.project_manager_approved_by, mc.project_manager_approved_at, mc.in_hierarchy, mc.created_at, mc.updated_at
        FROM mock_cycles mc
        JOIN projects p ON p.id = mc.project_id
        WHERE mc.id = $1`,
@@ -174,7 +190,30 @@ export class ProgramService {
 
   async updateMockCycle(
     mockCycleId: string,
-    data: { name?: string; startDate?: string; endDate?: string; scheduleMode?: string; accentColor?: string; entryCriteria?: string | null; exitCriteria?: string | null }
+    data: {
+      name?: string;
+      startDate?: string;
+      endDate?: string;
+      scheduleMode?: string;
+      accentColor?: string;
+      entryCriteria?: string | null;
+      exitCriteria?: string | null;
+      entryCriteriaItems?: unknown;
+      exitCriteriaItems?: unknown;
+      targetSuccessRate?: number | null;
+      targetCoverageRate?: number | null;
+      totalRecordsScope?: number | null;
+      invalidRecords?: number | null;
+      recordsAttempted?: number | null;
+      loadErrors?: number | null;
+      recordsLoaded?: number | null;
+      loadSuccessRate?: number | null;
+      loadCoverageRate?: number | null;
+      leadApprovedBy?: string | null;
+      leadApprovedAt?: string | null;
+      projectManagerApprovedBy?: string | null;
+      projectManagerApprovedAt?: string | null;
+    }
   ) {
     await this.ensureMockCycleCriteriaColumns();
     const fields: string[] = [];
@@ -216,8 +255,92 @@ export class ProgramService {
       values.push(data.exitCriteria || null);
       paramCount++;
     }
+    if (data.entryCriteriaItems !== undefined) {
+      const normalizedEntry = normalizeCriteria('entry', data.entryCriteriaItems);
+      fields.push(`entry_criteria_items = $${paramCount}::jsonb`);
+      values.push(JSON.stringify(normalizedEntry));
+      paramCount++;
+    }
+    if (data.exitCriteriaItems !== undefined) {
+      const normalizedExit = normalizeCriteria('exit', data.exitCriteriaItems);
+      fields.push(`exit_criteria_items = $${paramCount}::jsonb`);
+      values.push(JSON.stringify(normalizedExit));
+      paramCount++;
+    }
+    if (data.targetSuccessRate !== undefined) {
+      fields.push(`target_success_rate = $${paramCount}`);
+      values.push(data.targetSuccessRate ?? 0);
+      paramCount++;
+    }
+    if (data.targetCoverageRate !== undefined) {
+      fields.push(`target_coverage_rate = $${paramCount}`);
+      values.push(data.targetCoverageRate ?? 0);
+      paramCount++;
+    }
+    if (data.totalRecordsScope !== undefined) {
+      fields.push(`total_records_scope = $${paramCount}`);
+      values.push(Math.max(0, data.totalRecordsScope ?? 0));
+      paramCount++;
+    }
+    if (data.invalidRecords !== undefined) {
+      fields.push(`invalid_records = $${paramCount}`);
+      values.push(Math.max(0, data.invalidRecords ?? 0));
+      paramCount++;
+    }
+    if (data.recordsAttempted !== undefined) {
+      fields.push(`records_attempted = $${paramCount}`);
+      values.push(Math.max(0, data.recordsAttempted ?? 0));
+      paramCount++;
+    }
+    if (data.loadErrors !== undefined) {
+      fields.push(`load_errors = $${paramCount}`);
+      values.push(Math.max(0, data.loadErrors ?? 0));
+      paramCount++;
+    }
+    if (data.recordsLoaded !== undefined) {
+      fields.push(`records_loaded = $${paramCount}`);
+      values.push(Math.max(0, data.recordsLoaded ?? 0));
+      paramCount++;
+    }
+    if (data.leadApprovedBy !== undefined) {
+      fields.push(`lead_approved_by = $${paramCount}`);
+      values.push(data.leadApprovedBy || null);
+      paramCount++;
+    }
+    if (data.leadApprovedAt !== undefined) {
+      fields.push(`lead_approved_at = $${paramCount}`);
+      values.push(data.leadApprovedAt || null);
+      paramCount++;
+    }
+    if (data.projectManagerApprovedBy !== undefined) {
+      fields.push(`project_manager_approved_by = $${paramCount}`);
+      values.push(data.projectManagerApprovedBy || null);
+      paramCount++;
+    }
+    if (data.projectManagerApprovedAt !== undefined) {
+      fields.push(`project_manager_approved_at = $${paramCount}`);
+      values.push(data.projectManagerApprovedAt || null);
+      paramCount++;
+    }
 
     if (fields.length === 0) return this.getMockCycleById(mockCycleId);
+
+    const hasDirectRateUpdate = data.loadSuccessRate !== undefined || data.loadCoverageRate !== undefined;
+    if (hasDirectRateUpdate) {
+      if (data.loadSuccessRate !== undefined) {
+        fields.push(`load_success_rate = $${paramCount}`);
+        values.push(data.loadSuccessRate ?? 0);
+        paramCount++;
+      }
+      if (data.loadCoverageRate !== undefined) {
+        fields.push(`load_coverage_rate = $${paramCount}`);
+        values.push(data.loadCoverageRate ?? 0);
+        paramCount++;
+      }
+    } else {
+      fields.push(`load_success_rate = CASE WHEN COALESCE(records_attempted, 0) > 0 THEN ROUND((COALESCE(records_loaded, 0)::NUMERIC / records_attempted::NUMERIC) * 100, 2) ELSE 0 END`);
+      fields.push(`load_coverage_rate = CASE WHEN COALESCE(total_records_scope, 0) > 0 THEN ROUND((COALESCE(records_loaded, 0)::NUMERIC / total_records_scope::NUMERIC) * 100, 2) ELSE 0 END`);
+    }
 
     fields.push('updated_at = CURRENT_TIMESTAMP');
 
@@ -281,6 +404,21 @@ export class ProgramService {
                 mc.schedule_mode,
                 mc.entry_criteria,
                 mc.exit_criteria,
+                mc.entry_criteria_items,
+                mc.exit_criteria_items,
+                mc.target_success_rate,
+                mc.target_coverage_rate,
+                mc.total_records_scope,
+                mc.invalid_records,
+                mc.records_attempted,
+                mc.load_errors,
+                mc.records_loaded,
+                mc.load_success_rate,
+                mc.load_coverage_rate,
+                mc.lead_approved_by,
+                mc.lead_approved_at,
+                mc.project_manager_approved_by,
+                mc.project_manager_approved_at,
                 mc.created_at,
                 mc.updated_at
          FROM mock_cycles mc
@@ -297,8 +435,32 @@ export class ProgramService {
       const newCycleName = (data?.name || `${sourceCycle.name} Copy`).trim();
 
       const newCycleResult = await client.query(
-        `INSERT INTO mock_cycles (project_id, name, start_date, end_date, schedule_mode, accent_color, entry_criteria, exit_criteria)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        `INSERT INTO mock_cycles (
+          project_id,
+          name,
+          start_date,
+          end_date,
+          schedule_mode,
+          accent_color,
+          entry_criteria,
+          exit_criteria,
+          entry_criteria_items,
+          exit_criteria_items,
+          target_success_rate,
+          target_coverage_rate,
+          total_records_scope,
+          invalid_records,
+          records_attempted,
+          load_errors,
+          records_loaded,
+          load_success_rate,
+          load_coverage_rate,
+          lead_approved_by,
+          lead_approved_at,
+          project_manager_approved_by,
+          project_manager_approved_at
+         )
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10::jsonb, $11, $12, $13, $14, $15, $16, $17, $18, $19, NULL, NULL, NULL, NULL)
          RETURNING id`,
         [
           sourceCycle.project_id,
@@ -309,6 +471,17 @@ export class ProgramService {
           sourceCycle.accent_color || null,
           sourceCycle.entry_criteria || null,
           sourceCycle.exit_criteria || null,
+          JSON.stringify(sourceCycle.entry_criteria_items || buildDefaultCriteria('entry', true)),
+          JSON.stringify(sourceCycle.exit_criteria_items || buildDefaultCriteria('exit', true)),
+          sourceCycle.target_success_rate ?? 95,
+          sourceCycle.target_coverage_rate ?? 95,
+          sourceCycle.total_records_scope ?? 0,
+          sourceCycle.invalid_records ?? 0,
+          sourceCycle.records_attempted ?? 0,
+          sourceCycle.load_errors ?? 0,
+          sourceCycle.records_loaded ?? 0,
+          sourceCycle.load_success_rate ?? 0,
+          sourceCycle.load_coverage_rate ?? 0,
         ]
       );
 
@@ -508,7 +681,22 @@ export class ProgramService {
                 mc.accent_color,
                 mc.schedule_mode,
                 mc.entry_criteria,
-                mc.exit_criteria
+                mc.exit_criteria,
+                mc.entry_criteria_items,
+                mc.exit_criteria_items,
+                mc.target_success_rate,
+                mc.target_coverage_rate,
+                mc.total_records_scope,
+                mc.invalid_records,
+                mc.records_attempted,
+                mc.load_errors,
+                mc.records_loaded,
+                mc.load_success_rate,
+                mc.load_coverage_rate,
+                mc.lead_approved_by,
+                mc.lead_approved_at,
+                mc.project_manager_approved_by,
+                mc.project_manager_approved_at
          FROM mock_cycles mc
          JOIN projects p ON p.id = mc.project_id
          WHERE mc.id = $1`;
@@ -704,6 +892,21 @@ export class ProgramService {
              accent_color  = $5,
              entry_criteria = $6,
              exit_criteria = $7,
+             entry_criteria_items = $8,
+             exit_criteria_items = $9,
+             target_success_rate = $10,
+             target_coverage_rate = $11,
+             total_records_scope = $12,
+             invalid_records = $13,
+             records_attempted = $14,
+             load_errors = $15,
+             records_loaded = $16,
+             load_success_rate = $17,
+             load_coverage_rate = $18,
+             lead_approved_by = NULL,
+             lead_approved_at = NULL,
+             project_manager_approved_by = NULL,
+             project_manager_approved_at = NULL,
              updated_at    = CURRENT_TIMESTAMP
          WHERE id = $1`,
         [
@@ -714,6 +917,17 @@ export class ProgramService {
           sourceCycle.accent_color || null,
           sourceCycle.entry_criteria || null,
           sourceCycle.exit_criteria || null,
+          JSON.stringify(sourceCycle.entry_criteria_items || buildDefaultCriteria('entry', true)),
+          JSON.stringify(sourceCycle.exit_criteria_items || buildDefaultCriteria('exit', true)),
+          sourceCycle.target_success_rate ?? 95,
+          sourceCycle.target_coverage_rate ?? 95,
+          sourceCycle.total_records_scope ?? 0,
+          sourceCycle.invalid_records ?? 0,
+          sourceCycle.records_attempted ?? 0,
+          sourceCycle.load_errors ?? 0,
+          sourceCycle.records_loaded ?? 0,
+          sourceCycle.load_success_rate ?? 0,
+          sourceCycle.load_coverage_rate ?? 0,
         ]
       );
 
@@ -753,6 +967,21 @@ export class ProgramService {
 
   private formatMockCycle(row: any) {
     const normalizedName = this.normalizeReplacementName(row.name);
+    const entryItems = normalizeCriteria('entry', row.entry_criteria_items);
+    const exitItems = normalizeCriteria('exit', row.exit_criteria_items);
+
+    const totalRecordsScope = Number(row.total_records_scope || 0);
+    const invalidRecords = Number(row.invalid_records || 0);
+    const recordsAttempted = Number(row.records_attempted || 0);
+    const loadErrors = Number(row.load_errors || 0);
+    const recordsLoaded = Number(row.records_loaded || 0);
+
+    const computedSuccessRate = recordsAttempted > 0
+      ? Number(((recordsLoaded / recordsAttempted) * 100).toFixed(2))
+      : 0;
+    const computedCoverageRate = totalRecordsScope > 0
+      ? Number(((recordsLoaded / totalRecordsScope) * 100).toFixed(2))
+      : 0;
 
     return {
       id: row.id,
@@ -765,6 +994,27 @@ export class ProgramService {
       scheduleMode: row.schedule_mode || 'all_days',
       entryCriteria: row.entry_criteria,
       exitCriteria: row.exit_criteria,
+      entryCriteriaItems: entryItems,
+      exitCriteriaItems: exitItems,
+      targetLoadPercentages: {
+        successRate: Number(row.target_success_rate ?? 95),
+        coverageRate: Number(row.target_coverage_rate ?? 95),
+      },
+      loadMetrics: {
+        totalRecordsScope,
+        invalidRecords,
+        recordsAttempted,
+        loadErrors,
+        recordsLoaded,
+        loadSuccessRate: Number(row.load_success_rate ?? computedSuccessRate),
+        loadCoverageRate: Number(row.load_coverage_rate ?? computedCoverageRate),
+      },
+      approvals: {
+        leadApprovedBy: row.lead_approved_by || null,
+        leadApprovedAt: row.lead_approved_at || null,
+        projectManagerApprovedBy: row.project_manager_approved_by || null,
+        projectManagerApprovedAt: row.project_manager_approved_at || null,
+      },
       inHierarchy: row.in_hierarchy !== false,
       createdAt: row.created_at,
       updatedAt: row.updated_at,

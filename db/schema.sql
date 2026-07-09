@@ -112,6 +112,21 @@ CREATE TABLE mock_cycles (
   name VARCHAR(255) NOT NULL,
   entry_criteria TEXT,
   exit_criteria TEXT,
+  entry_criteria_items JSONB NOT NULL DEFAULT '[]'::jsonb,
+  exit_criteria_items JSONB NOT NULL DEFAULT '[]'::jsonb,
+  target_success_rate NUMERIC(5,2) NOT NULL DEFAULT 95,
+  target_coverage_rate NUMERIC(5,2) NOT NULL DEFAULT 95,
+  total_records_scope INTEGER NOT NULL DEFAULT 0,
+  invalid_records INTEGER NOT NULL DEFAULT 0,
+  records_attempted INTEGER NOT NULL DEFAULT 0,
+  load_errors INTEGER NOT NULL DEFAULT 0,
+  records_loaded INTEGER NOT NULL DEFAULT 0,
+  load_success_rate NUMERIC(5,2) NOT NULL DEFAULT 0,
+  load_coverage_rate NUMERIC(5,2) NOT NULL DEFAULT 0,
+  lead_approved_by UUID REFERENCES users(id) ON DELETE SET NULL,
+  lead_approved_at TIMESTAMP,
+  project_manager_approved_by UUID REFERENCES users(id) ON DELETE SET NULL,
+  project_manager_approved_at TIMESTAMP,
   start_date DATE NOT NULL,
   end_date DATE NOT NULL,
   accent_color VARCHAR(7),
@@ -122,6 +137,20 @@ CREATE TABLE mock_cycles (
 );
 
 CREATE INDEX idx_mock_cycles_project_id ON mock_cycles(project_id);
+
+CREATE TABLE project_workflow_role_assignments (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  role_key VARCHAR(64) NOT NULL CHECK (role_key IN ('lead', 'project_manager')),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT project_workflow_role_assignments_unique
+    UNIQUE (project_id, role_key)
+);
+
+CREATE INDEX idx_pwra_project_id ON project_workflow_role_assignments(project_id);
+CREATE INDEX idx_pwra_user_id ON project_workflow_role_assignments(user_id);
 
 -- =====================================================
 -- GLOBAL OBJECT INVENTORY (Canonical)

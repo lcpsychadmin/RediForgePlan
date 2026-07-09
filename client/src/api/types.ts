@@ -71,10 +71,32 @@ export interface UpdateProgramPayload {
 export interface MockCycle {
   id: string;
   programId: string;
+  projectId?: string;
   name: string;
   description?: string;
   entryCriteria?: string;
   exitCriteria?: string;
+  entryCriteriaItems?: Array<{ key: string; label: string; completed: boolean; enforced: boolean }>;
+  exitCriteriaItems?: Array<{ key: string; label: string; completed: boolean; enforced: boolean }>;
+  targetLoadPercentages?: {
+    successRate: number;
+    coverageRate: number;
+  };
+  loadMetrics?: {
+    totalRecordsScope: number;
+    invalidRecords: number;
+    recordsAttempted: number;
+    loadErrors: number;
+    recordsLoaded: number;
+    loadSuccessRate: number;
+    loadCoverageRate: number;
+  };
+  approvals?: {
+    leadApprovedBy: string | null;
+    leadApprovedAt: string | null;
+    projectManagerApprovedBy: string | null;
+    projectManagerApprovedAt: string | null;
+  };
   cycleNumber: number;
   startDate: string;
   endDate: string;

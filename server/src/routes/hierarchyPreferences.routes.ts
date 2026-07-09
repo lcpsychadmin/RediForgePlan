@@ -1,5 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { requireAuth } from '../middleware/authMiddleware.js';
+import { ApiError } from '../middleware/errorHandler.js';
 import db from '../db.js';
 import { formatSingleResponse } from '../utils/responseFormatter.js';
 import processAreaRoleAssignmentService from '../services/processAreaRoleAssignmentService.js';
@@ -261,6 +262,16 @@ router.put('/project-role-assignments/:projectId', requireAuth, async (req: Requ
 
 const resolveWorkflowRolesHandler = async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const mockCycleId = req.body?.mockCycleId ? String(req.body.mockCycleId) : null;
+    if (mockCycleId) {
+      const cycleEvaluation = await approvalWorkflowEngine.evaluateMockCycleProgression(mockCycleId);
+      if (!cycleEvaluation) {
+        throw new ApiError(404, 'Mock cycle not found', 'NOT_FOUND');
+      }
+      res.json(formatSingleResponse(cycleEvaluation));
+      return;
+    }
+
     const processArea = String(req.body?.processArea || '').trim();
     const workflowScope = req.body?.workflowScope === 'project' ? 'project' : 'global';
     const projectId = req.body?.projectId ? String(req.body.projectId) : null;

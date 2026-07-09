@@ -27,6 +27,7 @@ import {
   Link,
   Badge,
   Checkbox,
+  FormControlLabel,
   Chip,
   Table,
   TableBody,
@@ -90,10 +91,32 @@ interface Program {
 interface MockCycle {
   id: string;
   programId: string;
+  projectId: string;
   name: string;
   description?: string;
   entryCriteria?: string;
   exitCriteria?: string;
+  entryCriteriaItems?: Array<{ key: string; label: string; completed: boolean; enforced: boolean }>;
+  exitCriteriaItems?: Array<{ key: string; label: string; completed: boolean; enforced: boolean }>;
+  targetLoadPercentages?: {
+    successRate: number;
+    coverageRate: number;
+  };
+  loadMetrics?: {
+    totalRecordsScope: number;
+    invalidRecords: number;
+    recordsAttempted: number;
+    loadErrors: number;
+    recordsLoaded: number;
+    loadSuccessRate: number;
+    loadCoverageRate: number;
+  };
+  approvals?: {
+    leadApprovedBy: string | null;
+    leadApprovedAt: string | null;
+    projectManagerApprovedBy: string | null;
+    projectManagerApprovedAt: string | null;
+  };
   startDate: string;
   endDate: string;
   accentColor?: string;
@@ -148,6 +171,37 @@ const DEFAULT_HIERARCHY_LEVEL_ICONS: HierarchyLevelIcons = {
   processArea: 'accountTree',
   planGroup: 'layers',
 };
+
+type MockCycleCriterionDraft = { key: string; label: string; completed: boolean; enforced: boolean };
+
+const MOCK_CYCLE_ENTRY_CRITERIA_DEFAULTS: MockCycleCriterionDraft[] = [
+  'Design Complete',
+  'Field Mapping Documents Approved',
+  'Build Complete',
+  'Integration Readiness',
+  'Environment Refreshed',
+  'Security & Access Assigned',
+  'Cycle Plan Approved',
+  'No Blocking Defects',
+].map((label) => ({ key: label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, ''), label, completed: false, enforced: true }));
+
+const MOCK_CYCLE_EXIT_CRITERIA_DEFAULTS: MockCycleCriterionDraft[] = [
+  'Load Execution Complete',
+  'Load Error Analysis Complete',
+  'Validation Complete',
+  'Defects Logged & Triaged',
+  'Records of Relevant Scope Captured',
+  'Invalid Records Captured',
+  'Records Attempted Captured',
+  'Load Errors Captured',
+  'Records Loaded Captured',
+  'Load Success Rate Calculated',
+  'Load Coverage Rate Calculated',
+  'Target Load Percentage Achieved',
+  'Cycle Metrics Captured',
+  'Lessons Learned Documented',
+  'Next Cycle Readiness Confirmed',
+].map((label) => ({ key: label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, ''), label, completed: false, enforced: true }));
 
 const HIERARCHY_ICON_OPTIONS: { value: HierarchyIconChoice; label: string; group: string }[] = [
   // MUI Icons
@@ -956,8 +1010,20 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   const canAccessInventory = sectionMode === 'planning';
   const [planningStrategyDraft, setPlanningStrategyDraft] = useState('');
   const [isSavingPlanningStrategy, setIsSavingPlanningStrategy] = useState(false);
-  const [cycleEntryCriteriaDraft, setCycleEntryCriteriaDraft] = useState('');
-  const [cycleExitCriteriaDraft, setCycleExitCriteriaDraft] = useState('');
+  const [cycleEntryCriteriaDraft, setCycleEntryCriteriaDraft] = useState<MockCycleCriterionDraft[]>(MOCK_CYCLE_ENTRY_CRITERIA_DEFAULTS);
+  const [cycleExitCriteriaDraft, setCycleExitCriteriaDraft] = useState<MockCycleCriterionDraft[]>(MOCK_CYCLE_EXIT_CRITERIA_DEFAULTS);
+  const [cycleTargetSuccessRateDraft, setCycleTargetSuccessRateDraft] = useState<number>(95);
+  const [cycleTargetCoverageRateDraft, setCycleTargetCoverageRateDraft] = useState<number>(95);
+  const [cycleTotalRecordsScopeDraft, setCycleTotalRecordsScopeDraft] = useState<number>(0);
+  const [cycleInvalidRecordsDraft, setCycleInvalidRecordsDraft] = useState<number>(0);
+  const [cycleRecordsAttemptedDraft, setCycleRecordsAttemptedDraft] = useState<number>(0);
+  const [cycleLoadErrorsDraft, setCycleLoadErrorsDraft] = useState<number>(0);
+  const [cycleRecordsLoadedDraft, setCycleRecordsLoadedDraft] = useState<number>(0);
+  const [cycleWorkflowEvaluation, setCycleWorkflowEvaluation] = useState<any | null>(null);
+  const [isApprovingCycle, setIsApprovingCycle] = useState(false);
+  const [projectLeadUserIdDraft, setProjectLeadUserIdDraft] = useState('');
+  const [projectManagerUserIdDraft, setProjectManagerUserIdDraft] = useState('');
+  const [isSavingProjectWorkflowRoles, setIsSavingProjectWorkflowRoles] = useState(false);
   const [isSavingCycleCriteria, setIsSavingCycleCriteria] = useState(false);
   const [planningAdditionalGroups, setPlanningAdditionalGroups] = useState<Record<string, string[]>>({});
   const [planningAdditionalProcessAreas, setPlanningAdditionalProcessAreas] = useState<Record<string, string[]>>({});
@@ -4741,23 +4807,93 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
 
   useEffect(() => {
     if (sectionMode !== 'planning') return;
+
+    const normalizeCriteriaDraft = (
+      source: any,
+      defaults: MockCycleCriterionDraft[],
+    ): MockCycleCriterionDraft[] => {
+      const incoming = Array.isArray(source) ? source : [];
+      const byKey = new Map<string, MockCycleCriterionDraft>();
+
+      incoming.forEach((item: any) => {
+        if (!item) return;
+        const key = String(item.key || '').trim();
+        const label = String(item.label || '').trim();
+        if (!key && !label) return;
+        const resolvedKey = key || label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+        byKey.set(resolvedKey, {
+          key: resolvedKey,
+          label: label || defaults.find((d) => d.key === resolvedKey)?.label || resolvedKey,
+          completed: Boolean(item.completed),
+          enforced: item.enforced === undefined ? true : Boolean(item.enforced),
+        });
+      });
+
+      defaults.forEach((def) => {
+        if (!byKey.has(def.key)) {
+          byKey.set(def.key, { ...def });
+        }
+      });
+
+      return Array.from(byKey.values());
+    };
+
+    const loadProjectWorkflowRoles = async (projectId: string) => {
+      try {
+        const response = await apiClient.get(`/api/projects/${projectId}/workflow-roles`);
+        const payload = response.data?.data || {};
+        setProjectLeadUserIdDraft(payload.leadUserId || '');
+        setProjectManagerUserIdDraft(payload.projectManagerUserId || '');
+      } catch {
+        setProjectLeadUserIdDraft('');
+        setProjectManagerUserIdDraft('');
+      }
+    };
+
+    const loadCycleWorkflowStatus = async (cycleId: string) => {
+      try {
+        const response = await apiClient.get(`/api/mock-cycles/${cycleId}/workflow-status`);
+        setCycleWorkflowEvaluation(response.data?.data || null);
+      } catch {
+        setCycleWorkflowEvaluation(null);
+      }
+    };
+
     if (selectedItem?.type === 'program') {
       const program = programs.find((p: Program) => p.id === selectedItem.id) as Program | undefined;
       setPlanningStrategyDraft(program?.description || '');
-      setCycleEntryCriteriaDraft('');
-      setCycleExitCriteriaDraft('');
+      setCycleEntryCriteriaDraft(MOCK_CYCLE_ENTRY_CRITERIA_DEFAULTS);
+      setCycleExitCriteriaDraft(MOCK_CYCLE_EXIT_CRITERIA_DEFAULTS);
+      setCycleWorkflowEvaluation(null);
       return;
     }
     if (selectedItem?.type === 'cycle') {
       const cycle = mockCycles[selectedItem.programId]?.find((c: MockCycle) => c.id === selectedItem.id) as MockCycle | undefined;
-      setCycleEntryCriteriaDraft(cycle?.entryCriteria || '');
-      setCycleExitCriteriaDraft(cycle?.exitCriteria || '');
+      setCycleEntryCriteriaDraft(normalizeCriteriaDraft(cycle?.entryCriteriaItems, MOCK_CYCLE_ENTRY_CRITERIA_DEFAULTS));
+      setCycleExitCriteriaDraft(normalizeCriteriaDraft(cycle?.exitCriteriaItems, MOCK_CYCLE_EXIT_CRITERIA_DEFAULTS));
+      setCycleTargetSuccessRateDraft(Number(cycle?.targetLoadPercentages?.successRate ?? 95));
+      setCycleTargetCoverageRateDraft(Number(cycle?.targetLoadPercentages?.coverageRate ?? 95));
+      setCycleTotalRecordsScopeDraft(Number(cycle?.loadMetrics?.totalRecordsScope ?? 0));
+      setCycleInvalidRecordsDraft(Number(cycle?.loadMetrics?.invalidRecords ?? 0));
+      setCycleRecordsAttemptedDraft(Number(cycle?.loadMetrics?.recordsAttempted ?? 0));
+      setCycleLoadErrorsDraft(Number(cycle?.loadMetrics?.loadErrors ?? 0));
+      setCycleRecordsLoadedDraft(Number(cycle?.loadMetrics?.recordsLoaded ?? 0));
       setPlanningStrategyDraft('');
+      if (cycle?.projectId) {
+        loadProjectWorkflowRoles(cycle.projectId).catch(() => {});
+      }
+      loadCycleWorkflowStatus(selectedItem.id).catch(() => {});
+      return;
+    }
+    if (selectedItem?.type === 'project') {
+      loadProjectWorkflowRoles(selectedItem.id).catch(() => {});
+      setCycleWorkflowEvaluation(null);
       return;
     }
     setPlanningStrategyDraft('');
-    setCycleEntryCriteriaDraft('');
-    setCycleExitCriteriaDraft('');
+    setCycleEntryCriteriaDraft(MOCK_CYCLE_ENTRY_CRITERIA_DEFAULTS);
+    setCycleExitCriteriaDraft(MOCK_CYCLE_EXIT_CRITERIA_DEFAULTS);
+    setCycleWorkflowEvaluation(null);
   }, [sectionMode, selectedItem, programs, mockCycles]);
 
   if (isLoading) {
@@ -4818,17 +4954,61 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
     if (sectionMode !== 'planning' || selectedItem?.type !== 'cycle') return;
     try {
       setIsSavingCycleCriteria(true);
-      await apiClient.patch(`/api/mock-cycles/${selectedItem.id}`, {
-        entryCriteria: cycleEntryCriteriaDraft.trim() || null,
-        exitCriteria: cycleExitCriteriaDraft.trim() || null,
+      await apiClient.patch(`/api/mock-cycles/${selectedItem.id}/workflow`, {
+        entryCriteriaItems: cycleEntryCriteriaDraft,
+        exitCriteriaItems: cycleExitCriteriaDraft,
+        targetSuccessRate: cycleTargetSuccessRateDraft,
+        targetCoverageRate: cycleTargetCoverageRateDraft,
+        totalRecordsScope: cycleTotalRecordsScopeDraft,
+        invalidRecords: cycleInvalidRecordsDraft,
+        recordsAttempted: cycleRecordsAttemptedDraft,
+        loadErrors: cycleLoadErrorsDraft,
+        recordsLoaded: cycleRecordsLoadedDraft,
       });
       queryClient.invalidateQueries({ queryKey: ['mockCycles'] });
       queryClient.invalidateQueries({ queryKey: ['allMockCyclesForMaintain'] });
+      const status = await apiClient.get(`/api/mock-cycles/${selectedItem.id}/workflow-status`);
+      setCycleWorkflowEvaluation(status.data?.data || null);
     } catch (error) {
       console.error('Failed to save cycle criteria:', error);
       alert('Failed to save cycle criteria. Please try again.');
     } finally {
       setIsSavingCycleCriteria(false);
+    }
+  };
+
+  const handleSaveProjectWorkflowRoles = async (projectId: string) => {
+    try {
+      setIsSavingProjectWorkflowRoles(true);
+      await apiClient.put(`/api/projects/${projectId}/workflow-roles`, {
+        leadUserId: projectLeadUserIdDraft || null,
+        projectManagerUserId: projectManagerUserIdDraft || null,
+      });
+      if (selectedItem?.type === 'cycle') {
+        const status = await apiClient.get(`/api/mock-cycles/${selectedItem.id}/workflow-status`);
+        setCycleWorkflowEvaluation(status.data?.data || null);
+      }
+    } catch (error) {
+      console.error('Failed to save project workflow roles:', error);
+      alert('Failed to save project workflow roles. Please try again.');
+    } finally {
+      setIsSavingProjectWorkflowRoles(false);
+    }
+  };
+
+  const handleCycleApproval = async (role: 'lead' | 'project-manager', approved = true) => {
+    if (selectedItem?.type !== 'cycle') return;
+    try {
+      setIsApprovingCycle(true);
+      await apiClient.post(`/api/mock-cycles/${selectedItem.id}/approvals/${role}`, { approved });
+      queryClient.invalidateQueries({ queryKey: ['mockCycles'] });
+      const status = await apiClient.get(`/api/mock-cycles/${selectedItem.id}/workflow-status`);
+      setCycleWorkflowEvaluation(status.data?.data || null);
+    } catch (error: any) {
+      const message = error?.response?.data?.message || 'Failed to submit approval.';
+      alert(message);
+    } finally {
+      setIsApprovingCycle(false);
     }
   };
 
@@ -6185,33 +6365,138 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                   </Typography>
 
                   <Box sx={{ mt: 2.25, display: 'flex', flexDirection: 'column', gap: 1.25 }}>
-                    <Typography variant="subtitle2">Mock Entry Criteria</Typography>
-                    <TextField
-                      multiline
-                      minRows={4}
-                      fullWidth
-                      placeholder="Define what must be true before this mock cycle can start (data readiness, environment readiness, ownership, approvals)."
-                      value={cycleEntryCriteriaDraft}
-                      onChange={(e) => setCycleEntryCriteriaDraft(e.target.value)}
-                    />
+                    <Typography variant="subtitle2">Entry Criteria</Typography>
+                    <Box sx={{ border: '1px solid rgba(255,255,255,0.1)', borderRadius: 1.25, overflow: 'hidden' }}>
+                      {cycleEntryCriteriaDraft.map((criterion, idx) => (
+                        <Box key={`entry-${criterion.key}`} sx={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 1, px: 1.25, py: 0.8, borderBottom: idx === cycleEntryCriteriaDraft.length - 1 ? 'none' : '1px solid rgba(255,255,255,0.06)', backgroundColor: idx % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent' }}>
+                          <TextField
+                            size="small"
+                            value={criterion.label}
+                            onChange={(e) => setCycleEntryCriteriaDraft((prev) => prev.map((row) => row.key === criterion.key ? { ...row, label: e.target.value } : row))}
+                          />
+                          <FormControlLabel
+                            control={<Checkbox checked={criterion.completed} onChange={(e) => setCycleEntryCriteriaDraft((prev) => prev.map((row) => row.key === criterion.key ? { ...row, completed: e.target.checked } : row))} />}
+                            label="Done"
+                          />
+                          <FormControlLabel
+                            control={<Checkbox checked={criterion.enforced} onChange={(e) => setCycleEntryCriteriaDraft((prev) => prev.map((row) => row.key === criterion.key ? { ...row, enforced: e.target.checked } : row))} />}
+                            label="Enforce"
+                          />
+                        </Box>
+                      ))}
+                    </Box>
 
-                    <Typography variant="subtitle2">Mock Exit Criteria</Typography>
-                    <TextField
-                      multiline
-                      minRows={4}
-                      fullWidth
-                      placeholder="Define completion conditions for this mock cycle (defect thresholds, reconciliation, sign-off criteria, go/no-go checks)."
-                      value={cycleExitCriteriaDraft}
-                      onChange={(e) => setCycleExitCriteriaDraft(e.target.value)}
-                    />
+                    <Typography variant="subtitle2" sx={{ mt: 0.5 }}>Exit Criteria</Typography>
+                    <Box sx={{ border: '1px solid rgba(255,255,255,0.1)', borderRadius: 1.25, overflow: 'hidden' }}>
+                      {cycleExitCriteriaDraft.map((criterion, idx) => (
+                        <Box key={`exit-${criterion.key}`} sx={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 1, px: 1.25, py: 0.8, borderBottom: idx === cycleExitCriteriaDraft.length - 1 ? 'none' : '1px solid rgba(255,255,255,0.06)', backgroundColor: idx % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent' }}>
+                          <TextField
+                            size="small"
+                            value={criterion.label}
+                            onChange={(e) => setCycleExitCriteriaDraft((prev) => prev.map((row) => row.key === criterion.key ? { ...row, label: e.target.value } : row))}
+                          />
+                          <FormControlLabel
+                            control={<Checkbox checked={criterion.completed} onChange={(e) => setCycleExitCriteriaDraft((prev) => prev.map((row) => row.key === criterion.key ? { ...row, completed: e.target.checked } : row))} />}
+                            label="Done"
+                          />
+                          <FormControlLabel
+                            control={<Checkbox checked={criterion.enforced} onChange={(e) => setCycleExitCriteriaDraft((prev) => prev.map((row) => row.key === criterion.key ? { ...row, enforced: e.target.checked } : row))} />}
+                            label="Enforce"
+                          />
+                        </Box>
+                      ))}
+                    </Box>
+
+                    <Typography variant="subtitle2" sx={{ mt: 0.5 }}>Target Load Percentages</Typography>
+                    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(180px, 1fr))' }, gap: 1 }}>
+                      <TextField
+                        label="Success Rate Target (%)"
+                        type="number"
+                        size="small"
+                        value={cycleTargetSuccessRateDraft}
+                        onChange={(e) => setCycleTargetSuccessRateDraft(Number(e.target.value || 0))}
+                      />
+                      <TextField
+                        label="Coverage Rate Target (%)"
+                        type="number"
+                        size="small"
+                        value={cycleTargetCoverageRateDraft}
+                        onChange={(e) => setCycleTargetCoverageRateDraft(Number(e.target.value || 0))}
+                      />
+                    </Box>
+
+                    <Typography variant="subtitle2" sx={{ mt: 0.5 }}>Load Metrics</Typography>
+                    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, minmax(180px, 1fr))' }, gap: 1 }}>
+                      <TextField label="Total Records of Relevant Scope" type="number" size="small" value={cycleTotalRecordsScopeDraft} onChange={(e) => setCycleTotalRecordsScopeDraft(Number(e.target.value || 0))} />
+                      <TextField label="Invalid Records" type="number" size="small" value={cycleInvalidRecordsDraft} onChange={(e) => setCycleInvalidRecordsDraft(Number(e.target.value || 0))} />
+                      <TextField label="Records Attempted" type="number" size="small" value={cycleRecordsAttemptedDraft} onChange={(e) => setCycleRecordsAttemptedDraft(Number(e.target.value || 0))} />
+                      <TextField label="Load Errors" type="number" size="small" value={cycleLoadErrorsDraft} onChange={(e) => setCycleLoadErrorsDraft(Number(e.target.value || 0))} />
+                      <TextField label="Records Loaded" type="number" size="small" value={cycleRecordsLoadedDraft} onChange={(e) => setCycleRecordsLoadedDraft(Number(e.target.value || 0))} />
+                      <TextField
+                        label="Computed Success / Coverage"
+                        size="small"
+                        value={`${cycleRecordsAttemptedDraft > 0 ? ((cycleRecordsLoadedDraft / cycleRecordsAttemptedDraft) * 100).toFixed(2) : '0.00'}% / ${cycleTotalRecordsScopeDraft > 0 ? ((cycleRecordsLoadedDraft / cycleTotalRecordsScopeDraft) * 100).toFixed(2) : '0.00'}%`}
+                        InputProps={{ readOnly: true }}
+                      />
+                    </Box>
+
+                    <Typography variant="subtitle2" sx={{ mt: 0.5 }}>Project Approvals</Typography>
+                    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(220px, 1fr))' }, gap: 1 }}>
+                      <TextField
+                        select
+                        size="small"
+                        label="Lead"
+                        value={projectLeadUserIdDraft}
+                        onChange={(e) => setProjectLeadUserIdDraft(e.target.value)}
+                      >
+                        <MenuItem value="">Unassigned</MenuItem>
+                        {people.map((person: any) => (
+                          <MenuItem key={`lead-${person.id}`} value={person.id}>{person.name || person.email}</MenuItem>
+                        ))}
+                      </TextField>
+                      <TextField
+                        select
+                        size="small"
+                        label="Project Manager"
+                        value={projectManagerUserIdDraft}
+                        onChange={(e) => setProjectManagerUserIdDraft(e.target.value)}
+                      >
+                        <MenuItem value="">Unassigned</MenuItem>
+                        {people.map((person: any) => (
+                          <MenuItem key={`pm-${person.id}`} value={person.id}>{person.name || person.email}</MenuItem>
+                        ))}
+                      </TextField>
+                    </Box>
+
+                    {cycleWorkflowEvaluation && (
+                      <Alert severity={cycleWorkflowEvaluation?.progressionAllowed ? 'success' : 'warning'}>
+                        {cycleWorkflowEvaluation?.progressionAllowed
+                          ? 'Progression gate passed: all enforced criteria complete and approvals captured.'
+                          : 'Progression blocked: complete enforced criteria and sequential approvals (Lead then Project Manager).'}
+                      </Alert>
+                    )}
 
                     <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+                      <Button
+                        variant="outlined"
+                        sx={{ mr: 1 }}
+                        onClick={() => handleSaveProjectWorkflowRoles(((selectedDetails as any)?.projectId || selectedItem.projectId || ''))}
+                        disabled={isSavingProjectWorkflowRoles || !((selectedDetails as any)?.projectId || selectedItem.projectId)}
+                      >
+                        {isSavingProjectWorkflowRoles ? 'Saving Roles...' : 'Save Roles'}
+                      </Button>
+                      <Button variant="outlined" sx={{ mr: 1 }} onClick={() => handleCycleApproval('lead', true)} disabled={isApprovingCycle}>
+                        Lead Approve
+                      </Button>
+                      <Button variant="outlined" sx={{ mr: 1 }} onClick={() => handleCycleApproval('project-manager', true)} disabled={isApprovingCycle}>
+                        PM Approve
+                      </Button>
                       <Button
                         variant="contained"
                         onClick={handleSaveCycleCriteria}
                         disabled={isSavingCycleCriteria}
                       >
-                        {isSavingCycleCriteria ? 'Saving...' : 'Save Entry / Exit Criteria'}
+                        {isSavingCycleCriteria ? 'Saving...' : 'Save Cycle Workflow'}
                       </Button>
                     </Box>
                   </Box>
@@ -6233,6 +6518,41 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                   <Typography variant="body2" sx={{ mt: 0.5 }}>
                     Use the Inventory tab to add or refine object-level scope and migration attributes.
                   </Typography>
+
+                  <Box sx={{ mt: 2.25, display: 'flex', flexDirection: 'column', gap: 1.25 }}>
+                    <Typography variant="subtitle2">Project Workflow Roles</Typography>
+                    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(220px, 1fr))' }, gap: 1 }}>
+                      <TextField
+                        select
+                        size="small"
+                        label="Lead"
+                        value={projectLeadUserIdDraft}
+                        onChange={(e) => setProjectLeadUserIdDraft(e.target.value)}
+                      >
+                        <MenuItem value="">Unassigned</MenuItem>
+                        {people.map((person: any) => (
+                          <MenuItem key={`project-lead-${person.id}`} value={person.id}>{person.name || person.email}</MenuItem>
+                        ))}
+                      </TextField>
+                      <TextField
+                        select
+                        size="small"
+                        label="Project Manager"
+                        value={projectManagerUserIdDraft}
+                        onChange={(e) => setProjectManagerUserIdDraft(e.target.value)}
+                      >
+                        <MenuItem value="">Unassigned</MenuItem>
+                        {people.map((person: any) => (
+                          <MenuItem key={`project-pm-${person.id}`} value={person.id}>{person.name || person.email}</MenuItem>
+                        ))}
+                      </TextField>
+                    </Box>
+                    <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+                      <Button variant="contained" onClick={() => handleSaveProjectWorkflowRoles(selectedItem.id)} disabled={isSavingProjectWorkflowRoles}>
+                        {isSavingProjectWorkflowRoles ? 'Saving...' : 'Save Workflow Roles'}
+                      </Button>
+                    </Box>
+                  </Box>
                 </Paper>
               )}
             </>

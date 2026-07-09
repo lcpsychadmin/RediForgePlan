@@ -167,6 +167,45 @@ router.get('/:projectId', requireAuth, async (req: Request, res: Response, next:
   }
 });
 
+// Get project workflow roles (Lead + Project Manager)
+router.get('/:projectId/workflow-roles', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const project = await projectService.getProjectById(req.params.projectId);
+    if (!project) {
+      throw new ApiError(404, 'Project not found', 'NOT_FOUND');
+    }
+
+    const roles = await projectService.getProjectWorkflowRoles(req.params.projectId);
+    res.json(formatSingleResponse({ projectId: req.params.projectId, ...roles }));
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Save project workflow roles (Lead + Project Manager)
+router.put(
+  '/:projectId/workflow-roles',
+  requireAuth,
+  requireRole('admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const project = await projectService.getProjectById(req.params.projectId);
+      if (!project) {
+        throw new ApiError(404, 'Project not found', 'NOT_FOUND');
+      }
+
+      const roles = await projectService.saveProjectWorkflowRoles(req.params.projectId, {
+        leadUserId: req.body?.leadUserId ?? undefined,
+        projectManagerUserId: req.body?.projectManagerUserId ?? undefined,
+      });
+
+      res.json(formatSingleResponse({ projectId: req.params.projectId, ...roles }));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 // Update project (admin only)
 router.patch(
   '/:projectId',
