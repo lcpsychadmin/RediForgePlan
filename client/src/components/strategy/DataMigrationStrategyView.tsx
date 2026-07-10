@@ -70,7 +70,6 @@ const SECTION_CONFIG: Array<{ key: string; label: string; rows?: number }> = [
   { key: 'conversionDocuments', label: 'Conversion Documents', rows: 4 },
   { key: 'dataReadiness', label: 'Data Readiness', rows: 4 },
   { key: 'dataConversion', label: 'Data Conversion', rows: 4 },
-  { key: 'dataValidationProcess', label: 'Data Validation Process', rows: 4 },
   { key: 'mockConversionCycles', label: 'Mock Cycles', rows: 4 },
   { key: 'entryCriteria', label: 'Mock Entry Criteria' },
   { key: 'exitCriteria', label: 'Mock Exit Criteria' },
@@ -116,11 +115,6 @@ const SECTION_EXPECTATIONS: Record<string, string[]> = {
     'Explain the ingest, transform, and load flow.',
     'Describe how design rules drive transformation and enrichment.',
     'Clarify how data is constructed and loaded into the target system.',
-  ],
-  dataValidationProcess: [
-    'Define pre-load and post-load validation checkpoints.',
-    'Describe scripts, sampling, and involved roles.',
-    'Explain how defects are logged, triaged, and resolved.',
   ],
   mockConversionCycles: [
     'Describe the number, purpose, and scope of each mock cycle.',
@@ -185,7 +179,6 @@ const SECTION_ACCENTS: Record<string, string> = {
   conversionDocuments: '#F4A261',
   dataReadiness: '#F7C873',
   dataConversion: '#F4978E',
-  dataValidationProcess: '#7FD1AE',
   mockConversionCycles: '#F1B96B',
   entryCriteria: '#93C5FD',
   exitCriteria: '#F4A261',
