@@ -98,11 +98,6 @@ router.patch(
         exitCriteriaItems: req.body?.exitCriteriaItems,
         targetSuccessRate: req.body?.targetSuccessRate,
         targetCoverageRate: req.body?.targetCoverageRate,
-        totalRecordsScope: req.body?.totalRecordsScope,
-        invalidRecords: req.body?.invalidRecords,
-        recordsAttempted: req.body?.recordsAttempted,
-        loadErrors: req.body?.loadErrors,
-        recordsLoaded: req.body?.recordsLoaded,
       });
 
       if (!cycle) {

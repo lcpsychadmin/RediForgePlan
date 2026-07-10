@@ -1012,13 +1012,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   const [isSavingPlanningStrategy, setIsSavingPlanningStrategy] = useState(false);
   const [cycleEntryCriteriaDraft, setCycleEntryCriteriaDraft] = useState<MockCycleCriterionDraft[]>(MOCK_CYCLE_ENTRY_CRITERIA_DEFAULTS);
   const [cycleExitCriteriaDraft, setCycleExitCriteriaDraft] = useState<MockCycleCriterionDraft[]>(MOCK_CYCLE_EXIT_CRITERIA_DEFAULTS);
-  const [cycleTargetSuccessRateDraft, setCycleTargetSuccessRateDraft] = useState<number>(95);
-  const [cycleTargetCoverageRateDraft, setCycleTargetCoverageRateDraft] = useState<number>(95);
-  const [cycleTotalRecordsScopeDraft, setCycleTotalRecordsScopeDraft] = useState<number>(0);
-  const [cycleInvalidRecordsDraft, setCycleInvalidRecordsDraft] = useState<number>(0);
-  const [cycleRecordsAttemptedDraft, setCycleRecordsAttemptedDraft] = useState<number>(0);
-  const [cycleLoadErrorsDraft, setCycleLoadErrorsDraft] = useState<number>(0);
-  const [cycleRecordsLoadedDraft, setCycleRecordsLoadedDraft] = useState<number>(0);
   const [cycleWorkflowEvaluation, setCycleWorkflowEvaluation] = useState<any | null>(null);
   const [isApprovingCycle, setIsApprovingCycle] = useState(false);
   const [projectLeadUserIdDraft, setProjectLeadUserIdDraft] = useState('');
@@ -1169,6 +1162,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   const [maintainCycleParentProjectId, setMaintainCycleParentProjectId] = useState('');
   const [maintainCycleParentProgramId, setMaintainCycleParentProgramId] = useState('');
   const [maintainCycleFilterProgramId, setMaintainCycleFilterProgramId] = useState<'all' | string>('all');
+  const [maintainSelectedCycleId, setMaintainSelectedCycleId] = useState('');
   const [maintainProjectParentProgramId, setMaintainProjectParentProgramId] = useState('');
   const [maintainProjectParentCycleId, setMaintainProjectParentCycleId] = useState('');
   const [maintainProjectFilterCycleId, setMaintainProjectFilterCycleId] = useState<'all' | string>('all');
@@ -1885,6 +1879,37 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
     ? allMaintainCycles.filter((cycle) => cycle.programId === maintainProjectParentProgramId)
     : [];
   const maintainCycleParentProject = allMaintainProjects.find((project) => project.id === maintainCycleParentProjectId) || null;
+  const selectedMaintainCycle = allMaintainCycles.find((cycle) => cycle.id === maintainSelectedCycleId) || null;
+
+  const normalizeCriteriaDraft = React.useCallback((
+    source: any,
+    defaults: MockCycleCriterionDraft[],
+  ): MockCycleCriterionDraft[] => {
+    const incoming = Array.isArray(source) ? source : [];
+    const byKey = new Map<string, MockCycleCriterionDraft>();
+
+    incoming.forEach((item: any) => {
+      if (!item) return;
+      const key = String(item.key || '').trim();
+      const label = String(item.label || '').trim();
+      if (!key && !label) return;
+      const resolvedKey = key || label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+      byKey.set(resolvedKey, {
+        key: resolvedKey,
+        label: label || defaults.find((d) => d.key === resolvedKey)?.label || resolvedKey,
+        completed: Boolean(item.completed),
+        enforced: item.enforced === undefined ? true : Boolean(item.enforced),
+      });
+    });
+
+    defaults.forEach((def) => {
+      if (!byKey.has(def.key)) {
+        byKey.set(def.key, { ...def });
+      }
+    });
+
+    return Array.from(byKey.values());
+  }, []);
   const getScopedProjectsForCycle = (cycleId: string, projectId?: string | null): Project[] => {
     const projects = (projectsByMockCycle[cycleId] || []) as Project[];
     if (!projectId) return projects;
@@ -1916,6 +1941,53 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
       setMaintainCycleParentProjectId(maintainCycleParentProjectOptions[0]?.id || '');
     }
   }, [maintainCycleParentProjectOptions, maintainCycleParentProjectId, allMaintainProjects]);
+
+  useEffect(() => {
+    if (maintainFormView !== 'cycle') return;
+
+    if (!maintainSelectedCycleId || !visibleMaintainCycleRows.some((cycle) => cycle.id === maintainSelectedCycleId)) {
+      setMaintainSelectedCycleId(visibleMaintainCycleRows[0]?.id || '');
+    }
+  }, [maintainFormView, maintainSelectedCycleId, visibleMaintainCycleRows]);
+
+  useEffect(() => {
+    if (maintainFormView !== 'cycle') return;
+    if (!selectedMaintainCycle) {
+      setCycleEntryCriteriaDraft(MOCK_CYCLE_ENTRY_CRITERIA_DEFAULTS);
+      setCycleExitCriteriaDraft(MOCK_CYCLE_EXIT_CRITERIA_DEFAULTS);
+      setProjectLeadUserIdDraft('');
+      setProjectManagerUserIdDraft('');
+      setCycleWorkflowEvaluation(null);
+      return;
+    }
+
+    setCycleEntryCriteriaDraft(normalizeCriteriaDraft(selectedMaintainCycle.entryCriteriaItems, MOCK_CYCLE_ENTRY_CRITERIA_DEFAULTS));
+    setCycleExitCriteriaDraft(normalizeCriteriaDraft(selectedMaintainCycle.exitCriteriaItems, MOCK_CYCLE_EXIT_CRITERIA_DEFAULTS));
+
+    const loadProjectWorkflowRoles = async () => {
+      try {
+        const response = await apiClient.get(`/api/projects/${selectedMaintainCycle.projectId}/workflow-roles`);
+        const payload = response.data?.data || {};
+        setProjectLeadUserIdDraft(payload.leadUserId || '');
+        setProjectManagerUserIdDraft(payload.projectManagerUserId || '');
+      } catch {
+        setProjectLeadUserIdDraft('');
+        setProjectManagerUserIdDraft('');
+      }
+    };
+
+    const loadCycleWorkflowStatus = async () => {
+      try {
+        const response = await apiClient.get(`/api/mock-cycles/${selectedMaintainCycle.id}/workflow-status`);
+        setCycleWorkflowEvaluation(response.data?.data || null);
+      } catch {
+        setCycleWorkflowEvaluation(null);
+      }
+    };
+
+    loadProjectWorkflowRoles().catch(() => {});
+    loadCycleWorkflowStatus().catch(() => {});
+  }, [maintainFormView, selectedMaintainCycle, normalizeCriteriaDraft]);
 
   useEffect(() => {
     if (!maintainCycleParentProject) return;
@@ -4871,13 +4943,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
       const cycle = mockCycles[selectedItem.programId]?.find((c: MockCycle) => c.id === selectedItem.id) as MockCycle | undefined;
       setCycleEntryCriteriaDraft(normalizeCriteriaDraft(cycle?.entryCriteriaItems, MOCK_CYCLE_ENTRY_CRITERIA_DEFAULTS));
       setCycleExitCriteriaDraft(normalizeCriteriaDraft(cycle?.exitCriteriaItems, MOCK_CYCLE_EXIT_CRITERIA_DEFAULTS));
-      setCycleTargetSuccessRateDraft(Number(cycle?.targetLoadPercentages?.successRate ?? 95));
-      setCycleTargetCoverageRateDraft(Number(cycle?.targetLoadPercentages?.coverageRate ?? 95));
-      setCycleTotalRecordsScopeDraft(Number(cycle?.loadMetrics?.totalRecordsScope ?? 0));
-      setCycleInvalidRecordsDraft(Number(cycle?.loadMetrics?.invalidRecords ?? 0));
-      setCycleRecordsAttemptedDraft(Number(cycle?.loadMetrics?.recordsAttempted ?? 0));
-      setCycleLoadErrorsDraft(Number(cycle?.loadMetrics?.loadErrors ?? 0));
-      setCycleRecordsLoadedDraft(Number(cycle?.loadMetrics?.recordsLoaded ?? 0));
       setPlanningStrategyDraft('');
       if (cycle?.projectId) {
         loadProjectWorkflowRoles(cycle.projectId).catch(() => {});
@@ -4950,24 +5015,18 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
     }
   };
 
-  const handleSaveCycleCriteria = async () => {
-    if (sectionMode !== 'planning' || selectedItem?.type !== 'cycle') return;
+  const handleSaveCycleCriteria = async (cycleId?: string) => {
+    const targetCycleId = cycleId || (selectedItem?.type === 'cycle' ? selectedItem.id : '');
+    if (!targetCycleId) return;
     try {
       setIsSavingCycleCriteria(true);
-      await apiClient.patch(`/api/mock-cycles/${selectedItem.id}/workflow`, {
+      await apiClient.patch(`/api/mock-cycles/${targetCycleId}/workflow`, {
         entryCriteriaItems: cycleEntryCriteriaDraft,
         exitCriteriaItems: cycleExitCriteriaDraft,
-        targetSuccessRate: cycleTargetSuccessRateDraft,
-        targetCoverageRate: cycleTargetCoverageRateDraft,
-        totalRecordsScope: cycleTotalRecordsScopeDraft,
-        invalidRecords: cycleInvalidRecordsDraft,
-        recordsAttempted: cycleRecordsAttemptedDraft,
-        loadErrors: cycleLoadErrorsDraft,
-        recordsLoaded: cycleRecordsLoadedDraft,
       });
       queryClient.invalidateQueries({ queryKey: ['mockCycles'] });
       queryClient.invalidateQueries({ queryKey: ['allMockCyclesForMaintain'] });
-      const status = await apiClient.get(`/api/mock-cycles/${selectedItem.id}/workflow-status`);
+      const status = await apiClient.get(`/api/mock-cycles/${targetCycleId}/workflow-status`);
       setCycleWorkflowEvaluation(status.data?.data || null);
     } catch (error) {
       console.error('Failed to save cycle criteria:', error);
@@ -4977,15 +5036,16 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
     }
   };
 
-  const handleSaveProjectWorkflowRoles = async (projectId: string) => {
+  const handleSaveProjectWorkflowRoles = async (projectId: string, cycleId?: string) => {
     try {
       setIsSavingProjectWorkflowRoles(true);
       await apiClient.put(`/api/projects/${projectId}/workflow-roles`, {
         leadUserId: projectLeadUserIdDraft || null,
         projectManagerUserId: projectManagerUserIdDraft || null,
       });
-      if (selectedItem?.type === 'cycle') {
-        const status = await apiClient.get(`/api/mock-cycles/${selectedItem.id}/workflow-status`);
+      const targetCycleId = cycleId || (selectedItem?.type === 'cycle' ? selectedItem.id : '');
+      if (targetCycleId) {
+        const status = await apiClient.get(`/api/mock-cycles/${targetCycleId}/workflow-status`);
         setCycleWorkflowEvaluation(status.data?.data || null);
       }
     } catch (error) {
@@ -4996,13 +5056,14 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
     }
   };
 
-  const handleCycleApproval = async (role: 'lead' | 'project-manager', approved = true) => {
-    if (selectedItem?.type !== 'cycle') return;
+  const handleCycleApproval = async (role: 'lead' | 'project-manager', approved = true, cycleId?: string) => {
+    const targetCycleId = cycleId || (selectedItem?.type === 'cycle' ? selectedItem.id : '');
+    if (!targetCycleId) return;
     try {
       setIsApprovingCycle(true);
-      await apiClient.post(`/api/mock-cycles/${selectedItem.id}/approvals/${role}`, { approved });
+      await apiClient.post(`/api/mock-cycles/${targetCycleId}/approvals/${role}`, { approved });
       queryClient.invalidateQueries({ queryKey: ['mockCycles'] });
-      const status = await apiClient.get(`/api/mock-cycles/${selectedItem.id}/workflow-status`);
+      const status = await apiClient.get(`/api/mock-cycles/${targetCycleId}/workflow-status`);
       setCycleWorkflowEvaluation(status.data?.data || null);
     } catch (error: any) {
       const message = error?.response?.data?.message || 'Failed to submit approval.';
@@ -6364,141 +6425,20 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                     Next deliverable: detail project-level data object inventory in the Inventory tab.
                   </Typography>
 
-                  <Box sx={{ mt: 2.25, display: 'flex', flexDirection: 'column', gap: 1.25 }}>
-                    <Typography variant="subtitle2">Entry Criteria</Typography>
-                    <Box sx={{ border: '1px solid rgba(255,255,255,0.1)', borderRadius: 1.25, overflow: 'hidden' }}>
-                      {cycleEntryCriteriaDraft.map((criterion, idx) => (
-                        <Box key={`entry-${criterion.key}`} sx={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 1, px: 1.25, py: 0.8, borderBottom: idx === cycleEntryCriteriaDraft.length - 1 ? 'none' : '1px solid rgba(255,255,255,0.06)', backgroundColor: idx % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent' }}>
-                          <TextField
-                            size="small"
-                            value={criterion.label}
-                            onChange={(e) => setCycleEntryCriteriaDraft((prev) => prev.map((row) => row.key === criterion.key ? { ...row, label: e.target.value } : row))}
-                          />
-                          <FormControlLabel
-                            control={<Checkbox checked={criterion.completed} onChange={(e) => setCycleEntryCriteriaDraft((prev) => prev.map((row) => row.key === criterion.key ? { ...row, completed: e.target.checked } : row))} />}
-                            label="Done"
-                          />
-                          <FormControlLabel
-                            control={<Checkbox checked={criterion.enforced} onChange={(e) => setCycleEntryCriteriaDraft((prev) => prev.map((row) => row.key === criterion.key ? { ...row, enforced: e.target.checked } : row))} />}
-                            label="Enforce"
-                          />
-                        </Box>
-                      ))}
-                    </Box>
-
-                    <Typography variant="subtitle2" sx={{ mt: 0.5 }}>Exit Criteria</Typography>
-                    <Box sx={{ border: '1px solid rgba(255,255,255,0.1)', borderRadius: 1.25, overflow: 'hidden' }}>
-                      {cycleExitCriteriaDraft.map((criterion, idx) => (
-                        <Box key={`exit-${criterion.key}`} sx={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 1, px: 1.25, py: 0.8, borderBottom: idx === cycleExitCriteriaDraft.length - 1 ? 'none' : '1px solid rgba(255,255,255,0.06)', backgroundColor: idx % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent' }}>
-                          <TextField
-                            size="small"
-                            value={criterion.label}
-                            onChange={(e) => setCycleExitCriteriaDraft((prev) => prev.map((row) => row.key === criterion.key ? { ...row, label: e.target.value } : row))}
-                          />
-                          <FormControlLabel
-                            control={<Checkbox checked={criterion.completed} onChange={(e) => setCycleExitCriteriaDraft((prev) => prev.map((row) => row.key === criterion.key ? { ...row, completed: e.target.checked } : row))} />}
-                            label="Done"
-                          />
-                          <FormControlLabel
-                            control={<Checkbox checked={criterion.enforced} onChange={(e) => setCycleExitCriteriaDraft((prev) => prev.map((row) => row.key === criterion.key ? { ...row, enforced: e.target.checked } : row))} />}
-                            label="Enforce"
-                          />
-                        </Box>
-                      ))}
-                    </Box>
-
-                    <Typography variant="subtitle2" sx={{ mt: 0.5 }}>Target Load Percentages</Typography>
-                    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(180px, 1fr))' }, gap: 1 }}>
-                      <TextField
-                        label="Success Rate Target (%)"
-                        type="number"
-                        size="small"
-                        value={cycleTargetSuccessRateDraft}
-                        onChange={(e) => setCycleTargetSuccessRateDraft(Number(e.target.value || 0))}
-                      />
-                      <TextField
-                        label="Coverage Rate Target (%)"
-                        type="number"
-                        size="small"
-                        value={cycleTargetCoverageRateDraft}
-                        onChange={(e) => setCycleTargetCoverageRateDraft(Number(e.target.value || 0))}
-                      />
-                    </Box>
-
-                    <Typography variant="subtitle2" sx={{ mt: 0.5 }}>Load Metrics</Typography>
-                    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, minmax(180px, 1fr))' }, gap: 1 }}>
-                      <TextField label="Total Records of Relevant Scope" type="number" size="small" value={cycleTotalRecordsScopeDraft} onChange={(e) => setCycleTotalRecordsScopeDraft(Number(e.target.value || 0))} />
-                      <TextField label="Invalid Records" type="number" size="small" value={cycleInvalidRecordsDraft} onChange={(e) => setCycleInvalidRecordsDraft(Number(e.target.value || 0))} />
-                      <TextField label="Records Attempted" type="number" size="small" value={cycleRecordsAttemptedDraft} onChange={(e) => setCycleRecordsAttemptedDraft(Number(e.target.value || 0))} />
-                      <TextField label="Load Errors" type="number" size="small" value={cycleLoadErrorsDraft} onChange={(e) => setCycleLoadErrorsDraft(Number(e.target.value || 0))} />
-                      <TextField label="Records Loaded" type="number" size="small" value={cycleRecordsLoadedDraft} onChange={(e) => setCycleRecordsLoadedDraft(Number(e.target.value || 0))} />
-                      <TextField
-                        label="Computed Success / Coverage"
-                        size="small"
-                        value={`${cycleRecordsAttemptedDraft > 0 ? ((cycleRecordsLoadedDraft / cycleRecordsAttemptedDraft) * 100).toFixed(2) : '0.00'}% / ${cycleTotalRecordsScopeDraft > 0 ? ((cycleRecordsLoadedDraft / cycleTotalRecordsScopeDraft) * 100).toFixed(2) : '0.00'}%`}
-                        InputProps={{ readOnly: true }}
-                      />
-                    </Box>
-
-                    <Typography variant="subtitle2" sx={{ mt: 0.5 }}>Project Approvals</Typography>
-                    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(220px, 1fr))' }, gap: 1 }}>
-                      <TextField
-                        select
-                        size="small"
-                        label="Lead"
-                        value={projectLeadUserIdDraft}
-                        onChange={(e) => setProjectLeadUserIdDraft(e.target.value)}
-                      >
-                        <MenuItem value="">Unassigned</MenuItem>
-                        {people.map((person: any) => (
-                          <MenuItem key={`lead-${person.id}`} value={person.id}>{person.name || person.email}</MenuItem>
-                        ))}
-                      </TextField>
-                      <TextField
-                        select
-                        size="small"
-                        label="Project Manager"
-                        value={projectManagerUserIdDraft}
-                        onChange={(e) => setProjectManagerUserIdDraft(e.target.value)}
-                      >
-                        <MenuItem value="">Unassigned</MenuItem>
-                        {people.map((person: any) => (
-                          <MenuItem key={`pm-${person.id}`} value={person.id}>{person.name || person.email}</MenuItem>
-                        ))}
-                      </TextField>
-                    </Box>
-
-                    {cycleWorkflowEvaluation && (
-                      <Alert severity={cycleWorkflowEvaluation?.progressionAllowed ? 'success' : 'warning'}>
-                        {cycleWorkflowEvaluation?.progressionAllowed
-                          ? 'Progression gate passed: all enforced criteria complete and approvals captured.'
-                          : 'Progression blocked: complete enforced criteria and sequential approvals (Lead then Project Manager).'}
-                      </Alert>
-                    )}
-
-                    <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-                      <Button
-                        variant="outlined"
-                        sx={{ mr: 1 }}
-                        onClick={() => handleSaveProjectWorkflowRoles(((selectedDetails as any)?.projectId || selectedItem.projectId || ''))}
-                        disabled={isSavingProjectWorkflowRoles || !((selectedDetails as any)?.projectId || selectedItem.projectId)}
-                      >
-                        {isSavingProjectWorkflowRoles ? 'Saving Roles...' : 'Save Roles'}
-                      </Button>
-                      <Button variant="outlined" sx={{ mr: 1 }} onClick={() => handleCycleApproval('lead', true)} disabled={isApprovingCycle}>
-                        Lead Approve
-                      </Button>
-                      <Button variant="outlined" sx={{ mr: 1 }} onClick={() => handleCycleApproval('project-manager', true)} disabled={isApprovingCycle}>
-                        PM Approve
-                      </Button>
-                      <Button
-                        variant="contained"
-                        onClick={handleSaveCycleCriteria}
-                        disabled={isSavingCycleCriteria}
-                      >
-                        {isSavingCycleCriteria ? 'Saving...' : 'Save Cycle Workflow'}
-                      </Button>
-                    </Box>
+                  <Alert sx={{ mt: 2.25 }} severity="info">
+                    Cycle governance is managed in Planning Structure. Use Structure → Mock Cycles to define entry/exit criteria and Lead/Project Manager approvals.
+                  </Alert>
+                  <Box sx={{ mt: 1.25, display: 'flex', justifyContent: 'flex-end' }}>
+                    <Button
+                      variant="outlined"
+                      onClick={() => {
+                        setTabValue(6);
+                        setMaintainFormView('cycle');
+                        setMaintainSelectedCycleId(selectedItem.id);
+                      }}
+                    >
+                      Open In Structure
+                    </Button>
                   </Box>
                 </Paper>
               ) : (
@@ -8984,27 +8924,158 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                       )}
 
                       {maintainFormView === 'cycle' && (
-                        <Box sx={{ borderRadius: 1.25, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)' }}>
-                          <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 0.6fr 0.4fr' }}>
-                            {['MOCK CYCLE', 'PROJECT', 'PROGRAM', 'DATE RANGE', 'MODE', 'ACTIONS'].map(h => (
-                              <Box key={h} sx={{ backgroundColor: 'rgba(255,255,255,0.07)', p: 1, fontWeight: 700, color: 'rgba(255,255,255,0.5)', fontSize: '0.72rem', letterSpacing: '0.4px' }}>{h}</Box>
-                            ))}
-                            {visibleMaintainCycleRows.length === 0 ? (
-                              <Box sx={{ gridColumn: '1 / -1', p: 2, textAlign: 'center', color: 'rgba(255,255,255,0.35)', fontSize: '0.85rem' }}>No mock cycles found.</Box>
-                            ) : visibleMaintainCycleRows.map((cycle, idx) => (
-                              <React.Fragment key={cycle.id}>
-                                <Box sx={{ p: 1, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: idx % 2 === 0 ? 'rgba(255,255,255,0.03)' : 'transparent', color: '#DCE7FF', fontWeight: 700, fontSize: '0.85rem' }}>{cycle.name}</Box>
-                                <Box sx={{ p: 1, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: idx % 2 === 0 ? 'rgba(255,255,255,0.03)' : 'transparent', color: 'rgba(255,255,255,0.7)', fontSize: '0.85rem' }}>{cycle.linkedProjectName}</Box>
-                                <Box sx={{ p: 1, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: idx % 2 === 0 ? 'rgba(255,255,255,0.03)' : 'transparent', color: 'rgba(255,255,255,0.7)', fontSize: '0.85rem' }}>{cycle.programName}</Box>
-                                <Box sx={{ p: 1, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: idx % 2 === 0 ? 'rgba(255,255,255,0.03)' : 'transparent', color: 'rgba(255,255,255,0.6)', fontSize: '0.82rem' }}>{toDateInputValue(cycle.startDate) || '—'} → {toDateInputValue(cycle.endDate) || '—'}</Box>
-                                <Box sx={{ p: 1, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: idx % 2 === 0 ? 'rgba(255,255,255,0.03)' : 'transparent', color: 'rgba(255,255,255,0.6)', fontSize: '0.82rem' }}>{cycle.scheduleMode === 'working_days' ? 'Working Days' : 'All Days'}</Box>
-                                <Box sx={{ p: 0.75, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: idx % 2 === 0 ? 'rgba(255,255,255,0.03)' : 'transparent', display: 'flex', gap: 0.25 }}>
-                                  <IconButton size="small" onClick={() => openEditDialog('cycle', cycle.id)} sx={{ color: 'rgba(255,255,255,0.5)', '&:hover': { color: 'white' } }}><EditIcon sx={{ fontSize: '1rem' }} /></IconButton>
-                                  <IconButton size="small" onClick={() => openDeleteDialog('cycle', cycle.id, cycle.name)} sx={{ color: 'rgba(255,255,255,0.4)', '&:hover': { color: '#ef5350' } }}><DeleteIcon sx={{ fontSize: '1rem' }} /></IconButton>
-                                </Box>
-                              </React.Fragment>
-                            ))}
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                          <Box sx={{ borderRadius: 1.25, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)' }}>
+                            <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 0.6fr 0.4fr' }}>
+                              {['MOCK CYCLE', 'PROJECT', 'PROGRAM', 'DATE RANGE', 'MODE', 'ACTIONS'].map(h => (
+                                <Box key={h} sx={{ backgroundColor: 'rgba(255,255,255,0.07)', p: 1, fontWeight: 700, color: 'rgba(255,255,255,0.5)', fontSize: '0.72rem', letterSpacing: '0.4px' }}>{h}</Box>
+                              ))}
+                              {visibleMaintainCycleRows.length === 0 ? (
+                                <Box sx={{ gridColumn: '1 / -1', p: 2, textAlign: 'center', color: 'rgba(255,255,255,0.35)', fontSize: '0.85rem' }}>No mock cycles found.</Box>
+                              ) : visibleMaintainCycleRows.map((cycle, idx) => {
+                                const isActive = cycle.id === maintainSelectedCycleId;
+                                const rowBackground = isActive
+                                  ? 'rgba(87,137,246,0.28)'
+                                  : idx % 2 === 0
+                                    ? 'rgba(255,255,255,0.03)'
+                                    : 'transparent';
+
+                                return (
+                                  <React.Fragment key={cycle.id}>
+                                    <Box onClick={() => setMaintainSelectedCycleId(cycle.id)} sx={{ p: 1, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: rowBackground, color: '#DCE7FF', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer' }}>{cycle.name}</Box>
+                                    <Box onClick={() => setMaintainSelectedCycleId(cycle.id)} sx={{ p: 1, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: rowBackground, color: 'rgba(255,255,255,0.7)', fontSize: '0.85rem', cursor: 'pointer' }}>{cycle.linkedProjectName}</Box>
+                                    <Box onClick={() => setMaintainSelectedCycleId(cycle.id)} sx={{ p: 1, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: rowBackground, color: 'rgba(255,255,255,0.7)', fontSize: '0.85rem', cursor: 'pointer' }}>{cycle.programName}</Box>
+                                    <Box onClick={() => setMaintainSelectedCycleId(cycle.id)} sx={{ p: 1, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: rowBackground, color: 'rgba(255,255,255,0.6)', fontSize: '0.82rem', cursor: 'pointer' }}>{toDateInputValue(cycle.startDate) || '—'} → {toDateInputValue(cycle.endDate) || '—'}</Box>
+                                    <Box onClick={() => setMaintainSelectedCycleId(cycle.id)} sx={{ p: 1, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: rowBackground, color: 'rgba(255,255,255,0.6)', fontSize: '0.82rem', cursor: 'pointer' }}>{cycle.scheduleMode === 'working_days' ? 'Working Days' : 'All Days'}</Box>
+                                    <Box sx={{ p: 0.75, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: rowBackground, display: 'flex', gap: 0.25 }}>
+                                      <IconButton size="small" onClick={() => openEditDialog('cycle', cycle.id)} sx={{ color: 'rgba(255,255,255,0.5)', '&:hover': { color: 'white' } }}><EditIcon sx={{ fontSize: '1rem' }} /></IconButton>
+                                      <IconButton size="small" onClick={() => openDeleteDialog('cycle', cycle.id, cycle.name)} sx={{ color: 'rgba(255,255,255,0.4)', '&:hover': { color: '#ef5350' } }}><DeleteIcon sx={{ fontSize: '1rem' }} /></IconButton>
+                                    </Box>
+                                  </React.Fragment>
+                                );
+                              })}
+                            </Box>
                           </Box>
+
+                          {selectedMaintainCycle ? (
+                            <Card sx={{ backgroundColor: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                              <CardContent sx={{ p: 2 }}>
+                                <Typography variant="subtitle1" sx={{ color: '#DCE6FF', fontWeight: 700, mb: 1.25 }}>
+                                  Cycle Governance: {selectedMaintainCycle.name}
+                                </Typography>
+
+                                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
+                                  <Typography variant="subtitle2">Entry Criteria</Typography>
+                                  <Box sx={{ border: '1px solid rgba(255,255,255,0.1)', borderRadius: 1.25, overflow: 'hidden' }}>
+                                    {cycleEntryCriteriaDraft.map((criterion, idx) => (
+                                      <Box key={`structure-entry-${criterion.key}`} sx={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 1, px: 1.25, py: 0.8, borderBottom: idx === cycleEntryCriteriaDraft.length - 1 ? 'none' : '1px solid rgba(255,255,255,0.06)', backgroundColor: idx % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent' }}>
+                                        <TextField
+                                          size="small"
+                                          value={criterion.label}
+                                          onChange={(e) => setCycleEntryCriteriaDraft((prev) => prev.map((row) => row.key === criterion.key ? { ...row, label: e.target.value } : row))}
+                                        />
+                                        <FormControlLabel
+                                          control={<Checkbox checked={criterion.completed} onChange={(e) => setCycleEntryCriteriaDraft((prev) => prev.map((row) => row.key === criterion.key ? { ...row, completed: e.target.checked } : row))} />}
+                                          label="Done"
+                                        />
+                                        <FormControlLabel
+                                          control={<Checkbox checked={criterion.enforced} onChange={(e) => setCycleEntryCriteriaDraft((prev) => prev.map((row) => row.key === criterion.key ? { ...row, enforced: e.target.checked } : row))} />}
+                                          label="Enforce"
+                                        />
+                                      </Box>
+                                    ))}
+                                  </Box>
+
+                                  <Typography variant="subtitle2" sx={{ mt: 0.5 }}>Exit Criteria</Typography>
+                                  <Box sx={{ border: '1px solid rgba(255,255,255,0.1)', borderRadius: 1.25, overflow: 'hidden' }}>
+                                    {cycleExitCriteriaDraft.map((criterion, idx) => (
+                                      <Box key={`structure-exit-${criterion.key}`} sx={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 1, px: 1.25, py: 0.8, borderBottom: idx === cycleExitCriteriaDraft.length - 1 ? 'none' : '1px solid rgba(255,255,255,0.06)', backgroundColor: idx % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent' }}>
+                                        <TextField
+                                          size="small"
+                                          value={criterion.label}
+                                          onChange={(e) => setCycleExitCriteriaDraft((prev) => prev.map((row) => row.key === criterion.key ? { ...row, label: e.target.value } : row))}
+                                        />
+                                        <FormControlLabel
+                                          control={<Checkbox checked={criterion.completed} onChange={(e) => setCycleExitCriteriaDraft((prev) => prev.map((row) => row.key === criterion.key ? { ...row, completed: e.target.checked } : row))} />}
+                                          label="Done"
+                                        />
+                                        <FormControlLabel
+                                          control={<Checkbox checked={criterion.enforced} onChange={(e) => setCycleExitCriteriaDraft((prev) => prev.map((row) => row.key === criterion.key ? { ...row, enforced: e.target.checked } : row))} />}
+                                          label="Enforce"
+                                        />
+                                      </Box>
+                                    ))}
+                                  </Box>
+
+                                  <Typography variant="subtitle2" sx={{ mt: 0.5 }}>Project Approvals</Typography>
+                                  <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(220px, 1fr))' }, gap: 1 }}>
+                                    <TextField
+                                      select
+                                      size="small"
+                                      label="Lead"
+                                      value={projectLeadUserIdDraft}
+                                      onChange={(e) => setProjectLeadUserIdDraft(e.target.value)}
+                                    >
+                                      <MenuItem value="">Unassigned</MenuItem>
+                                      {people.map((person: any) => (
+                                        <MenuItem key={`structure-lead-${person.id}`} value={person.id}>{person.name || person.email}</MenuItem>
+                                      ))}
+                                    </TextField>
+                                    <TextField
+                                      select
+                                      size="small"
+                                      label="Project Manager"
+                                      value={projectManagerUserIdDraft}
+                                      onChange={(e) => setProjectManagerUserIdDraft(e.target.value)}
+                                    >
+                                      <MenuItem value="">Unassigned</MenuItem>
+                                      {people.map((person: any) => (
+                                        <MenuItem key={`structure-pm-${person.id}`} value={person.id}>{person.name || person.email}</MenuItem>
+                                      ))}
+                                    </TextField>
+                                  </Box>
+
+                                  {cycleWorkflowEvaluation && (
+                                    <Alert severity={cycleWorkflowEvaluation?.progressionAllowed ? 'success' : 'warning'}>
+                                      {cycleWorkflowEvaluation?.progressionAllowed
+                                        ? 'Progression gate passed: all enforced criteria complete and approvals captured.'
+                                        : 'Progression blocked: complete enforced criteria and sequential approvals (Lead then Project Manager).'}
+                                    </Alert>
+                                  )}
+
+                                  <Alert severity="info">
+                                    Execution owns actual load statistics. Planning Structure only defines gate criteria and approvals.
+                                  </Alert>
+
+                                  <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+                                    <Button
+                                      variant="outlined"
+                                      sx={{ mr: 1 }}
+                                      onClick={() => handleSaveProjectWorkflowRoles(selectedMaintainCycle.projectId, selectedMaintainCycle.id)}
+                                      disabled={isSavingProjectWorkflowRoles || !selectedMaintainCycle.projectId}
+                                    >
+                                      {isSavingProjectWorkflowRoles ? 'Saving Roles...' : 'Save Roles'}
+                                    </Button>
+                                    <Button variant="outlined" sx={{ mr: 1 }} onClick={() => handleCycleApproval('lead', true, selectedMaintainCycle.id)} disabled={isApprovingCycle}>
+                                      Lead Approve
+                                    </Button>
+                                    <Button variant="outlined" sx={{ mr: 1 }} onClick={() => handleCycleApproval('project-manager', true, selectedMaintainCycle.id)} disabled={isApprovingCycle}>
+                                      PM Approve
+                                    </Button>
+                                    <Button
+                                      variant="contained"
+                                      onClick={() => handleSaveCycleCriteria(selectedMaintainCycle.id)}
+                                      disabled={isSavingCycleCriteria}
+                                    >
+                                      {isSavingCycleCriteria ? 'Saving...' : 'Save Cycle Workflow'}
+                                    </Button>
+                                  </Box>
+                                </Box>
+                              </CardContent>
+                            </Card>
+                          ) : (
+                            <Alert severity="info">Select a mock cycle to edit entry/exit criteria and approvals.</Alert>
+                          )}
                         </Box>
                       )}
 

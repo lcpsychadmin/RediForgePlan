@@ -108,7 +108,7 @@ export const DataObjectDetailDrawer: React.FC<DataObjectDetailDrawerProps> = ({
       return taskType === 'postload_validation';
     });
 
-    const preferred = preloadTask || postloadTask || objectTasks[0];
+    const preferred = preloadTask || postloadTask;
     setSelectedTaskId(preferred?.id || '');
   }, [objectTasks]);
 
@@ -384,6 +384,14 @@ export const DataObjectDetailDrawer: React.FC<DataObjectDetailDrawerProps> = ({
               {/* Validation Tab */}
               <TabPanel value={currentTab} index={2}>
                 <Stack spacing={2}>
+                  {(() => {
+                    const validationTasks = objectTasks.filter((task: any) => {
+                      const taskType = String(task.taskType || task.task_type || '').toLowerCase();
+                      return taskType === 'preload_validation' || taskType === 'postload_validation';
+                    });
+
+                    return (
+                      <>
                   <TextField
                     label="Validation Task"
                     select
@@ -391,14 +399,21 @@ export const DataObjectDetailDrawer: React.FC<DataObjectDetailDrawerProps> = ({
                     value={selectedTaskId}
                     onChange={(e) => setSelectedTaskId(e.target.value)}
                     fullWidth
+                    disabled={validationTasks.length === 0}
                   >
-                    {objectTasks.map((task: any) => (
+                    {validationTasks.map((task: any) => (
                       <MenuItem key={task.id} value={task.id}>
                         {(task.name || task.taskName || 'Task').toString()} ({task.taskType || task.task_type || 'custom'})
                       </MenuItem>
                     ))}
                   </TextField>
+                  {validationTasks.length === 0 ? (
+                    <Alert severity="info">No PreLoad/PostLoad validation tasks are available for this object yet.</Alert>
+                  ) : null}
                   <ValidationStatsSection taskId={selectedTaskId} />
+                      </>
+                    );
+                  })()}
                 </Stack>
               </TabPanel>
 

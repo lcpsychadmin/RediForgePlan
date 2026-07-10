@@ -86,8 +86,30 @@ class ApprovalWorkflowEngine {
               mc.lead_approved_by,
               mc.lead_approved_at,
               mc.project_manager_approved_by,
-              mc.project_manager_approved_at
+              mc.project_manager_approved_at,
+              agg.validation_stats_count,
+              agg.preload_total_records,
+              agg.preload_invalid_records,
+              agg.postload_total_records,
+              agg.postload_valid_records,
+              agg.postload_invalid_records
        FROM mock_cycles mc
+       LEFT JOIN LATERAL (
+         SELECT
+           COUNT(vs.task_id) AS validation_stats_count,
+           COALESCE(SUM(CASE WHEN t.task_type = 'preload_validation' THEN vs.total_records ELSE 0 END), 0) AS preload_total_records,
+           COALESCE(SUM(CASE WHEN t.task_type = 'preload_validation' THEN vs.invalid_records ELSE 0 END), 0) AS preload_invalid_records,
+           COALESCE(SUM(CASE WHEN t.task_type = 'postload_validation' THEN vs.total_records ELSE 0 END), 0) AS postload_total_records,
+           COALESCE(SUM(CASE WHEN t.task_type = 'postload_validation' THEN vs.valid_records ELSE 0 END), 0) AS postload_valid_records,
+           COALESCE(SUM(CASE WHEN t.task_type = 'postload_validation' THEN vs.invalid_records ELSE 0 END), 0) AS postload_invalid_records
+         FROM tasks t
+         LEFT JOIN task_validation_stats vs ON vs.task_id = t.id
+         WHERE t.task_type IN ('preload_validation', 'postload_validation')
+           AND (
+             t.mock_cycle_id = mc.id
+             OR (t.mock_cycle_id IS NULL AND t.project_id = mc.project_id)
+           )
+       ) agg ON TRUE
        WHERE mc.id = $1`,
       [mockCycleId]
     );
@@ -99,13 +121,14 @@ class ApprovalWorkflowEngine {
     const row = cycleResult.rows[0];
     const entryCriteria = normalizeCriteria('entry', row.entry_criteria_items || buildDefaultCriteria('entry', true));
     const exitCriteria = normalizeCriteria('exit', row.exit_criteria_items || buildDefaultCriteria('exit', true));
+    const hasStepMetrics = Number(row.validation_stats_count || 0) > 0;
 
     const metrics = {
-      totalRecordsScope: Number(row.total_records_scope || 0),
-      invalidRecords: Number(row.invalid_records || 0),
-      recordsAttempted: Number(row.records_attempted || 0),
-      loadErrors: Number(row.load_errors || 0),
-      recordsLoaded: Number(row.records_loaded || 0),
+      totalRecordsScope: Number(hasStepMetrics ? row.preload_total_records : row.total_records_scope || 0),
+      invalidRecords: Number(hasStepMetrics ? row.preload_invalid_records : row.invalid_records || 0),
+      recordsAttempted: Number(hasStepMetrics ? row.postload_total_records : row.records_attempted || 0),
+      loadErrors: Number(hasStepMetrics ? row.postload_invalid_records : row.load_errors || 0),
+      recordsLoaded: Number(hasStepMetrics ? row.postload_valid_records : row.records_loaded || 0),
       loadSuccessRate: Number(row.load_success_rate || 0),
       loadCoverageRate: Number(row.load_coverage_rate || 0),
     };

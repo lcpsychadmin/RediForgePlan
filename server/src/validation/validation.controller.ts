@@ -18,6 +18,13 @@ class ValidationController {
       const { taskId } = req.params;
       const task = await taskService.getTaskById(taskId);
       if (!task) throw new ApiError(404, 'Task not found', 'NOT_FOUND');
+      if (task.taskType !== 'preload_validation' && task.taskType !== 'postload_validation') {
+        throw new ApiError(
+          400,
+          'Validation stats can only be captured for PreLoad Validation and PostLoad Validation tasks.',
+          'INVALID_TASK_TYPE'
+        );
+      }
 
       const totalRecords = toNonNegativeInt(req.body.totalRecords, 'totalRecords');
       const validRecords = toNonNegativeInt(req.body.validRecords, 'validRecords');
@@ -40,6 +47,13 @@ class ValidationController {
       const { taskId } = req.params;
       const task = await taskService.getTaskById(taskId);
       if (!task) throw new ApiError(404, 'Task not found', 'NOT_FOUND');
+      if (task.taskType !== 'preload_validation' && task.taskType !== 'postload_validation') {
+        throw new ApiError(
+          400,
+          'Validation stats are available only for PreLoad Validation and PostLoad Validation tasks.',
+          'INVALID_TASK_TYPE'
+        );
+      }
 
       const stats = await validationService.getStats(taskId);
       res.json(formatSingleResponse(stats));
