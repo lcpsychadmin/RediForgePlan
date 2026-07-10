@@ -70,6 +70,89 @@ const SECTION_CONFIG: Array<{ key: string; label: string; rows?: number }> = [
   { key: 'strategyApproval', label: 'Strategy Approval' },
 ];
 
+const SECTION_EXPECTATIONS: Record<string, string[]> = {
+  purpose: [
+    'State the migration intent and business objective.',
+    'Define the outcomes this strategy must achieve.',
+    'Explain how readiness and conversion support deployment success.',
+  ],
+  guidingPrinciples: [
+    'Capture the rules that guide migration decisions.',
+    'Call out automation, repeatability, and quality expectations.',
+    'Describe the collaboration model across teams.',
+  ],
+  dataReadiness: [
+    'Describe profiling, cleansing, enrichment, and preparation activities.',
+    'Identify tools, owners, and quality dimensions.',
+    'Show how readiness improves over iterative cycles.',
+  ],
+  dataConversion: [
+    'Explain the ingest, transform, and load flow.',
+    'Describe how design rules drive transformation and enrichment.',
+    'Clarify how data is constructed and loaded into the target system.',
+  ],
+  conversionScope: [
+    'List master and transactional data in scope.',
+    'Define ownership and relevancy rules.',
+    'Call out exclusions and boundaries clearly.',
+  ],
+  conversionMethods: [
+    'Identify automated, manual, and semi-automated methods.',
+    'Explain why each method is being used.',
+    'Note constraints that drive the chosen approach.',
+  ],
+  conversionDocuments: [
+    'Summarize the required conversion documents.',
+    'Define the purpose and ownership of each one.',
+    'Explain how documentation supports conversion accuracy.',
+  ],
+  dataValidationProcess: [
+    'Define pre-load and post-load validation checkpoints.',
+    'Describe scripts, sampling, and involved roles.',
+    'Explain how defects are logged, triaged, and resolved.',
+  ],
+  mockConversionCycles: [
+    'Describe the number, purpose, and scope of each mock cycle.',
+    'Explain how data supports testing in each cycle.',
+    'Show how the cycles build readiness for cutover.',
+  ],
+  entryCriteria: [
+    'List the conditions required to start a mock cycle.',
+    'Include readiness for systems, configuration, ETL, and access.',
+    'Define acceptable defect thresholds before execution begins.',
+  ],
+  exitCriteria: [
+    'List the conditions required to close a mock cycle.',
+    'Include validation results, defect triage, and load metrics.',
+    'Define what proves readiness for the next cycle.',
+  ],
+  goLiveSimulationCutover: [
+    'Describe dress rehearsal and cutover execution approach.',
+    'Explain timing, sequencing, and manual construction steps.',
+    'Define validation expectations and business participation.',
+  ],
+  dependencies: [
+    'Capture upstream and downstream migration dependencies.',
+    'Include systems, integrations, readiness gates, and deliverables.',
+    'Highlight cross-team dependencies that can affect timing.',
+  ],
+  assumptions: [
+    'Document assumptions behind the migration strategy.',
+    'Include data availability, resources, tools, and participation.',
+    'Make explicit what must remain true for the plan to work.',
+  ],
+  keyDesignDecisions: [
+    'Record the major architectural and functional choices.',
+    'Include relevancy rules, transformation logic, and sequencing.',
+    'Call out important system constraints shaping the design.',
+  ],
+  strategyApproval: [
+    'Define the approval workflow and decision owners.',
+    'Clarify Lead and Project Manager sign-off responsibilities.',
+    'List what must be complete before final strategy acceptance.',
+  ],
+};
+
 const SPECIAL_SECTION_KEYS = new Set(['entryCriteria', 'exitCriteria', 'strategyApproval']);
 const SPECIAL_ACCENT = '#90CAF9';
 const SPECIAL_SURFACE = {
@@ -312,6 +395,28 @@ const DataMigrationStrategyView: React.FC<Props> = ({
           Section {activeSectionIndex + 1} of {SECTION_CONFIG.length}
         </Typography>
 
+        <Box
+          sx={{
+            mb: 2,
+            px: 1.5,
+            py: 1.25,
+            borderLeft: `3px solid ${activeAccent}`,
+            backgroundColor: 'rgba(255,255,255,0.045)',
+            borderRadius: 1.5,
+          }}
+        >
+          <Typography sx={{ color: activeAccent, fontWeight: 700, fontSize: '0.88rem', mb: 0.5 }}>
+            What This Section Should Cover
+          </Typography>
+          <Box sx={{ display: 'grid', gap: 0.45 }}>
+            {SECTION_EXPECTATIONS[activeSection.key].map((expectation) => (
+              <Typography key={expectation} variant="body2" sx={{ color: 'rgba(234,242,255,0.88)', lineHeight: 1.6 }}>
+                • {expectation}
+              </Typography>
+            ))}
+          </Box>
+        </Box>
+
         {activeSection.key === 'entryCriteria' ? (
           <Box sx={{ display: 'grid', gap: 1.5 }}>
             {data.mockCycles.map((cycle) => {
@@ -467,7 +572,7 @@ const DataMigrationStrategyView: React.FC<Props> = ({
                 modules={quillModules}
                 formats={quillFormats}
                 readOnly={!canEditSections}
-                placeholder={`Document ${activeSection.label.toLowerCase()}...`}
+                placeholder={(SECTION_EXPECTATIONS[activeSection.key] || []).join(' ')}
               />
             </Box>
           </Box>
