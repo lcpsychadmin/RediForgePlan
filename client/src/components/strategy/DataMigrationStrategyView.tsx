@@ -574,7 +574,7 @@ const DataMigrationStrategyView: React.FC<Props> = ({
           border: `1px solid ${activeAccent}33`,
           borderRadius: 2.5,
           boxShadow: '0 10px 30px rgba(0,0,0,0.14)',
-          overflow: 'hidden',
+          overflow: 'visible',
         }}
       >
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: 1.5, flexWrap: 'wrap' }}>
@@ -642,16 +642,26 @@ const DataMigrationStrategyView: React.FC<Props> = ({
             sx={{
               border: `1px solid ${activeAccent}3d`,
               borderRadius: 2,
-              overflow: 'hidden',
+              overflow: 'visible',
               backgroundColor: 'rgba(255,255,255,0.05)',
               '& .ql-toolbar.ql-snow': {
                 border: 'none',
                 borderBottom: '1px solid rgba(255,255,255,0.14)',
                 backgroundColor: 'rgba(255,255,255,0.04)',
                 position: 'sticky',
-                top: 126,
-                zIndex: 4,
+                top: { xs: 66, sm: 78, md: 128 },
+                zIndex: 6,
                 backdropFilter: 'blur(6px)',
+                borderTopLeftRadius: 8,
+                borderTopRightRadius: 8,
+              },
+              '& .strategy-editor-toolbar': {
+                display: 'flex',
+                flexWrap: 'wrap',
+                alignItems: 'center',
+                rowGap: 6,
+                columnGap: 4,
+                padding: '6px 8px',
               },
               '& .strategy-editor-toolbar .ql-formats': {
                 marginRight: 8,
@@ -668,6 +678,8 @@ const DataMigrationStrategyView: React.FC<Props> = ({
                 border: 'none',
                 fontFamily: 'inherit',
                 minHeight: 240,
+                borderBottomLeftRadius: 8,
+                borderBottomRightRadius: 8,
               },
               '& .ql-editor': {
                 minHeight: 240,
