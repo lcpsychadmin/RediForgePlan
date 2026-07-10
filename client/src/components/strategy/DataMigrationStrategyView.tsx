@@ -64,7 +64,12 @@ const SECTION_CONFIG: Array<{ key: string; label: string; rows?: number }> = [
   { key: 'dependencies', label: 'Dependencies', rows: 3 },
   { key: 'assumptions', label: 'Assumptions', rows: 3 },
   { key: 'keyDesignDecisions', label: 'Key Design Decisions', rows: 4 },
+  { key: 'entryCriteria', label: 'Entry Criteria' },
+  { key: 'exitCriteria', label: 'Exit Criteria' },
+  { key: 'strategyApproval', label: 'Strategy Approval' },
 ];
+
+const SPECIAL_SECTION_KEYS = new Set(['entryCriteria', 'exitCriteria', 'strategyApproval']);
 
 interface Props {
   projectId: string;
@@ -174,12 +179,14 @@ const DataMigrationStrategyView: React.FC<Props> = ({
   const strategy = data.strategy;
   const activeSection = SECTION_CONFIG.find((section) => section.key === activeSectionKey) || SECTION_CONFIG[0];
   const activeSectionIndex = SECTION_CONFIG.findIndex((section) => section.key === activeSection.key);
+  const editableSectionCount = SECTION_CONFIG.filter((section) => !SPECIAL_SECTION_KEYS.has(section.key)).length;
   const completedSectionCount = SECTION_CONFIG.filter((section) => {
+    if (SPECIAL_SECTION_KEYS.has(section.key)) return false;
     const value = sectionsDraft[section.key] || '';
     return value.trim().length > 0;
   }).length;
-  const completionPct = SECTION_CONFIG.length > 0
-    ? Math.round((completedSectionCount / SECTION_CONFIG.length) * 100)
+  const completionPct = editableSectionCount > 0
+    ? Math.round((completedSectionCount / editableSectionCount) * 100)
     : 0;
 
   const isLeadAssignedUser = !!strategy.roles.leadUserId && strategy.roles.leadUserId === userId;
@@ -212,7 +219,7 @@ const DataMigrationStrategyView: React.FC<Props> = ({
           <Box>
             <Typography variant="h6">Data Migration Strategy</Typography>
             <Typography variant="body2" color="text.secondary">Project: {projectName || data.project?.name || projectId}</Typography>
-            <Typography variant="caption" color="text.secondary">Completed Sections: {completedSectionCount} / {SECTION_CONFIG.length}</Typography>
+            <Typography variant="caption" color="text.secondary">Completed Sections: {completedSectionCount} / {editableSectionCount}</Typography>
           </Box>
           <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
             <Button variant="outlined" onClick={onEditProject}>Manage Roles</Button>
@@ -228,18 +235,129 @@ const DataMigrationStrategyView: React.FC<Props> = ({
           Section {activeSectionIndex + 1} of {SECTION_CONFIG.length}
         </Typography>
 
-        <Box sx={{ display: 'grid', gap: 1.25 }}>
-          <TextField
-            key={activeSection.key}
-            label={activeSection.label}
-            multiline
-            minRows={activeSection.rows || 3}
-            value={sectionsDraft[activeSection.key] || ''}
-            onChange={(e) => setSectionsDraft((prev) => ({ ...prev, [activeSection.key]: e.target.value }))}
-            disabled={!canEditSections}
-            fullWidth
-          />
-        </Box>
+        {activeSection.key === 'entryCriteria' ? (
+          <Box sx={{ display: 'grid', gap: 1.5 }}>
+            {data.mockCycles.map((cycle) => {
+              const workflow = cycleWorkflowById.get(cycle.id);
+              const entryItems = workflow?.criteria?.entry || [];
+              return (
+                <Card key={`${cycle.id}-entry`} variant="outlined">
+                  <CardContent>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, mb: 1, flexWrap: 'wrap' }}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>{cycle.name}</Typography>
+                      <Button size="small" variant="outlined" onClick={() => onEditCycle(cycle.id)}>
+                        Open Existing Mock Cycle Modal
+                      </Button>
+                    </Box>
+                    {entryItems.length === 0 ? (
+                      <Typography variant="body2" color="text.secondary">No entry criteria.</Typography>
+                    ) : (
+                      <Box sx={{ display: 'grid', gap: 0.5 }}>
+                        {entryItems.map((item: any) => (
+                          <Typography key={`${cycle.id}-entry-${item.key}`} variant="body2">• {item.label}</Typography>
+                        ))}
+                      </Box>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </Box>
+        ) : activeSection.key === 'exitCriteria' ? (
+          <Box sx={{ display: 'grid', gap: 1.5 }}>
+            {data.mockCycles.map((cycle) => {
+              const workflow = cycleWorkflowById.get(cycle.id);
+              const exitItems = workflow?.criteria?.exit || [];
+              return (
+                <Card key={`${cycle.id}-exit`} variant="outlined">
+                  <CardContent>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, mb: 1, flexWrap: 'wrap' }}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>{cycle.name}</Typography>
+                      <Button size="small" variant="outlined" onClick={() => onEditCycle(cycle.id)}>
+                        Open Existing Mock Cycle Modal
+                      </Button>
+                    </Box>
+                    {exitItems.length === 0 ? (
+                      <Typography variant="body2" color="text.secondary">No exit criteria.</Typography>
+                    ) : (
+                      <Box sx={{ display: 'grid', gap: 0.5 }}>
+                        {exitItems.map((item: any) => (
+                          <Typography key={`${cycle.id}-exit-${item.key}`} variant="body2">• {item.label}</Typography>
+                        ))}
+                      </Box>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </Box>
+        ) : activeSection.key === 'strategyApproval' ? (
+          <Box>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.75, fontWeight: 700 }}>
+              Project Role Assignments (Read Only)
+            </Typography>
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1, mb: 1.5 }}>
+              <TextField label="Lead" value={strategy.roleUsers?.leadEmail || strategy.roles.leadUserId || 'Unassigned'} InputProps={{ readOnly: true }} />
+              <TextField label="Project Manager" value={strategy.roleUsers?.projectManagerEmail || strategy.roles.projectManagerUserId || 'Unassigned'} InputProps={{ readOnly: true }} />
+            </Box>
+            <Box sx={{ mb: 2 }}>
+              <Button variant="outlined" onClick={onEditProject}>Open Existing Role Assignment Modal</Button>
+            </Box>
+
+            <Divider sx={{ mb: 1.5 }} />
+
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.75, fontWeight: 700 }}>
+              Workflow Approval
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 1.5 }}>
+              <Chip label={`Lead: ${strategy.approvals.leadApproved ? 'Approved' : 'Pending'}`} color={strategy.approvals.leadApproved ? 'success' : 'default'} />
+              <Chip label={`Project Manager: ${strategy.approvals.projectManagerApproved ? 'Approved' : 'Pending'}`} color={strategy.approvals.projectManagerApproved ? 'success' : 'default'} />
+            </Box>
+            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+              <Button
+                variant="contained"
+                disabled={!isLeadAssignedUser || isApproving === 'lead'}
+                onClick={() => handleApproval('lead', true)}
+              >
+                {isApproving === 'lead' ? 'Saving...' : 'Lead Approve'}
+              </Button>
+              <Button
+                variant="outlined"
+                disabled={!isLeadAssignedUser || isApproving === 'lead'}
+                onClick={() => handleApproval('lead', false)}
+              >
+                Revoke Lead Approval
+              </Button>
+              <Button
+                variant="contained"
+                disabled={!isPmAssignedUser || isApproving === 'project_manager'}
+                onClick={() => handleApproval('project_manager', true)}
+              >
+                {isApproving === 'project_manager' ? 'Saving...' : 'PM Final Sign-Off'}
+              </Button>
+              <Button
+                variant="outlined"
+                disabled={!isPmAssignedUser || isApproving === 'project_manager'}
+                onClick={() => handleApproval('project_manager', false)}
+              >
+                Revoke PM Sign-Off
+              </Button>
+            </Box>
+          </Box>
+        ) : (
+          <Box sx={{ display: 'grid', gap: 1.25 }}>
+            <TextField
+              key={activeSection.key}
+              label={activeSection.label}
+              multiline
+              minRows={activeSection.rows || 3}
+              value={sectionsDraft[activeSection.key] || ''}
+              onChange={(e) => setSectionsDraft((prev) => ({ ...prev, [activeSection.key]: e.target.value }))}
+              disabled={!canEditSections}
+              fullWidth
+            />
+          </Box>
+        )}
 
         <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1.5, gap: 1 }}>
           <Button
@@ -258,133 +376,15 @@ const DataMigrationStrategyView: React.FC<Props> = ({
           </Button>
         </Box>
 
-        {canEditSections ? (
+        {canEditSections && !SPECIAL_SECTION_KEYS.has(activeSection.key) ? (
           <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1.5 }}>
             <Button variant="contained" onClick={handleSaveSections} disabled={isSavingSections}>
               {isSavingSections ? 'Saving...' : 'Save Data Migration Strategy'}
             </Button>
           </Box>
-        ) : (
+        ) : !SPECIAL_SECTION_KEYS.has(activeSection.key) ? (
           <Alert severity="info" sx={{ mt: 1.5 }}>Only admins can edit strategy sections.</Alert>
-        )}
-      </Paper>
-
-
-      <Paper sx={{ p: 2 }}>
-        <Typography variant="subtitle1" sx={{ mb: 1.5, fontWeight: 700 }}>Entry Criteria (Read Only)</Typography>
-        <Box sx={{ display: 'grid', gap: 1.5 }}>
-          {data.mockCycles.map((cycle) => {
-            const workflow = cycleWorkflowById.get(cycle.id);
-            const entryItems = workflow?.criteria?.entry || [];
-            return (
-              <Card key={`${cycle.id}-entry`} variant="outlined">
-                <CardContent>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, mb: 1, flexWrap: 'wrap' }}>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>{cycle.name}</Typography>
-                    <Button size="small" variant="outlined" onClick={() => onEditCycle(cycle.id)}>
-                      Open Existing Mock Cycle Modal
-                    </Button>
-                  </Box>
-                  {entryItems.length === 0 ? (
-                    <Typography variant="body2" color="text.secondary">No entry criteria.</Typography>
-                  ) : (
-                    <Box sx={{ display: 'grid', gap: 0.5 }}>
-                      {entryItems.map((item: any) => (
-                        <Typography key={`${cycle.id}-entry-${item.key}`} variant="body2">• {item.label}</Typography>
-                      ))}
-                    </Box>
-                  )}
-                </CardContent>
-              </Card>
-            );
-          })}
-        </Box>
-      </Paper>
-
-      <Paper sx={{ p: 2 }}>
-        <Typography variant="subtitle1" sx={{ mb: 1.5, fontWeight: 700 }}>Exit Criteria (Read Only)</Typography>
-        <Box sx={{ display: 'grid', gap: 1.5 }}>
-          {data.mockCycles.map((cycle) => {
-            const workflow = cycleWorkflowById.get(cycle.id);
-            const exitItems = workflow?.criteria?.exit || [];
-            return (
-              <Card key={`${cycle.id}-exit`} variant="outlined">
-                <CardContent>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, mb: 1, flexWrap: 'wrap' }}>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>{cycle.name}</Typography>
-                    <Button size="small" variant="outlined" onClick={() => onEditCycle(cycle.id)}>
-                      Open Existing Mock Cycle Modal
-                    </Button>
-                  </Box>
-                  {exitItems.length === 0 ? (
-                    <Typography variant="body2" color="text.secondary">No exit criteria.</Typography>
-                  ) : (
-                    <Box sx={{ display: 'grid', gap: 0.5 }}>
-                      {exitItems.map((item: any) => (
-                        <Typography key={`${cycle.id}-exit-${item.key}`} variant="body2">• {item.label}</Typography>
-                      ))}
-                    </Box>
-                  )}
-                </CardContent>
-              </Card>
-            );
-          })}
-        </Box>
-      </Paper>
-
-      <Paper sx={{ p: 2 }}>
-        <Typography variant="subtitle1" sx={{ mb: 1.5, fontWeight: 700 }}>Strategy Approval</Typography>
-
-        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.75, fontWeight: 700 }}>
-          Project Role Assignments (Read Only)
-        </Typography>
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1, mb: 1.5 }}>
-          <TextField label="Lead" value={strategy.roleUsers?.leadEmail || strategy.roles.leadUserId || 'Unassigned'} InputProps={{ readOnly: true }} />
-          <TextField label="Project Manager" value={strategy.roleUsers?.projectManagerEmail || strategy.roles.projectManagerUserId || 'Unassigned'} InputProps={{ readOnly: true }} />
-        </Box>
-        <Box sx={{ mb: 2 }}>
-          <Button variant="outlined" onClick={onEditProject}>Open Existing Role Assignment Modal</Button>
-        </Box>
-
-        <Divider sx={{ mb: 1.5 }} />
-
-        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.75, fontWeight: 700 }}>
-          Workflow Approval
-        </Typography>
-        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 1.5 }}>
-          <Chip label={`Lead: ${strategy.approvals.leadApproved ? 'Approved' : 'Pending'}`} color={strategy.approvals.leadApproved ? 'success' : 'default'} />
-          <Chip label={`Project Manager: ${strategy.approvals.projectManagerApproved ? 'Approved' : 'Pending'}`} color={strategy.approvals.projectManagerApproved ? 'success' : 'default'} />
-        </Box>
-        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-          <Button
-            variant="contained"
-            disabled={!isLeadAssignedUser || isApproving === 'lead'}
-            onClick={() => handleApproval('lead', true)}
-          >
-            {isApproving === 'lead' ? 'Saving...' : 'Lead Approve'}
-          </Button>
-          <Button
-            variant="outlined"
-            disabled={!isLeadAssignedUser || isApproving === 'lead'}
-            onClick={() => handleApproval('lead', false)}
-          >
-            Revoke Lead Approval
-          </Button>
-          <Button
-            variant="contained"
-            disabled={!isPmAssignedUser || isApproving === 'project_manager'}
-            onClick={() => handleApproval('project_manager', true)}
-          >
-            {isApproving === 'project_manager' ? 'Saving...' : 'PM Final Sign-Off'}
-          </Button>
-          <Button
-            variant="outlined"
-            disabled={!isPmAssignedUser || isApproving === 'project_manager'}
-            onClick={() => handleApproval('project_manager', false)}
-          >
-            Revoke PM Sign-Off
-          </Button>
-        </Box>
+        ) : null}
       </Paper>
       </Box>
     </Box>
