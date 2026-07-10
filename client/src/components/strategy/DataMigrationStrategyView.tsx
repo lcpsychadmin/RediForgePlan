@@ -60,7 +60,7 @@ const SECTION_CONFIG: Array<{ key: string; label: string; rows?: number }> = [
   { key: 'conversionMethods', label: 'Conversion Methods', rows: 4 },
   { key: 'conversionDocuments', label: 'Conversion Documents', rows: 4 },
   { key: 'dataValidationProcess', label: 'Data Validation Process', rows: 4 },
-  { key: 'mockConversionCycles', label: 'Mock Conversion Cycles', rows: 4 },
+  { key: 'mockConversionCycles', label: 'Mock Cycles', rows: 4 },
   { key: 'entryCriteria', label: 'Mock Entry Criteria' },
   { key: 'exitCriteria', label: 'Mock Exit Criteria' },
   { key: 'goLiveSimulationCutover', label: 'Go-Live Simulation & Cutover', rows: 4 },
