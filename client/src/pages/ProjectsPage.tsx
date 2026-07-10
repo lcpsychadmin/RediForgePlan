@@ -143,6 +143,7 @@ type SelectableItem =
   | { type: 'program'; id: string }
   | { type: 'cycle'; id: string; programId: string; projectId?: string }
   | { type: 'project'; id: string; cycleId?: string }
+  | { type: 'deliverable'; projectId: string; cycleId?: string; deliverableId: string }
   | { type: 'processArea'; projectId: string; cycleId: string; area: string };
 const HIERARCHY_SELECTION_STORAGE_KEY = 'rf_selected_hierarchy_context';
 
@@ -254,15 +255,22 @@ interface ProjectsPageProps {
   planningView?: 'plan' | 'strategy' | 'inventory' | 'structure' | 'roadmap';
 }
 
-const PLAN_DELIVERABLE_NODES: Array<{ id: string; label: string; targetView?: 'plan' | 'strategy' | 'inventory' | 'structure' | 'roadmap'; isFuture?: boolean }> = [
-  { id: 'structureRolesCycles', label: 'Project Structure, Roles, and Mock Cycles', targetView: 'structure' },
-  { id: 'processAreasRoles', label: 'Process Areas and Assigned Roles', targetView: 'structure' },
-  { id: 'objectInventory', label: 'Object Inventory by Process Area', targetView: 'inventory' },
-  { id: 'migrationStrategy', label: 'Data Migration Strategy', targetView: 'strategy' },
-  { id: 'projectRoadmap', label: 'Project Roadmap', targetView: 'roadmap' },
-  { id: 'mockCriteria', label: 'Mock Entry and Exit Criteria', targetView: 'plan' },
-  { id: 'designBuildEstimation', label: 'Design and Build Estimation (Not Built Yet)', isFuture: true },
-  { id: 'designBuildCompletion', label: 'Design and Build Phase Plan Completion', targetView: 'plan' },
+const PLAN_DELIVERABLE_NODES: Array<{
+  id: string;
+  label: string;
+  targetView?: 'plan' | 'strategy' | 'inventory' | 'structure' | 'roadmap';
+  isFuture?: boolean;
+  accentColor: string;
+  icon: HierarchyIconChoice;
+}> = [
+  { id: 'structureRolesCycles', label: 'Project Structure, Roles, and Mock Cycles', targetView: 'structure', accentColor: '#4FC3F7', icon: 'fa-diagram-project' },
+  { id: 'processAreasRoles', label: 'Process Areas and Assigned Roles', targetView: 'structure', accentColor: '#7E57C2', icon: 'accountTree' },
+  { id: 'objectInventory', label: 'Object Inventory by Process Area', targetView: 'inventory', accentColor: '#26A69A', icon: 'storage' },
+  { id: 'migrationStrategy', label: 'Data Migration Strategy', targetView: 'strategy', accentColor: '#EC407A', icon: 'fa-file-lines' },
+  { id: 'projectRoadmap', label: 'Project Roadmap', targetView: 'roadmap', accentColor: '#FFB74D', icon: 'fa-chart-gantt' },
+  { id: 'mockCriteria', label: 'Mock Entry and Exit Criteria', targetView: 'plan', accentColor: '#66BB6A', icon: 'fa-list-check' },
+  { id: 'designBuildEstimation', label: 'Design and Build Estimation (Not Built Yet)', isFuture: true, accentColor: '#B0BEC5', icon: 'fa-triangle-exclamation' },
+  { id: 'designBuildCompletion', label: 'Design and Build Phase Plan Completion', targetView: 'plan', accentColor: '#5C6BC0', icon: 'fa-clipboard-list' },
 ];
 
 // ── Roadmap component ──────────────────────────────────────────────────────
@@ -1531,7 +1539,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
     setSelectedItem(item);
     // On mobile, keep the tree open while traversing hierarchy levels.
     // Close only once the user selects a concrete project.
-    if (isMobile && item.type === 'project') {
+    if (isMobile && (item.type === 'project' || item.type === 'deliverable')) {
       setIsHierarchySidebarOpen(false);
     }
   };
@@ -1800,6 +1808,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
     ? selectedProjectForInventory
     : (selectedItem?.type === 'project'
       ? selectedItem.id
+      : selectedItem?.type === 'deliverable'
+        ? selectedItem.projectId
       : selectedItem?.type === 'processArea'
         ? selectedItem.projectId
         : selectedItem?.type === 'cycle'
@@ -1812,6 +1822,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
       : null;
   const activeCycleId = selectedItem?.type === 'project'
     ? (selectedItem.cycleId || null)
+    : selectedItem?.type === 'deliverable'
+      ? (selectedItem.cycleId || null)
     : selectedItem?.type === 'processArea'
       ? selectedItem.cycleId
     : selectedItem?.type === 'cycle'
@@ -2014,6 +2026,13 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
 
     const payload = selectedItem.type === 'project'
       ? { type: 'project', projectId: selectedItem.id, cycleId: selectedItem.cycleId }
+      : selectedItem.type === 'deliverable'
+        ? {
+            type: 'deliverable',
+            projectId: selectedItem.projectId,
+            cycleId: selectedItem.cycleId,
+            deliverableId: selectedItem.deliverableId,
+          }
       : selectedItem.type === 'processArea'
         ? { type: 'processArea', projectId: selectedItem.projectId, cycleId: selectedItem.cycleId, area: selectedItem.area }
       : selectedItem.type === 'cycle'
@@ -5083,6 +5102,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
       setCycleWorkflowEvaluation(null);
       return;
     }
+    if (selectedItem?.type === 'deliverable') {
+      loadProjectWorkflowRoles(selectedItem.projectId).catch(() => {});
+      setCycleWorkflowEvaluation(null);
+      return;
+    }
     setPlanningStrategyDraft('');
     setCycleEntryCriteriaDraft(MOCK_CYCLE_ENTRY_CRITERIA_DEFAULTS);
     setCycleExitCriteriaDraft(MOCK_CYCLE_EXIT_CRITERIA_DEFAULTS);
@@ -5114,6 +5138,15 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
       }
       for (const programId in projectsByProgram) {
         const project = projectsByProgram[programId]?.find((p: Project) => p.id === selectedItem.id);
+        if (project) return project;
+      }
+    } else if (selectedItem.type === 'deliverable') {
+      for (const cycleId in projectsByMockCycle) {
+        const project = projectsByMockCycle[cycleId]?.find(p => p.id === selectedItem.projectId);
+        if (project) return project;
+      }
+      for (const programId in projectsByProgram) {
+        const project = projectsByProgram[programId]?.find((p: Project) => p.id === selectedItem.projectId);
         if (project) return project;
       }
     } else if (selectedItem.type === 'processArea') {
@@ -6168,12 +6201,14 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                   {isPlanningPlanHierarchy ? (
                                     <Box sx={{ display: 'grid', gap: 0.5, pb: 0.5 }}>
                                       {PLAN_DELIVERABLE_NODES.map((node) => {
-                                        const nodeAccent = node.isFuture ? 'rgba(255,255,255,0.7)' : projectAccent;
+                                        const nodeAccent = node.isFuture ? 'rgba(255,255,255,0.7)' : node.accentColor;
                                         const isStrategyNode = node.targetView === 'strategy';
                                         const isInventoryNode = node.targetView === 'inventory';
                                         const isRoadmapNode = node.targetView === 'roadmap';
                                         const isStructureNode = node.targetView === 'structure';
+                                        const isPlanDeliverableNode = node.targetView === 'plan' || !node.targetView;
                                         const isNodeSelected =
+                                          (isPlanDeliverableNode && planningView === 'plan' && selectedItem?.type === 'deliverable' && selectedItem?.projectId === firstCycleProject.id && selectedItem?.deliverableId === node.id) ||
                                           (isStrategyNode && planningView === 'strategy') ||
                                           (isInventoryNode && planningView === 'inventory') ||
                                           (isRoadmapNode && planningView === 'roadmap') ||
@@ -6183,14 +6218,29 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                           <Box
                                             key={`${projectGroupKey}-${node.id}`}
                                             onClick={() => {
-                                              if (firstCycle) {
-                                                handleHierarchySelection({ type: 'project', id: firstCycleProject.id, cycleId: firstCycle.id });
-                                              } else {
-                                                handleHierarchySelection({ type: 'project', id: project.id });
+                                              if (node.targetView && node.targetView !== 'plan') {
+                                                if (firstCycle) {
+                                                  handleHierarchySelection({ type: 'project', id: firstCycleProject.id, cycleId: firstCycle.id });
+                                                } else {
+                                                  handleHierarchySelection({ type: 'project', id: project.id });
+                                                }
+                                                navigate(`/planning/${node.targetView}`);
+                                                return;
                                               }
 
-                                              if (node.targetView && node.targetView !== 'plan') {
-                                                navigate(`/planning/${node.targetView}`);
+                                              if (firstCycle) {
+                                                handleHierarchySelection({
+                                                  type: 'deliverable',
+                                                  projectId: firstCycleProject.id,
+                                                  cycleId: firstCycle.id,
+                                                  deliverableId: node.id,
+                                                });
+                                              } else {
+                                                handleHierarchySelection({
+                                                  type: 'deliverable',
+                                                  projectId: project.id,
+                                                  deliverableId: node.id,
+                                                });
                                               }
                                             }}
                                             sx={{
@@ -6206,7 +6256,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                             }}
                                           >
                                             <Box sx={{ mr: 0.55, display: 'inline-flex', alignItems: 'center' }}>
-                                              {renderHierarchyIcon('planGroup', nodeAccent, '0.78rem')}
+                                              {renderIconChoice(node.icon, nodeAccent, '0.78rem')}
                                             </Box>
                                             <Typography variant="caption" sx={{ fontWeight: isNodeSelected ? 700 : 500, color: isNodeSelected ? nodeAccent : 'inherit', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                               {node.label}
@@ -6611,7 +6661,62 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                 <Alert severity="info">Select an item from the list to view details</Alert>
               ) : selectedDetails ? (
                 <>
-                  {selectedItem.type === 'project' || selectedItem.type === 'processArea' ? (() => {
+                  {selectedItem.type === 'deliverable' ? (() => {
+                    const project = selectedDetails as Project;
+                    const deliverableConfig = PLAN_DELIVERABLE_NODES.find((node) => node.id === selectedItem.deliverableId);
+                    const deliverableAccent = deliverableConfig?.accentColor || project.accentColor || '#00BFA5';
+                    const deliverableLabel = deliverableConfig?.label || 'Deliverable';
+                    let parentCycleName = '';
+                    let parentProgramName = '';
+                    let parentProgramId = '';
+                    for (const progId in mockCycles) {
+                      const cycle = (mockCycles[progId] || []).find((c: MockCycle) => c.id === selectedItem.cycleId);
+                      if (cycle) {
+                        parentCycleName = cycle.name;
+                        const prog = programs.find((p: Program) => p.id === progId);
+                        parentProgramName = prog?.name || '';
+                        parentProgramId = progId;
+                        break;
+                      }
+                    }
+                    const normalizedProjectName = (project.name || '').trim().toLowerCase();
+                    const projectCycleInstances = (parentProgramId ? (mockCycles[parentProgramId] || []) : [])
+                      .map((cycle: MockCycle) => (projectsByMockCycle[cycle.id] || []).find((p: Project) => (p.name || '').trim().toLowerCase() === normalizedProjectName))
+                      .filter(Boolean) as Project[];
+
+                    return (
+                      <Box>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1.5 }}>
+                          {parentProgramName && <><Typography variant="caption" color="text.disabled">{parentProgramName}</Typography><Typography variant="caption" color="text.disabled">›</Typography></>}
+                          {parentCycleName && <><Typography variant="caption" color="text.disabled">{parentCycleName}</Typography><Typography variant="caption" color="text.disabled">›</Typography></>}
+                          <Typography variant="caption" sx={{ color: project.accentColor || '#00BFA5', fontWeight: 600 }}>{project.name}</Typography>
+                          <Typography variant="caption" color="text.disabled">›</Typography>
+                          <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>{deliverableLabel}</Typography>
+                        </Box>
+
+                        <Typography variant="h4" sx={{ fontWeight: 700, color: deliverableAccent, mb: 1, fontSize: { xs: '1.45rem', sm: '1.9rem' }, display: 'flex', alignItems: 'center', gap: 1 }}>
+                          {renderIconChoice(deliverableConfig?.icon || 'fa-clipboard-list', deliverableAccent, '1.25rem')}
+                          {deliverableLabel}
+                        </Typography>
+
+                        <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+                          Deliverable-level planning workspace for {project.name}. Tasks and approvals below are scoped to this deliverable.
+                        </Typography>
+
+                        <PlanningDeliverablesTracker
+                          projectId={project.id}
+                          projectName={project.name}
+                          projectCycles={projectCycleInstances}
+                          inventoryItems={projectInventoryItems}
+                          workflowUsers={workflowUsers}
+                          currentUserId={user?.id}
+                          selectedDeliverableId={selectedItem.deliverableId}
+                          selectedDeliverableLabel={deliverableLabel}
+                          selectedDeliverableAccent={deliverableAccent}
+                        />
+                      </Box>
+                    );
+                  })() : selectedItem.type === 'project' || selectedItem.type === 'processArea' ? (() => {
                     const project = selectedDetails as Project;
                     const accentColor = project.accentColor || '#00BFA5';
                     const parentCycleId = selectedItem.type === 'project' ? selectedItem.cycleId : selectedItem.cycleId;

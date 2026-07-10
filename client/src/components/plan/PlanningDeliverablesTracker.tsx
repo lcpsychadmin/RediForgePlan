@@ -56,6 +56,9 @@ interface PlanningDeliverablesTrackerProps {
   inventoryItems: Array<{ id: string; processArea?: string | null }>;
   workflowUsers: Array<{ id: string; email: string; role: string }>;
   currentUserId?: string;
+  selectedDeliverableId?: string;
+  selectedDeliverableLabel?: string;
+  selectedDeliverableAccent?: string;
 }
 
 const LOCAL_STORAGE_PREFIX = 'planningDeliverablesTracker:';
@@ -131,6 +134,9 @@ const PlanningDeliverablesTracker: React.FC<PlanningDeliverablesTrackerProps> = 
   inventoryItems,
   workflowUsers,
   currentUserId,
+  selectedDeliverableId,
+  selectedDeliverableLabel,
+  selectedDeliverableAccent,
 }) => {
   const [isLoading, setIsLoading] = React.useState(true);
   const [workflowRoles, setWorkflowRoles] = React.useState<{ leadUserId: string | null; projectManagerUserId: string | null }>({
@@ -359,8 +365,12 @@ const PlanningDeliverablesTracker: React.FC<PlanningDeliverablesTrackerProps> = 
     return item;
   });
 
-  const completedCount = deliverables.filter((item) => item.status === 'complete').length;
-  const completionPct = deliverables.length > 0 ? Math.round((completedCount / deliverables.length) * 100) : 0;
+  const visibleDeliverables = selectedDeliverableId
+    ? deliverables.filter((item) => item.id === selectedDeliverableId)
+    : deliverables;
+
+  const completedCount = visibleDeliverables.filter((item) => item.status === 'complete').length;
+  const completionPct = visibleDeliverables.length > 0 ? Math.round((completedCount / visibleDeliverables.length) * 100) : 0;
 
   const handleManualToggle = (id: string, checked: boolean) => {
     const next = { ...manualChecks, [id]: checked };
@@ -467,15 +477,19 @@ const PlanningDeliverablesTracker: React.FC<PlanningDeliverablesTrackerProps> = 
   };
 
   return (
-    <Card sx={{ mt: 1.5, mb: 2, border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'rgba(255,255,255,0.03)' }}>
+    <Card sx={{ mt: 1.5, mb: 2, border: `1px solid ${selectedDeliverableAccent ? `${selectedDeliverableAccent}55` : 'rgba(255,255,255,0.1)'}`, backgroundColor: 'rgba(255,255,255,0.03)' }}>
       <CardContent>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, flexWrap: 'wrap', mb: 1 }}>
-          <Typography variant="h6" sx={{ fontWeight: 700 }}>Planning Phase Deliverables</Typography>
-          <Chip label={`${completedCount}/${deliverables.length} complete`} color={completedCount === deliverables.length ? 'success' : 'default'} />
+          <Typography variant="h6" sx={{ fontWeight: 700, color: selectedDeliverableAccent || 'inherit' }}>
+            {selectedDeliverableId ? (selectedDeliverableLabel || 'Deliverable Task Planning') : 'Planning Phase Deliverables'}
+          </Typography>
+          <Chip label={`${completedCount}/${visibleDeliverables.length} complete`} color={visibleDeliverables.length > 0 && completedCount === visibleDeliverables.length ? 'success' : 'default'} />
         </Box>
 
         <Typography variant="body2" color="text.secondary" sx={{ mb: 1.25 }}>
-          Deliverable tracking for {projectName} during planning phase.
+          {selectedDeliverableId
+            ? `Deliverable-level task planning and approvals for ${projectName}.`
+            : `Deliverable tracking for ${projectName} during planning phase.`}
         </Typography>
 
         <LinearProgress variant="determinate" value={completionPct} sx={{ height: 8, borderRadius: 999, mb: 2 }} />
@@ -492,8 +506,8 @@ const PlanningDeliverablesTracker: React.FC<PlanningDeliverablesTrackerProps> = 
         )}
 
         <Grid container spacing={1.5}>
-          {deliverables.map((item) => (
-            <Grid key={item.id} item xs={12} md={6}>
+          {visibleDeliverables.map((item) => (
+            <Grid key={item.id} item xs={12} md={selectedDeliverableId ? 12 : 6}>
               {(() => {
                 const workflow = ensureWorkflow(item.id);
                 const tasks = workflow.tasks || [];
