@@ -10259,9 +10259,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                       )}
                     </Box>
 
-                    <Alert severity="info">
-                      Check criteria that must be met before entering / exiting this mock cycle.
-                    </Alert>
+
                   </>
                 );
               })()}
@@ -10316,16 +10314,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
           <Button onClick={() => setEditDialogOpen(false)} disabled={isEditing} sx={{ textTransform: 'none' }}>
             Cancel
           </Button>
-          {editItemType === 'cycle' && editItemId && (
-            <Button
-              variant="outlined"
-              onClick={() => handleSaveCycleCriteria(editItemId)}
-              disabled={isSavingCycleCriteria}
-              sx={{ textTransform: 'none' }}
-            >
-              {isSavingCycleCriteria ? 'Saving Workflow...' : 'Save Cycle Workflow'}
-            </Button>
-          )}
+
           <Button
             onClick={handleEditConfirm}
             variant="contained"
