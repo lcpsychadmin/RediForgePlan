@@ -8993,9 +8993,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                               })}
                             </Box>
                           </Box>
-
-                          <Alert severity="info">Use the edit icon on a mock cycle row to manage entry/exit criteria and approvals in the modal.</Alert>
-                        </Box>
                       )}
 
                       {maintainFormView === 'project' && (
