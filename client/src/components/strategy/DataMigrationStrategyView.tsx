@@ -70,6 +70,12 @@ const SECTION_CONFIG: Array<{ key: string; label: string; rows?: number }> = [
 ];
 
 const SPECIAL_SECTION_KEYS = new Set(['entryCriteria', 'exitCriteria', 'strategyApproval']);
+const SPECIAL_ACCENT = '#90CAF9';
+const SPECIAL_SURFACE = {
+  backgroundColor: 'rgba(255,255,255,0.04)',
+  border: '1px solid rgba(255,255,255,0.14)',
+  borderRadius: 2,
+};
 
 interface Props {
   projectId: string;
@@ -214,7 +220,7 @@ const DataMigrationStrategyView: React.FC<Props> = ({
       </Paper>
 
       <Box sx={{ display: 'grid', gap: 2 }}>
-      <Paper sx={{ p: 2 }}>
+      <Paper sx={{ p: 2, ...(SPECIAL_SECTION_KEYS.has(activeSection.key) ? SPECIAL_SURFACE : {}) }}>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: 1.5, flexWrap: 'wrap' }}>
           <Box>
             <Typography variant="h6">Data Migration Strategy</Typography>
@@ -231,7 +237,11 @@ const DataMigrationStrategyView: React.FC<Props> = ({
 
         <Divider sx={{ mb: 2 }} />
 
-        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+        <Typography
+          variant="caption"
+          color="text.secondary"
+          sx={{ display: 'block', mb: 1, color: SPECIAL_SECTION_KEYS.has(activeSection.key) ? SPECIAL_ACCENT : undefined, fontWeight: SPECIAL_SECTION_KEYS.has(activeSection.key) ? 700 : 500 }}
+        >
           Section {activeSectionIndex + 1} of {SECTION_CONFIG.length}
         </Typography>
 
@@ -241,11 +251,11 @@ const DataMigrationStrategyView: React.FC<Props> = ({
               const workflow = cycleWorkflowById.get(cycle.id);
               const entryItems = workflow?.criteria?.entry || [];
               return (
-                <Card key={`${cycle.id}-entry`} variant="outlined">
+                <Card key={`${cycle.id}-entry`} variant="outlined" sx={{ ...SPECIAL_SURFACE }}>
                   <CardContent>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, mb: 1, flexWrap: 'wrap' }}>
-                      <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>{cycle.name}</Typography>
-                      <Button size="small" variant="outlined" onClick={() => onEditCycle(cycle.id)}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 700, color: SPECIAL_ACCENT }}>{cycle.name}</Typography>
+                      <Button size="small" variant="outlined" onClick={() => onEditCycle(cycle.id)} sx={{ borderColor: 'rgba(144,202,249,0.45)', color: SPECIAL_ACCENT }}>
                         Open Existing Mock Cycle Modal
                       </Button>
                     </Box>
@@ -269,11 +279,11 @@ const DataMigrationStrategyView: React.FC<Props> = ({
               const workflow = cycleWorkflowById.get(cycle.id);
               const exitItems = workflow?.criteria?.exit || [];
               return (
-                <Card key={`${cycle.id}-exit`} variant="outlined">
+                <Card key={`${cycle.id}-exit`} variant="outlined" sx={{ ...SPECIAL_SURFACE }}>
                   <CardContent>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, mb: 1, flexWrap: 'wrap' }}>
-                      <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>{cycle.name}</Typography>
-                      <Button size="small" variant="outlined" onClick={() => onEditCycle(cycle.id)}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 700, color: SPECIAL_ACCENT }}>{cycle.name}</Typography>
+                      <Button size="small" variant="outlined" onClick={() => onEditCycle(cycle.id)} sx={{ borderColor: 'rgba(144,202,249,0.45)', color: SPECIAL_ACCENT }}>
                         Open Existing Mock Cycle Modal
                       </Button>
                     </Box>
@@ -292,8 +302,8 @@ const DataMigrationStrategyView: React.FC<Props> = ({
             })}
           </Box>
         ) : activeSection.key === 'strategyApproval' ? (
-          <Box>
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.75, fontWeight: 700 }}>
+          <Box sx={{ ...SPECIAL_SURFACE, p: 1.5 }}>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.75, fontWeight: 700, color: SPECIAL_ACCENT }}>
               Project Role Assignments (Read Only)
             </Typography>
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1, mb: 1.5 }}>
@@ -301,17 +311,23 @@ const DataMigrationStrategyView: React.FC<Props> = ({
               <TextField label="Project Manager" value={strategy.roleUsers?.projectManagerEmail || strategy.roles.projectManagerUserId || 'Unassigned'} InputProps={{ readOnly: true }} />
             </Box>
             <Box sx={{ mb: 2 }}>
-              <Button variant="outlined" onClick={onEditProject}>Open Existing Role Assignment Modal</Button>
+              <Button variant="outlined" onClick={onEditProject} sx={{ borderColor: 'rgba(144,202,249,0.45)', color: SPECIAL_ACCENT }}>Open Existing Role Assignment Modal</Button>
             </Box>
 
             <Divider sx={{ mb: 1.5 }} />
 
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.75, fontWeight: 700 }}>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.75, fontWeight: 700, color: SPECIAL_ACCENT }}>
               Workflow Approval
             </Typography>
             <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 1.5 }}>
-              <Chip label={`Lead: ${strategy.approvals.leadApproved ? 'Approved' : 'Pending'}`} color={strategy.approvals.leadApproved ? 'success' : 'default'} />
-              <Chip label={`Project Manager: ${strategy.approvals.projectManagerApproved ? 'Approved' : 'Pending'}`} color={strategy.approvals.projectManagerApproved ? 'success' : 'default'} />
+              <Chip
+                label={`Lead: ${strategy.approvals.leadApproved ? 'Approved' : 'Pending'}`}
+                sx={{ backgroundColor: strategy.approvals.leadApproved ? 'rgba(76,175,80,0.2)' : 'rgba(255,255,255,0.08)', color: strategy.approvals.leadApproved ? '#81C784' : '#EAF2FF' }}
+              />
+              <Chip
+                label={`Project Manager: ${strategy.approvals.projectManagerApproved ? 'Approved' : 'Pending'}`}
+                sx={{ backgroundColor: strategy.approvals.projectManagerApproved ? 'rgba(76,175,80,0.2)' : 'rgba(255,255,255,0.08)', color: strategy.approvals.projectManagerApproved ? '#81C784' : '#EAF2FF' }}
+              />
             </Box>
             <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
               <Button
