@@ -202,6 +202,7 @@ const quillFormats = [
   'underline',
   'blockquote',
   'list',
+  'indent',
   'bullet',
   'link',
   'image',
@@ -237,6 +238,11 @@ const summarizeHtml = (value: string) => {
     .replace(/\s+/g, ' ')
     .trim();
   return text || 'Image-only update';
+};
+
+const looksLikeImageUrl = (value: string) => {
+  const trimmed = String(value || '').trim();
+  return /^(https?:\/\/|data:image\/)/i.test(trimmed) && /(data:image\/|\.(png|jpe?g|gif|webp|svg)(\?|#|$))/i.test(trimmed);
 };
 
 interface Props {
@@ -351,6 +357,45 @@ const DataMigrationStrategyView: React.FC<Props> = ({
     input.click();
   }, [canEditSections, readImageFile]);
 
+  const handlePasteImage = React.useCallback((clipboardData: DataTransfer | null) => {
+    if (!clipboardData || !canEditSections || SPECIAL_SECTION_KEYS.has(activeSection.key)) {
+      return false;
+    }
+
+    const files = Array.from(clipboardData.files || []).filter((file) => file.type.startsWith('image/'));
+    if (files.length > 0) {
+      files.forEach((file) => readImageFile(file));
+      return true;
+    }
+
+    const items = Array.from(clipboardData.items || []);
+    const imageItems = items.filter((item) => item.type.startsWith('image/'));
+    if (imageItems.length > 0) {
+      imageItems.forEach((item) => {
+        const file = item.getAsFile();
+        if (file) {
+          readImageFile(file);
+        }
+      });
+      return true;
+    }
+
+    const html = clipboardData.getData('text/html') || '';
+    const imageSrc = extractImageSrcFromHtml(html);
+    if (imageSrc) {
+      insertImageAtCursor(imageSrc);
+      return true;
+    }
+
+    const uriList = clipboardData.getData('text/uri-list') || clipboardData.getData('text/plain') || '';
+    if (looksLikeImageUrl(uriList)) {
+      insertImageAtCursor(uriList.trim());
+      return true;
+    }
+
+    return false;
+  }, [activeSection.key, canEditSections, extractImageSrcFromHtml, insertImageAtCursor, readImageFile]);
+
   const quillModules = React.useMemo(() => {
     if (!canEditSections) {
       return { toolbar: false };
@@ -362,10 +407,37 @@ const DataMigrationStrategyView: React.FC<Props> = ({
           [{ header: [1, 2, 3, false] }],
           ['bold', 'italic', 'underline', 'blockquote'],
           [{ list: 'ordered' }, { list: 'bullet' }],
+          [{ indent: '-1' }, { indent: '+1' }],
           ['link', 'image', 'clean'],
         ],
         handlers: {
           image: handleInsertImage,
+        },
+      },
+      keyboard: {
+        bindings: {
+          indentListOnTab: {
+            key: 9,
+            shiftKey: false,
+            handler(range: any, context: any) {
+              if (context.format.list) {
+                this.quill.format('indent', '+1', 'user');
+                return false;
+              }
+              return true;
+            },
+          },
+          outdentListOnShiftTab: {
+            key: 9,
+            shiftKey: true,
+            handler(range: any, context: any) {
+              if (context.format.list) {
+                this.quill.format('indent', '-1', 'user');
+                return false;
+              }
+              return true;
+            },
+          },
         },
       },
     };
@@ -380,24 +452,8 @@ const DataMigrationStrategyView: React.FC<Props> = ({
     if (!editor) return;
 
     const handlePaste = (event: ClipboardEvent) => {
-      const items = Array.from(event.clipboardData?.items || []);
-      const imageItems = items.filter((item) => item.type.startsWith('image/'));
-      if (imageItems.length > 0) {
+      if (handlePasteImage(event.clipboardData || null)) {
         event.preventDefault();
-        imageItems.forEach((item) => {
-          const file = item.getAsFile();
-          if (file) {
-            readImageFile(file);
-          }
-        });
-        return;
-      }
-
-      const html = event.clipboardData?.getData('text/html') || '';
-      const imageSrc = extractImageSrcFromHtml(html);
-      if (imageSrc) {
-        event.preventDefault();
-        insertImageAtCursor(imageSrc);
       }
     };
 
@@ -405,7 +461,7 @@ const DataMigrationStrategyView: React.FC<Props> = ({
     return () => {
       editor.root.removeEventListener('paste', handlePaste);
     };
-  }, [activeSection.key, canEditSections, extractImageSrcFromHtml, insertImageAtCursor, readImageFile]);
+  }, [activeSection.key, canEditSections, handlePasteImage]);
 
   const handleSaveSections = async () => {
     try {
@@ -691,6 +747,11 @@ const DataMigrationStrategyView: React.FC<Props> = ({
         ) : (
           <Box sx={{ display: 'grid', gap: 1.25 }}>
             <Box
+              onPasteCapture={(event) => {
+                if (handlePasteImage(event.clipboardData)) {
+                  event.preventDefault();
+                }
+              }}
               sx={{
                 border: `1px solid ${activeAccent}3d`,
                 borderRadius: 2,
@@ -722,6 +783,9 @@ const DataMigrationStrategyView: React.FC<Props> = ({
                   margin: '8px 0',
                   border: '1px solid rgba(255,255,255,0.14)',
                 },
+                '& .ql-editor .ql-indent-1': { paddingLeft: '3em' },
+                '& .ql-editor .ql-indent-2': { paddingLeft: '6em' },
+                '& .ql-editor .ql-indent-3': { paddingLeft: '9em' },
                 '& .ql-snow .ql-stroke': { stroke: '#D7E6FF' },
                 '& .ql-snow .ql-fill': { fill: '#D7E6FF' },
                 '& .ql-snow .ql-picker': { color: '#D7E6FF' },
