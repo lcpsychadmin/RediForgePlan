@@ -8,7 +8,6 @@ import {
   Chip,
   Divider,
   LinearProgress,
-  MenuItem,
   Paper,
   TextField,
   Typography,
@@ -76,18 +75,6 @@ interface Props {
   onEditCycle: (cycleId: string) => void;
 }
 
-const formatBytes = (bytes: number) => {
-  if (!bytes) return '0 B';
-  const units = ['B', 'KB', 'MB', 'GB'];
-  let value = bytes;
-  let unit = 0;
-  while (value >= 1024 && unit < units.length - 1) {
-    value /= 1024;
-    unit += 1;
-  }
-  return `${value.toFixed(value >= 10 || unit === 0 ? 0 : 1)} ${units[unit]}`;
-};
-
 const DataMigrationStrategyView: React.FC<Props> = ({
   projectId,
   projectName,
@@ -98,7 +85,6 @@ const DataMigrationStrategyView: React.FC<Props> = ({
 }) => {
   const queryClient = useQueryClient();
   const canEditSections = userRole === 'admin';
-  const canUploadDocs = userRole === 'admin' || userRole === 'analyst';
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['projectDataMigrationStrategy', projectId],
@@ -114,11 +100,6 @@ const DataMigrationStrategyView: React.FC<Props> = ({
   const [activeSectionKey, setActiveSectionKey] = React.useState(SECTION_CONFIG[0].key);
 
   const [isApproving, setIsApproving] = React.useState<null | StrategyRole>(null);
-
-  const [uploadFile, setUploadFile] = React.useState<File | null>(null);
-  const [uploadDocType, setUploadDocType] = React.useState('cycle_report');
-  const [uploadCycleId, setUploadCycleId] = React.useState('');
-  const [isUploading, setIsUploading] = React.useState(false);
 
   React.useEffect(() => {
     if (data?.strategy?.sections) {
@@ -159,63 +140,6 @@ const DataMigrationStrategyView: React.FC<Props> = ({
       alert(error?.response?.data?.message || 'Failed to update approval status.');
     } finally {
       setIsApproving(null);
-    }
-  };
-
-  const handleUpload = async () => {
-    if (!uploadFile) {
-      alert('Choose a file to upload.');
-      return;
-    }
-
-    try {
-      setIsUploading(true);
-      const formData = new FormData();
-      formData.append('file', uploadFile);
-      formData.append('documentType', uploadDocType);
-      if (uploadCycleId) formData.append('mockCycleId', uploadCycleId);
-
-      await apiClient.post(`/api/projects/${projectId}/data-migration-strategy/documents`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
-
-      setUploadFile(null);
-      setUploadCycleId('');
-      setUploadDocType('cycle_report');
-      await refresh();
-    } catch (error) {
-      alert('Failed to upload document.');
-    } finally {
-      setIsUploading(false);
-    }
-  };
-
-  const handleDeleteDocument = async (documentId: string) => {
-    try {
-      await apiClient.delete(`/api/projects/${projectId}/data-migration-strategy/documents/${documentId}`);
-      await refresh();
-    } catch (error) {
-      alert('Failed to delete document.');
-    }
-  };
-
-  const handleDownloadDocument = async (documentId: string, fileName: string) => {
-    try {
-      const response = await apiClient.get(
-        `/api/projects/${projectId}/data-migration-strategy/documents/${documentId}/download`,
-        { responseType: 'blob' }
-      );
-      const blob = new Blob([response.data]);
-      const url = window.URL.createObjectURL(blob);
-      const anchor = document.createElement('a');
-      anchor.href = url;
-      anchor.download = fileName;
-      document.body.appendChild(anchor);
-      anchor.click();
-      anchor.remove();
-      window.URL.revokeObjectURL(url);
-    } catch {
-      alert('Failed to download document.');
     }
   };
 
@@ -396,77 +320,11 @@ const DataMigrationStrategyView: React.FC<Props> = ({
       </Paper>
       </Box>
       </Box>
-
-      <Paper sx={{ p: 2 }}>
-        <Typography variant="subtitle1" sx={{ mb: 1.5, fontWeight: 700 }}>Supporting Documentation Uploads</Typography>
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr 1fr auto' }, gap: 1, alignItems: 'center', mb: 1.5 }}>
-          <TextField
-            select
-            label="Document Type"
-            value={uploadDocType}
-            onChange={(e) => setUploadDocType(e.target.value)}
-            size="small"
-            disabled={!canUploadDocs}
-          >
-            <MenuItem value="cycle_report">Cycle Report</MenuItem>
-            <MenuItem value="validation_results">Validation Results</MenuItem>
-            <MenuItem value="signoff_document">Sign-Off Document</MenuItem>
-            <MenuItem value="other">Other</MenuItem>
-          </TextField>
-          <TextField
-            select
-            label="Related Mock Cycle"
-            value={uploadCycleId}
-            onChange={(e) => setUploadCycleId(e.target.value)}
-            size="small"
-            disabled={!canUploadDocs}
-          >
-            <MenuItem value="">Project Level</MenuItem>
-            {data.mockCycles.map((cycle) => (
-              <MenuItem key={cycle.id} value={cycle.id}>{cycle.name}</MenuItem>
-            ))}
-          </TextField>
-          <Button variant="outlined" component="label" disabled={!canUploadDocs}>
-            {uploadFile ? uploadFile.name : 'Choose File'}
-            <input type="file" hidden onChange={(e) => setUploadFile(e.target.files?.[0] || null)} />
-          </Button>
-          <Button variant="contained" onClick={handleUpload} disabled={!canUploadDocs || !uploadFile || isUploading}>
-            {isUploading ? 'Uploading...' : 'Upload'}
-          </Button>
-        </Box>
-
-        <Box sx={{ display: 'grid', gap: 1 }}>
-          {data.documents.length === 0 && <Typography variant="body2" color="text.secondary">No documents uploaded yet.</Typography>}
-          {data.documents.map((doc) => (
-            <Card key={doc.id} variant="outlined">
-              <CardContent sx={{ py: '10px !important' }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
-                  <Box>
-                    <Typography variant="body2" sx={{ fontWeight: 600 }}>{doc.file_name}</Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {doc.document_type} • {formatBytes(doc.file_size)} • {doc.mock_cycle_name || 'Project Level'}
-                    </Typography>
-                  </Box>
-                  <Box sx={{ display: 'flex', gap: 1 }}>
-                    <Button size="small" variant="outlined" onClick={() => handleDownloadDocument(doc.id, doc.file_name)}>Download</Button>
-                    {canUploadDocs && (
-                      <Button size="small" color="error" variant="outlined" onClick={() => handleDeleteDocument(doc.id)}>Delete</Button>
-                    )}
-                  </Box>
-                </Box>
-              </CardContent>
-            </Card>
-          ))}
-        </Box>
-      </Paper>
-
       <Paper sx={{ p: 2 }}>
         <Typography variant="subtitle1" sx={{ mb: 1.5, fontWeight: 700 }}>Mock Cycles (Read Only)</Typography>
         <Box sx={{ display: 'grid', gap: 1.5 }}>
           {data.mockCycles.map((cycle) => {
             const workflow = cycleWorkflowById.get(cycle.id);
-            const entryItems = workflow?.criteria?.entry || [];
-            const exitItems = workflow?.criteria?.exit || [];
             return (
               <Card key={cycle.id} variant="outlined">
                 <CardContent>
@@ -475,22 +333,6 @@ const DataMigrationStrategyView: React.FC<Props> = ({
                     <Button size="small" variant="outlined" onClick={() => onEditCycle(cycle.id)}>
                       Open Existing Mock Cycle Modal
                     </Button>
-                  </Box>
-
-                  <Typography variant="caption" color="text.secondary">Entry Criteria</Typography>
-                  <Box sx={{ mb: 1 }}>
-                    {entryItems.length === 0 && <Typography variant="body2" color="text.secondary">No entry criteria.</Typography>}
-                    {entryItems.map((item: any) => (
-                      <Typography key={`${cycle.id}-entry-${item.key}`} variant="body2">• {item.label}</Typography>
-                    ))}
-                  </Box>
-
-                  <Typography variant="caption" color="text.secondary">Exit Criteria</Typography>
-                  <Box sx={{ mb: 1 }}>
-                    {exitItems.length === 0 && <Typography variant="body2" color="text.secondary">No exit criteria.</Typography>}
-                    {exitItems.map((item: any) => (
-                      <Typography key={`${cycle.id}-exit-${item.key}`} variant="body2">• {item.label}</Typography>
-                    ))}
                   </Box>
 
                   <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 1 }}>
@@ -516,6 +358,68 @@ const DataMigrationStrategyView: React.FC<Props> = ({
                       minRows={2}
                     />
                   </Box>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </Box>
+      </Paper>
+
+      <Paper sx={{ p: 2 }}>
+        <Typography variant="subtitle1" sx={{ mb: 1.5, fontWeight: 700 }}>Entry Criteria (Read Only)</Typography>
+        <Box sx={{ display: 'grid', gap: 1.5 }}>
+          {data.mockCycles.map((cycle) => {
+            const workflow = cycleWorkflowById.get(cycle.id);
+            const entryItems = workflow?.criteria?.entry || [];
+            return (
+              <Card key={`${cycle.id}-entry`} variant="outlined">
+                <CardContent>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, mb: 1, flexWrap: 'wrap' }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>{cycle.name}</Typography>
+                    <Button size="small" variant="outlined" onClick={() => onEditCycle(cycle.id)}>
+                      Open Existing Mock Cycle Modal
+                    </Button>
+                  </Box>
+                  {entryItems.length === 0 ? (
+                    <Typography variant="body2" color="text.secondary">No entry criteria.</Typography>
+                  ) : (
+                    <Box sx={{ display: 'grid', gap: 0.5 }}>
+                      {entryItems.map((item: any) => (
+                        <Typography key={`${cycle.id}-entry-${item.key}`} variant="body2">• {item.label}</Typography>
+                      ))}
+                    </Box>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
+        </Box>
+      </Paper>
+
+      <Paper sx={{ p: 2 }}>
+        <Typography variant="subtitle1" sx={{ mb: 1.5, fontWeight: 700 }}>Exit Criteria (Read Only)</Typography>
+        <Box sx={{ display: 'grid', gap: 1.5 }}>
+          {data.mockCycles.map((cycle) => {
+            const workflow = cycleWorkflowById.get(cycle.id);
+            const exitItems = workflow?.criteria?.exit || [];
+            return (
+              <Card key={`${cycle.id}-exit`} variant="outlined">
+                <CardContent>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, mb: 1, flexWrap: 'wrap' }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>{cycle.name}</Typography>
+                    <Button size="small" variant="outlined" onClick={() => onEditCycle(cycle.id)}>
+                      Open Existing Mock Cycle Modal
+                    </Button>
+                  </Box>
+                  {exitItems.length === 0 ? (
+                    <Typography variant="body2" color="text.secondary">No exit criteria.</Typography>
+                  ) : (
+                    <Box sx={{ display: 'grid', gap: 0.5 }}>
+                      {exitItems.map((item: any) => (
+                        <Typography key={`${cycle.id}-exit-${item.key}`} variant="body2">• {item.label}</Typography>
+                      ))}
+                    </Box>
+                  )}
                 </CardContent>
               </Card>
             );
