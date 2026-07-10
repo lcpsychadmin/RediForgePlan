@@ -4,19 +4,16 @@ import {
   Alert,
   Box,
   Button,
-  Card,
-  CardContent,
   Chip,
   Divider,
   LinearProgress,
   Paper,
-  TextField,
   Typography,
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import apiClient from '../../api/client';
-import 'react-quill/dist/quill.snow.css';
+import 'quill/dist/quill.snow.css';
 
 type StrategyRole = 'lead' | 'project_manager';
 
@@ -41,12 +38,6 @@ type StrategyPayload = {
     sections: Record<string, string>;
     roles: { leadUserId: string | null; projectManagerUserId: string | null };
     roleUsers?: { leadEmail: string | null; projectManagerEmail: string | null };
-    approvals: {
-      leadApproved: boolean;
-      leadApprovedAt: string | null;
-      projectManagerApproved: boolean;
-      projectManagerApprovedAt: string | null;
-    };
   };
   mockCycles: Array<{ id: string; name: string; startDate?: string; endDate?: string }>;
   cycleWorkflow: MockCycleWorkflow[];
@@ -74,8 +65,6 @@ const SECTION_CONFIG: Array<{ key: string; label: string; rows?: number }> = [
   { key: 'goLiveSimulationCutover', label: 'Go-Live Simulation & Cutover', rows: 4 },
   { key: 'dependencies', label: 'Dependencies', rows: 3 },
   { key: 'assumptions', label: 'Assumptions', rows: 3 },
-  { key: 'keyDesignDecisions', label: 'Key Design Decisions', rows: 4 },
-  { key: 'strategyApproval', label: 'Strategy Approval' },
 ];
 
 const SECTION_EXPECTATIONS: Record<string, string[]> = {
@@ -136,19 +125,9 @@ const SECTION_EXPECTATIONS: Record<string, string[]> = {
     'Include data availability, resources, tools, and participation.',
     'Make explicit what must remain true for the plan to work.',
   ],
-  keyDesignDecisions: [
-    'Record the major architectural and functional choices.',
-    'Include relevancy rules, transformation logic, and sequencing.',
-    'Call out important system constraints shaping the design.',
-  ],
-  strategyApproval: [
-    'Define the approval workflow and decision owners.',
-    'Clarify Lead and Project Manager sign-off responsibilities.',
-    'List what must be complete before final strategy acceptance.',
-  ],
 };
 
-const SPECIAL_SECTION_KEYS = new Set(['strategyApproval']);
+const SPECIAL_SECTION_KEYS = new Set<string>([]);
 const SPECIAL_ACCENT = '#90CAF9';
 const SPECIAL_SURFACE = {
   backgroundColor: 'rgba(255,255,255,0.04)',
@@ -173,8 +152,6 @@ const SECTION_ACCENTS: Record<string, string> = {
   goLiveSimulationCutover: '#F59E9E',
   dependencies: '#C4B5FD',
   assumptions: '#A7F3D0',
-  keyDesignDecisions: '#F9C74F',
-  strategyApproval: '#7FD1AE',
 };
 const quillFormats = [
   'header',
@@ -187,6 +164,10 @@ const quillFormats = [
   'bullet',
   'link',
   'image',
+  'table',
+  'table-row',
+  'table-cell',
+  'table-header',
 ];
 
 const normalizeEditorValue = (value: string) => {
@@ -263,8 +244,6 @@ const DataMigrationStrategyView: React.FC<Props> = ({
   const isHistoryTrackedSection = !SPECIAL_SECTION_KEYS.has(activeSection.key);
   const [isHistoryExpanded, setIsHistoryExpanded] = React.useState(false);
   const [restoringHistoryId, setRestoringHistoryId] = React.useState<string | null>(null);
-
-  const [isApproving, setIsApproving] = React.useState<null | StrategyRole>(null);
 
   const { data: sectionHistory = [], isLoading: isLoadingSectionHistory } = useQuery({
     queryKey: ['projectStrategySectionHistory', projectId, activeSection.key],
@@ -390,6 +369,7 @@ const DataMigrationStrategyView: React.FC<Props> = ({
           ['bold', 'italic', 'underline', 'blockquote'],
           [{ list: 'ordered' }, { list: 'bullet' }],
           [{ indent: '-1' }, { indent: '+1' }],
+          ['table'],
           ['link', 'image', 'clean'],
         ],
         handlers: {
@@ -422,6 +402,7 @@ const DataMigrationStrategyView: React.FC<Props> = ({
           },
         },
       },
+      table: true,
     };
   }, [canEditSections, handleInsertImage]);
 
@@ -496,18 +477,6 @@ const DataMigrationStrategyView: React.FC<Props> = ({
     }
   };
 
-  const handleApproval = async (role: StrategyRole, approved: boolean) => {
-    try {
-      setIsApproving(role);
-      await apiClient.post(`/api/projects/${projectId}/data-migration-strategy/approvals/${role}`, { approved });
-      await refresh();
-    } catch (error: any) {
-      alert(error?.response?.data?.message || 'Failed to update approval status.');
-    } finally {
-      setIsApproving(null);
-    }
-  };
-
   const handleExport = async () => {
     try {
       const response = await apiClient.get(`/api/projects/${projectId}/data-migration-strategy/export`, {
@@ -548,9 +517,6 @@ const DataMigrationStrategyView: React.FC<Props> = ({
   const completionPct = editableSectionCount > 0
     ? Math.round((completedSectionCount / editableSectionCount) * 100)
     : 0;
-
-  const isLeadAssignedUser = !!strategy.roles.leadUserId && strategy.roles.leadUserId === userId;
-  const isPmAssignedUser = !!strategy.roles.projectManagerUserId && strategy.roles.projectManagerUserId === userId;
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -644,126 +610,79 @@ const DataMigrationStrategyView: React.FC<Props> = ({
           </Box>
         </Box>
 
-        {activeSection.key === 'strategyApproval' ? (
-          <Box sx={{ ...SPECIAL_SURFACE, p: 1.5 }}>
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.75, fontWeight: 700, color: SPECIAL_ACCENT }}>
-              Project Role Assignments (Read Only)
-            </Typography>
-            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1, mb: 1.5 }}>
-              <TextField label="Lead" value={strategy.roleUsers?.leadEmail || strategy.roles.leadUserId || 'Unassigned'} InputProps={{ readOnly: true }} />
-              <TextField label="Project Manager" value={strategy.roleUsers?.projectManagerEmail || strategy.roles.projectManagerUserId || 'Unassigned'} InputProps={{ readOnly: true }} />
-            </Box>
-            <Box sx={{ mb: 2 }}>
-              <Button variant="outlined" onClick={onEditProject} sx={{ borderColor: 'rgba(144,202,249,0.45)', color: SPECIAL_ACCENT }}>Open Existing Role Assignment Modal</Button>
-            </Box>
-
-            <Divider sx={{ mb: 1.5 }} />
-
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.75, fontWeight: 700, color: SPECIAL_ACCENT }}>
-              Workflow Approval
-            </Typography>
-            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 1.5 }}>
-              <Chip
-                label={`Lead: ${strategy.approvals.leadApproved ? 'Approved' : 'Pending'}`}
-                sx={{ backgroundColor: strategy.approvals.leadApproved ? 'rgba(76,175,80,0.2)' : 'rgba(255,255,255,0.08)', color: strategy.approvals.leadApproved ? '#81C784' : '#EAF2FF' }}
-              />
-              <Chip
-                label={`Project Manager: ${strategy.approvals.projectManagerApproved ? 'Approved' : 'Pending'}`}
-                sx={{ backgroundColor: strategy.approvals.projectManagerApproved ? 'rgba(76,175,80,0.2)' : 'rgba(255,255,255,0.08)', color: strategy.approvals.projectManagerApproved ? '#81C784' : '#EAF2FF' }}
-              />
-            </Box>
-            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-              <Button
-                variant="contained"
-                disabled={!isLeadAssignedUser || isApproving === 'lead'}
-                onClick={() => handleApproval('lead', true)}
-              >
-                {isApproving === 'lead' ? 'Saving...' : 'Lead Approve'}
-              </Button>
-              <Button
-                variant="outlined"
-                disabled={!isLeadAssignedUser || isApproving === 'lead'}
-                onClick={() => handleApproval('lead', false)}
-              >
-                Revoke Lead Approval
-              </Button>
-              <Button
-                variant="contained"
-                disabled={!isPmAssignedUser || isApproving === 'project_manager'}
-                onClick={() => handleApproval('project_manager', true)}
-              >
-                {isApproving === 'project_manager' ? 'Saving...' : 'PM Final Sign-Off'}
-              </Button>
-              <Button
-                variant="outlined"
-                disabled={!isPmAssignedUser || isApproving === 'project_manager'}
-                onClick={() => handleApproval('project_manager', false)}
-              >
-                Revoke PM Sign-Off
-              </Button>
-            </Box>
+        <Box sx={{ display: 'grid', gap: 1.25 }}>
+          <Box
+            onPasteCapture={(event) => {
+              if (handlePasteImage(event.clipboardData)) {
+                event.preventDefault();
+              }
+            }}
+            sx={{
+              border: `1px solid ${activeAccent}3d`,
+              borderRadius: 2,
+              overflow: 'hidden',
+              backgroundColor: 'rgba(255,255,255,0.05)',
+              '& .ql-toolbar.ql-snow': {
+                border: 'none',
+                borderBottom: '1px solid rgba(255,255,255,0.14)',
+                backgroundColor: 'rgba(255,255,255,0.04)',
+              },
+              '& .ql-container.ql-snow': {
+                border: 'none',
+                fontFamily: 'inherit',
+                minHeight: 240,
+              },
+              '& .ql-editor': {
+                minHeight: 240,
+                color: '#EAF2FF',
+                fontSize: '0.98rem',
+                lineHeight: 1.65,
+              },
+              '& .ql-editor.ql-blank::before': {
+                color: 'rgba(234,242,255,0.45)',
+                fontStyle: 'normal',
+              },
+              '& .ql-editor img': {
+                maxWidth: '100%',
+                borderRadius: 8,
+                margin: '8px 0',
+                border: '1px solid rgba(255,255,255,0.14)',
+              },
+              '& .ql-editor table': {
+                width: '100%',
+                borderCollapse: 'collapse',
+                margin: '10px 0',
+              },
+              '& .ql-editor table td, & .ql-editor table th': {
+                border: '1px solid rgba(215,230,255,0.35)',
+                padding: '8px',
+                verticalAlign: 'top',
+              },
+              '& .ql-editor table th': {
+                backgroundColor: 'rgba(127, 209, 174, 0.2)',
+                fontWeight: 700,
+              },
+              '& .ql-editor .ql-indent-1': { paddingLeft: '3em' },
+              '& .ql-editor .ql-indent-2': { paddingLeft: '6em' },
+              '& .ql-editor .ql-indent-3': { paddingLeft: '9em' },
+              '& .ql-snow .ql-stroke': { stroke: '#D7E6FF' },
+              '& .ql-snow .ql-fill': { fill: '#D7E6FF' },
+              '& .ql-snow .ql-picker': { color: '#D7E6FF' },
+            }}
+          >
+            <ReactQuill
+              key={activeSection.key}
+              ref={quillRef}
+              theme="snow"
+              value={sectionsDraft[activeSection.key] || ''}
+              onChange={(value) => setSectionsDraft((prev) => ({ ...prev, [activeSection.key]: normalizeEditorValue(value) }))}
+              modules={quillModules}
+              formats={quillFormats}
+              readOnly={!canEditSections}
+              placeholder={(SECTION_EXPECTATIONS[activeSection.key] || []).join(' ')}
+            />
           </Box>
-        ) : (
-          <Box sx={{ display: 'grid', gap: 1.25 }}>
-            <Box
-              onPasteCapture={(event) => {
-                if (handlePasteImage(event.clipboardData)) {
-                  event.preventDefault();
-                }
-              }}
-              sx={{
-                border: `1px solid ${activeAccent}3d`,
-                borderRadius: 2,
-                overflow: 'hidden',
-                backgroundColor: 'rgba(255,255,255,0.05)',
-                '& .ql-toolbar.ql-snow': {
-                  border: 'none',
-                  borderBottom: '1px solid rgba(255,255,255,0.14)',
-                  backgroundColor: 'rgba(255,255,255,0.04)',
-                },
-                '& .ql-container.ql-snow': {
-                  border: 'none',
-                  fontFamily: 'inherit',
-                  minHeight: 240,
-                },
-                '& .ql-editor': {
-                  minHeight: 240,
-                  color: '#EAF2FF',
-                  fontSize: '0.98rem',
-                  lineHeight: 1.65,
-                },
-                '& .ql-editor.ql-blank::before': {
-                  color: 'rgba(234,242,255,0.45)',
-                  fontStyle: 'normal',
-                },
-                '& .ql-editor img': {
-                  maxWidth: '100%',
-                  borderRadius: 8,
-                  margin: '8px 0',
-                  border: '1px solid rgba(255,255,255,0.14)',
-                },
-                '& .ql-editor .ql-indent-1': { paddingLeft: '3em' },
-                '& .ql-editor .ql-indent-2': { paddingLeft: '6em' },
-                '& .ql-editor .ql-indent-3': { paddingLeft: '9em' },
-                '& .ql-snow .ql-stroke': { stroke: '#D7E6FF' },
-                '& .ql-snow .ql-fill': { fill: '#D7E6FF' },
-                '& .ql-snow .ql-picker': { color: '#D7E6FF' },
-              }}
-            >
-              <ReactQuill
-                key={activeSection.key}
-                ref={quillRef}
-                theme="snow"
-                value={sectionsDraft[activeSection.key] || ''}
-                onChange={(value) => setSectionsDraft((prev) => ({ ...prev, [activeSection.key]: normalizeEditorValue(value) }))}
-                modules={quillModules}
-                formats={quillFormats}
-                readOnly={!canEditSections}
-                placeholder={(SECTION_EXPECTATIONS[activeSection.key] || []).join(' ')}
-              />
-            </Box>
-          </Box>
-        )}
+        </Box>
 
         <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1.5, gap: 1 }}>
           <Button

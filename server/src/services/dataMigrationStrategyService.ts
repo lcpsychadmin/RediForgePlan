@@ -17,7 +17,6 @@ const DEFAULT_STRATEGY_SECTIONS: Record<string, string> = {
   goLiveSimulationCutover: '',
   dependencies: '',
   assumptions: '',
-  keyDesignDecisions: '',
 };
 
 const STRATEGY_SECTION_KEYS = Object.keys(DEFAULT_STRATEGY_SECTIONS);
@@ -468,7 +467,6 @@ class DataMigrationStrategyService {
       ['Go-Live Simulation & Cutover', strategy.sections.goLiveSimulationCutover],
       ['Dependencies', strategy.sections.dependencies],
       ['Assumptions', strategy.sections.assumptions],
-      ['Key Design Decisions', strategy.sections.keyDesignDecisions],
     ]
       .map(([title, value]) => `## ${title}\n\n${value || '_Not provided_'}\n`)
       .join('\n');
@@ -484,13 +482,6 @@ class DataMigrationStrategyService {
       `- Project Manager User ID: ${strategy.roles.projectManagerUserId || 'Unassigned'}`,
     ].join('\n');
 
-    const signOffBlock = [
-      `- Lead Approved: ${strategy.approvals.leadApproved ? 'Yes' : 'No'}`,
-      `- Lead Approval Timestamp: ${strategy.approvals.leadApprovedAt || 'N/A'}`,
-      `- Project Manager Approved: ${strategy.approvals.projectManagerApproved ? 'Yes' : 'No'}`,
-      `- Project Manager Approval Timestamp: ${strategy.approvals.projectManagerApprovedAt || 'N/A'}`,
-    ].join('\n');
-
     const markdown = [
       `# Data Migration Strategy - ${project.name}`,
       '',
@@ -502,9 +493,6 @@ class DataMigrationStrategyService {
       strategySections,
       '## Supporting Documentation',
       docsBlock,
-      '',
-      '## Strategy Sign-Off Records',
-      signOffBlock,
       '',
       ...cycleBlocks,
     ].join('\n');
