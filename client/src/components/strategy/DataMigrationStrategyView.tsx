@@ -65,8 +65,6 @@ type StrategyPayload = {
 const SECTION_CONFIG: Array<{ key: string; label: string; rows?: number }> = [
   { key: 'purpose', label: 'Purpose', rows: 3 },
   { key: 'guidingPrinciples', label: 'Guiding Principles', rows: 4 },
-  { key: 'dataReadiness', label: 'Data Readiness', rows: 4 },
-  { key: 'dataConversion', label: 'Data Conversion', rows: 4 },
   { key: 'conversionScope', label: 'Conversion Scope', rows: 4 },
   { key: 'conversionMethods', label: 'Conversion Methods', rows: 4 },
   { key: 'conversionDocuments', label: 'Conversion Documents', rows: 4 },
@@ -91,16 +89,6 @@ const SECTION_EXPECTATIONS: Record<string, string[]> = {
     'Capture the rules that guide migration decisions.',
     'Call out automation, repeatability, and quality expectations.',
     'Describe the collaboration model across teams.',
-  ],
-  dataReadiness: [
-    'Describe profiling, cleansing, enrichment, and preparation activities.',
-    'Identify tools, owners, and quality dimensions.',
-    'Show how readiness improves over iterative cycles.',
-  ],
-  dataConversion: [
-    'Explain the ingest, transform, and load flow.',
-    'Describe how design rules drive transformation and enrichment.',
-    'Clarify how data is constructed and loaded into the target system.',
   ],
   conversionScope: [
     'List master and transactional data in scope.',
@@ -180,8 +168,6 @@ const NAV_SURFACE = {
 const SECTION_ACCENTS: Record<string, string> = {
   purpose: '#7CC7FF',
   guidingPrinciples: '#8FE3CF',
-  dataReadiness: '#F7C873',
-  dataConversion: '#F4978E',
   conversionScope: '#A5B4FC',
   conversionMethods: '#63C7B2',
   conversionDocuments: '#F4A261',
