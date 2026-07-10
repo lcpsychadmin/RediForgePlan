@@ -281,6 +281,7 @@ const DataMigrationStrategyView: React.FC<Props> = ({
   const activeSection = SECTION_CONFIG.find((section) => section.key === activeSectionKey) || SECTION_CONFIG[0];
   const isHistoryTrackedSection = !SPECIAL_SECTION_KEYS.has(activeSection.key);
   const [isHistoryExpanded, setIsHistoryExpanded] = React.useState(false);
+  const [restoringHistoryId, setRestoringHistoryId] = React.useState<string | null>(null);
 
   const [isApproving, setIsApproving] = React.useState<null | StrategyRole>(null);
 
@@ -478,6 +479,39 @@ const DataMigrationStrategyView: React.FC<Props> = ({
       alert('Failed to save Data Migration Strategy sections.');
     } finally {
       setIsSavingSections(false);
+    }
+  };
+
+  const handleRestoreHistoryEntry = async (entry: StrategySectionHistoryEntry) => {
+    if (!canEditSections || !isHistoryTrackedSection) return;
+
+    const confirmed = window.confirm('Restore this section to the selected revision?');
+    if (!confirmed) return;
+
+    const restoredContent = normalizeEditorValue(entry.next_content || '');
+    const updatedSections = {
+      ...sectionsDraft,
+      [activeSection.key]: restoredContent,
+    };
+
+    try {
+      setRestoringHistoryId(entry.id);
+      setSectionsDraft(updatedSections);
+
+      const response = await apiClient.put(`/api/projects/${projectId}/data-migration-strategy`, {
+        sections: updatedSections,
+      });
+
+      const savedSections = response.data?.data?.sections;
+      if (savedSections) {
+        setSectionsDraft((prev) => ({ ...prev, ...savedSections }));
+      }
+
+      await refresh();
+    } catch (error) {
+      alert('Failed to restore this revision.');
+    } finally {
+      setRestoringHistoryId(null);
     }
   };
 
@@ -873,9 +907,22 @@ const DataMigrationStrategyView: React.FC<Props> = ({
                         border: '1px solid rgba(255,255,255,0.1)',
                       }}
                     >
-                      <Typography variant="caption" sx={{ display: 'block', color: activeAccent, fontWeight: 700, mb: 0.75 }}>
-                        Revision {sectionHistory.length - index} • {entry.changed_by_email || 'Unknown user'} • {new Date(entry.created_at).toLocaleString()}
-                      </Typography>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, alignItems: 'flex-start', mb: 0.75, flexWrap: 'wrap' }}>
+                        <Typography variant="caption" sx={{ display: 'block', color: activeAccent, fontWeight: 700 }}>
+                          Revision {sectionHistory.length - index} • {entry.changed_by_email || 'Unknown user'} • {new Date(entry.created_at).toLocaleString()}
+                        </Typography>
+                        {canEditSections && (
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            disabled={restoringHistoryId === entry.id || isSavingSections}
+                            onClick={() => handleRestoreHistoryEntry(entry)}
+                            sx={{ borderColor: `${activeAccent}55`, color: activeAccent, textTransform: 'none' }}
+                          >
+                            {restoringHistoryId === entry.id ? 'Restoring...' : 'Restore This Version'}
+                          </Button>
+                        )}
+                      </Box>
                       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 1 }}>
                         <Box>
                           <Typography variant="caption" color="text.secondary">Previous</Typography>
