@@ -250,7 +250,7 @@ const HIERARCHY_ICON_OPTIONS: { value: HierarchyIconChoice; label: string; group
 
 interface ProjectsPageProps {
   sectionMode?: 'planning' | 'execution';
-  planningView?: 'strategy' | 'inventory' | 'structure' | 'roadmap';
+  planningView?: 'plan' | 'strategy' | 'inventory' | 'structure' | 'roadmap';
 }
 
 // ── Roadmap component ──────────────────────────────────────────────────────
@@ -970,7 +970,8 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
   );
 };
 const planningViewToTab: Record<string, number> = {
-  strategy: 0,
+  plan: 0,
+  strategy: 8,
   inventory: 1,
   structure: 6,
   roadmap: 7,
@@ -1044,10 +1045,12 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   
   // State for selected item
   const [selectedItem, setSelectedItem] = useState<SelectableItem | null>(null);
+  const [strategyProgramId, setStrategyProgramId] = useState('');
+  const [strategyProjectId, setStrategyProjectId] = useState('');
   const tabValue = planningView ? (planningViewToTab[planningView] ?? 0) : 0;
   const setTabValue = (_v: number) => {}; // navigation-driven; kept for compat
   const isPlanningMaintainTab = sectionMode === 'planning' && planningView === 'structure';
-  const hideProcessAreasInStrategyHierarchy = sectionMode === 'planning' && tabValue === 0;
+  const hideProcessAreasInStrategyHierarchy = sectionMode === 'planning' && planningView === 'strategy';
   
   // Dialog states
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -1900,6 +1903,56 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
     ? allMaintainCycles.filter((cycle) => cycle.programId === maintainProjectParentProgramId)
     : [];
   const maintainCycleParentProject = allMaintainProjects.find((project) => project.id === maintainCycleParentProjectId) || null;
+  const maintainProjectProgramMap = React.useMemo(() => {
+    const map = new Map<string, string>();
+    allMaintainProjects.forEach((project) => {
+      const fallbackProgramId = allMaintainCycles.find((cycle) => cycle.projectId === project.id)?.programId || '';
+      const resolvedProgramId = (project.programId || fallbackProgramId || '').trim();
+      if (resolvedProgramId) {
+        map.set(project.id, resolvedProgramId);
+      }
+    });
+    return map;
+  }, [allMaintainProjects, allMaintainCycles]);
+  const strategyProgramOptions = React.useMemo(() => {
+    return programs.filter((program) => (
+      allMaintainProjects.some((project) => maintainProjectProgramMap.get(project.id) === program.id)
+    ));
+  }, [programs, allMaintainProjects, maintainProjectProgramMap]);
+  const strategyProjectOptions = React.useMemo(() => {
+    return allMaintainProjects
+      .filter((project) => !strategyProgramId || maintainProjectProgramMap.get(project.id) === strategyProgramId)
+      .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  }, [allMaintainProjects, strategyProgramId, maintainProjectProgramMap]);
+
+  React.useEffect(() => {
+    if (strategyProgramId && !strategyProgramOptions.some((program) => program.id === strategyProgramId)) {
+      setStrategyProgramId('');
+    }
+  }, [strategyProgramId, strategyProgramOptions]);
+
+  React.useEffect(() => {
+    if (strategyProjectId && !strategyProjectOptions.some((project) => project.id === strategyProjectId)) {
+      setStrategyProjectId('');
+    }
+  }, [strategyProjectId, strategyProjectOptions]);
+
+  React.useEffect(() => {
+    if (!activeProjectId) return;
+    if (!allMaintainProjects.some((project) => project.id === activeProjectId)) return;
+    if (strategyProjectId) return;
+
+    setStrategyProjectId(activeProjectId);
+    const inferredProgramId = maintainProjectProgramMap.get(activeProjectId) || '';
+    if (inferredProgramId) {
+      setStrategyProgramId((prev) => prev || inferredProgramId);
+    }
+  }, [activeProjectId, allMaintainProjects, strategyProjectId, maintainProjectProgramMap]);
+
+  const strategySelectedProject = React.useMemo(() => {
+    if (!strategyProjectId) return null;
+    return allMaintainProjects.find((project) => project.id === strategyProjectId) || null;
+  }, [strategyProjectId, allMaintainProjects]);
   const selectedMaintainCycle = allMaintainCycles.find((cycle) => cycle.id === maintainSelectedCycleId) || null;
   const cycleEntryCriteriaRows =
     Array.isArray(cycleEntryCriteriaDraft) && cycleEntryCriteriaDraft.length > 0
@@ -6399,34 +6452,70 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
         {/* Right Content Area - Details */}
         <Box sx={{ flex: 1, overflowY: 'auto', p: { xs: 1.25, sm: 3 }, minWidth: 0 }}>
           {/* Planning Strategy Tab Content */}
-          {sectionMode === 'planning' && tabValue === 0 && (
+          {sectionMode === 'planning' && tabValue === 8 && (
             <>
-              {!selectedItem ? (
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-                  <Alert severity="info">Select a project (or project-scoped cycle) to open Data Migration Strategy.</Alert>
-                  <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-                    <Button variant="contained" startIcon={<AddIcon />} onClick={() => openCreateDialog('program')}>
-                      Create Program
+              <Paper sx={{ p: 2, mb: 2, position: 'sticky', top: 0, zIndex: 2, border: '1px solid', borderColor: 'divider' }}>
+                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr auto' }, gap: 1, alignItems: 'end' }}>
+                  <TextField
+                    select
+                    label="Program"
+                    value={strategyProgramId}
+                    onChange={(e) => {
+                      setStrategyProgramId(e.target.value);
+                      setStrategyProjectId('');
+                    }}
+                    size="small"
+                    fullWidth
+                  >
+                    <MenuItem value="">All Programs</MenuItem>
+                    {strategyProgramOptions.map((program) => (
+                      <MenuItem key={program.id} value={program.id}>{program.name}</MenuItem>
+                    ))}
+                  </TextField>
+                  <TextField
+                    select
+                    label="Project"
+                    value={strategyProjectId}
+                    onChange={(e) => setStrategyProjectId(e.target.value)}
+                    size="small"
+                    fullWidth
+                  >
+                    <MenuItem value="">Select a project</MenuItem>
+                    {strategyProjectOptions.map((project) => (
+                      <MenuItem key={project.id} value={project.id}>{project.name}</MenuItem>
+                    ))}
+                  </TextField>
+                  <Box sx={{ display: 'flex', justifyContent: { xs: 'flex-start', md: 'flex-end' } }}>
+                    <Button
+                      variant="outlined"
+                      onClick={() => {
+                        setStrategyProgramId('');
+                        setStrategyProjectId('');
+                      }}
+                    >
+                      Clear Filters
                     </Button>
                   </Box>
                 </Box>
-              ) : !activeProjectId ? (
-                <Alert severity="info">Data Migration Strategy is project-scoped. Select a project to continue.</Alert>
+              </Paper>
+
+              {!strategySelectedProject ? (
+                <Alert severity="info">Choose a program and project to open Strategy.</Alert>
               ) : (
                 <DataMigrationStrategyView
-                  projectId={activeProjectId}
-                  projectName={(selectedDetails as any)?.name}
+                  projectId={strategySelectedProject.id}
+                  projectName={strategySelectedProject.name}
                   userId={user?.id}
                   userRole={user?.role}
-                  onEditProject={() => openEditDialog('project', activeProjectId)}
+                  onEditProject={() => openEditDialog('project', strategySelectedProject.id)}
                   onEditCycle={(cycleId) => openEditDialog('cycle', cycleId)}
                 />
               )}
             </>
           )}
 
-          {/* Execution Plan Tab Content */}
-          {sectionMode === 'execution' && tabValue === 0 && (
+          {/* Plan Tab Content */}
+          {tabValue === 0 && (sectionMode === 'execution' || (sectionMode === 'planning' && planningView === 'plan')) && (
             <>
               {!selectedItem ? (
                 <Alert severity="info">Select an item from the list to view details</Alert>

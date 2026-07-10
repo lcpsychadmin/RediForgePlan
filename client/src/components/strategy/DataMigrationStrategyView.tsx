@@ -7,6 +7,7 @@ import {
   CardContent,
   Chip,
   Divider,
+  LinearProgress,
   MenuItem,
   Paper,
   TextField,
@@ -110,6 +111,7 @@ const DataMigrationStrategyView: React.FC<Props> = ({
 
   const [sectionsDraft, setSectionsDraft] = React.useState<Record<string, string>>({});
   const [isSavingSections, setIsSavingSections] = React.useState(false);
+  const [activeSectionKey, setActiveSectionKey] = React.useState(SECTION_CONFIG[0].key);
 
   const [isApproving, setIsApproving] = React.useState<null | StrategyRole>(null);
 
@@ -123,6 +125,12 @@ const DataMigrationStrategyView: React.FC<Props> = ({
       setSectionsDraft(data.strategy.sections);
     }
   }, [data]);
+
+  React.useEffect(() => {
+    if (!SECTION_CONFIG.some((section) => section.key === activeSectionKey)) {
+      setActiveSectionKey(SECTION_CONFIG[0].key);
+    }
+  }, [activeSectionKey]);
 
   const refresh = async () => {
     await queryClient.invalidateQueries({ queryKey: ['projectDataMigrationStrategy', projectId] });
@@ -240,17 +248,28 @@ const DataMigrationStrategyView: React.FC<Props> = ({
 
   const cycleWorkflowById = new Map(data.cycleWorkflow.map((entry) => [entry.mockCycleId, entry.workflow]));
   const strategy = data.strategy;
+  const activeSection = SECTION_CONFIG.find((section) => section.key === activeSectionKey) || SECTION_CONFIG[0];
+  const activeSectionIndex = SECTION_CONFIG.findIndex((section) => section.key === activeSection.key);
+  const completedSectionCount = SECTION_CONFIG.filter((section) => {
+    const value = sectionsDraft[section.key] || '';
+    return value.trim().length > 0;
+  }).length;
+  const completionPct = SECTION_CONFIG.length > 0
+    ? Math.round((completedSectionCount / SECTION_CONFIG.length) * 100)
+    : 0;
 
   const isLeadAssignedUser = !!strategy.roles.leadUserId && strategy.roles.leadUserId === userId;
   const isPmAssignedUser = !!strategy.roles.projectManagerUserId && strategy.roles.projectManagerUserId === userId;
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', lg: '1.6fr 1fr' }, alignItems: 'start' }}>
       <Paper sx={{ p: 2 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: 1.5, flexWrap: 'wrap' }}>
           <Box>
             <Typography variant="h6">Data Migration Strategy</Typography>
             <Typography variant="body2" color="text.secondary">Project: {projectName || data.project?.name || projectId}</Typography>
+            <Typography variant="caption" color="text.secondary">Completed Sections: {completedSectionCount} / {SECTION_CONFIG.length}</Typography>
           </Box>
           <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
             <Button variant="outlined" onClick={onEditProject}>Manage Roles</Button>
@@ -258,21 +277,55 @@ const DataMigrationStrategyView: React.FC<Props> = ({
           </Box>
         </Box>
 
+        <LinearProgress variant="determinate" value={completionPct} sx={{ mb: 1.5, borderRadius: 999, height: 7 }} />
+
         <Divider sx={{ mb: 2 }} />
 
-        <Box sx={{ display: 'grid', gap: 1.25 }}>
+        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 1.5 }}>
           {SECTION_CONFIG.map((section) => (
-            <TextField
+            <Chip
               key={section.key}
-              label={section.label}
-              multiline
-              minRows={section.rows || 3}
-              value={sectionsDraft[section.key] || ''}
-              onChange={(e) => setSectionsDraft((prev) => ({ ...prev, [section.key]: e.target.value }))}
-              disabled={!canEditSections}
-              fullWidth
+              label={`${section.label}${(sectionsDraft[section.key] || '').trim() ? ' • Done' : ''}`}
+              clickable
+              color={section.key === activeSection.key ? 'primary' : 'default'}
+              variant={section.key === activeSection.key ? 'filled' : 'outlined'}
+              onClick={() => setActiveSectionKey(section.key)}
             />
           ))}
+        </Box>
+
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+          Section {activeSectionIndex + 1} of {SECTION_CONFIG.length}
+        </Typography>
+
+        <Box sx={{ display: 'grid', gap: 1.25 }}>
+          <TextField
+            key={activeSection.key}
+            label={activeSection.label}
+            multiline
+            minRows={activeSection.rows || 3}
+            value={sectionsDraft[activeSection.key] || ''}
+            onChange={(e) => setSectionsDraft((prev) => ({ ...prev, [activeSection.key]: e.target.value }))}
+            disabled={!canEditSections}
+            fullWidth
+          />
+        </Box>
+
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1.5, gap: 1 }}>
+          <Button
+            variant="outlined"
+            disabled={activeSectionIndex <= 0}
+            onClick={() => setActiveSectionKey(SECTION_CONFIG[Math.max(activeSectionIndex - 1, 0)].key)}
+          >
+            Previous Section
+          </Button>
+          <Button
+            variant="outlined"
+            disabled={activeSectionIndex >= SECTION_CONFIG.length - 1}
+            onClick={() => setActiveSectionKey(SECTION_CONFIG[Math.min(activeSectionIndex + 1, SECTION_CONFIG.length - 1)].key)}
+          >
+            Next Section
+          </Button>
         </Box>
 
         {canEditSections ? (
@@ -286,6 +339,7 @@ const DataMigrationStrategyView: React.FC<Props> = ({
         )}
       </Paper>
 
+      <Box sx={{ display: 'grid', gap: 2 }}>
       <Paper sx={{ p: 2 }}>
         <Typography variant="subtitle1" sx={{ mb: 1.5, fontWeight: 700 }}>Project Role Assignments (Read Only)</Typography>
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1 }}>
@@ -334,6 +388,8 @@ const DataMigrationStrategyView: React.FC<Props> = ({
           </Button>
         </Box>
       </Paper>
+      </Box>
+      </Box>
 
       <Paper sx={{ p: 2 }}>
         <Typography variant="subtitle1" sx={{ mb: 1.5, fontWeight: 700 }}>Supporting Documentation Uploads</Typography>

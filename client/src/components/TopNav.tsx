@@ -48,6 +48,7 @@ const executionSubNavItems = [
 ];
 
 const planningSubNavItems = [
+  { label: 'Plan', icon: <GridViewIcon sx={{ fontSize: '0.95rem' }} />, path: '/planning/plan' },
   { label: 'Strategy', icon: <GridViewIcon sx={{ fontSize: '0.95rem' }} />, path: '/planning/strategy' },
   { label: 'Object Inventory', icon: <TableChartIcon sx={{ fontSize: '0.95rem' }} />, path: '/planning/inventory' },
   { label: 'Structure', icon: <AccountTreeIcon sx={{ fontSize: '0.95rem' }} />, path: '/planning/structure' },
@@ -222,7 +223,7 @@ const TopNav: React.FC<TopNavProps> = ({
                   PaperProps={{ sx: { mt: 1, minWidth: 200 } }}>
                   {[
                     { label: 'Dashboard', icon: <DashboardIcon fontSize="small" />, path: '/dashboard' },
-                    { label: 'Planning', icon: <ArchitectureIcon fontSize="small" />, path: '/planning/strategy' },
+                    { label: 'Planning', icon: <ArchitectureIcon fontSize="small" />, path: '/planning/plan' },
                     { label: 'Execution', icon: <FolderOpenIcon fontSize="small" />, path: '/projects' },
                     { label: 'Design', icon: <DesignServicesIcon fontSize="small" />, path: null },
                     { label: 'Build', icon: <ConstructionIcon fontSize="small" />, path: null },
