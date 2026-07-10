@@ -206,7 +206,7 @@ const DataMigrationStrategyView: React.FC<Props> = ({
         </Box>
       </Paper>
 
-      <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', lg: '1.6fr 1fr' }, alignItems: 'start' }}>
+      <Box sx={{ display: 'grid', gap: 2 }}>
       <Paper sx={{ p: 2 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: 1.5, flexWrap: 'wrap' }}>
           <Box>
@@ -269,101 +269,6 @@ const DataMigrationStrategyView: React.FC<Props> = ({
         )}
       </Paper>
 
-      <Box sx={{ display: 'grid', gap: 2 }}>
-      <Paper sx={{ p: 2 }}>
-        <Typography variant="subtitle1" sx={{ mb: 1.5, fontWeight: 700 }}>Project Role Assignments (Read Only)</Typography>
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1 }}>
-          <TextField label="Lead" value={strategy.roleUsers?.leadEmail || strategy.roles.leadUserId || 'Unassigned'} InputProps={{ readOnly: true }} />
-          <TextField label="Project Manager" value={strategy.roleUsers?.projectManagerEmail || strategy.roles.projectManagerUserId || 'Unassigned'} InputProps={{ readOnly: true }} />
-        </Box>
-        <Box sx={{ mt: 1.25 }}>
-          <Button variant="outlined" onClick={onEditProject}>Open Existing Role Assignment Modal</Button>
-        </Box>
-      </Paper>
-
-      <Paper sx={{ p: 2 }}>
-        <Typography variant="subtitle1" sx={{ mb: 1.5, fontWeight: 700 }}>Workflow Approval</Typography>
-        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-          <Chip label={`Lead: ${strategy.approvals.leadApproved ? 'Approved' : 'Pending'}`} color={strategy.approvals.leadApproved ? 'success' : 'default'} />
-          <Chip label={`Project Manager: ${strategy.approvals.projectManagerApproved ? 'Approved' : 'Pending'}`} color={strategy.approvals.projectManagerApproved ? 'success' : 'default'} />
-        </Box>
-        <Box sx={{ display: 'flex', gap: 1, mt: 1.5, flexWrap: 'wrap' }}>
-          <Button
-            variant="contained"
-            disabled={!isLeadAssignedUser || isApproving === 'lead'}
-            onClick={() => handleApproval('lead', true)}
-          >
-            {isApproving === 'lead' ? 'Saving...' : 'Lead Approve'}
-          </Button>
-          <Button
-            variant="outlined"
-            disabled={!isLeadAssignedUser || isApproving === 'lead'}
-            onClick={() => handleApproval('lead', false)}
-          >
-            Revoke Lead Approval
-          </Button>
-          <Button
-            variant="contained"
-            disabled={!isPmAssignedUser || isApproving === 'project_manager'}
-            onClick={() => handleApproval('project_manager', true)}
-          >
-            {isApproving === 'project_manager' ? 'Saving...' : 'PM Final Sign-Off'}
-          </Button>
-          <Button
-            variant="outlined"
-            disabled={!isPmAssignedUser || isApproving === 'project_manager'}
-            onClick={() => handleApproval('project_manager', false)}
-          >
-            Revoke PM Sign-Off
-          </Button>
-        </Box>
-      </Paper>
-      </Box>
-      </Box>
-      <Paper sx={{ p: 2 }}>
-        <Typography variant="subtitle1" sx={{ mb: 1.5, fontWeight: 700 }}>Mock Cycles (Read Only)</Typography>
-        <Box sx={{ display: 'grid', gap: 1.5 }}>
-          {data.mockCycles.map((cycle) => {
-            const workflow = cycleWorkflowById.get(cycle.id);
-            return (
-              <Card key={cycle.id} variant="outlined">
-                <CardContent>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, mb: 1, flexWrap: 'wrap' }}>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>{cycle.name}</Typography>
-                    <Button size="small" variant="outlined" onClick={() => onEditCycle(cycle.id)}>
-                      Open Existing Mock Cycle Modal
-                    </Button>
-                  </Box>
-
-                  <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 1 }}>
-                    <TextField
-                      label="Load Metrics"
-                      value={`Scope ${workflow?.metrics?.totalRecordsScope ?? 0}, Invalid ${workflow?.metrics?.invalidRecords ?? 0}, Attempted ${workflow?.metrics?.recordsAttempted ?? 0}, Errors ${workflow?.metrics?.loadErrors ?? 0}, Loaded ${workflow?.metrics?.recordsLoaded ?? 0}`}
-                      InputProps={{ readOnly: true }}
-                      multiline
-                      minRows={2}
-                    />
-                    <TextField
-                      label="Target Load Percentages"
-                      value={`Success Target ${workflow?.targets?.successRate ?? 95}% | Coverage Target ${workflow?.targets?.coverageRate ?? 95}%`}
-                      InputProps={{ readOnly: true }}
-                      multiline
-                      minRows={2}
-                    />
-                    <TextField
-                      label="Approval Status"
-                      value={`Lead ${workflow?.approvals?.leadApproved ? 'Approved' : 'Pending'} | PM ${workflow?.approvals?.projectManagerApproved ? 'Approved' : 'Pending'}`}
-                      InputProps={{ readOnly: true }}
-                      multiline
-                      minRows={2}
-                    />
-                  </Box>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </Box>
-      </Paper>
 
       <Paper sx={{ p: 2 }}>
         <Typography variant="subtitle1" sx={{ mb: 1.5, fontWeight: 700 }}>Entry Criteria (Read Only)</Typography>
@@ -426,6 +331,62 @@ const DataMigrationStrategyView: React.FC<Props> = ({
           })}
         </Box>
       </Paper>
+
+      <Paper sx={{ p: 2 }}>
+        <Typography variant="subtitle1" sx={{ mb: 1.5, fontWeight: 700 }}>Strategy Approval</Typography>
+
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.75, fontWeight: 700 }}>
+          Project Role Assignments (Read Only)
+        </Typography>
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1, mb: 1.5 }}>
+          <TextField label="Lead" value={strategy.roleUsers?.leadEmail || strategy.roles.leadUserId || 'Unassigned'} InputProps={{ readOnly: true }} />
+          <TextField label="Project Manager" value={strategy.roleUsers?.projectManagerEmail || strategy.roles.projectManagerUserId || 'Unassigned'} InputProps={{ readOnly: true }} />
+        </Box>
+        <Box sx={{ mb: 2 }}>
+          <Button variant="outlined" onClick={onEditProject}>Open Existing Role Assignment Modal</Button>
+        </Box>
+
+        <Divider sx={{ mb: 1.5 }} />
+
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.75, fontWeight: 700 }}>
+          Workflow Approval
+        </Typography>
+        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 1.5 }}>
+          <Chip label={`Lead: ${strategy.approvals.leadApproved ? 'Approved' : 'Pending'}`} color={strategy.approvals.leadApproved ? 'success' : 'default'} />
+          <Chip label={`Project Manager: ${strategy.approvals.projectManagerApproved ? 'Approved' : 'Pending'}`} color={strategy.approvals.projectManagerApproved ? 'success' : 'default'} />
+        </Box>
+        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+          <Button
+            variant="contained"
+            disabled={!isLeadAssignedUser || isApproving === 'lead'}
+            onClick={() => handleApproval('lead', true)}
+          >
+            {isApproving === 'lead' ? 'Saving...' : 'Lead Approve'}
+          </Button>
+          <Button
+            variant="outlined"
+            disabled={!isLeadAssignedUser || isApproving === 'lead'}
+            onClick={() => handleApproval('lead', false)}
+          >
+            Revoke Lead Approval
+          </Button>
+          <Button
+            variant="contained"
+            disabled={!isPmAssignedUser || isApproving === 'project_manager'}
+            onClick={() => handleApproval('project_manager', true)}
+          >
+            {isApproving === 'project_manager' ? 'Saving...' : 'PM Final Sign-Off'}
+          </Button>
+          <Button
+            variant="outlined"
+            disabled={!isPmAssignedUser || isApproving === 'project_manager'}
+            onClick={() => handleApproval('project_manager', false)}
+          >
+            Revoke PM Sign-Off
+          </Button>
+        </Box>
+      </Paper>
+      </Box>
     </Box>
   );
 };
