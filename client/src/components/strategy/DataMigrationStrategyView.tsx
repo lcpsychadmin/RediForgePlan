@@ -13,6 +13,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import apiClient from '../../api/client';
 import 'react-quill/dist/quill.snow.css';
@@ -273,6 +274,7 @@ const DataMigrationStrategyView: React.FC<Props> = ({
   const [activeSectionKey, setActiveSectionKey] = React.useState(SECTION_CONFIG[0].key);
   const activeSection = SECTION_CONFIG.find((section) => section.key === activeSectionKey) || SECTION_CONFIG[0];
   const isHistoryTrackedSection = !SPECIAL_SECTION_KEYS.has(activeSection.key);
+  const [isHistoryExpanded, setIsHistoryExpanded] = React.useState(false);
 
   const [isApproving, setIsApproving] = React.useState<null | StrategyRole>(null);
 
@@ -297,18 +299,22 @@ const DataMigrationStrategyView: React.FC<Props> = ({
     }
   }, [activeSectionKey]);
 
+  React.useEffect(() => {
+    setIsHistoryExpanded(false);
+  }, [activeSection.key]);
+
   const refresh = async () => {
     await queryClient.invalidateQueries({ queryKey: ['projectDataMigrationStrategy', projectId] });
     await queryClient.invalidateQueries({ queryKey: ['projectStrategySectionHistory', projectId, activeSection.key] });
   };
 
-  const insertImageAtCursor = React.useCallback((dataUrl: string) => {
+  const insertImageAtCursor = React.useCallback((src: string) => {
     const editor = quillRef.current?.getEditor();
     if (!editor) return;
 
     const selection = editor.getSelection(true);
     const index = selection?.index ?? editor.getLength();
-    editor.insertEmbed(index, 'image', dataUrl, 'user');
+    editor.insertEmbed(index, 'image', src, 'user');
     editor.setSelection(index + 1, 0);
   }, []);
 
@@ -322,6 +328,13 @@ const DataMigrationStrategyView: React.FC<Props> = ({
     };
     reader.readAsDataURL(file);
   }, [insertImageAtCursor]);
+
+  const extractImageSrcFromHtml = React.useCallback((html: string) => {
+    if (!html) return null;
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const img = doc.querySelector('img');
+    return img?.getAttribute('src') || null;
+  }, []);
 
   const handleInsertImage = React.useCallback(() => {
     if (!canEditSections) return;
@@ -369,29 +382,41 @@ const DataMigrationStrategyView: React.FC<Props> = ({
     const handlePaste = (event: ClipboardEvent) => {
       const items = Array.from(event.clipboardData?.items || []);
       const imageItems = items.filter((item) => item.type.startsWith('image/'));
-      if (imageItems.length === 0) return;
+      if (imageItems.length > 0) {
+        event.preventDefault();
+        imageItems.forEach((item) => {
+          const file = item.getAsFile();
+          if (file) {
+            readImageFile(file);
+          }
+        });
+        return;
+      }
 
-      event.preventDefault();
-      imageItems.forEach((item) => {
-        const file = item.getAsFile();
-        if (file) {
-          readImageFile(file);
-        }
-      });
+      const html = event.clipboardData?.getData('text/html') || '';
+      const imageSrc = extractImageSrcFromHtml(html);
+      if (imageSrc) {
+        event.preventDefault();
+        insertImageAtCursor(imageSrc);
+      }
     };
 
     editor.root.addEventListener('paste', handlePaste);
     return () => {
       editor.root.removeEventListener('paste', handlePaste);
     };
-  }, [activeSection.key, canEditSections, readImageFile]);
+  }, [activeSection.key, canEditSections, extractImageSrcFromHtml, insertImageAtCursor, readImageFile]);
 
   const handleSaveSections = async () => {
     try {
       setIsSavingSections(true);
-      await apiClient.put(`/api/projects/${projectId}/data-migration-strategy`, {
+      const response = await apiClient.put(`/api/projects/${projectId}/data-migration-strategy`, {
         sections: sectionsDraft,
       });
+      const savedSections = response.data?.data?.sections;
+      if (savedSections) {
+        setSectionsDraft((prev) => ({ ...prev, ...savedSections }));
+      }
       await refresh();
     } catch (error) {
       alert('Failed to save Data Migration Strategy sections.');
@@ -703,6 +728,7 @@ const DataMigrationStrategyView: React.FC<Props> = ({
               }}
             >
               <ReactQuill
+                key={activeSection.key}
                 ref={quillRef}
                 theme="snow"
                 value={sectionsDraft[activeSection.key] || ''}
@@ -744,44 +770,62 @@ const DataMigrationStrategyView: React.FC<Props> = ({
         ) : null}
 
         <Box sx={{ mt: 2, ...SPECIAL_SURFACE, p: 1.5, backgroundColor: 'rgba(255,255,255,0.05)' }}>
-          <Typography variant="caption" sx={{ display: 'block', mb: 1, color: activeAccent, fontWeight: 700 }}>
+          <Button
+            variant="text"
+            onClick={() => setIsHistoryExpanded((prev) => !prev)}
+            endIcon={<ExpandMoreIcon sx={{ transform: isHistoryExpanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease' }} />}
+            sx={{
+              p: 0,
+              minWidth: 0,
+              textTransform: 'none',
+              color: activeAccent,
+              fontWeight: 700,
+              justifyContent: 'space-between',
+              width: '100%',
+              '&:hover': { backgroundColor: 'transparent' },
+            }}
+          >
             Section Change History
-          </Typography>
-          {!isHistoryTrackedSection ? (
-            <Typography variant="body2" color="text.secondary">
-              This section is driven by workflow or approval state rather than saved narrative content. Its changes are tracked in the related source records.
-            </Typography>
-          ) : isLoadingSectionHistory ? (
-            <Typography variant="body2" color="text.secondary">Loading section history...</Typography>
-          ) : sectionHistory.length === 0 ? (
-            <Typography variant="body2" color="text.secondary">No saved changes yet for this section.</Typography>
-          ) : (
-            <Box sx={{ display: 'grid', gap: 1 }}>
-              {sectionHistory.map((entry, index) => (
-                <Box
-                  key={entry.id}
-                  sx={{
-                    p: 1.25,
-                    borderRadius: 1.5,
-                    backgroundColor: 'rgba(255,255,255,0.035)',
-                    border: '1px solid rgba(255,255,255,0.1)',
-                  }}
-                >
-                  <Typography variant="caption" sx={{ display: 'block', color: activeAccent, fontWeight: 700, mb: 0.75 }}>
-                    Revision {sectionHistory.length - index} • {entry.changed_by_email || 'Unknown user'} • {new Date(entry.created_at).toLocaleString()}
-                  </Typography>
-                  <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 1 }}>
-                    <Box>
-                      <Typography variant="caption" color="text.secondary">Previous</Typography>
-                      <Typography variant="body2" sx={{ color: 'rgba(234,242,255,0.88)' }}>{summarizeHtml(entry.previous_content)}</Typography>
+          </Button>
+          {isHistoryExpanded && (
+            <Box sx={{ mt: 1.25 }}>
+              {!isHistoryTrackedSection ? (
+                <Typography variant="body2" color="text.secondary">
+                  This section is driven by workflow or approval state rather than saved narrative content. Its changes are tracked in the related source records.
+                </Typography>
+              ) : isLoadingSectionHistory ? (
+                <Typography variant="body2" color="text.secondary">Loading section history...</Typography>
+              ) : sectionHistory.length === 0 ? (
+                <Typography variant="body2" color="text.secondary">No saved changes yet for this section.</Typography>
+              ) : (
+                <Box sx={{ display: 'grid', gap: 1 }}>
+                  {sectionHistory.map((entry, index) => (
+                    <Box
+                      key={entry.id}
+                      sx={{
+                        p: 1.25,
+                        borderRadius: 1.5,
+                        backgroundColor: 'rgba(255,255,255,0.035)',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                      }}
+                    >
+                      <Typography variant="caption" sx={{ display: 'block', color: activeAccent, fontWeight: 700, mb: 0.75 }}>
+                        Revision {sectionHistory.length - index} • {entry.changed_by_email || 'Unknown user'} • {new Date(entry.created_at).toLocaleString()}
+                      </Typography>
+                      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 1 }}>
+                        <Box>
+                          <Typography variant="caption" color="text.secondary">Previous</Typography>
+                          <Typography variant="body2" sx={{ color: 'rgba(234,242,255,0.88)' }}>{summarizeHtml(entry.previous_content)}</Typography>
+                        </Box>
+                        <Box>
+                          <Typography variant="caption" color="text.secondary">Updated</Typography>
+                          <Typography variant="body2" sx={{ color: 'rgba(234,242,255,0.88)' }}>{summarizeHtml(entry.next_content)}</Typography>
+                        </Box>
+                      </Box>
                     </Box>
-                    <Box>
-                      <Typography variant="caption" color="text.secondary">Updated</Typography>
-                      <Typography variant="body2" sx={{ color: 'rgba(234,242,255,0.88)' }}>{summarizeHtml(entry.next_content)}</Typography>
-                    </Box>
-                  </Box>
+                  ))}
                 </Box>
-              ))}
+              )}
             </Box>
           )}
         </Box>
