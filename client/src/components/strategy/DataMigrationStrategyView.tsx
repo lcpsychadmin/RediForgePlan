@@ -1,4 +1,5 @@
 import React from 'react';
+import ReactQuill from 'react-quill';
 import {
   Alert,
   Box,
@@ -14,6 +15,7 @@ import {
 } from '@mui/material';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import apiClient from '../../api/client';
+import 'react-quill/dist/quill.snow.css';
 
 type StrategyRole = 'lead' | 'project_manager';
 
@@ -76,6 +78,43 @@ const SPECIAL_SURFACE = {
   border: '1px solid rgba(255,255,255,0.14)',
   borderRadius: 2,
 };
+const SECTION_ACCENTS: Record<string, string> = {
+  purpose: '#7CC7FF',
+  guidingPrinciples: '#8FE3CF',
+  dataReadiness: '#F7C873',
+  dataConversion: '#F4978E',
+  conversionScope: '#A5B4FC',
+  conversionMethods: '#63C7B2',
+  conversionDocuments: '#F4A261',
+  dataValidationProcess: '#7FD1AE',
+  mockConversionCycles: '#F1B96B',
+  mockSuccessTargets: '#93C5FD',
+  goLiveSimulationCutover: '#F59E9E',
+  dependencies: '#C4B5FD',
+  assumptions: '#A7F3D0',
+  keyDesignDecisions: '#F9C74F',
+  entryCriteria: '#7CC7FF',
+  exitCriteria: '#F4A261',
+  strategyApproval: '#7FD1AE',
+};
+const quillModules = {
+  toolbar: [
+    [{ header: [1, 2, 3, false] }],
+    ['bold', 'italic', 'underline', 'blockquote'],
+    [{ list: 'ordered' }, { list: 'bullet' }],
+    ['link', 'clean'],
+  ],
+};
+const quillFormats = [
+  'header',
+  'bold',
+  'italic',
+  'underline',
+  'blockquote',
+  'list',
+  'bullet',
+  'link',
+];
 
 interface Props {
   projectId: string;
@@ -184,6 +223,7 @@ const DataMigrationStrategyView: React.FC<Props> = ({
   const cycleWorkflowById = new Map(data.cycleWorkflow.map((entry) => [entry.mockCycleId, entry.workflow]));
   const strategy = data.strategy;
   const activeSection = SECTION_CONFIG.find((section) => section.key === activeSectionKey) || SECTION_CONFIG[0];
+  const activeAccent = SECTION_ACCENTS[activeSection.key] || SPECIAL_ACCENT;
   const activeSectionIndex = SECTION_CONFIG.findIndex((section) => section.key === activeSection.key);
   const editableSectionCount = SECTION_CONFIG.filter((section) => !SPECIAL_SECTION_KEYS.has(section.key)).length;
   const completedSectionCount = SECTION_CONFIG.filter((section) => {
@@ -210,26 +250,49 @@ const DataMigrationStrategyView: React.FC<Props> = ({
               key={section.key}
               label={`${section.label}${(sectionsDraft[section.key] || '').trim() ? ' • Done' : ''}`}
               clickable
-              color={section.key === activeSection.key ? 'primary' : 'default'}
               variant={section.key === activeSection.key ? 'filled' : 'outlined'}
               onClick={() => setActiveSectionKey(section.key)}
-              sx={{ flexShrink: 0, fontWeight: section.key === activeSection.key ? 700 : 500 }}
+              sx={{
+                flexShrink: 0,
+                fontWeight: section.key === activeSection.key ? 700 : 500,
+                color: section.key === activeSection.key ? '#0D1933' : '#EAF2FF',
+                backgroundColor: section.key === activeSection.key ? SECTION_ACCENTS[section.key] || SPECIAL_ACCENT : 'rgba(255,255,255,0.03)',
+                borderColor: section.key === activeSection.key ? 'transparent' : 'rgba(255,255,255,0.14)',
+              }}
             />
           ))}
         </Box>
       </Paper>
 
       <Box sx={{ display: 'grid', gap: 2 }}>
-      <Paper sx={{ p: 2, ...(SPECIAL_SECTION_KEYS.has(activeSection.key) ? SPECIAL_SURFACE : {}) }}>
+      <Paper
+        sx={{
+          p: 2,
+          background: `linear-gradient(180deg, ${activeAccent}18 0%, rgba(255,255,255,0.03) 22%, rgba(255,255,255,0.02) 100%)`,
+          border: `1px solid ${activeAccent}33`,
+          borderRadius: 2.5,
+          boxShadow: '0 10px 30px rgba(0,0,0,0.14)',
+          overflow: 'hidden',
+        }}
+      >
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: 1.5, flexWrap: 'wrap' }}>
           <Box>
-            <Typography variant="h6">Data Migration Strategy</Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75, flexWrap: 'wrap' }}>
+              <Chip
+                label={activeSection.label}
+                size="small"
+                sx={{ backgroundColor: `${activeAccent}26`, color: activeAccent, fontWeight: 700 }}
+              />
+              <Typography variant="caption" sx={{ color: activeAccent, fontWeight: 700, letterSpacing: '0.25px' }}>
+                Data Migration Strategy
+              </Typography>
+            </Box>
             <Typography variant="body2" color="text.secondary">Project: {projectName || data.project?.name || projectId}</Typography>
             <Typography variant="caption" color="text.secondary">Completed Sections: {completedSectionCount} / {editableSectionCount}</Typography>
           </Box>
           <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-            <Button variant="outlined" onClick={onEditProject}>Manage Roles</Button>
-            <Button variant="outlined" onClick={handleExport}>Export Strategy</Button>
+            <Button variant="outlined" onClick={onEditProject} sx={{ borderColor: `${activeAccent}55`, color: activeAccent }}>Manage Roles</Button>
+            <Button variant="outlined" onClick={handleExport} sx={{ borderColor: `${activeAccent}55`, color: activeAccent }}>Export Strategy</Button>
           </Box>
         </Box>
 
@@ -251,7 +314,7 @@ const DataMigrationStrategyView: React.FC<Props> = ({
               const workflow = cycleWorkflowById.get(cycle.id);
               const entryItems = workflow?.criteria?.entry || [];
               return (
-                <Card key={`${cycle.id}-entry`} variant="outlined" sx={{ ...SPECIAL_SURFACE }}>
+                <Card key={`${cycle.id}-entry`} variant="outlined" sx={{ ...SPECIAL_SURFACE, backgroundColor: 'rgba(255,255,255,0.06)' }}>
                   <CardContent>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, mb: 1, flexWrap: 'wrap' }}>
                       <Typography variant="subtitle2" sx={{ fontWeight: 700, color: SPECIAL_ACCENT }}>{cycle.name}</Typography>
@@ -279,7 +342,7 @@ const DataMigrationStrategyView: React.FC<Props> = ({
               const workflow = cycleWorkflowById.get(cycle.id);
               const exitItems = workflow?.criteria?.exit || [];
               return (
-                <Card key={`${cycle.id}-exit`} variant="outlined" sx={{ ...SPECIAL_SURFACE }}>
+                <Card key={`${cycle.id}-exit`} variant="outlined" sx={{ ...SPECIAL_SURFACE, backgroundColor: 'rgba(255,255,255,0.06)' }}>
                   <CardContent>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, mb: 1, flexWrap: 'wrap' }}>
                       <Typography variant="subtitle2" sx={{ fontWeight: 700, color: SPECIAL_ACCENT }}>{cycle.name}</Typography>
@@ -362,16 +425,47 @@ const DataMigrationStrategyView: React.FC<Props> = ({
           </Box>
         ) : (
           <Box sx={{ display: 'grid', gap: 1.25 }}>
-            <TextField
-              key={activeSection.key}
-              label={activeSection.label}
-              multiline
-              minRows={activeSection.rows || 3}
-              value={sectionsDraft[activeSection.key] || ''}
-              onChange={(e) => setSectionsDraft((prev) => ({ ...prev, [activeSection.key]: e.target.value }))}
-              disabled={!canEditSections}
-              fullWidth
-            />
+            <Box
+              sx={{
+                border: `1px solid ${activeAccent}3d`,
+                borderRadius: 2,
+                overflow: 'hidden',
+                backgroundColor: 'rgba(255,255,255,0.05)',
+                '& .ql-toolbar.ql-snow': {
+                  border: 'none',
+                  borderBottom: '1px solid rgba(255,255,255,0.14)',
+                  backgroundColor: 'rgba(255,255,255,0.04)',
+                },
+                '& .ql-container.ql-snow': {
+                  border: 'none',
+                  fontFamily: 'inherit',
+                  minHeight: 240,
+                },
+                '& .ql-editor': {
+                  minHeight: 240,
+                  color: '#EAF2FF',
+                  fontSize: '0.98rem',
+                  lineHeight: 1.65,
+                },
+                '& .ql-editor.ql-blank::before': {
+                  color: 'rgba(234,242,255,0.45)',
+                  fontStyle: 'normal',
+                },
+                '& .ql-snow .ql-stroke': { stroke: '#D7E6FF' },
+                '& .ql-snow .ql-fill': { fill: '#D7E6FF' },
+                '& .ql-snow .ql-picker': { color: '#D7E6FF' },
+              }}
+            >
+              <ReactQuill
+                theme="snow"
+                value={sectionsDraft[activeSection.key] || ''}
+                onChange={(value) => setSectionsDraft((prev) => ({ ...prev, [activeSection.key]: value }))}
+                modules={quillModules}
+                formats={quillFormats}
+                readOnly={!canEditSections}
+                placeholder={`Document ${activeSection.label.toLowerCase()}...`}
+              />
+            </Box>
           </Box>
         )}
 
@@ -394,7 +488,7 @@ const DataMigrationStrategyView: React.FC<Props> = ({
 
         {canEditSections && !SPECIAL_SECTION_KEYS.has(activeSection.key) ? (
           <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1.5 }}>
-            <Button variant="contained" onClick={handleSaveSections} disabled={isSavingSections}>
+            <Button variant="contained" onClick={handleSaveSections} disabled={isSavingSections} sx={{ backgroundColor: activeAccent, color: '#0D1933', '&:hover': { backgroundColor: activeAccent } }}>
               {isSavingSections ? 'Saving...' : 'Save Data Migration Strategy'}
             </Button>
           </Box>
