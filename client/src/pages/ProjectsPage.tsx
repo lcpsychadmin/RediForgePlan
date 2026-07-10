@@ -10169,45 +10169,71 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
               <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>Cycle Governance</Typography>
 
               <Typography variant="subtitle2">Entry Criteria</Typography>
-              <Box sx={{ border: '1px solid rgba(255,255,255,0.1)', borderRadius: 1.25, overflow: 'hidden' }}>
-                {cycleEntryCriteriaRows.map((criterion, idx, list) => (
-                  <Box key={`modal-entry-${criterion.key}`} sx={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 1, px: 1.25, py: 0.8, borderBottom: idx === list.length - 1 ? 'none' : '1px solid rgba(255,255,255,0.06)', backgroundColor: idx % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent' }}>
-                    <TextField
-                      size="small"
-                      value={criterion.label}
-                      onChange={(e) => setCycleEntryCriteriaDraft(cycleEntryCriteriaRows.map((row) => row.key === criterion.key ? { ...row, label: e.target.value } : row))}
-                    />
-                    <FormControlLabel
-                      control={<Checkbox checked={criterion.completed} onChange={(e) => setCycleEntryCriteriaDraft(cycleEntryCriteriaRows.map((row) => row.key === criterion.key ? { ...row, completed: e.target.checked } : row))} />}
-                      label="Done"
-                    />
-                    <FormControlLabel
-                      control={<Checkbox checked={criterion.enforced} onChange={(e) => setCycleEntryCriteriaDraft(cycleEntryCriteriaRows.map((row) => row.key === criterion.key ? { ...row, enforced: e.target.checked } : row))} />}
-                      label="Enforce"
-                    />
-                  </Box>
-                ))}
+              <Box sx={{ border: '1px solid rgba(255,255,255,0.1)', borderRadius: 1.25 }}>
+                {MOCK_CYCLE_ENTRY_CRITERIA_DEFAULTS.map((defaultItem, idx) => {
+                  const live = Array.isArray(cycleEntryCriteriaDraft) ? cycleEntryCriteriaDraft.find((r) => r.key === defaultItem.key) : undefined;
+                  const criterion = live || defaultItem;
+                  return (
+                    <Box key={`modal-entry-${defaultItem.key}`} sx={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 1, px: 1.25, py: 0.8, borderBottom: idx === MOCK_CYCLE_ENTRY_CRITERIA_DEFAULTS.length - 1 ? 'none' : '1px solid rgba(255,255,255,0.06)', backgroundColor: idx % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent' }}>
+                      <TextField
+                        size="small"
+                        value={criterion.label}
+                        onChange={(e) => setCycleEntryCriteriaDraft(MOCK_CYCLE_ENTRY_CRITERIA_DEFAULTS.map((d) => {
+                          const cur = (Array.isArray(cycleEntryCriteriaDraft) ? cycleEntryCriteriaDraft.find((r) => r.key === d.key) : undefined) || d;
+                          return d.key === defaultItem.key ? { ...cur, label: e.target.value } : cur;
+                        }))}
+                      />
+                      <FormControlLabel
+                        control={<Checkbox checked={criterion.completed} onChange={(e) => setCycleEntryCriteriaDraft(MOCK_CYCLE_ENTRY_CRITERIA_DEFAULTS.map((d) => {
+                          const cur = (Array.isArray(cycleEntryCriteriaDraft) ? cycleEntryCriteriaDraft.find((r) => r.key === d.key) : undefined) || d;
+                          return d.key === defaultItem.key ? { ...cur, completed: e.target.checked } : cur;
+                        }))} />}
+                        label="Done"
+                      />
+                      <FormControlLabel
+                        control={<Checkbox checked={criterion.enforced} onChange={(e) => setCycleEntryCriteriaDraft(MOCK_CYCLE_ENTRY_CRITERIA_DEFAULTS.map((d) => {
+                          const cur = (Array.isArray(cycleEntryCriteriaDraft) ? cycleEntryCriteriaDraft.find((r) => r.key === d.key) : undefined) || d;
+                          return d.key === defaultItem.key ? { ...cur, enforced: e.target.checked } : cur;
+                        }))} />}
+                        label="Enforce"
+                      />
+                    </Box>
+                  );
+                })}
               </Box>
 
               <Typography variant="subtitle2">Exit Criteria</Typography>
-              <Box sx={{ border: '1px solid rgba(255,255,255,0.1)', borderRadius: 1.25, overflow: 'hidden' }}>
-                {cycleExitCriteriaRows.map((criterion, idx, list) => (
-                  <Box key={`modal-exit-${criterion.key}`} sx={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 1, px: 1.25, py: 0.8, borderBottom: idx === list.length - 1 ? 'none' : '1px solid rgba(255,255,255,0.06)', backgroundColor: idx % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent' }}>
-                    <TextField
-                      size="small"
-                      value={criterion.label}
-                      onChange={(e) => setCycleExitCriteriaDraft(cycleExitCriteriaRows.map((row) => row.key === criterion.key ? { ...row, label: e.target.value } : row))}
-                    />
-                    <FormControlLabel
-                      control={<Checkbox checked={criterion.completed} onChange={(e) => setCycleExitCriteriaDraft(cycleExitCriteriaRows.map((row) => row.key === criterion.key ? { ...row, completed: e.target.checked } : row))} />}
-                      label="Done"
-                    />
-                    <FormControlLabel
-                      control={<Checkbox checked={criterion.enforced} onChange={(e) => setCycleExitCriteriaDraft(cycleExitCriteriaRows.map((row) => row.key === criterion.key ? { ...row, enforced: e.target.checked } : row))} />}
-                      label="Enforce"
-                    />
-                  </Box>
-                ))}
+              <Box sx={{ border: '1px solid rgba(255,255,255,0.1)', borderRadius: 1.25 }}>
+                {MOCK_CYCLE_EXIT_CRITERIA_DEFAULTS.map((defaultItem, idx) => {
+                  const live = Array.isArray(cycleExitCriteriaDraft) ? cycleExitCriteriaDraft.find((r) => r.key === defaultItem.key) : undefined;
+                  const criterion = live || defaultItem;
+                  return (
+                    <Box key={`modal-exit-${defaultItem.key}`} sx={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 1, px: 1.25, py: 0.8, borderBottom: idx === MOCK_CYCLE_EXIT_CRITERIA_DEFAULTS.length - 1 ? 'none' : '1px solid rgba(255,255,255,0.06)', backgroundColor: idx % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent' }}>
+                      <TextField
+                        size="small"
+                        value={criterion.label}
+                        onChange={(e) => setCycleExitCriteriaDraft(MOCK_CYCLE_EXIT_CRITERIA_DEFAULTS.map((d) => {
+                          const cur = (Array.isArray(cycleExitCriteriaDraft) ? cycleExitCriteriaDraft.find((r) => r.key === d.key) : undefined) || d;
+                          return d.key === defaultItem.key ? { ...cur, label: e.target.value } : cur;
+                        }))}
+                      />
+                      <FormControlLabel
+                        control={<Checkbox checked={criterion.completed} onChange={(e) => setCycleExitCriteriaDraft(MOCK_CYCLE_EXIT_CRITERIA_DEFAULTS.map((d) => {
+                          const cur = (Array.isArray(cycleExitCriteriaDraft) ? cycleExitCriteriaDraft.find((r) => r.key === d.key) : undefined) || d;
+                          return d.key === defaultItem.key ? { ...cur, completed: e.target.checked } : cur;
+                        }))} />}
+                        label="Done"
+                      />
+                      <FormControlLabel
+                        control={<Checkbox checked={criterion.enforced} onChange={(e) => setCycleExitCriteriaDraft(MOCK_CYCLE_EXIT_CRITERIA_DEFAULTS.map((d) => {
+                          const cur = (Array.isArray(cycleExitCriteriaDraft) ? cycleExitCriteriaDraft.find((r) => r.key === d.key) : undefined) || d;
+                          return d.key === defaultItem.key ? { ...cur, enforced: e.target.checked } : cur;
+                        }))} />}
+                        label="Enforce"
+                      />
+                    </Box>
+                  );
+                })}
               </Box>
 
               <Alert severity="info">
