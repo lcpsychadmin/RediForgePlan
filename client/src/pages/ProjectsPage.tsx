@@ -1361,6 +1361,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   // People sidebar state
   const [peopleSidebarOpen, setPeopleSidebarOpen] = useState(false);
   const [people, setPeople] = useState<any[]>([]);
+  const [workflowUsers, setWorkflowUsers] = useState<Array<{ id: string; email: string; role: string }>>([]);
   const [peopleRoles, setPeopleRoles] = useState<string[]>([]);
   const [addPersonOpen, setAddPersonOpen] = useState(false);
   const [newPersonName, setNewPersonName] = useState('');
@@ -1631,6 +1632,13 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
     apiClient.get('/api/people/roles').then(res => {
       setPeopleRoles((res.data.data || []).map((r: any) => r.name));
     }).catch(() => {});
+
+    // Workflow role assignments must use actual application users.
+    apiClient.get('/auth/admin/users').then(res => {
+      setWorkflowUsers(res.data.data || []);
+    }).catch(() => {
+      setWorkflowUsers([]);
+    });
   }, []);
 
   const inventoryProjects = React.useMemo(() => {
@@ -1900,6 +1908,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
     Array.isArray(cycleExitCriteriaDraft) && cycleExitCriteriaDraft.length > 0
       ? cycleExitCriteriaDraft
       : MOCK_CYCLE_EXIT_CRITERIA_DEFAULTS;
+  const workflowUserIdSet = React.useMemo(() => new Set(workflowUsers.map((u) => u.id)), [workflowUsers]);
 
   // Debug logging
   if (editDialogOpen && editItemType === 'cycle') {
@@ -4398,14 +4407,16 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
         });
         await apiClient.patch(`/api/projects/${editCycleParentProjectId}`, { mockCycleId: editItemId });
       } else if (editItemType === 'project') {
+        const leadUserId = workflowUserIdSet.has(projectLeadUserIdDraft) ? projectLeadUserIdDraft : null;
+        const projectManagerUserId = workflowUserIdSet.has(projectManagerUserIdDraft) ? projectManagerUserIdDraft : null;
         await apiClient.patch(`/api/projects/${editItemId}`, {
           name: editItemName,
           accentColor: editAccentColor,
           programId: editProjectParentProgramId,
         });
         await apiClient.put(`/api/projects/${editItemId}/workflow-roles`, {
-          leadUserId: projectLeadUserIdDraft || null,
-          projectManagerUserId: projectManagerUserIdDraft || null,
+          leadUserId,
+          projectManagerUserId,
         });
       }
 
@@ -5089,9 +5100,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   const handleSaveProjectWorkflowRoles = async (projectId: string, cycleId?: string) => {
     try {
       setIsSavingProjectWorkflowRoles(true);
+      const leadUserId = workflowUserIdSet.has(projectLeadUserIdDraft) ? projectLeadUserIdDraft : null;
+      const projectManagerUserId = workflowUserIdSet.has(projectManagerUserIdDraft) ? projectManagerUserIdDraft : null;
       await apiClient.put(`/api/projects/${projectId}/workflow-roles`, {
-        leadUserId: projectLeadUserIdDraft || null,
-        projectManagerUserId: projectManagerUserIdDraft || null,
+        leadUserId,
+        projectManagerUserId,
       });
       const targetCycleId = cycleId || (selectedItem?.type === 'cycle' ? selectedItem.id : '');
       if (targetCycleId) {
@@ -6520,8 +6533,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                         onChange={(e) => setProjectLeadUserIdDraft(e.target.value)}
                       >
                         <MenuItem value="">Unassigned</MenuItem>
-                        {people.map((person: any) => (
-                          <MenuItem key={`project-lead-${person.id}`} value={person.id}>{person.name || person.email}</MenuItem>
+                        {workflowUsers.map((appUser) => (
+                          <MenuItem key={`project-lead-${appUser.id}`} value={appUser.id}>{appUser.email}</MenuItem>
                         ))}
                       </TextField>
                       <TextField
@@ -6532,8 +6545,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                         onChange={(e) => setProjectManagerUserIdDraft(e.target.value)}
                       >
                         <MenuItem value="">Unassigned</MenuItem>
-                        {people.map((person: any) => (
-                          <MenuItem key={`project-pm-${person.id}`} value={person.id}>{person.name || person.email}</MenuItem>
+                        {workflowUsers.map((appUser) => (
+                          <MenuItem key={`project-pm-${appUser.id}`} value={appUser.id}>{appUser.email}</MenuItem>
                         ))}
                       </TextField>
                     </Box>
@@ -10302,8 +10315,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                 size="small"
               >
                 <MenuItem value=""><em>None</em></MenuItem>
-                {people.map((p) => (
-                  <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>
+                {workflowUsers.map((appUser) => (
+                  <MenuItem key={appUser.id} value={appUser.id}>{appUser.email}</MenuItem>
                 ))}
               </TextField>
               <TextField
@@ -10316,8 +10329,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                 size="small"
               >
                 <MenuItem value=""><em>None</em></MenuItem>
-                {people.map((p) => (
-                  <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>
+                {workflowUsers.map((appUser) => (
+                  <MenuItem key={appUser.id} value={appUser.id}>{appUser.email}</MenuItem>
                 ))}
               </TextField>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>

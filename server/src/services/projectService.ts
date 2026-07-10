@@ -14,7 +14,7 @@ export class ProjectService {
          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
          project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
          role_key VARCHAR(64) NOT NULL CHECK (role_key IN ('lead', 'project_manager')),
-         user_id UUID NOT NULL REFERENCES people(id) ON DELETE CASCADE,
+         user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
          updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
          CONSTRAINT project_workflow_role_assignments_unique UNIQUE (project_id, role_key)

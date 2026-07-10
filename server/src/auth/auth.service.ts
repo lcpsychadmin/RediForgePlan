@@ -157,6 +157,20 @@ export const createUser = async (email: string, password: string, role: string =
 };
 
 /**
+ * List users for assignment workflows
+ * @returns Promise of users with identity/role fields
+ */
+export const listUsersForAssignment = async () => {
+  const result = await query(
+    `SELECT id, email, role, created_at, updated_at
+     FROM users
+     ORDER BY email ASC`
+  );
+
+  return result.rows;
+};
+
+/**
  * Update user MFA secret and enable MFA
  * @param userId - User UUID
  * @param mfaSecret - Encrypted MFA secret

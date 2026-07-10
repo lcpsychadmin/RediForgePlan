@@ -10,7 +10,7 @@ import {
 } from './auth.controller.js';
 import { requireAuth, requireRole } from '../middleware/authMiddleware.js';
 import { query } from '../db.js';
-import { hashPassword } from './auth.service.js';
+import { hashPassword, listUsersForAssignment } from './auth.service.js';
 
 const router = express.Router();
 
@@ -76,5 +76,14 @@ router.post('/mfa/enable', requireAuth, enableMFA);
  * Admin-only routes
  */
 router.post('/admin/create-user', requireAuth, requireRole('admin'), createNewUser);
+
+router.get('/admin/users', requireAuth, requireRole('admin'), async (_req, res) => {
+  try {
+    const users = await listUsersForAssignment();
+    res.json({ data: users, total: users.length });
+  } catch (error) {
+    res.status(500).json({ error: (error as any).message || 'Failed to fetch users' });
+  }
+});
 
 export default router;
