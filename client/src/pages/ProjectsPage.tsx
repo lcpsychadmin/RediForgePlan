@@ -175,32 +175,30 @@ const DEFAULT_HIERARCHY_LEVEL_ICONS: HierarchyLevelIcons = {
 type MockCycleCriterionDraft = { key: string; label: string; completed: boolean; enforced: boolean };
 
 const MOCK_CYCLE_ENTRY_CRITERIA_DEFAULTS: MockCycleCriterionDraft[] = [
-  'Design Complete',
-  'Field Mapping Documents Approved',
+  'Functional Designs Complete',
+  'Data Definitions Complete',
+  'Field Mapping Documents Complete',
   'Build Complete',
-  'Integration Readiness',
+  'Data Quality Percentage Threshold',
   'Environment Refreshed',
   'Security & Access Assigned',
-  'Cycle Plan Approved',
-  'No Blocking Defects',
+  'Mock Cycle Plan Approved',
+  'Severity Defects that need to be complete from prior Mocks',
 ].map((label) => ({ key: label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, ''), label, completed: false, enforced: true }));
 
 const MOCK_CYCLE_EXIT_CRITERIA_DEFAULTS: MockCycleCriterionDraft[] = [
   'Load Execution Complete',
   'Load Error Analysis Complete',
-  'Validation Complete',
-  'Defects Logged & Triaged',
-  'Records of Relevant Scope Captured',
-  'Invalid Records Captured',
-  'Records Attempted Captured',
-  'Load Errors Captured',
-  'Records Loaded Captured',
-  'Load Success Rate Calculated',
-  'Load Coverage Rate Calculated',
-  'Target Load Percentage Achieved',
-  'Cycle Metrics Captured',
+  'PreLoad Validation Complete and Approved',
+  'PostLoad Validation Complete and Approved',
+  'Defects Logged',
+  'Severity Defects that need to be complete',
+  'Records of Relevant Scope Captured for every object',
+  'Invalid Records Captured for every object',
+  'Load Errors Captured for every object',
+  'Target Load Coverage Percentage',
+  'Target Load Success Percentage',
   'Lessons Learned Documented',
-  'Next Cycle Readiness Confirmed',
 ].map((label) => ({ key: label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, ''), label, completed: false, enforced: true }));
 
 const HIERARCHY_ICON_OPTIONS: { value: HierarchyIconChoice; label: string; group: string }[] = [
