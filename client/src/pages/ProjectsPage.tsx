@@ -1889,6 +1889,18 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
       ? cycleExitCriteriaDraft
       : MOCK_CYCLE_EXIT_CRITERIA_DEFAULTS;
 
+  // Debug logging
+  if (editDialogOpen && editItemType === 'cycle') {
+    console.log('Modal open for cycle edit:', {
+      cycleEntryCriteriaDraft,
+      cycleEntryCriteriaRows,
+      cycleExitCriteriaDraft,
+      cycleExitCriteriaRows,
+      defaults_entry_length: MOCK_CYCLE_ENTRY_CRITERIA_DEFAULTS.length,
+      defaults_exit_length: MOCK_CYCLE_EXIT_CRITERIA_DEFAULTS.length,
+    });
+  }
+
   const normalizeCriteriaDraft = React.useCallback((
     source: any,
     defaults: MockCycleCriterionDraft[],
