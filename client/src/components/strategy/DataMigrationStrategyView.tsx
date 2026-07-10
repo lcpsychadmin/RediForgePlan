@@ -71,8 +71,6 @@ const SECTION_CONFIG: Array<{ key: string; label: string; rows?: number }> = [
   { key: 'dataReadiness', label: 'Data Readiness', rows: 4 },
   { key: 'dataConversion', label: 'Data Conversion', rows: 4 },
   { key: 'mockConversionCycles', label: 'Mock Cycles', rows: 4 },
-  { key: 'entryCriteria', label: 'Mock Entry Criteria' },
-  { key: 'exitCriteria', label: 'Mock Exit Criteria' },
   { key: 'goLiveSimulationCutover', label: 'Go-Live Simulation & Cutover', rows: 4 },
   { key: 'dependencies', label: 'Dependencies', rows: 3 },
   { key: 'assumptions', label: 'Assumptions', rows: 3 },
@@ -120,16 +118,8 @@ const SECTION_EXPECTATIONS: Record<string, string[]> = {
     'Describe the number, purpose, and scope of each mock cycle.',
     'Explain how data supports testing in each cycle.',
     'Show how the cycles build readiness for cutover.',
-  ],
-  entryCriteria: [
-    'List the conditions required to start a mock cycle.',
-    'Include readiness for systems, configuration, ETL, and access.',
-    'Define acceptable defect thresholds before execution begins.',
-  ],
-  exitCriteria: [
-    'List the conditions required to close a mock cycle.',
-    'Include validation results, defect triage, and load metrics.',
-    'Define what proves readiness for the next cycle.',
+    'Define, at a high level, how entry readiness will be determined before each cycle starts.',
+    'Define, at a high level, how exit completion will be assessed before moving to the next cycle.',
   ],
   goLiveSimulationCutover: [
     'Describe dress rehearsal and cutover execution approach.',
@@ -158,7 +148,7 @@ const SECTION_EXPECTATIONS: Record<string, string[]> = {
   ],
 };
 
-const SPECIAL_SECTION_KEYS = new Set(['entryCriteria', 'exitCriteria', 'strategyApproval']);
+const SPECIAL_SECTION_KEYS = new Set(['strategyApproval']);
 const SPECIAL_ACCENT = '#90CAF9';
 const SPECIAL_SURFACE = {
   backgroundColor: 'rgba(255,255,255,0.04)',
@@ -180,8 +170,6 @@ const SECTION_ACCENTS: Record<string, string> = {
   dataReadiness: '#F7C873',
   dataConversion: '#F4978E',
   mockConversionCycles: '#F1B96B',
-  entryCriteria: '#93C5FD',
-  exitCriteria: '#F4A261',
   goLiveSimulationCutover: '#F59E9E',
   dependencies: '#C4B5FD',
   assumptions: '#A7F3D0',
@@ -656,63 +644,7 @@ const DataMigrationStrategyView: React.FC<Props> = ({
           </Box>
         </Box>
 
-        {activeSection.key === 'entryCriteria' ? (
-          <Box sx={{ display: 'grid', gap: 1.5 }}>
-            {data.mockCycles.map((cycle) => {
-              const workflow = cycleWorkflowById.get(cycle.id);
-              const entryItems = workflow?.criteria?.entry || [];
-              return (
-                <Card key={`${cycle.id}-entry`} variant="outlined" sx={{ ...SPECIAL_SURFACE, backgroundColor: 'rgba(255,255,255,0.06)' }}>
-                  <CardContent>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, mb: 1, flexWrap: 'wrap' }}>
-                      <Typography variant="subtitle2" sx={{ fontWeight: 700, color: SPECIAL_ACCENT }}>{cycle.name}</Typography>
-                      <Button size="small" variant="outlined" onClick={() => onEditCycle(cycle.id)} sx={{ borderColor: 'rgba(144,202,249,0.45)', color: SPECIAL_ACCENT }}>
-                        Open Existing Mock Cycle Modal
-                      </Button>
-                    </Box>
-                    {entryItems.length === 0 ? (
-                      <Typography variant="body2" color="text.secondary">No entry criteria.</Typography>
-                    ) : (
-                      <Box sx={{ display: 'grid', gap: 0.5 }}>
-                        {entryItems.map((item: any) => (
-                          <Typography key={`${cycle.id}-entry-${item.key}`} variant="body2">• {item.label}</Typography>
-                        ))}
-                      </Box>
-                    )}
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </Box>
-        ) : activeSection.key === 'exitCriteria' ? (
-          <Box sx={{ display: 'grid', gap: 1.5 }}>
-            {data.mockCycles.map((cycle) => {
-              const workflow = cycleWorkflowById.get(cycle.id);
-              const exitItems = workflow?.criteria?.exit || [];
-              return (
-                <Card key={`${cycle.id}-exit`} variant="outlined" sx={{ ...SPECIAL_SURFACE, backgroundColor: 'rgba(255,255,255,0.06)' }}>
-                  <CardContent>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, mb: 1, flexWrap: 'wrap' }}>
-                      <Typography variant="subtitle2" sx={{ fontWeight: 700, color: SPECIAL_ACCENT }}>{cycle.name}</Typography>
-                      <Button size="small" variant="outlined" onClick={() => onEditCycle(cycle.id)} sx={{ borderColor: 'rgba(144,202,249,0.45)', color: SPECIAL_ACCENT }}>
-                        Open Existing Mock Cycle Modal
-                      </Button>
-                    </Box>
-                    {exitItems.length === 0 ? (
-                      <Typography variant="body2" color="text.secondary">No exit criteria.</Typography>
-                    ) : (
-                      <Box sx={{ display: 'grid', gap: 0.5 }}>
-                        {exitItems.map((item: any) => (
-                          <Typography key={`${cycle.id}-exit-${item.key}`} variant="body2">• {item.label}</Typography>
-                        ))}
-                      </Box>
-                    )}
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </Box>
-        ) : activeSection.key === 'strategyApproval' ? (
+        {activeSection.key === 'strategyApproval' ? (
           <Box sx={{ ...SPECIAL_SURFACE, p: 1.5 }}>
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.75, fontWeight: 700, color: SPECIAL_ACCENT }}>
               Project Role Assignments (Read Only)
