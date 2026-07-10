@@ -6852,6 +6852,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                           projectName={project.name}
                           projectCycles={projectCycleInstances}
                           inventoryItems={projectInventoryItems}
+                          workflowUsers={workflowUsers}
+                          currentUserId={user?.id}
                         />
 
                           </Box>{/* end left info box */}

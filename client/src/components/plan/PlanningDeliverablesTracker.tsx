@@ -2,15 +2,22 @@ import React from 'react';
 import {
   Alert,
   Box,
+  Button,
   Card,
   CardContent,
   Checkbox,
   Chip,
   FormControlLabel,
   Grid,
+  IconButton,
   LinearProgress,
+  MenuItem,
+  Stack,
+  TextField,
   Typography,
 } from '@mui/material';
+import AddIcon from '@mui/icons-material/Add';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import apiClient from '../../api/client';
 
 type CriterionDraft = {
@@ -47,9 +54,49 @@ interface PlanningDeliverablesTrackerProps {
   projectName: string;
   projectCycles: MockCycleLite[];
   inventoryItems: Array<{ id: string; processArea?: string | null }>;
+  workflowUsers: Array<{ id: string; email: string; role: string }>;
+  currentUserId?: string;
 }
 
 const LOCAL_STORAGE_PREFIX = 'planningDeliverablesTracker:';
+
+type DeliverableTaskStatus = 'not_started' | 'in_progress' | 'blocked' | 'complete';
+
+type DeliverableTask = {
+  id: string;
+  title: string;
+  ownerUserId: string | null;
+  dueDate: string;
+  status: DeliverableTaskStatus;
+};
+
+type DeliverableApprovals = {
+  leadApprovedBy: string | null;
+  leadApprovedAt: string | null;
+  projectManagerApprovedBy: string | null;
+  projectManagerApprovedAt: string | null;
+};
+
+type DeliverableWorkflow = {
+  tasks: DeliverableTask[];
+  approvals: DeliverableApprovals;
+};
+
+type DeliverableWorkflowMap = Record<string, DeliverableWorkflow>;
+
+const EMPTY_APPROVALS: DeliverableApprovals = {
+  leadApprovedBy: null,
+  leadApprovedAt: null,
+  projectManagerApprovedBy: null,
+  projectManagerApprovedAt: null,
+};
+
+const taskStatusOptions: Array<{ value: DeliverableTaskStatus; label: string }> = [
+  { value: 'not_started', label: 'Not Started' },
+  { value: 'in_progress', label: 'In Progress' },
+  { value: 'blocked', label: 'Blocked' },
+  { value: 'complete', label: 'Complete' },
+];
 
 const hasCriteriaValues = (items: CriterionDraft[] | undefined) => {
   if (!Array.isArray(items) || items.length === 0) return false;
@@ -82,6 +129,8 @@ const PlanningDeliverablesTracker: React.FC<PlanningDeliverablesTrackerProps> = 
   projectName,
   projectCycles,
   inventoryItems,
+  workflowUsers,
+  currentUserId,
 }) => {
   const [isLoading, setIsLoading] = React.useState(true);
   const [workflowRoles, setWorkflowRoles] = React.useState<{ leadUserId: string | null; projectManagerUserId: string | null }>({
@@ -92,6 +141,9 @@ const PlanningDeliverablesTracker: React.FC<PlanningDeliverablesTrackerProps> = 
   const [roadmapItemCount, setRoadmapItemCount] = React.useState(0);
   const [processAreaRoles, setProcessAreaRoles] = React.useState<ProcessAreaRolesPayload>({ processAreas: [], resolvedAssignments: {} });
   const [manualChecks, setManualChecks] = React.useState<Record<string, boolean>>({});
+  const [allDeliverableWorkflows, setAllDeliverableWorkflows] = React.useState<Record<string, DeliverableWorkflowMap>>({});
+  const [deliverableWorkflows, setDeliverableWorkflows] = React.useState<DeliverableWorkflowMap>({});
+  const [isSavingWorkflow, setIsSavingWorkflow] = React.useState(false);
 
   React.useEffect(() => {
     try {
@@ -140,12 +192,20 @@ const PlanningDeliverablesTracker: React.FC<PlanningDeliverablesTrackerProps> = 
         const linkedCount = items.filter((item: any) => (item?.projectKey || '').trim().toLowerCase() === normalizedProject).length;
         setRoadmapItemCount(linkedCount);
 
+        const workflows = hierarchyState?.deliverableWorkflows && typeof hierarchyState.deliverableWorkflows === 'object'
+          ? hierarchyState.deliverableWorkflows
+          : {};
+        setAllDeliverableWorkflows(workflows);
+        setDeliverableWorkflows(workflows[projectId] || {});
+
         setProcessAreaRoles(processAreaRolesRes.data?.data || { processAreas: [], resolvedAssignments: {} });
       } catch {
         if (!active) return;
         setWorkflowRoles({ leadUserId: null, projectManagerUserId: null });
         setStrategySectionsWithContent(0);
         setRoadmapItemCount(0);
+        setAllDeliverableWorkflows({});
+        setDeliverableWorkflows({});
         setProcessAreaRoles({ processAreas: [], resolvedAssignments: {} });
       } finally {
         if (active) setIsLoading(false);
@@ -312,6 +372,100 @@ const PlanningDeliverablesTracker: React.FC<PlanningDeliverablesTrackerProps> = 
     }
   };
 
+  const ensureWorkflow = React.useCallback((deliverableId: string) => {
+    return deliverableWorkflows[deliverableId] || {
+      tasks: [],
+      approvals: { ...EMPTY_APPROVALS },
+    };
+  }, [deliverableWorkflows]);
+
+  const persistWorkflows = React.useCallback(async (nextProjectWorkflows: DeliverableWorkflowMap) => {
+    const nextAll = {
+      ...allDeliverableWorkflows,
+      [projectId]: nextProjectWorkflows,
+    };
+    setAllDeliverableWorkflows(nextAll);
+    setDeliverableWorkflows(nextProjectWorkflows);
+    setIsSavingWorkflow(true);
+    try {
+      await apiClient.put('/api/hierarchy-preferences/global-process-areas', {
+        deliverableWorkflows: nextAll,
+      });
+    } catch {
+      alert('Unable to save deliverable workflow updates. Please try again.');
+    } finally {
+      setIsSavingWorkflow(false);
+    }
+  }, [allDeliverableWorkflows, projectId]);
+
+  const upsertTask = async (deliverableId: string, task: DeliverableTask) => {
+    const current = ensureWorkflow(deliverableId);
+    const exists = current.tasks.some((item) => item.id === task.id);
+    const nextTasks = exists
+      ? current.tasks.map((item) => (item.id === task.id ? task : item))
+      : [...current.tasks, task];
+    await persistWorkflows({
+      ...deliverableWorkflows,
+      [deliverableId]: {
+        ...current,
+        tasks: nextTasks,
+      },
+    });
+  };
+
+  const deleteTask = async (deliverableId: string, taskId: string) => {
+    const current = ensureWorkflow(deliverableId);
+    const nextTasks = current.tasks.filter((item) => item.id !== taskId);
+    await persistWorkflows({
+      ...deliverableWorkflows,
+      [deliverableId]: {
+        ...current,
+        tasks: nextTasks,
+      },
+    });
+  };
+
+  const addTask = async (deliverableId: string) => {
+    const newTask: DeliverableTask = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      title: 'New deliverable task',
+      ownerUserId: null,
+      dueDate: '',
+      status: 'not_started',
+    };
+    await upsertTask(deliverableId, newTask);
+  };
+
+  const updateApproval = async (deliverableId: string, role: 'lead' | 'project_manager', approved: boolean) => {
+    const current = ensureWorkflow(deliverableId);
+    const approvals = { ...current.approvals };
+
+    if (role === 'project_manager' && approved && !approvals.leadApprovedAt) {
+      alert('Lead approval is required before Project Manager approval.');
+      return;
+    }
+
+    if (role === 'lead') {
+      approvals.leadApprovedBy = approved ? (currentUserId || null) : null;
+      approvals.leadApprovedAt = approved ? new Date().toISOString() : null;
+      if (!approved) {
+        approvals.projectManagerApprovedBy = null;
+        approvals.projectManagerApprovedAt = null;
+      }
+    } else {
+      approvals.projectManagerApprovedBy = approved ? (currentUserId || null) : null;
+      approvals.projectManagerApprovedAt = approved ? new Date().toISOString() : null;
+    }
+
+    await persistWorkflows({
+      ...deliverableWorkflows,
+      [deliverableId]: {
+        ...current,
+        approvals,
+      },
+    });
+  };
+
   return (
     <Card sx={{ mt: 1.5, mb: 2, border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'rgba(255,255,255,0.03)' }}>
       <CardContent>
@@ -331,10 +485,23 @@ const PlanningDeliverablesTracker: React.FC<PlanningDeliverablesTrackerProps> = 
             Loading deliverable status checks...
           </Alert>
         )}
+        {isSavingWorkflow && (
+          <Alert severity="info" sx={{ mb: 2 }}>
+            Saving deliverable workflow updates...
+          </Alert>
+        )}
 
         <Grid container spacing={1.5}>
           {deliverables.map((item) => (
             <Grid key={item.id} item xs={12} md={6}>
+              {(() => {
+                const workflow = ensureWorkflow(item.id);
+                const tasks = workflow.tasks || [];
+                const completedTasks = tasks.filter((task) => task.status === 'complete').length;
+                const canLeadApprove = !!currentUserId && currentUserId === workflowRoles.leadUserId;
+                const canPmApprove = !!currentUserId && currentUserId === workflowRoles.projectManagerUserId;
+
+                return (
               <Box sx={{ p: 1.25, borderRadius: 1.5, border: '1px solid rgba(255,255,255,0.08)', backgroundColor: 'rgba(255,255,255,0.02)' }}>
                 <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1, mb: 0.5 }}>
                   <Typography variant="subtitle2" sx={{ fontWeight: 700, lineHeight: 1.4 }}>{item.title}</Typography>
@@ -344,6 +511,9 @@ const PlanningDeliverablesTracker: React.FC<PlanningDeliverablesTrackerProps> = 
                 {item.note && (
                   <Typography variant="caption" sx={{ display: 'block', color: 'rgba(234,242,255,0.75)' }}>{item.note}</Typography>
                 )}
+                <Typography variant="caption" sx={{ display: 'block', color: 'rgba(234,242,255,0.8)', mt: 0.5 }}>
+                  Tasks complete: {completedTasks}/{tasks.length}
+                </Typography>
                 {item.allowManual && item.status !== 'not_built' && (
                   <FormControlLabel
                     sx={{ mt: 0.25 }}
@@ -351,7 +521,147 @@ const PlanningDeliverablesTracker: React.FC<PlanningDeliverablesTrackerProps> = 
                     label={<Typography variant="caption">Mark complete manually</Typography>}
                   />
                 )}
+
+                <Box sx={{ mt: 1.25, pt: 1, borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+                  <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>Deliverable Tasks</Typography>
+                  <Stack spacing={0.8} sx={{ mt: 0.75 }}>
+                    {tasks.map((task) => (
+                      <Box key={task.id} sx={{ p: 0.75, borderRadius: 1, border: '1px solid rgba(255,255,255,0.08)', backgroundColor: 'rgba(255,255,255,0.02)' }}>
+                        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={0.75}>
+                          <TextField
+                            size="small"
+                            label="Task"
+                            value={task.title}
+                            onChange={(e) => {
+                              const next = { ...task, title: e.target.value };
+                              setDeliverableWorkflows((prev) => ({
+                                ...prev,
+                                [item.id]: {
+                                  ...ensureWorkflow(item.id),
+                                  tasks: ensureWorkflow(item.id).tasks.map((t) => (t.id === task.id ? next : t)),
+                                },
+                              }));
+                            }}
+                            onBlur={async (e) => {
+                              await upsertTask(item.id, { ...task, title: e.target.value });
+                            }}
+                            fullWidth
+                          />
+                          <TextField
+                            select
+                            size="small"
+                            label="Owner"
+                            value={task.ownerUserId || ''}
+                            onChange={async (e) => {
+                              await upsertTask(item.id, { ...task, ownerUserId: e.target.value || null });
+                            }}
+                            sx={{ minWidth: { xs: '100%', sm: 170 } }}
+                          >
+                            <MenuItem value="">Unassigned</MenuItem>
+                            {workflowUsers.map((user) => (
+                              <MenuItem key={user.id} value={user.id}>{user.email}</MenuItem>
+                            ))}
+                          </TextField>
+                          <TextField
+                            type="date"
+                            size="small"
+                            label="Due"
+                            value={task.dueDate || ''}
+                            onChange={(e) => {
+                              const next = { ...task, dueDate: e.target.value };
+                              setDeliverableWorkflows((prev) => ({
+                                ...prev,
+                                [item.id]: {
+                                  ...ensureWorkflow(item.id),
+                                  tasks: ensureWorkflow(item.id).tasks.map((t) => (t.id === task.id ? next : t)),
+                                },
+                              }));
+                            }}
+                            onBlur={async (e) => {
+                              await upsertTask(item.id, { ...task, dueDate: e.target.value });
+                            }}
+                            InputLabelProps={{ shrink: true }}
+                            sx={{ minWidth: { xs: '100%', sm: 145 } }}
+                          />
+                          <TextField
+                            select
+                            size="small"
+                            label="Status"
+                            value={task.status}
+                            onChange={async (e) => {
+                              await upsertTask(item.id, { ...task, status: e.target.value as DeliverableTaskStatus });
+                            }}
+                            sx={{ minWidth: { xs: '100%', sm: 145 } }}
+                          >
+                            {taskStatusOptions.map((status) => (
+                              <MenuItem key={status.value} value={status.value}>{status.label}</MenuItem>
+                            ))}
+                          </TextField>
+                          <IconButton
+                            onClick={async () => deleteTask(item.id, task.id)}
+                            sx={{ alignSelf: { xs: 'flex-end', sm: 'center' } }}
+                          >
+                            <DeleteOutlineIcon fontSize="small" />
+                          </IconButton>
+                        </Stack>
+                      </Box>
+                    ))}
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      startIcon={<AddIcon />}
+                      onClick={async () => addTask(item.id)}
+                      sx={{ alignSelf: 'flex-start', textTransform: 'none' }}
+                    >
+                      Add Task
+                    </Button>
+                  </Stack>
+                </Box>
+
+                <Box sx={{ mt: 1.25, pt: 1, borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+                  <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>Deliverable Approvals</Typography>
+                  <Stack direction="row" spacing={1} sx={{ mt: 0.75, flexWrap: 'wrap' }}>
+                    <Chip size="small" label={`Lead: ${workflow.approvals.leadApprovedAt ? 'Approved' : 'Pending'}`} color={workflow.approvals.leadApprovedAt ? 'success' : 'default'} />
+                    <Chip size="small" label={`PM: ${workflow.approvals.projectManagerApprovedAt ? 'Approved' : 'Pending'}`} color={workflow.approvals.projectManagerApprovedAt ? 'success' : 'default'} />
+                  </Stack>
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={0.75} sx={{ mt: 0.75 }}>
+                    <Button
+                      size="small"
+                      variant="contained"
+                      disabled={!canLeadApprove}
+                      onClick={async () => updateApproval(item.id, 'lead', true)}
+                    >
+                      Lead Approve
+                    </Button>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      disabled={!canLeadApprove}
+                      onClick={async () => updateApproval(item.id, 'lead', false)}
+                    >
+                      Revoke Lead
+                    </Button>
+                    <Button
+                      size="small"
+                      variant="contained"
+                      disabled={!canPmApprove || !workflow.approvals.leadApprovedAt}
+                      onClick={async () => updateApproval(item.id, 'project_manager', true)}
+                    >
+                      PM Approve
+                    </Button>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      disabled={!canPmApprove}
+                      onClick={async () => updateApproval(item.id, 'project_manager', false)}
+                    >
+                      Revoke PM
+                    </Button>
+                  </Stack>
+                </Box>
               </Box>
+                );
+              })()}
             </Grid>
           ))}
         </Grid>

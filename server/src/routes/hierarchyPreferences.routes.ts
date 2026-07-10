@@ -72,7 +72,8 @@ router.put('/state', requireAuth, async (req: Request, res: Response, next: Next
              'picklistValues',              COALESCE(${preferenceTable}.hierarchy_state->'picklistValues', '{}'::jsonb),
              'roadmapItems',                COALESCE(${preferenceTable}.hierarchy_state->'roadmapItems', '[]'::jsonb),
              'roadmapLaneAssign',           COALESCE(${preferenceTable}.hierarchy_state->'roadmapLaneAssign', '{}'::jsonb),
-             'roadmapRowOrder',             COALESCE(${preferenceTable}.hierarchy_state->'roadmapRowOrder', '{}'::jsonb)
+             'roadmapRowOrder',             COALESCE(${preferenceTable}.hierarchy_state->'roadmapRowOrder', '{}'::jsonb),
+             'deliverableWorkflows',        COALESCE(${preferenceTable}.hierarchy_state->'deliverableWorkflows', '{}'::jsonb)
            ) || EXCLUDED.hierarchy_state
          ),
          updated_at = CURRENT_TIMESTAMP`,
@@ -117,6 +118,7 @@ router.put('/global-process-areas', requireAuth, async (req: Request, res: Respo
       roadmapItems = undefined,
       roadmapRowOrder = undefined,
       roadmapLaneAssign = undefined,
+      deliverableWorkflows = undefined,
     } = req.body || {};
 
     // Build the merge object dynamically so roadmapItems is only included when provided
@@ -141,6 +143,10 @@ router.put('/global-process-areas', requireAuth, async (req: Request, res: Respo
     if (roadmapLaneAssign !== undefined) {
       mergeKeys.push('roadmapLaneAssign');
       mergeValues.push(JSON.stringify(roadmapLaneAssign));
+    }
+    if (deliverableWorkflows !== undefined) {
+      mergeKeys.push('deliverableWorkflows');
+      mergeValues.push(JSON.stringify(deliverableWorkflows));
     }
     if (globalProcessAreaRoleAssignments !== undefined) {
       mergeKeys.push('globalProcessAreaRoleAssignments');
@@ -167,6 +173,7 @@ router.put('/global-process-areas', requireAuth, async (req: Request, res: Respo
       ...(globalProcessAreaRoleAssignments !== undefined ? { globalProcessAreaRoleAssignments } : {}),
       picklistValues,
       ...(roadmapItems !== undefined ? { roadmapItems } : {}),
+      ...(deliverableWorkflows !== undefined ? { deliverableWorkflows } : {}),
     }));
   } catch (error) {
     next(error);
