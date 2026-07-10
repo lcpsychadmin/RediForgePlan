@@ -96,8 +96,8 @@ interface MockCycle {
   description?: string;
   entryCriteria?: string;
   exitCriteria?: string;
-  entryCriteriaItems?: Array<{ key: string; label: string; completed: boolean; enforced: boolean }>;
-  exitCriteriaItems?: Array<{ key: string; label: string; completed: boolean; enforced: boolean }>;
+  entryCriteriaItems?: MockCycleCriterionDraft[];
+  exitCriteriaItems?: MockCycleCriterionDraft[];
   targetLoadPercentages?: {
     successRate: number;
     coverageRate: number;
@@ -172,34 +172,48 @@ const DEFAULT_HIERARCHY_LEVEL_ICONS: HierarchyLevelIcons = {
   planGroup: 'layers',
 };
 
-type MockCycleCriterionDraft = { key: string; label: string; completed: boolean; enforced: boolean };
+type CriterionFieldType = 'checkbox' | 'percent' | 'severity_multiselect';
+type MockCycleCriterionDraft = {
+  key: string;
+  label: string;
+  fieldType: CriterionFieldType;
+  checked: boolean;
+  percentValue: number | null;
+  severities: string[];
+};
+
+const DEFECT_SEVERITY_OPTIONS: { value: string; label: string; color: string }[] = [
+  { value: 'critical', label: 'Critical', color: '#f44336' },
+  { value: 'high', label: 'High', color: '#ff9800' },
+  { value: 'medium', label: 'Medium', color: '#ff9800' },
+  { value: 'low', label: 'Low', color: '#4caf50' },
+];
 
 const MOCK_CYCLE_ENTRY_CRITERIA_DEFAULTS: MockCycleCriterionDraft[] = [
-  'Functional Designs Complete',
-  'Data Definitions Complete',
-  'Field Mapping Documents Complete',
-  'Build Complete',
-  'Data Quality Percentage Threshold',
-  'Environment Refreshed',
-  'Security & Access Assigned',
-  'Mock Cycle Plan Approved',
-  'Severity Defects that need to be complete from prior Mocks',
-].map((label) => ({ key: label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, ''), label, completed: false, enforced: true }));
+  { key: 'functional_designs_complete', label: 'Functional Designs Complete', fieldType: 'checkbox', checked: false, percentValue: null, severities: [] },
+  { key: 'data_definitions_complete', label: 'Data Definitions Complete', fieldType: 'checkbox', checked: false, percentValue: null, severities: [] },
+  { key: 'field_mapping_documents_complete', label: 'Field Mapping Documents Complete', fieldType: 'checkbox', checked: false, percentValue: null, severities: [] },
+  { key: 'build_complete', label: 'Build Complete', fieldType: 'checkbox', checked: false, percentValue: null, severities: [] },
+  { key: 'data_quality_percentage_threshold', label: 'Data Quality Percentage Threshold', fieldType: 'percent', checked: false, percentValue: null, severities: [] },
+  { key: 'environment_refreshed', label: 'Environment Refreshed', fieldType: 'checkbox', checked: false, percentValue: null, severities: [] },
+  { key: 'security_access_assigned', label: 'Security & Access Assigned', fieldType: 'checkbox', checked: false, percentValue: null, severities: [] },
+  { key: 'mock_cycle_plan_approved', label: 'Mock Cycle Plan Approved', fieldType: 'checkbox', checked: false, percentValue: null, severities: [] },
+  { key: 'defect_severity_entry', label: 'Defect Severity (required to close)', fieldType: 'severity_multiselect', checked: false, percentValue: null, severities: [] },
+];
 
 const MOCK_CYCLE_EXIT_CRITERIA_DEFAULTS: MockCycleCriterionDraft[] = [
-  'Load Execution Complete',
-  'Load Error Analysis Complete',
-  'PreLoad Validation Complete and Approved',
-  'PostLoad Validation Complete and Approved',
-  'Defects Logged',
-  'Severity Defects that need to be complete',
-  'Records of Relevant Scope Captured for every object',
-  'Invalid Records Captured for every object',
-  'Load Errors Captured for every object',
-  'Target Load Coverage Percentage',
-  'Target Load Success Percentage',
-  'Lessons Learned Documented',
-].map((label) => ({ key: label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, ''), label, completed: false, enforced: true }));
+  { key: 'load_execution_complete', label: 'Load Execution Complete', fieldType: 'checkbox', checked: false, percentValue: null, severities: [] },
+  { key: 'preload_validation_complete', label: 'PreLoad Validation Complete and Approved', fieldType: 'checkbox', checked: false, percentValue: null, severities: [] },
+  { key: 'postload_validation_complete', label: 'PostLoad Validation Complete and Approved', fieldType: 'checkbox', checked: false, percentValue: null, severities: [] },
+  { key: 'defects_logged', label: 'Defects Logged', fieldType: 'checkbox', checked: false, percentValue: null, severities: [] },
+  { key: 'defect_severity_exit', label: 'Defect Severity (required to close)', fieldType: 'severity_multiselect', checked: false, percentValue: null, severities: [] },
+  { key: 'relevant_record_count_complete', label: 'Relevant Record Count Complete', fieldType: 'checkbox', checked: false, percentValue: null, severities: [] },
+  { key: 'invalid_record_count_complete', label: 'Invalid Record Count Complete', fieldType: 'checkbox', checked: false, percentValue: null, severities: [] },
+  { key: 'load_errors_count_complete', label: 'Load Errors Count Complete', fieldType: 'checkbox', checked: false, percentValue: null, severities: [] },
+  { key: 'target_load_coverage_percentage', label: 'Target Load Coverage Percentage', fieldType: 'percent', checked: false, percentValue: null, severities: [] },
+  { key: 'target_load_success_percentage', label: 'Target Load Success Percentage', fieldType: 'percent', checked: false, percentValue: null, severities: [] },
+  { key: 'lessons_learned_documented', label: 'Lessons Learned Documented', fieldType: 'checkbox', checked: false, percentValue: null, severities: [] },
+];
 
 const HIERARCHY_ICON_OPTIONS: { value: HierarchyIconChoice; label: string; group: string }[] = [
   // MUI Icons
@@ -1904,29 +1918,14 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
     defaults: MockCycleCriterionDraft[],
   ): MockCycleCriterionDraft[] => {
     const incoming = Array.isArray(source) ? source : [];
-    const byKey = new Map<string, MockCycleCriterionDraft>();
-
-    incoming.forEach((item: any) => {
-      if (!item) return;
-      const key = String(item.key || '').trim();
-      const label = String(item.label || '').trim();
-      if (!key && !label) return;
-      const resolvedKey = key || label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
-      byKey.set(resolvedKey, {
-        key: resolvedKey,
-        label: label || defaults.find((d) => d.key === resolvedKey)?.label || resolvedKey,
-        completed: Boolean(item.completed),
-        enforced: item.enforced === undefined ? true : Boolean(item.enforced),
-      });
-    });
-
-    defaults.forEach((def) => {
-      if (!byKey.has(def.key)) {
-        byKey.set(def.key, { ...def });
-      }
-    });
-
-    return Array.from(byKey.values());
+    // If stored data uses the new fieldType schema, merge with defaults
+    if (incoming.length > 0 && incoming[0]?.fieldType) {
+      const byKey = new Map<string, MockCycleCriterionDraft>();
+      incoming.forEach((item: MockCycleCriterionDraft) => { if (item?.key) byKey.set(item.key, item); });
+      return defaults.map((def) => byKey.get(def.key) ?? { ...def });
+    }
+    // Old format or empty — return fresh defaults
+    return defaults.map((d) => ({ ...d }));
   }, []);
   const getScopedProjectsForCycle = (cycleId: string, projectId?: string | null): Project[] => {
     const projects = (projectsByMockCycle[cycleId] || []) as Project[];
@@ -4940,29 +4939,12 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
       defaults: MockCycleCriterionDraft[],
     ): MockCycleCriterionDraft[] => {
       const incoming = Array.isArray(source) ? source : [];
-      const byKey = new Map<string, MockCycleCriterionDraft>();
-
-      incoming.forEach((item: any) => {
-        if (!item) return;
-        const key = String(item.key || '').trim();
-        const label = String(item.label || '').trim();
-        if (!key && !label) return;
-        const resolvedKey = key || label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
-        byKey.set(resolvedKey, {
-          key: resolvedKey,
-          label: label || defaults.find((d) => d.key === resolvedKey)?.label || resolvedKey,
-          completed: Boolean(item.completed),
-          enforced: item.enforced === undefined ? true : Boolean(item.enforced),
-        });
-      });
-
-      defaults.forEach((def) => {
-        if (!byKey.has(def.key)) {
-          byKey.set(def.key, { ...def });
-        }
-      });
-
-      return Array.from(byKey.values());
+      if (incoming.length > 0 && incoming[0]?.fieldType) {
+        const byKey = new Map<string, MockCycleCriterionDraft>();
+        incoming.forEach((item: MockCycleCriterionDraft) => { if (item?.key) byKey.set(item.key, item); });
+        return defaults.map((def) => byKey.get(def.key) ?? { ...def });
+      }
+      return defaults.map((d) => ({ ...d }));
     };
 
     const loadProjectWorkflowRoles = async (projectId: string) => {
@@ -10168,77 +10150,121 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
               <Divider />
               <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>Cycle Governance</Typography>
 
-              <Typography variant="subtitle2">Entry Criteria</Typography>
-              <Box sx={{ border: '1px solid rgba(255,255,255,0.1)', borderRadius: 1.25 }}>
-                {MOCK_CYCLE_ENTRY_CRITERIA_DEFAULTS.map((defaultItem, idx) => {
-                  const live = Array.isArray(cycleEntryCriteriaDraft) ? cycleEntryCriteriaDraft.find((r) => r.key === defaultItem.key) : undefined;
+              {/* Helper to patch one field in a criteria draft */}
+              {(() => {
+                const patchEntry = (key: string, patch: Partial<MockCycleCriterionDraft>) =>
+                  setCycleEntryCriteriaDraft(MOCK_CYCLE_ENTRY_CRITERIA_DEFAULTS.map((d) => {
+                    const cur = (Array.isArray(cycleEntryCriteriaDraft) ? cycleEntryCriteriaDraft.find((r) => r.key === d.key) : undefined) || d;
+                    return d.key === key ? { ...cur, ...patch } : cur;
+                  }));
+                const patchExit = (key: string, patch: Partial<MockCycleCriterionDraft>) =>
+                  setCycleExitCriteriaDraft(MOCK_CYCLE_EXIT_CRITERIA_DEFAULTS.map((d) => {
+                    const cur = (Array.isArray(cycleExitCriteriaDraft) ? cycleExitCriteriaDraft.find((r) => r.key === d.key) : undefined) || d;
+                    return d.key === key ? { ...cur, ...patch } : cur;
+                  }));
+
+                const renderCriterionRow = (
+                  defaultItem: MockCycleCriterionDraft,
+                  idx: number,
+                  totalLen: number,
+                  draft: MockCycleCriterionDraft[],
+                  patch: (key: string, p: Partial<MockCycleCriterionDraft>) => void,
+                  prefix: string,
+                ) => {
+                  const live = Array.isArray(draft) ? draft.find((r) => r.key === defaultItem.key) : undefined;
                   const criterion = live || defaultItem;
+                  const isLast = idx === totalLen - 1;
                   return (
-                    <Box key={`modal-entry-${defaultItem.key}`} sx={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 1, px: 1.25, py: 0.8, borderBottom: idx === MOCK_CYCLE_ENTRY_CRITERIA_DEFAULTS.length - 1 ? 'none' : '1px solid rgba(255,255,255,0.06)', backgroundColor: idx % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent' }}>
-                      <TextField
-                        size="small"
-                        value={criterion.label}
-                        onChange={(e) => setCycleEntryCriteriaDraft(MOCK_CYCLE_ENTRY_CRITERIA_DEFAULTS.map((d) => {
-                          const cur = (Array.isArray(cycleEntryCriteriaDraft) ? cycleEntryCriteriaDraft.find((r) => r.key === d.key) : undefined) || d;
-                          return d.key === defaultItem.key ? { ...cur, label: e.target.value } : cur;
-                        }))}
-                      />
-                      <FormControlLabel
-                        control={<Checkbox checked={criterion.completed} onChange={(e) => setCycleEntryCriteriaDraft(MOCK_CYCLE_ENTRY_CRITERIA_DEFAULTS.map((d) => {
-                          const cur = (Array.isArray(cycleEntryCriteriaDraft) ? cycleEntryCriteriaDraft.find((r) => r.key === d.key) : undefined) || d;
-                          return d.key === defaultItem.key ? { ...cur, completed: e.target.checked } : cur;
-                        }))} />}
-                        label="Done"
-                      />
-                      <FormControlLabel
-                        control={<Checkbox checked={criterion.enforced} onChange={(e) => setCycleEntryCriteriaDraft(MOCK_CYCLE_ENTRY_CRITERIA_DEFAULTS.map((d) => {
-                          const cur = (Array.isArray(cycleEntryCriteriaDraft) ? cycleEntryCriteriaDraft.find((r) => r.key === d.key) : undefined) || d;
-                          return d.key === defaultItem.key ? { ...cur, enforced: e.target.checked } : cur;
-                        }))} />}
-                        label="Enforce"
-                      />
+                    <Box
+                      key={`${prefix}-${defaultItem.key}`}
+                      sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: 2,
+                        px: 1.5,
+                        py: 1,
+                        borderBottom: isLast ? 'none' : '1px solid rgba(255,255,255,0.06)',
+                        backgroundColor: idx % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent',
+                      }}
+                    >
+                      <Typography variant="body2" sx={{ flex: 1 }}>{criterion.label}</Typography>
+                      {criterion.fieldType === 'checkbox' && (
+                        <Checkbox
+                          checked={criterion.checked}
+                          onChange={(e) => patch(defaultItem.key, { checked: e.target.checked })}
+                          size="small"
+                        />
+                      )}
+                      {criterion.fieldType === 'percent' && (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          <TextField
+                            type="number"
+                            size="small"
+                            inputProps={{ min: 0, max: 100, step: 1 }}
+                            value={criterion.percentValue ?? ''}
+                            onChange={(e) => {
+                              const v = e.target.value === '' ? null : Math.min(100, Math.max(0, Number(e.target.value)));
+                              patch(defaultItem.key, { percentValue: v });
+                            }}
+                            sx={{ width: 80 }}
+                          />
+                          <Typography variant="body2">%</Typography>
+                        </Box>
+                      )}
+                      {criterion.fieldType === 'severity_multiselect' && (
+                        <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                          {DEFECT_SEVERITY_OPTIONS.map((opt) => {
+                            const selected = criterion.severities.includes(opt.value);
+                            return (
+                              <Chip
+                                key={opt.value}
+                                label={opt.label}
+                                size="small"
+                                onClick={() => {
+                                  const next = selected
+                                    ? criterion.severities.filter((s) => s !== opt.value)
+                                    : [...criterion.severities, opt.value];
+                                  patch(defaultItem.key, { severities: next });
+                                }}
+                                sx={{
+                                  cursor: 'pointer',
+                                  backgroundColor: selected ? opt.color : 'rgba(255,255,255,0.08)',
+                                  color: selected ? '#fff' : 'text.secondary',
+                                  fontWeight: selected ? 600 : 400,
+                                  '&:hover': { opacity: 0.85 },
+                                }}
+                              />
+                            );
+                          })}
+                        </Box>
+                      )}
                     </Box>
                   );
-                })}
-              </Box>
+                };
 
-              <Typography variant="subtitle2">Exit Criteria</Typography>
-              <Box sx={{ border: '1px solid rgba(255,255,255,0.1)', borderRadius: 1.25 }}>
-                {MOCK_CYCLE_EXIT_CRITERIA_DEFAULTS.map((defaultItem, idx) => {
-                  const live = Array.isArray(cycleExitCriteriaDraft) ? cycleExitCriteriaDraft.find((r) => r.key === defaultItem.key) : undefined;
-                  const criterion = live || defaultItem;
-                  return (
-                    <Box key={`modal-exit-${defaultItem.key}`} sx={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 1, px: 1.25, py: 0.8, borderBottom: idx === MOCK_CYCLE_EXIT_CRITERIA_DEFAULTS.length - 1 ? 'none' : '1px solid rgba(255,255,255,0.06)', backgroundColor: idx % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent' }}>
-                      <TextField
-                        size="small"
-                        value={criterion.label}
-                        onChange={(e) => setCycleExitCriteriaDraft(MOCK_CYCLE_EXIT_CRITERIA_DEFAULTS.map((d) => {
-                          const cur = (Array.isArray(cycleExitCriteriaDraft) ? cycleExitCriteriaDraft.find((r) => r.key === d.key) : undefined) || d;
-                          return d.key === defaultItem.key ? { ...cur, label: e.target.value } : cur;
-                        }))}
-                      />
-                      <FormControlLabel
-                        control={<Checkbox checked={criterion.completed} onChange={(e) => setCycleExitCriteriaDraft(MOCK_CYCLE_EXIT_CRITERIA_DEFAULTS.map((d) => {
-                          const cur = (Array.isArray(cycleExitCriteriaDraft) ? cycleExitCriteriaDraft.find((r) => r.key === d.key) : undefined) || d;
-                          return d.key === defaultItem.key ? { ...cur, completed: e.target.checked } : cur;
-                        }))} />}
-                        label="Done"
-                      />
-                      <FormControlLabel
-                        control={<Checkbox checked={criterion.enforced} onChange={(e) => setCycleExitCriteriaDraft(MOCK_CYCLE_EXIT_CRITERIA_DEFAULTS.map((d) => {
-                          const cur = (Array.isArray(cycleExitCriteriaDraft) ? cycleExitCriteriaDraft.find((r) => r.key === d.key) : undefined) || d;
-                          return d.key === defaultItem.key ? { ...cur, enforced: e.target.checked } : cur;
-                        }))} />}
-                        label="Enforce"
-                      />
+                return (
+                  <>
+                    <Typography variant="subtitle2">Entry Criteria</Typography>
+                    <Box sx={{ border: '1px solid rgba(255,255,255,0.1)', borderRadius: 1.25 }}>
+                      {MOCK_CYCLE_ENTRY_CRITERIA_DEFAULTS.map((item, idx) =>
+                        renderCriterionRow(item, idx, MOCK_CYCLE_ENTRY_CRITERIA_DEFAULTS.length, cycleEntryCriteriaDraft, patchEntry, 'entry')
+                      )}
                     </Box>
-                  );
-                })}
-              </Box>
 
-              <Alert severity="info">
-                This modal is for maintaining cycle criteria fields.
-              </Alert>
+                    <Typography variant="subtitle2">Exit Criteria</Typography>
+                    <Box sx={{ border: '1px solid rgba(255,255,255,0.1)', borderRadius: 1.25 }}>
+                      {MOCK_CYCLE_EXIT_CRITERIA_DEFAULTS.map((item, idx) =>
+                        renderCriterionRow(item, idx, MOCK_CYCLE_EXIT_CRITERIA_DEFAULTS.length, cycleExitCriteriaDraft, patchExit, 'exit')
+                      )}
+                    </Box>
+
+                    <Alert severity="info">
+                      Check criteria that must be met before entering / exiting this mock cycle.
+                    </Alert>
+                  </>
+                );
+              })()}
             </>
           )}
 
