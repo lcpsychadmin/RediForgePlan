@@ -84,11 +84,26 @@ class DataMigrationStrategyService {
     const row = strategyResult.rows[0] || null;
     const sections = { ...DEFAULT_STRATEGY_SECTIONS, ...(row?.sections || {}) };
     const roles = await projectService.getProjectWorkflowRoles(projectId);
+    const roleIds = [roles.leadUserId, roles.projectManagerUserId].filter(Boolean) as string[];
+    const roleUsersById = new Map<string, string>();
+    if (roleIds.length > 0) {
+      const usersResult = await db.query(
+        `SELECT id, email
+         FROM users
+         WHERE id = ANY($1::uuid[])`,
+        [roleIds]
+      );
+      usersResult.rows.forEach((user) => roleUsersById.set(user.id, user.email));
+    }
 
     return {
       projectId,
       sections,
       roles,
+      roleUsers: {
+        leadEmail: roles.leadUserId ? roleUsersById.get(roles.leadUserId) || null : null,
+        projectManagerEmail: roles.projectManagerUserId ? roleUsersById.get(roles.projectManagerUserId) || null : null,
+      },
       approvals: {
         leadApprovedBy: row?.lead_approved_by || null,
         leadApprovedAt: row?.lead_approved_at || null,

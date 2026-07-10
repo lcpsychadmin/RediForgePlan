@@ -27,6 +27,7 @@ type StrategyPayload = {
   strategy: {
     sections: Record<string, string>;
     roles: { leadUserId: string | null; projectManagerUserId: string | null };
+    roleUsers?: { leadEmail: string | null; projectManagerEmail: string | null };
     approvals: {
       leadApproved: boolean;
       leadApprovedAt: string | null;
@@ -288,8 +289,8 @@ const DataMigrationStrategyView: React.FC<Props> = ({
       <Paper sx={{ p: 2 }}>
         <Typography variant="subtitle1" sx={{ mb: 1.5, fontWeight: 700 }}>Project Role Assignments (Read Only)</Typography>
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1 }}>
-          <TextField label="Lead" value={strategy.roles.leadUserId || 'Unassigned'} InputProps={{ readOnly: true }} />
-          <TextField label="Project Manager" value={strategy.roles.projectManagerUserId || 'Unassigned'} InputProps={{ readOnly: true }} />
+          <TextField label="Lead" value={strategy.roleUsers?.leadEmail || strategy.roles.leadUserId || 'Unassigned'} InputProps={{ readOnly: true }} />
+          <TextField label="Project Manager" value={strategy.roleUsers?.projectManagerEmail || strategy.roles.projectManagerUserId || 'Unassigned'} InputProps={{ readOnly: true }} />
         </Box>
         <Box sx={{ mt: 1.25 }}>
           <Button variant="outlined" onClick={onEditProject}>Open Existing Role Assignment Modal</Button>
