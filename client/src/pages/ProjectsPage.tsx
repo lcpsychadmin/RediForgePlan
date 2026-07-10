@@ -4348,6 +4348,15 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
         setEditAccentColor(project.accentColor || '');
         setEditProjectParentProgramId(project.programId || '');
       }
+      setProjectLeadUserIdDraft('');
+      setProjectManagerUserIdDraft('');
+      apiClient.get(`/api/projects/${itemId}/workflow-roles`)
+        .then((res) => {
+          const payload = res.data?.data || {};
+          setProjectLeadUserIdDraft(payload.leadUserId || '');
+          setProjectManagerUserIdDraft(payload.projectManagerUserId || '');
+        })
+        .catch(() => {});
     }
 
     setEditDialogOpen(true);
@@ -4393,6 +4402,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
           name: editItemName,
           accentColor: editAccentColor,
           programId: editProjectParentProgramId,
+        });
+        await apiClient.put(`/api/projects/${editItemId}/workflow-roles`, {
+          leadUserId: projectLeadUserIdDraft || null,
+          projectManagerUserId: projectManagerUserIdDraft || null,
         });
       }
 
@@ -10277,6 +10290,34 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
               >
                 {programs.map((program) => (
                   <MenuItem key={program.id} value={program.id}>{program.name}</MenuItem>
+                ))}
+              </TextField>
+              <TextField
+                select
+                label="Lead"
+                value={projectLeadUserIdDraft}
+                onChange={(e) => setProjectLeadUserIdDraft(e.target.value)}
+                fullWidth
+                variant="outlined"
+                size="small"
+              >
+                <MenuItem value=""><em>None</em></MenuItem>
+                {people.map((p) => (
+                  <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>
+                ))}
+              </TextField>
+              <TextField
+                select
+                label="Project Manager"
+                value={projectManagerUserIdDraft}
+                onChange={(e) => setProjectManagerUserIdDraft(e.target.value)}
+                fullWidth
+                variant="outlined"
+                size="small"
+              >
+                <MenuItem value=""><em>None</em></MenuItem>
+                {people.map((p) => (
+                  <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>
                 ))}
               </TextField>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
