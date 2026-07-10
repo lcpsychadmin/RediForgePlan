@@ -8993,6 +8993,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                               })}
                             </Box>
                           </Box>
+                        </Box>
                       )}
 
                       {maintainFormView === 'project' && (
