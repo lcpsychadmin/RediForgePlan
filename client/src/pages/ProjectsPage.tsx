@@ -10138,19 +10138,19 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
 
               <Typography variant="subtitle2">Entry Criteria</Typography>
               <Box sx={{ border: '1px solid rgba(255,255,255,0.1)', borderRadius: 1.25, overflow: 'hidden' }}>
-                {cycleEntryCriteriaDraft.map((criterion, idx) => (
-                  <Box key={`modal-entry-${criterion.key}`} sx={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 1, px: 1.25, py: 0.8, borderBottom: idx === cycleEntryCriteriaDraft.length - 1 ? 'none' : '1px solid rgba(255,255,255,0.06)', backgroundColor: idx % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent' }}>
+                {(cycleEntryCriteriaDraft.length > 0 ? cycleEntryCriteriaDraft : MOCK_CYCLE_ENTRY_CRITERIA_DEFAULTS).map((criterion, idx, list) => (
+                  <Box key={`modal-entry-${criterion.key}`} sx={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 1, px: 1.25, py: 0.8, borderBottom: idx === list.length - 1 ? 'none' : '1px solid rgba(255,255,255,0.06)', backgroundColor: idx % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent' }}>
                     <TextField
                       size="small"
                       value={criterion.label}
-                      onChange={(e) => setCycleEntryCriteriaDraft((prev) => prev.map((row) => row.key === criterion.key ? { ...row, label: e.target.value } : row))}
+                      onChange={(e) => setCycleEntryCriteriaDraft((cycleEntryCriteriaDraft.length > 0 ? cycleEntryCriteriaDraft : MOCK_CYCLE_ENTRY_CRITERIA_DEFAULTS).map((row) => row.key === criterion.key ? { ...row, label: e.target.value } : row))}
                     />
                     <FormControlLabel
-                      control={<Checkbox checked={criterion.completed} onChange={(e) => setCycleEntryCriteriaDraft((prev) => prev.map((row) => row.key === criterion.key ? { ...row, completed: e.target.checked } : row))} />}
+                      control={<Checkbox checked={criterion.completed} onChange={(e) => setCycleEntryCriteriaDraft((cycleEntryCriteriaDraft.length > 0 ? cycleEntryCriteriaDraft : MOCK_CYCLE_ENTRY_CRITERIA_DEFAULTS).map((row) => row.key === criterion.key ? { ...row, completed: e.target.checked } : row))} />}
                       label="Done"
                     />
                     <FormControlLabel
-                      control={<Checkbox checked={criterion.enforced} onChange={(e) => setCycleEntryCriteriaDraft((prev) => prev.map((row) => row.key === criterion.key ? { ...row, enforced: e.target.checked } : row))} />}
+                      control={<Checkbox checked={criterion.enforced} onChange={(e) => setCycleEntryCriteriaDraft((cycleEntryCriteriaDraft.length > 0 ? cycleEntryCriteriaDraft : MOCK_CYCLE_ENTRY_CRITERIA_DEFAULTS).map((row) => row.key === criterion.key ? { ...row, enforced: e.target.checked } : row))} />}
                       label="Enforce"
                     />
                   </Box>
@@ -10159,19 +10159,19 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
 
               <Typography variant="subtitle2">Exit Criteria</Typography>
               <Box sx={{ border: '1px solid rgba(255,255,255,0.1)', borderRadius: 1.25, overflow: 'hidden' }}>
-                {cycleExitCriteriaDraft.map((criterion, idx) => (
-                  <Box key={`modal-exit-${criterion.key}`} sx={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 1, px: 1.25, py: 0.8, borderBottom: idx === cycleExitCriteriaDraft.length - 1 ? 'none' : '1px solid rgba(255,255,255,0.06)', backgroundColor: idx % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent' }}>
+                {(cycleExitCriteriaDraft.length > 0 ? cycleExitCriteriaDraft : MOCK_CYCLE_EXIT_CRITERIA_DEFAULTS).map((criterion, idx, list) => (
+                  <Box key={`modal-exit-${criterion.key}`} sx={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 1, px: 1.25, py: 0.8, borderBottom: idx === list.length - 1 ? 'none' : '1px solid rgba(255,255,255,0.06)', backgroundColor: idx % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent' }}>
                     <TextField
                       size="small"
                       value={criterion.label}
-                      onChange={(e) => setCycleExitCriteriaDraft((prev) => prev.map((row) => row.key === criterion.key ? { ...row, label: e.target.value } : row))}
+                      onChange={(e) => setCycleExitCriteriaDraft((cycleExitCriteriaDraft.length > 0 ? cycleExitCriteriaDraft : MOCK_CYCLE_EXIT_CRITERIA_DEFAULTS).map((row) => row.key === criterion.key ? { ...row, label: e.target.value } : row))}
                     />
                     <FormControlLabel
-                      control={<Checkbox checked={criterion.completed} onChange={(e) => setCycleExitCriteriaDraft((prev) => prev.map((row) => row.key === criterion.key ? { ...row, completed: e.target.checked } : row))} />}
+                      control={<Checkbox checked={criterion.completed} onChange={(e) => setCycleExitCriteriaDraft((cycleExitCriteriaDraft.length > 0 ? cycleExitCriteriaDraft : MOCK_CYCLE_EXIT_CRITERIA_DEFAULTS).map((row) => row.key === criterion.key ? { ...row, completed: e.target.checked } : row))} />}
                       label="Done"
                     />
                     <FormControlLabel
-                      control={<Checkbox checked={criterion.enforced} onChange={(e) => setCycleExitCriteriaDraft((prev) => prev.map((row) => row.key === criterion.key ? { ...row, enforced: e.target.checked } : row))} />}
+                      control={<Checkbox checked={criterion.enforced} onChange={(e) => setCycleExitCriteriaDraft((cycleExitCriteriaDraft.length > 0 ? cycleExitCriteriaDraft : MOCK_CYCLE_EXIT_CRITERIA_DEFAULTS).map((row) => row.key === criterion.key ? { ...row, enforced: e.target.checked } : row))} />}
                       label="Enforce"
                     />
                   </Box>
