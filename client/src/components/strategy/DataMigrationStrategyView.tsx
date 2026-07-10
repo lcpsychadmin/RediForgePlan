@@ -15,8 +15,6 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import apiClient from '../../api/client';
 import 'quill/dist/quill.snow.css';
 
-type StrategyRole = 'lead' | 'project_manager';
-
 type MockCycleWorkflow = {
   mockCycleId: string;
   workflow: any;
@@ -164,10 +162,6 @@ const quillFormats = [
   'bullet',
   'link',
   'image',
-  'table',
-  'table-row',
-  'table-cell',
-  'table-header',
 ];
 
 const normalizeEditorValue = (value: string) => {
@@ -205,6 +199,15 @@ const summarizeHtml = (value: string) => {
 const looksLikeImageUrl = (value: string) => {
   const trimmed = String(value || '').trim();
   return /^(https?:\/\/|data:image\/)/i.test(trimmed) && /(data:image\/|\.(png|jpe?g|gif|webp|svg)(\?|#|$))/i.test(trimmed);
+};
+
+const buildMarkdownTable = (rows: number, columns: number) => {
+  const clampedRows = Math.min(Math.max(rows, 1), 20);
+  const clampedColumns = Math.min(Math.max(columns, 1), 10);
+  const header = `| ${Array.from({ length: clampedColumns }, (_, index) => `Column ${index + 1}`).join(' | ')} |`;
+  const divider = `| ${Array.from({ length: clampedColumns }, () => '---').join(' | ')} |`;
+  const bodyRows = Array.from({ length: clampedRows }, () => `| ${Array.from({ length: clampedColumns }, () => ' ').join(' | ')} |`);
+  return [header, divider, ...bodyRows].join('\n');
 };
 
 interface Props {
@@ -318,6 +321,31 @@ const DataMigrationStrategyView: React.FC<Props> = ({
     input.click();
   }, [canEditSections, readImageFile]);
 
+  const handleInsertTable = React.useCallback(() => {
+    if (!canEditSections) return;
+
+    const rowsInput = window.prompt('Number of data rows?', '3');
+    if (rowsInput === null) return;
+    const columnsInput = window.prompt('Number of columns?', '3');
+    if (columnsInput === null) return;
+
+    const rows = Number.parseInt(rowsInput, 10);
+    const columns = Number.parseInt(columnsInput, 10);
+    if (!Number.isFinite(rows) || !Number.isFinite(columns)) {
+      alert('Please enter valid numbers for rows and columns.');
+      return;
+    }
+
+    const editor = quillRef.current?.getEditor();
+    if (!editor) return;
+
+    const selection = editor.getSelection(true);
+    const index = selection?.index ?? editor.getLength();
+    const tableMarkdown = `${buildMarkdownTable(rows, columns)}\n`;
+    editor.insertText(index, tableMarkdown, 'user');
+    editor.setSelection(index + tableMarkdown.length, 0, 'user');
+  }, [canEditSections]);
+
   const handlePasteImage = React.useCallback((clipboardData: DataTransfer | null) => {
     if (!clipboardData || !canEditSections || SPECIAL_SECTION_KEYS.has(activeSection.key)) {
       return false;
@@ -369,11 +397,12 @@ const DataMigrationStrategyView: React.FC<Props> = ({
           ['bold', 'italic', 'underline', 'blockquote'],
           [{ list: 'ordered' }, { list: 'bullet' }],
           [{ indent: '-1' }, { indent: '+1' }],
-          ['table'],
+          ['insertTable'],
           ['link', 'image', 'clean'],
         ],
         handlers: {
           image: handleInsertImage,
+          insertTable: handleInsertTable,
         },
       },
       keyboard: {
@@ -402,9 +431,8 @@ const DataMigrationStrategyView: React.FC<Props> = ({
           },
         },
       },
-      table: true,
     };
-  }, [canEditSections, handleInsertImage]);
+  }, [canEditSections, handleInsertImage, handleInsertTable]);
 
   React.useEffect(() => {
     if (!canEditSections || SPECIAL_SECTION_KEYS.has(activeSection.key)) {
