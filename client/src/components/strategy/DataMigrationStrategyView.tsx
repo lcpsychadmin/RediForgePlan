@@ -61,13 +61,12 @@ const SECTION_CONFIG: Array<{ key: string; label: string; rows?: number }> = [
   { key: 'conversionDocuments', label: 'Conversion Documents', rows: 4 },
   { key: 'dataValidationProcess', label: 'Data Validation Process', rows: 4 },
   { key: 'mockConversionCycles', label: 'Mock Conversion Cycles', rows: 4 },
-  { key: 'mockSuccessTargets', label: 'Mock Success Targets', rows: 3 },
+  { key: 'entryCriteria', label: 'Mock Entry Criteria' },
+  { key: 'exitCriteria', label: 'Mock Exit Criteria' },
   { key: 'goLiveSimulationCutover', label: 'Go-Live Simulation & Cutover', rows: 4 },
   { key: 'dependencies', label: 'Dependencies', rows: 3 },
   { key: 'assumptions', label: 'Assumptions', rows: 3 },
   { key: 'keyDesignDecisions', label: 'Key Design Decisions', rows: 4 },
-  { key: 'entryCriteria', label: 'Entry Criteria' },
-  { key: 'exitCriteria', label: 'Exit Criteria' },
   { key: 'strategyApproval', label: 'Strategy Approval' },
 ];
 
@@ -94,13 +93,12 @@ const SECTION_ACCENTS: Record<string, string> = {
   conversionDocuments: '#F4A261',
   dataValidationProcess: '#7FD1AE',
   mockConversionCycles: '#F1B96B',
-  mockSuccessTargets: '#93C5FD',
+  entryCriteria: '#93C5FD',
+  exitCriteria: '#F4A261',
   goLiveSimulationCutover: '#F59E9E',
   dependencies: '#C4B5FD',
   assumptions: '#A7F3D0',
   keyDesignDecisions: '#F9C74F',
-  entryCriteria: '#7CC7FF',
-  exitCriteria: '#F4A261',
   strategyApproval: '#7FD1AE',
 };
 const quillModules = {
