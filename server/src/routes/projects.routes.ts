@@ -244,6 +244,29 @@ router.put(
   }
 );
 
+router.get(
+  '/:projectId/data-migration-strategy/history/:sectionKey',
+  requireAuth,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const project = await projectService.getProjectById(req.params.projectId);
+      if (!project) {
+        throw new ApiError(404, 'Project not found', 'NOT_FOUND');
+      }
+
+      const sectionKey = String(req.params.sectionKey || '').trim();
+      if (!dataMigrationStrategyService.isKnownSectionKey(sectionKey)) {
+        throw new ApiError(400, 'Unknown section key', 'INVALID_FIELD');
+      }
+
+      const history = await dataMigrationStrategyService.listSectionHistory(req.params.projectId, sectionKey);
+      res.json(formatListResponse(history, history.length));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 // Record strategy approval in sequence (Lead first, then Project Manager)
 router.post(
   '/:projectId/data-migration-strategy/approvals/:role',

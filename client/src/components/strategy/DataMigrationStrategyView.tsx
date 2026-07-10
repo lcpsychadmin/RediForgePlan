@@ -24,6 +24,16 @@ type MockCycleWorkflow = {
   workflow: any;
 };
 
+type StrategySectionHistoryEntry = {
+  id: string;
+  section_key: string;
+  previous_content: string;
+  next_content: string;
+  changed_by: string | null;
+  changed_by_email?: string | null;
+  created_at: string;
+};
+
 type StrategyPayload = {
   project: { id: string; name: string };
   strategy: {
@@ -184,14 +194,6 @@ const SECTION_ACCENTS: Record<string, string> = {
   keyDesignDecisions: '#F9C74F',
   strategyApproval: '#7FD1AE',
 };
-const quillModules = {
-  toolbar: [
-    [{ header: [1, 2, 3, false] }],
-    ['bold', 'italic', 'underline', 'blockquote'],
-    [{ list: 'ordered' }, { list: 'bullet' }],
-    ['link', 'clean'],
-  ],
-};
 const quillFormats = [
   'header',
   'bold',
@@ -201,7 +203,40 @@ const quillFormats = [
   'list',
   'bullet',
   'link',
+  'image',
 ];
+
+const normalizeEditorValue = (value: string) => {
+  const normalized = String(value || '').trim();
+  if (normalized === '<p><br></p>' || normalized === '<div><br></div>' || normalized === '<p></p>') {
+    return '';
+  }
+  return normalized;
+};
+
+const hasMeaningfulContent = (value: string) => {
+  const normalized = normalizeEditorValue(value);
+  if (!normalized) return false;
+  const withoutImages = normalized.replace(/<img[^>]*>/gi, ' image ');
+  const plainText = withoutImages
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return plainText.length > 0;
+};
+
+const summarizeHtml = (value: string) => {
+  const normalized = normalizeEditorValue(value);
+  if (!normalized) return 'No content';
+  const text = normalized
+    .replace(/<img[^>]*>/gi, ' [image] ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return text || 'Image-only update';
+};
 
 interface Props {
   projectId: string;
@@ -222,6 +257,7 @@ const DataMigrationStrategyView: React.FC<Props> = ({
 }) => {
   const queryClient = useQueryClient();
   const canEditSections = userRole === 'admin';
+  const quillRef = React.useRef<ReactQuill | null>(null);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['projectDataMigrationStrategy', projectId],
@@ -235,8 +271,19 @@ const DataMigrationStrategyView: React.FC<Props> = ({
   const [sectionsDraft, setSectionsDraft] = React.useState<Record<string, string>>({});
   const [isSavingSections, setIsSavingSections] = React.useState(false);
   const [activeSectionKey, setActiveSectionKey] = React.useState(SECTION_CONFIG[0].key);
+  const activeSection = SECTION_CONFIG.find((section) => section.key === activeSectionKey) || SECTION_CONFIG[0];
+  const isHistoryTrackedSection = !SPECIAL_SECTION_KEYS.has(activeSection.key);
 
   const [isApproving, setIsApproving] = React.useState<null | StrategyRole>(null);
+
+  const { data: sectionHistory = [], isLoading: isLoadingSectionHistory } = useQuery({
+    queryKey: ['projectStrategySectionHistory', projectId, activeSection.key],
+    queryFn: async () => {
+      const res = await apiClient.get(`/api/projects/${projectId}/data-migration-strategy/history/${activeSection.key}`);
+      return (res.data?.data || []) as StrategySectionHistoryEntry[];
+    },
+    enabled: !!projectId && isHistoryTrackedSection,
+  });
 
   React.useEffect(() => {
     if (data?.strategy?.sections) {
@@ -252,7 +299,92 @@ const DataMigrationStrategyView: React.FC<Props> = ({
 
   const refresh = async () => {
     await queryClient.invalidateQueries({ queryKey: ['projectDataMigrationStrategy', projectId] });
+    await queryClient.invalidateQueries({ queryKey: ['projectStrategySectionHistory', projectId, activeSection.key] });
   };
+
+  const insertImageAtCursor = React.useCallback((dataUrl: string) => {
+    const editor = quillRef.current?.getEditor();
+    if (!editor) return;
+
+    const selection = editor.getSelection(true);
+    const index = selection?.index ?? editor.getLength();
+    editor.insertEmbed(index, 'image', dataUrl, 'user');
+    editor.setSelection(index + 1, 0);
+  }, []);
+
+  const readImageFile = React.useCallback((file: File) => {
+    if (!file.type.startsWith('image/')) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        insertImageAtCursor(reader.result);
+      }
+    };
+    reader.readAsDataURL(file);
+  }, [insertImageAtCursor]);
+
+  const handleInsertImage = React.useCallback(() => {
+    if (!canEditSections) return;
+
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = () => {
+      const file = input.files?.[0];
+      if (file) {
+        readImageFile(file);
+      }
+    };
+    input.click();
+  }, [canEditSections, readImageFile]);
+
+  const quillModules = React.useMemo(() => {
+    if (!canEditSections) {
+      return { toolbar: false };
+    }
+
+    return {
+      toolbar: {
+        container: [
+          [{ header: [1, 2, 3, false] }],
+          ['bold', 'italic', 'underline', 'blockquote'],
+          [{ list: 'ordered' }, { list: 'bullet' }],
+          ['link', 'image', 'clean'],
+        ],
+        handlers: {
+          image: handleInsertImage,
+        },
+      },
+    };
+  }, [canEditSections, handleInsertImage]);
+
+  React.useEffect(() => {
+    if (!canEditSections || SPECIAL_SECTION_KEYS.has(activeSection.key)) {
+      return;
+    }
+
+    const editor = quillRef.current?.getEditor();
+    if (!editor) return;
+
+    const handlePaste = (event: ClipboardEvent) => {
+      const items = Array.from(event.clipboardData?.items || []);
+      const imageItems = items.filter((item) => item.type.startsWith('image/'));
+      if (imageItems.length === 0) return;
+
+      event.preventDefault();
+      imageItems.forEach((item) => {
+        const file = item.getAsFile();
+        if (file) {
+          readImageFile(file);
+        }
+      });
+    };
+
+    editor.root.addEventListener('paste', handlePaste);
+    return () => {
+      editor.root.removeEventListener('paste', handlePaste);
+    };
+  }, [activeSection.key, canEditSections, readImageFile]);
 
   const handleSaveSections = async () => {
     try {
@@ -309,14 +441,13 @@ const DataMigrationStrategyView: React.FC<Props> = ({
 
   const cycleWorkflowById = new Map(data.cycleWorkflow.map((entry) => [entry.mockCycleId, entry.workflow]));
   const strategy = data.strategy;
-  const activeSection = SECTION_CONFIG.find((section) => section.key === activeSectionKey) || SECTION_CONFIG[0];
   const activeAccent = SECTION_ACCENTS[activeSection.key] || SPECIAL_ACCENT;
   const activeSectionIndex = SECTION_CONFIG.findIndex((section) => section.key === activeSection.key);
   const editableSectionCount = SECTION_CONFIG.filter((section) => !SPECIAL_SECTION_KEYS.has(section.key)).length;
   const completedSectionCount = SECTION_CONFIG.filter((section) => {
     if (SPECIAL_SECTION_KEYS.has(section.key)) return false;
     const value = sectionsDraft[section.key] || '';
-    return value.trim().length > 0;
+    return hasMeaningfulContent(value);
   }).length;
   const completionPct = editableSectionCount > 0
     ? Math.round((completedSectionCount / editableSectionCount) * 100)
@@ -335,7 +466,7 @@ const DataMigrationStrategyView: React.FC<Props> = ({
           {SECTION_CONFIG.map((section) => (
             <Chip
               key={section.key}
-              label={`${section.label}${(sectionsDraft[section.key] || '').trim() ? ' • Done' : ''}`}
+              label={`${section.label}${hasMeaningfulContent(sectionsDraft[section.key] || '') ? ' • Done' : ''}`}
               clickable
               variant={section.key === activeSection.key ? 'filled' : 'outlined'}
               onClick={() => setActiveSectionKey(section.key)}
@@ -560,15 +691,22 @@ const DataMigrationStrategyView: React.FC<Props> = ({
                   color: 'rgba(234,242,255,0.45)',
                   fontStyle: 'normal',
                 },
+                '& .ql-editor img': {
+                  maxWidth: '100%',
+                  borderRadius: 8,
+                  margin: '8px 0',
+                  border: '1px solid rgba(255,255,255,0.14)',
+                },
                 '& .ql-snow .ql-stroke': { stroke: '#D7E6FF' },
                 '& .ql-snow .ql-fill': { fill: '#D7E6FF' },
                 '& .ql-snow .ql-picker': { color: '#D7E6FF' },
               }}
             >
               <ReactQuill
+                ref={quillRef}
                 theme="snow"
                 value={sectionsDraft[activeSection.key] || ''}
-                onChange={(value) => setSectionsDraft((prev) => ({ ...prev, [activeSection.key]: value }))}
+                onChange={(value) => setSectionsDraft((prev) => ({ ...prev, [activeSection.key]: normalizeEditorValue(value) }))}
                 modules={quillModules}
                 formats={quillFormats}
                 readOnly={!canEditSections}
@@ -604,6 +742,49 @@ const DataMigrationStrategyView: React.FC<Props> = ({
         ) : !SPECIAL_SECTION_KEYS.has(activeSection.key) ? (
           <Alert severity="info" sx={{ mt: 1.5 }}>Only admins can edit strategy sections.</Alert>
         ) : null}
+
+        <Box sx={{ mt: 2, ...SPECIAL_SURFACE, p: 1.5, backgroundColor: 'rgba(255,255,255,0.05)' }}>
+          <Typography variant="caption" sx={{ display: 'block', mb: 1, color: activeAccent, fontWeight: 700 }}>
+            Section Change History
+          </Typography>
+          {!isHistoryTrackedSection ? (
+            <Typography variant="body2" color="text.secondary">
+              This section is driven by workflow or approval state rather than saved narrative content. Its changes are tracked in the related source records.
+            </Typography>
+          ) : isLoadingSectionHistory ? (
+            <Typography variant="body2" color="text.secondary">Loading section history...</Typography>
+          ) : sectionHistory.length === 0 ? (
+            <Typography variant="body2" color="text.secondary">No saved changes yet for this section.</Typography>
+          ) : (
+            <Box sx={{ display: 'grid', gap: 1 }}>
+              {sectionHistory.map((entry, index) => (
+                <Box
+                  key={entry.id}
+                  sx={{
+                    p: 1.25,
+                    borderRadius: 1.5,
+                    backgroundColor: 'rgba(255,255,255,0.035)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                  }}
+                >
+                  <Typography variant="caption" sx={{ display: 'block', color: activeAccent, fontWeight: 700, mb: 0.75 }}>
+                    Revision {sectionHistory.length - index} • {entry.changed_by_email || 'Unknown user'} • {new Date(entry.created_at).toLocaleString()}
+                  </Typography>
+                  <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 1 }}>
+                    <Box>
+                      <Typography variant="caption" color="text.secondary">Previous</Typography>
+                      <Typography variant="body2" sx={{ color: 'rgba(234,242,255,0.88)' }}>{summarizeHtml(entry.previous_content)}</Typography>
+                    </Box>
+                    <Box>
+                      <Typography variant="caption" color="text.secondary">Updated</Typography>
+                      <Typography variant="body2" sx={{ color: 'rgba(234,242,255,0.88)' }}>{summarizeHtml(entry.next_content)}</Typography>
+                    </Box>
+                  </Box>
+                </Box>
+              ))}
+            </Box>
+          )}
+        </Box>
       </Paper>
       </Box>
     </Box>

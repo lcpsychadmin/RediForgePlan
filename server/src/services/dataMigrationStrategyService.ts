@@ -15,11 +15,24 @@ const DEFAULT_STRATEGY_SECTIONS: Record<string, string> = {
   conversionDocuments: '',
   dataValidationProcess: '',
   mockConversionCycles: '',
-  mockSuccessTargets: '',
   goLiveSimulationCutover: '',
   dependencies: '',
   assumptions: '',
   keyDesignDecisions: '',
+};
+
+const STRATEGY_SECTION_KEYS = Object.keys(DEFAULT_STRATEGY_SECTIONS);
+
+const normalizeSectionContent = (value: unknown) => {
+  const normalized = String(value || '').trim();
+  if (
+    normalized === '<p><br></p>' ||
+    normalized === '<div><br></div>' ||
+    normalized === '<p></p>'
+  ) {
+    return '';
+  }
+  return normalized;
 };
 
 class DataMigrationStrategyService {
@@ -57,11 +70,29 @@ class DataMigrationStrategyService {
        )`
     );
 
+    await db.query(
+      `CREATE TABLE IF NOT EXISTS project_strategy_section_history (
+         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+         project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+         section_key VARCHAR(120) NOT NULL,
+         previous_content TEXT NOT NULL DEFAULT '',
+         next_content TEXT NOT NULL DEFAULT '',
+         changed_by UUID REFERENCES users(id) ON DELETE SET NULL,
+         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+       )`
+    );
+
     await db.query('CREATE INDEX IF NOT EXISTS idx_pdms_project_id ON project_data_migration_strategies(project_id)');
     await db.query('CREATE INDEX IF NOT EXISTS idx_psd_project_id ON project_strategy_documents(project_id)');
     await db.query('CREATE INDEX IF NOT EXISTS idx_psd_mock_cycle_id ON project_strategy_documents(mock_cycle_id)');
+    await db.query('CREATE INDEX IF NOT EXISTS idx_pssh_project_section ON project_strategy_section_history(project_id, section_key, created_at DESC)');
+    await db.query('CREATE INDEX IF NOT EXISTS idx_pssh_changed_by ON project_strategy_section_history(changed_by)');
 
     this.tablesReady = true;
+  }
+
+  isKnownSectionKey(sectionKey: string) {
+    return STRATEGY_SECTION_KEYS.includes(sectionKey);
   }
 
   async getStrategy(projectId: string) {
@@ -117,12 +148,20 @@ class DataMigrationStrategyService {
     };
   }
 
-  async upsertSections(projectId: string, sections: Record<string, string>, _userId: string) {
+  async upsertSections(projectId: string, sections: Record<string, string>, userId: string) {
     await this.ensureTables();
 
+    const existingResult = await db.query(
+      `SELECT sections
+       FROM project_data_migration_strategies
+       WHERE project_id = $1`,
+      [projectId]
+    );
+    const existingSections = { ...DEFAULT_STRATEGY_SECTIONS, ...(existingResult.rows[0]?.sections || {}) };
+
     const mergedSections: Record<string, string> = { ...DEFAULT_STRATEGY_SECTIONS };
-    Object.keys(DEFAULT_STRATEGY_SECTIONS).forEach((key) => {
-      mergedSections[key] = String(sections?.[key] || '').trim();
+    STRATEGY_SECTION_KEYS.forEach((key) => {
+      mergedSections[key] = normalizeSectionContent(sections?.[key]);
     });
 
     await db.query(
@@ -134,7 +173,63 @@ class DataMigrationStrategyService {
       [projectId, JSON.stringify(mergedSections)]
     );
 
+    const changedSections = STRATEGY_SECTION_KEYS.filter((key) => (
+      normalizeSectionContent(existingSections[key]) !== normalizeSectionContent(mergedSections[key])
+    ));
+
+    if (changedSections.length > 0) {
+      await Promise.all(
+        changedSections.map((sectionKey) => (
+          db.query(
+            `INSERT INTO project_strategy_section_history (
+               project_id,
+               section_key,
+               previous_content,
+               next_content,
+               changed_by
+             )
+             VALUES ($1, $2, $3, $4, $5)`,
+            [
+              projectId,
+              sectionKey,
+              normalizeSectionContent(existingSections[sectionKey]),
+              normalizeSectionContent(mergedSections[sectionKey]),
+              userId,
+            ]
+          )
+        ))
+      );
+    }
+
     return this.getStrategy(projectId);
+  }
+
+  async listSectionHistory(projectId: string, sectionKey: string, limit = 20) {
+    await this.ensureTables();
+
+    if (!this.isKnownSectionKey(sectionKey)) {
+      return [];
+    }
+
+    const result = await db.query(
+      `SELECT h.id,
+              h.project_id,
+              h.section_key,
+              h.previous_content,
+              h.next_content,
+              h.changed_by,
+              h.created_at,
+              u.email AS changed_by_email
+       FROM project_strategy_section_history h
+       LEFT JOIN users u ON u.id = h.changed_by
+       WHERE h.project_id = $1
+         AND h.section_key = $2
+       ORDER BY h.created_at DESC
+       LIMIT $3`,
+      [projectId, sectionKey, limit]
+    );
+
+    return result.rows;
   }
 
   async recordApproval(params: { projectId: string; role: StrategyRole; userId: string; approved: boolean }) {
@@ -371,8 +466,7 @@ class DataMigrationStrategyService {
       ['Conversion Methods', strategy.sections.conversionMethods],
       ['Conversion Documents', strategy.sections.conversionDocuments],
       ['Data Validation Process', strategy.sections.dataValidationProcess],
-      ['Mock Conversion Cycles', strategy.sections.mockConversionCycles],
-      ['Mock Success Targets', strategy.sections.mockSuccessTargets],
+      ['Mock Cycles', strategy.sections.mockConversionCycles],
       ['Go-Live Simulation & Cutover', strategy.sections.goLiveSimulationCutover],
       ['Dependencies', strategy.sections.dependencies],
       ['Assumptions', strategy.sections.assumptions],
