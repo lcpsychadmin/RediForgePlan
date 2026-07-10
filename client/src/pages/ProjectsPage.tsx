@@ -254,6 +254,17 @@ interface ProjectsPageProps {
   planningView?: 'plan' | 'strategy' | 'inventory' | 'structure' | 'roadmap';
 }
 
+const PLAN_DELIVERABLE_NODES: Array<{ id: string; label: string; targetView?: 'plan' | 'strategy' | 'inventory' | 'structure' | 'roadmap'; isFuture?: boolean }> = [
+  { id: 'structureRolesCycles', label: 'Project Structure, Roles, and Mock Cycles', targetView: 'structure' },
+  { id: 'processAreasRoles', label: 'Process Areas and Assigned Roles', targetView: 'structure' },
+  { id: 'objectInventory', label: 'Object Inventory by Process Area', targetView: 'inventory' },
+  { id: 'migrationStrategy', label: 'Data Migration Strategy', targetView: 'strategy' },
+  { id: 'projectRoadmap', label: 'Project Roadmap', targetView: 'roadmap' },
+  { id: 'mockCriteria', label: 'Mock Entry and Exit Criteria', targetView: 'plan' },
+  { id: 'designBuildEstimation', label: 'Design and Build Estimation (Not Built Yet)', isFuture: true },
+  { id: 'designBuildCompletion', label: 'Design and Build Phase Plan Completion', targetView: 'plan' },
+];
+
 // ── Roadmap component ──────────────────────────────────────────────────────
 interface RoadmapItem {
   id: string;
@@ -1051,6 +1062,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   const tabValue = planningView ? (planningViewToTab[planningView] ?? 0) : 0;
   const setTabValue = (_v: number) => {}; // navigation-driven; kept for compat
   const isPlanningMaintainTab = sectionMode === 'planning' && planningView === 'structure';
+  const isPlanningPlanHierarchy = sectionMode === 'planning' && planningView === 'plan';
   const hideProcessAreasInStrategyHierarchy = sectionMode === 'planning' && planningView === 'strategy';
   
   // Dialog states
@@ -6153,6 +6165,61 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
 
                                 {isProjectExpanded && (
                                 <Box sx={{ ml: 2.75 }}>
+                                  {isPlanningPlanHierarchy ? (
+                                    <Box sx={{ display: 'grid', gap: 0.5, pb: 0.5 }}>
+                                      {PLAN_DELIVERABLE_NODES.map((node) => {
+                                        const nodeAccent = node.isFuture ? 'rgba(255,255,255,0.7)' : projectAccent;
+                                        const isStrategyNode = node.targetView === 'strategy';
+                                        const isInventoryNode = node.targetView === 'inventory';
+                                        const isRoadmapNode = node.targetView === 'roadmap';
+                                        const isStructureNode = node.targetView === 'structure';
+                                        const isNodeSelected =
+                                          (isStrategyNode && planningView === 'strategy') ||
+                                          (isInventoryNode && planningView === 'inventory') ||
+                                          (isRoadmapNode && planningView === 'roadmap') ||
+                                          (isStructureNode && planningView === 'structure');
+
+                                        return (
+                                          <Box
+                                            key={`${projectGroupKey}-${node.id}`}
+                                            onClick={() => {
+                                              if (firstCycle) {
+                                                handleHierarchySelection({ type: 'project', id: firstCycleProject.id, cycleId: firstCycle.id });
+                                              } else {
+                                                handleHierarchySelection({ type: 'project', id: project.id });
+                                              }
+
+                                              if (node.targetView && node.targetView !== 'plan') {
+                                                navigate(`/planning/${node.targetView}`);
+                                              }
+                                            }}
+                                            sx={{
+                                              display: 'flex',
+                                              alignItems: 'center',
+                                              py: 0.42,
+                                              pl: 1.1,
+                                              pr: 0.6,
+                                              cursor: 'pointer',
+                                              borderRadius: 0.75,
+                                              backgroundColor: isNodeSelected ? 'rgba(91, 103, 202, 0.2)' : 'transparent',
+                                              '&:hover': { backgroundColor: isNodeSelected ? 'rgba(91, 103, 202, 0.24)' : 'rgba(255,255,255,0.06)' },
+                                            }}
+                                          >
+                                            <Box sx={{ mr: 0.55, display: 'inline-flex', alignItems: 'center' }}>
+                                              {renderHierarchyIcon('planGroup', nodeAccent, '0.78rem')}
+                                            </Box>
+                                            <Typography variant="caption" sx={{ fontWeight: isNodeSelected ? 700 : 500, color: isNodeSelected ? nodeAccent : 'inherit', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                              {node.label}
+                                            </Typography>
+                                            {node.isFuture && (
+                                              <Chip size="small" label="Future" sx={{ height: 18, fontSize: '0.62rem', ml: 0.4, backgroundColor: 'rgba(255,255,255,0.08)' }} />
+                                            )}
+                                          </Box>
+                                        );
+                                      })}
+                                    </Box>
+                                  ) : (
+                                  <>
                                   {projectCycles.map((cycle: MockCycle) => {
                                     const realProject = (projectsByMockCycle[cycle.id] || []).find((p: Project) => (p.name || '').trim().toLowerCase() === (project.name || '').trim().toLowerCase()) || project;
                                     const isCycleSelected = selectedItem?.type === 'cycle' && selectedItem?.id === cycle.id && selectedItem?.projectId === realProject.id;
@@ -6406,13 +6473,15 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                       </Box>
                                     );
                                   })}
+                                  </>
+                                  )}
                                 </Box>
                                 )}
                               </Box>
                             );
                           })}
 
-                          {visibleProgramCycles.length === 0 && (
+                          {visibleProgramCycles.length === 0 && !isPlanningPlanHierarchy && (
                             <Button
                               size="small"
                               variant="text"
@@ -6783,7 +6852,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                           projectName={project.name}
                           projectCycles={projectCycleInstances}
                           inventoryItems={projectInventoryItems}
-                          roadmapItemCount={roadmapItems.filter((item: any) => (item?.projectKey || '').trim().toLowerCase() === normalizedProjectName).length}
                         />
 
                           </Box>{/* end left info box */}

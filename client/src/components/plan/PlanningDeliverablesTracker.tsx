@@ -47,7 +47,6 @@ interface PlanningDeliverablesTrackerProps {
   projectName: string;
   projectCycles: MockCycleLite[];
   inventoryItems: Array<{ id: string; processArea?: string | null }>;
-  roadmapItemCount: number;
 }
 
 const LOCAL_STORAGE_PREFIX = 'planningDeliverablesTracker:';
@@ -83,7 +82,6 @@ const PlanningDeliverablesTracker: React.FC<PlanningDeliverablesTrackerProps> = 
   projectName,
   projectCycles,
   inventoryItems,
-  roadmapItemCount,
 }) => {
   const [isLoading, setIsLoading] = React.useState(true);
   const [workflowRoles, setWorkflowRoles] = React.useState<{ leadUserId: string | null; projectManagerUserId: string | null }>({
@@ -91,6 +89,7 @@ const PlanningDeliverablesTracker: React.FC<PlanningDeliverablesTrackerProps> = 
     projectManagerUserId: null,
   });
   const [strategySectionsWithContent, setStrategySectionsWithContent] = React.useState(0);
+  const [roadmapItemCount, setRoadmapItemCount] = React.useState(0);
   const [processAreaRoles, setProcessAreaRoles] = React.useState<ProcessAreaRolesPayload>({ processAreas: [], resolvedAssignments: {} });
   const [manualChecks, setManualChecks] = React.useState<Record<string, boolean>>({});
 
@@ -113,10 +112,11 @@ const PlanningDeliverablesTracker: React.FC<PlanningDeliverablesTrackerProps> = 
     const run = async () => {
       setIsLoading(true);
       try {
-        const [workflowRes, strategyRes, processAreaRolesRes] = await Promise.all([
+        const [workflowRes, strategyRes, processAreaRolesRes, hierarchyStateRes] = await Promise.all([
           apiClient.get(`/api/projects/${projectId}/workflow-roles`),
           apiClient.get(`/api/projects/${projectId}/data-migration-strategy`),
           apiClient.get(`/api/hierarchy-preferences/project-role-assignments/${projectId}`),
+          apiClient.get('/api/hierarchy-preferences/state'),
         ]);
 
         if (!active) return;
@@ -134,11 +134,18 @@ const PlanningDeliverablesTracker: React.FC<PlanningDeliverablesTrackerProps> = 
         }).length;
         setStrategySectionsWithContent(withContent);
 
+        const hierarchyState = hierarchyStateRes.data?.data || hierarchyStateRes.data?.preferences || hierarchyStateRes.data || {};
+        const items = Array.isArray(hierarchyState.roadmapItems) ? hierarchyState.roadmapItems : [];
+        const normalizedProject = (projectName || '').trim().toLowerCase();
+        const linkedCount = items.filter((item: any) => (item?.projectKey || '').trim().toLowerCase() === normalizedProject).length;
+        setRoadmapItemCount(linkedCount);
+
         setProcessAreaRoles(processAreaRolesRes.data?.data || { processAreas: [], resolvedAssignments: {} });
       } catch {
         if (!active) return;
         setWorkflowRoles({ leadUserId: null, projectManagerUserId: null });
         setStrategySectionsWithContent(0);
+        setRoadmapItemCount(0);
         setProcessAreaRoles({ processAreas: [], resolvedAssignments: {} });
       } finally {
         if (active) setIsLoading(false);
@@ -149,7 +156,7 @@ const PlanningDeliverablesTracker: React.FC<PlanningDeliverablesTrackerProps> = 
     return () => {
       active = false;
     };
-  }, [projectId]);
+  }, [projectId, projectName]);
 
   const processAreasInInventory = React.useMemo(() => {
     return new Set(
