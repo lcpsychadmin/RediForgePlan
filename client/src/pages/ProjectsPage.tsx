@@ -80,6 +80,7 @@ import ProcessAreaRoleAssignmentPanel from '../components/ProcessAreaRoleAssignm
 import TaskDetailModal from '../components/tasks/TaskDetailModal';
 import ProjectDefectsPage from './ProjectDefectsPage';
 import DataMigrationStrategyView from '../components/strategy/DataMigrationStrategyView';
+import PlanningDeliverablesTracker from '../components/plan/PlanningDeliverablesTracker';
 import { useAuth } from '../contexts/AuthContext';
 
 interface Program {
@@ -6776,6 +6777,14 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                             </Box>
                           );
                         })()}
+
+                        <PlanningDeliverablesTracker
+                          projectId={project.id}
+                          projectName={project.name}
+                          projectCycles={projectCycleInstances}
+                          inventoryItems={projectInventoryItems}
+                          roadmapItemCount={roadmapItems.filter((item: any) => (item?.projectKey || '').trim().toLowerCase() === normalizedProjectName).length}
+                        />
 
                           </Box>{/* end left info box */}
                           {!showProjectSummaryOnly && (
