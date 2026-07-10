@@ -78,6 +78,12 @@ const SPECIAL_SURFACE = {
   border: '1px solid rgba(255,255,255,0.14)',
   borderRadius: 2,
 };
+const NAV_SURFACE = {
+  background: 'linear-gradient(180deg, rgba(144,202,249,0.12) 0%, rgba(255,255,255,0.035) 24%, rgba(255,255,255,0.02) 100%)',
+  border: '1px solid rgba(144,202,249,0.18)',
+  borderRadius: 2.5,
+  boxShadow: '0 10px 30px rgba(0,0,0,0.12)',
+};
 const SECTION_ACCENTS: Record<string, string> = {
   purpose: '#7CC7FF',
   guidingPrinciples: '#8FE3CF',
@@ -240,8 +246,8 @@ const DataMigrationStrategyView: React.FC<Props> = ({
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <Paper sx={{ p: 1.25, position: 'sticky', top: 72, zIndex: 1, border: '1px solid', borderColor: 'divider' }}>
-        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.75, fontWeight: 700, letterSpacing: '0.25px' }}>
+      <Paper sx={{ p: 1.25, position: 'sticky', top: 72, zIndex: 1, ...NAV_SURFACE }}>
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.75, fontWeight: 700, letterSpacing: '0.25px', color: SPECIAL_ACCENT }}>
           Section Navigator
         </Typography>
         <Box sx={{ display: 'flex', gap: 1, flexWrap: 'nowrap', overflowX: 'auto', pb: 0.25 }}>

@@ -6454,7 +6454,26 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
           {/* Planning Strategy Tab Content */}
           {sectionMode === 'planning' && tabValue === 8 && (
             <>
-              <Paper sx={{ p: 2, mb: 2, position: 'sticky', top: 0, zIndex: 2, border: '1px solid', borderColor: 'divider' }}>
+              <Paper
+                sx={{
+                  p: 2,
+                  mb: 2,
+                  position: 'sticky',
+                  top: 0,
+                  zIndex: 2,
+                  background: 'linear-gradient(180deg, rgba(144,202,249,0.12) 0%, rgba(255,255,255,0.035) 24%, rgba(255,255,255,0.02) 100%)',
+                  border: '1px solid rgba(144,202,249,0.18)',
+                  borderRadius: 2.5,
+                  boxShadow: '0 10px 30px rgba(0,0,0,0.12)',
+                  '& .MuiInputLabel-root': { color: '#90CAF9' },
+                  '& .MuiOutlinedInput-root': {
+                    backgroundColor: 'rgba(255,255,255,0.04)',
+                    '& fieldset': { borderColor: 'rgba(255,255,255,0.16)' },
+                    '&:hover fieldset': { borderColor: 'rgba(144,202,249,0.35)' },
+                    '&.Mui-focused fieldset': { borderColor: '#90CAF9' },
+                  },
+                }}
+              >
                 <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr auto' }, gap: 1, alignItems: 'end' }}>
                   <TextField
                     select
@@ -6492,6 +6511,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                         setStrategyProgramId('');
                         setStrategyProjectId('');
                       }}
+                      sx={{ borderColor: 'rgba(144,202,249,0.4)', color: '#90CAF9' }}
                     >
                       Clear Filters
                     </Button>
