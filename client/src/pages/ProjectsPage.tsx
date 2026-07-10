@@ -5790,7 +5790,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
     >
       {/* Main Content Area */}
       <Box sx={{ display: 'flex', flex: 1, overflow: 'hidden', position: 'relative' }}>
-        {isMobile && isHierarchySidebarOpen && tabValue !== 1 && (
+        {isMobile && isHierarchySidebarOpen && tabValue !== 1 && tabValue !== 8 && (
           <Box
             onClick={() => setIsHierarchySidebarOpen(false)}
             sx={{
@@ -5817,7 +5817,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
             borderTop: 'none',
             borderLeft: 'none',
             borderRadius: 0,
-            display: (tabValue === 1 || tabValue === 6 || tabValue === 7) ? 'none' : 'flex',
+            display: (tabValue === 1 || tabValue === 6 || tabValue === 7 || tabValue === 8) ? 'none' : 'flex',
             flexDirection: 'column',
             position: { xs: 'fixed', md: 'relative' },
             top: { xs: '112px', md: 'auto' },

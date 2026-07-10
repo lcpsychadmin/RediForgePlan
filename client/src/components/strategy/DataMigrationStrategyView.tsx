@@ -263,6 +263,25 @@ const DataMigrationStrategyView: React.FC<Props> = ({
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <Paper sx={{ p: 1.25, position: 'sticky', top: 72, zIndex: 1, border: '1px solid', borderColor: 'divider' }}>
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.75, fontWeight: 700, letterSpacing: '0.25px' }}>
+          Section Navigator
+        </Typography>
+        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'nowrap', overflowX: 'auto', pb: 0.25 }}>
+          {SECTION_CONFIG.map((section) => (
+            <Chip
+              key={section.key}
+              label={`${section.label}${(sectionsDraft[section.key] || '').trim() ? ' • Done' : ''}`}
+              clickable
+              color={section.key === activeSection.key ? 'primary' : 'default'}
+              variant={section.key === activeSection.key ? 'filled' : 'outlined'}
+              onClick={() => setActiveSectionKey(section.key)}
+              sx={{ flexShrink: 0, fontWeight: section.key === activeSection.key ? 700 : 500 }}
+            />
+          ))}
+        </Box>
+      </Paper>
+
       <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', lg: '1.6fr 1fr' }, alignItems: 'start' }}>
       <Paper sx={{ p: 2 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: 1.5, flexWrap: 'wrap' }}>
@@ -280,19 +299,6 @@ const DataMigrationStrategyView: React.FC<Props> = ({
         <LinearProgress variant="determinate" value={completionPct} sx={{ mb: 1.5, borderRadius: 999, height: 7 }} />
 
         <Divider sx={{ mb: 2 }} />
-
-        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 1.5 }}>
-          {SECTION_CONFIG.map((section) => (
-            <Chip
-              key={section.key}
-              label={`${section.label}${(sectionsDraft[section.key] || '').trim() ? ' • Done' : ''}`}
-              clickable
-              color={section.key === activeSection.key ? 'primary' : 'default'}
-              variant={section.key === activeSection.key ? 'filled' : 'outlined'}
-              onClick={() => setActiveSectionKey(section.key)}
-            />
-          ))}
-        </Box>
 
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
           Section {activeSectionIndex + 1} of {SECTION_CONFIG.length}
