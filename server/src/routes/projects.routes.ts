@@ -2,13 +2,20 @@
 // Project API routes
 
 import { Router, Request, Response, NextFunction } from 'express';
+import multer from 'multer';
 import { requireAuth, requireRole } from '../middleware/authMiddleware.js';
 import programService from '../services/programService.js';
 import projectService from '../services/projectService.js';
+import dataMigrationStrategyService from '../services/dataMigrationStrategyService.js';
+import approvalWorkflowEngine from '../services/approvalWorkflowEngine.js';
 import { ApiError } from '../middleware/errorHandler.js';
 import { formatListResponse, formatSingleResponse } from '../utils/responseFormatter.js';
 
 const router = Router();
+const strategyUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+});
 
 // Get projects by program
 router.get(
@@ -177,6 +184,199 @@ router.get('/:projectId/workflow-roles', requireAuth, async (req: Request, res: 
 
     const roles = await projectService.getProjectWorkflowRoles(req.params.projectId);
     res.json(formatSingleResponse({ projectId: req.params.projectId, ...roles }));
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get project data migration strategy payload
+router.get('/:projectId/data-migration-strategy', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const project = await projectService.getProjectById(req.params.projectId);
+    if (!project) {
+      throw new ApiError(404, 'Project not found', 'NOT_FOUND');
+    }
+
+    const strategy = await dataMigrationStrategyService.getStrategy(req.params.projectId);
+    const cycles = await programService.getMockCyclesByProject(req.params.projectId);
+    const cycleWorkflow = await Promise.all(
+      cycles.map(async (cycle) => ({
+        mockCycleId: cycle.id,
+        workflow: await approvalWorkflowEngine.evaluateMockCycleProgression(cycle.id),
+      }))
+    );
+    const documents = await dataMigrationStrategyService.listDocuments(req.params.projectId);
+
+    res.json(formatSingleResponse({
+      project,
+      strategy,
+      mockCycles: cycles,
+      cycleWorkflow,
+      documents,
+    }));
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Save editable strategy sections
+router.put(
+  '/:projectId/data-migration-strategy',
+  requireAuth,
+  requireRole('admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const project = await projectService.getProjectById(req.params.projectId);
+      if (!project) {
+        throw new ApiError(404, 'Project not found', 'NOT_FOUND');
+      }
+
+      const strategy = await dataMigrationStrategyService.upsertSections(
+        req.params.projectId,
+        req.body?.sections || {},
+        (req as any).userId,
+      );
+
+      res.json(formatSingleResponse(strategy));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// Record strategy approval in sequence (Lead first, then Project Manager)
+router.post(
+  '/:projectId/data-migration-strategy/approvals/:role',
+  requireAuth,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const project = await projectService.getProjectById(req.params.projectId);
+      if (!project) {
+        throw new ApiError(404, 'Project not found', 'NOT_FOUND');
+      }
+
+      const roleParam = String(req.params.role || '').toLowerCase();
+      const role = roleParam === 'lead'
+        ? 'lead'
+        : roleParam === 'project-manager' || roleParam === 'project_manager'
+          ? 'project_manager'
+          : null;
+
+      if (!role) {
+        throw new ApiError(400, 'role must be lead or project_manager', 'INVALID_FIELD');
+      }
+
+      const approved = req.body?.approved === false ? false : true;
+      const strategy = await dataMigrationStrategyService.recordApproval({
+        projectId: req.params.projectId,
+        role,
+        userId: (req as any).userId,
+        approved,
+      });
+
+      res.json(formatSingleResponse(strategy));
+    } catch (error: any) {
+      if (error?.message && typeof error.message === 'string') {
+        return next(new ApiError(400, error.message, 'INVALID_OPERATION'));
+      }
+      next(error);
+    }
+  }
+);
+
+// Upload supporting strategy documentation
+router.post(
+  '/:projectId/data-migration-strategy/documents',
+  requireAuth,
+  requireRole('analyst', 'admin'),
+  strategyUpload.single('file'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const project = await projectService.getProjectById(req.params.projectId);
+      if (!project) {
+        throw new ApiError(404, 'Project not found', 'NOT_FOUND');
+      }
+
+      if (!req.file) {
+        throw new ApiError(400, 'file is required', 'MISSING_FIELD');
+      }
+
+      const uploaded = await dataMigrationStrategyService.uploadDocument({
+        projectId: req.params.projectId,
+        mockCycleId: (req.body?.mockCycleId || null) as string | null,
+        documentType: String(req.body?.documentType || 'supporting_document'),
+        fileName: req.file.originalname,
+        mimeType: req.file.mimetype || 'application/octet-stream',
+        fileSize: req.file.size || 0,
+        fileContent: req.file.buffer,
+        uploadedBy: (req as any).userId,
+      });
+
+      res.status(201).json(formatSingleResponse(uploaded));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// List project strategy documents
+router.get('/:projectId/data-migration-strategy/documents', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const project = await projectService.getProjectById(req.params.projectId);
+    if (!project) {
+      throw new ApiError(404, 'Project not found', 'NOT_FOUND');
+    }
+
+    const docs = await dataMigrationStrategyService.listDocuments(req.params.projectId);
+    res.json(formatListResponse(docs, docs.length));
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Download a strategy document binary
+router.get('/:projectId/data-migration-strategy/documents/:documentId/download', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const doc = await dataMigrationStrategyService.getDocument(req.params.projectId, req.params.documentId);
+    if (!doc) {
+      throw new ApiError(404, 'Document not found', 'NOT_FOUND');
+    }
+
+    res.setHeader('Content-Type', doc.mime_type || 'application/octet-stream');
+    res.setHeader('Content-Disposition', `attachment; filename="${doc.file_name}"`);
+    res.send(doc.file_content);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Delete strategy document
+router.delete(
+  '/:projectId/data-migration-strategy/documents/:documentId',
+  requireAuth,
+  requireRole('analyst', 'admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      await dataMigrationStrategyService.deleteDocument(req.params.projectId, req.params.documentId);
+      res.json({ success: true });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// Export consolidated strategy document
+router.get('/:projectId/data-migration-strategy/export', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const markdown = await dataMigrationStrategyService.exportMarkdown(req.params.projectId);
+    if (!markdown) {
+      throw new ApiError(404, 'Project not found', 'NOT_FOUND');
+    }
+
+    const stamp = new Date().toISOString().slice(0, 10);
+    res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="data-migration-strategy-${req.params.projectId}-${stamp}.md"`);
+    res.send(markdown);
   } catch (error) {
     next(error);
   }

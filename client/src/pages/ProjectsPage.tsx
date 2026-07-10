@@ -79,6 +79,7 @@ import Layout from '../components/Layout';
 import ProcessAreaRoleAssignmentPanel from '../components/ProcessAreaRoleAssignmentPanel';
 import TaskDetailModal from '../components/tasks/TaskDetailModal';
 import ProjectDefectsPage from './ProjectDefectsPage';
+import DataMigrationStrategyView from '../components/strategy/DataMigrationStrategyView';
 import { useAuth } from '../contexts/AuthContext';
 
 interface Program {
@@ -6402,161 +6403,24 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
             <>
               {!selectedItem ? (
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-                  <Alert severity="info">Select a program, mock cycle, or project to define planning deliverables.</Alert>
+                  <Alert severity="info">Select a project (or project-scoped cycle) to open Data Migration Strategy.</Alert>
                   <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
                     <Button variant="contained" startIcon={<AddIcon />} onClick={() => openCreateDialog('program')}>
                       Create Program
                     </Button>
                   </Box>
                 </Box>
-              ) : selectedItem.type === 'program' ? (
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  <Paper sx={{ p: 2 }}>
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, justifyContent: 'flex-end', mb: 1.25 }}>
-                      <Button size="small" variant="outlined" onClick={() => openEditDialog('program', selectedItem.id)}>
-                        Edit Program
-                      </Button>
-                      <Button size="small" variant="contained" startIcon={<AddIcon />} onClick={() => openCreateDialog('project', selectedItem.id)}>
-                        Create Project
-                      </Button>
-                      <Button size="small" variant="contained" startIcon={<AddIcon />} onClick={() => openCreateDialog('cycle', selectedItem.id)}>
-                        Create Mock Cycle
-                      </Button>
-                    </Box>
-                    <Typography variant="h6" sx={{ mb: 0.5 }}>{selectedDetails?.name}</Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                      Program planning focuses on strategy definition, inventory scoping, and migration approach. Execution task planning is intentionally excluded from this phase.
-                    </Typography>
-                    <Typography variant="subtitle2" sx={{ mb: 1 }}>Overall Migration Strategy</Typography>
-                    <TextField
-                      multiline
-                      minRows={8}
-                      fullWidth
-                      placeholder="Define strategy scope, wave logic, cutover sequencing, data quality approach, and key dependencies."
-                      value={planningStrategyDraft}
-                      onChange={(e) => setPlanningStrategyDraft(e.target.value)}
-                    />
-                    <Box sx={{ mt: 1.5, display: 'flex', justifyContent: 'flex-end' }}>
-                      <Button
-                        variant="contained"
-                        onClick={handleSavePlanningStrategy}
-                        disabled={isSavingPlanningStrategy}
-                      >
-                        {isSavingPlanningStrategy ? 'Saving...' : 'Save Strategy'}
-                      </Button>
-                    </Box>
-                  </Paper>
-
-                  <Paper sx={{ p: 2 }}>
-                    <Typography variant="subtitle2" sx={{ mb: 1.25 }}>Planning Deliverables</Typography>
-                    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, minmax(170px, 1fr))' }, gap: 1 }}>
-                      <Box sx={{ p: 1.25, border: '1px solid rgba(255,255,255,0.1)', borderRadius: 1 }}>
-                        <Typography variant="caption" color="text.secondary">Mock Cycles</Typography>
-                        <Typography variant="h6">{(mockCycles[selectedItem.id] || []).length}</Typography>
-                      </Box>
-                      <Box sx={{ p: 1.25, border: '1px solid rgba(255,255,255,0.1)', borderRadius: 1 }}>
-                        <Typography variant="caption" color="text.secondary">Process Area Projects</Typography>
-                        <Typography variant="h6">
-                          {(mockCycles[selectedItem.id] || []).reduce((sum: number, cycle: MockCycle) => sum + ((projectsByMockCycle[cycle.id] || []).length), 0)}
-                        </Typography>
-                      </Box>
-                      <Box sx={{ p: 1.25, border: '1px solid rgba(255,255,255,0.1)', borderRadius: 1 }}>
-                        <Typography variant="caption" color="text.secondary">Global Data Objects</Typography>
-                        <Typography variant="h6">{inventoryObjects.length}</Typography>
-                      </Box>
-                    </Box>
-                  </Paper>
-                </Box>
-              ) : selectedItem.type === 'cycle' ? (
-                <Paper sx={{ p: 2 }}>
-                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, justifyContent: 'flex-end', mb: 1.25 }}>
-                    <Button size="small" variant="outlined" onClick={() => openEditDialog('cycle', selectedItem.id)}>
-                      Edit Mock Cycle
-                    </Button>
-                    <Button size="small" variant="contained" startIcon={<AddIcon />} onClick={() => openCreateDialog('project', selectedItem.programId)}>
-                      Create Project
-                    </Button>
-                  </Box>
-                  <Typography variant="h6" sx={{ mb: 0.5 }}>{selectedDetails?.name}</Typography>
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-                    This mock cycle is for planning sequence and scope only. No execution tasks are created in Planning.
-                  </Typography>
-                  <Typography variant="body2">
-                    Projects in cycle: {getScopedProjectsForCycle(selectedItem.id, selectedItem.projectId || null).length}
-                  </Typography>
-                  <Typography variant="body2" sx={{ mt: 0.5 }}>
-                    Next deliverable: detail project-level data object inventory in the Inventory tab.
-                  </Typography>
-
-                  <Alert sx={{ mt: 2.25 }} severity="info">
-                    Cycle governance is managed in Planning Structure. Use Structure → Mock Cycles to define entry/exit criteria and Lead/Project Manager approvals.
-                  </Alert>
-                  <Box sx={{ mt: 1.25, display: 'flex', justifyContent: 'flex-end' }}>
-                    <Button
-                      variant="outlined"
-                      onClick={() => {
-                        setTabValue(6);
-                        setMaintainFormView('cycle');
-                        setMaintainSelectedCycleId(selectedItem.id);
-                      }}
-                    >
-                      Open In Structure
-                    </Button>
-                  </Box>
-                </Paper>
+              ) : !activeProjectId ? (
+                <Alert severity="info">Data Migration Strategy is project-scoped. Select a project to continue.</Alert>
               ) : (
-                <Paper sx={{ p: 2 }}>
-                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, justifyContent: 'flex-end', mb: 1.25 }}>
-                    <Button size="small" variant="outlined" onClick={() => openEditDialog('project', selectedItem.id)}>
-                      Edit Project
-                    </Button>
-                  </Box>
-                  <Typography variant="h6" sx={{ mb: 0.5 }}>{selectedDetails?.name}</Typography>
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-                    Project-level planning deliverable is the detailed data object inventory and migration posture. Execution tasks are handled in Execution.
-                  </Typography>
-                  <Typography variant="body2">
-                    Project inventory objects: {projectInventoryItems.length}
-                  </Typography>
-                  <Typography variant="body2" sx={{ mt: 0.5 }}>
-                    Use the Inventory tab to add or refine object-level scope and migration attributes.
-                  </Typography>
-
-                  <Box sx={{ mt: 2.25, display: 'flex', flexDirection: 'column', gap: 1.25 }}>
-                    <Typography variant="subtitle2">Project Workflow Roles</Typography>
-                    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(220px, 1fr))' }, gap: 1 }}>
-                      <TextField
-                        select
-                        size="small"
-                        label="Lead"
-                        value={projectLeadUserIdDraft}
-                        onChange={(e) => setProjectLeadUserIdDraft(e.target.value)}
-                      >
-                        <MenuItem value="">Unassigned</MenuItem>
-                        {workflowUsers.map((appUser) => (
-                          <MenuItem key={`project-lead-${appUser.id}`} value={appUser.id}>{appUser.email}</MenuItem>
-                        ))}
-                      </TextField>
-                      <TextField
-                        select
-                        size="small"
-                        label="Project Manager"
-                        value={projectManagerUserIdDraft}
-                        onChange={(e) => setProjectManagerUserIdDraft(e.target.value)}
-                      >
-                        <MenuItem value="">Unassigned</MenuItem>
-                        {workflowUsers.map((appUser) => (
-                          <MenuItem key={`project-pm-${appUser.id}`} value={appUser.id}>{appUser.email}</MenuItem>
-                        ))}
-                      </TextField>
-                    </Box>
-                    <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-                      <Button variant="contained" onClick={() => handleSaveProjectWorkflowRoles(selectedItem.id)} disabled={isSavingProjectWorkflowRoles}>
-                        {isSavingProjectWorkflowRoles ? 'Saving...' : 'Save Workflow Roles'}
-                      </Button>
-                    </Box>
-                  </Box>
-                </Paper>
+                <DataMigrationStrategyView
+                  projectId={activeProjectId}
+                  projectName={(selectedDetails as any)?.name}
+                  userId={user?.id}
+                  userRole={user?.role}
+                  onEditProject={() => openEditDialog('project', activeProjectId)}
+                  onEditCycle={(cycleId) => openEditDialog('cycle', cycleId)}
+                />
               )}
             </>
           )}
