@@ -8,6 +8,8 @@ type StrategyRole = 'lead' | 'project_manager';
 const DEFAULT_STRATEGY_SECTIONS: Record<string, string> = {
   purpose: '',
   guidingPrinciples: '',
+  dataReadiness: '',
+  dataConversion: '',
   conversionScope: '',
   conversionMethods: '',
   conversionDocuments: '',
@@ -461,6 +463,8 @@ class DataMigrationStrategyService {
       ['Conversion Scope', strategy.sections.conversionScope],
       ['Conversion Methods', strategy.sections.conversionMethods],
       ['Conversion Documents', strategy.sections.conversionDocuments],
+      ['Data Readiness', strategy.sections.dataReadiness],
+      ['Data Conversion', strategy.sections.dataConversion],
       ['Data Validation Process', strategy.sections.dataValidationProcess],
       ['Mock Cycles', strategy.sections.mockConversionCycles],
       ['Go-Live Simulation & Cutover', strategy.sections.goLiveSimulationCutover],
