@@ -4289,6 +4289,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
         setEditAccentColor(program.accentColor || '');
       }
     } else if (type === 'cycle') {
+      setCycleEntryCriteriaDraft(MOCK_CYCLE_ENTRY_CRITERIA_DEFAULTS.map((item) => ({ ...item })));
+      setCycleExitCriteriaDraft(MOCK_CYCLE_EXIT_CRITERIA_DEFAULTS.map((item) => ({ ...item })));
       setMaintainSelectedCycleId(itemId);
       const linkedCycle = allMaintainCycles.find((cycle) => cycle.id === itemId) || null;
       const linkedProject = allMaintainProjects.find((project) => project.id === linkedCycle?.projectId) || null;
@@ -4341,6 +4343,18 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
 
     setEditDialogOpen(true);
   };
+
+  useEffect(() => {
+    if (!editDialogOpen || editItemType !== 'cycle') return;
+
+    if (!Array.isArray(cycleEntryCriteriaDraft) || cycleEntryCriteriaDraft.length === 0) {
+      setCycleEntryCriteriaDraft(MOCK_CYCLE_ENTRY_CRITERIA_DEFAULTS.map((item) => ({ ...item })));
+    }
+
+    if (!Array.isArray(cycleExitCriteriaDraft) || cycleExitCriteriaDraft.length === 0) {
+      setCycleExitCriteriaDraft(MOCK_CYCLE_EXIT_CRITERIA_DEFAULTS.map((item) => ({ ...item })));
+    }
+  }, [editDialogOpen, editItemType, cycleEntryCriteriaDraft, cycleExitCriteriaDraft]);
 
   const handleEditConfirm = async () => {
     if (!editItemId || !editItemType) return;
