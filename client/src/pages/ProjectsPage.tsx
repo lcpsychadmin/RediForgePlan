@@ -6847,14 +6847,16 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                           );
                         })()}
 
-                        <PlanningDeliverablesTracker
-                          projectId={project.id}
-                          projectName={project.name}
-                          projectCycles={projectCycleInstances}
-                          inventoryItems={projectInventoryItems}
-                          workflowUsers={workflowUsers}
-                          currentUserId={user?.id}
-                        />
+                        {isPlanningPlanHierarchy && (
+                          <PlanningDeliverablesTracker
+                            projectId={project.id}
+                            projectName={project.name}
+                            projectCycles={projectCycleInstances}
+                            inventoryItems={projectInventoryItems}
+                            workflowUsers={workflowUsers}
+                            currentUserId={user?.id}
+                          />
+                        )}
 
                           </Box>{/* end left info box */}
                           {!showProjectSummaryOnly && (
