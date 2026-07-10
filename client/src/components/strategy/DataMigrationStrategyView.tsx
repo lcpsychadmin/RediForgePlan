@@ -230,6 +230,7 @@ const DataMigrationStrategyView: React.FC<Props> = ({
   const queryClient = useQueryClient();
   const canEditSections = userRole === 'admin';
   const quillRef = React.useRef<ReactQuill | null>(null);
+  const toolbarId = React.useMemo(() => `strategy-editor-toolbar-${projectId}`, [projectId]);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['projectDataMigrationStrategy', projectId],
@@ -392,14 +393,7 @@ const DataMigrationStrategyView: React.FC<Props> = ({
 
     return {
       toolbar: {
-        container: [
-          [{ header: [1, 2, 3, false] }],
-          ['bold', 'italic', 'underline', 'blockquote'],
-          [{ list: 'ordered' }, { list: 'bullet' }],
-          [{ indent: '-1' }, { indent: '+1' }],
-          ['insertTable'],
-          ['link', 'image', 'clean'],
-        ],
+        container: `#${toolbarId}`,
         handlers: {
           image: handleInsertImage,
           insertTable: handleInsertTable,
@@ -432,7 +426,7 @@ const DataMigrationStrategyView: React.FC<Props> = ({
         },
       },
     };
-  }, [canEditSections, handleInsertImage, handleInsertTable]);
+  }, [canEditSections, handleInsertImage, handleInsertTable, toolbarId]);
 
   React.useEffect(() => {
     if (!canEditSections || SPECIAL_SECTION_KEYS.has(activeSection.key)) {
@@ -654,6 +648,21 @@ const DataMigrationStrategyView: React.FC<Props> = ({
                 border: 'none',
                 borderBottom: '1px solid rgba(255,255,255,0.14)',
                 backgroundColor: 'rgba(255,255,255,0.04)',
+                position: 'sticky',
+                top: 126,
+                zIndex: 4,
+                backdropFilter: 'blur(6px)',
+              },
+              '& .strategy-editor-toolbar .ql-formats': {
+                marginRight: 8,
+              },
+              '& .strategy-editor-toolbar button.ql-insertTable': {
+                width: 'auto',
+                minWidth: 54,
+                padding: '0 8px',
+                color: '#D7E6FF',
+                fontSize: '12px',
+                fontWeight: 700,
               },
               '& .ql-container.ql-snow': {
                 border: 'none',
@@ -698,6 +707,38 @@ const DataMigrationStrategyView: React.FC<Props> = ({
               '& .ql-snow .ql-picker': { color: '#D7E6FF' },
             }}
           >
+            {canEditSections && (
+              <div id={toolbarId} className="ql-toolbar ql-snow strategy-editor-toolbar">
+                <span className="ql-formats">
+                  <select className="ql-header" defaultValue="">
+                    <option value="">Normal</option>
+                    <option value="1">Heading 1</option>
+                    <option value="2">Heading 2</option>
+                    <option value="3">Heading 3</option>
+                  </select>
+                </span>
+                <span className="ql-formats">
+                  <button className="ql-bold" type="button" aria-label="Bold" />
+                  <button className="ql-italic" type="button" aria-label="Italic" />
+                  <button className="ql-underline" type="button" aria-label="Underline" />
+                  <button className="ql-blockquote" type="button" aria-label="Block quote" />
+                </span>
+                <span className="ql-formats">
+                  <button className="ql-list" value="ordered" type="button" aria-label="Ordered list" />
+                  <button className="ql-list" value="bullet" type="button" aria-label="Bullet list" />
+                  <button className="ql-indent" value="-1" type="button" aria-label="Outdent" />
+                  <button className="ql-indent" value="+1" type="button" aria-label="Indent" />
+                </span>
+                <span className="ql-formats">
+                  <button className="ql-insertTable" type="button" aria-label="Insert table">Table</button>
+                </span>
+                <span className="ql-formats">
+                  <button className="ql-link" type="button" aria-label="Insert link" />
+                  <button className="ql-image" type="button" aria-label="Insert image" />
+                  <button className="ql-clean" type="button" aria-label="Clear formatting" />
+                </span>
+              </div>
+            )}
             <ReactQuill
               key={activeSection.key}
               ref={quillRef}
