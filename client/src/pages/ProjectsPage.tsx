@@ -4281,21 +4281,44 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
         setEditAccentColor(program.accentColor || '');
       }
     } else if (type === 'cycle') {
+      setMaintainSelectedCycleId(itemId);
       const linkedCycle = allMaintainCycles.find((cycle) => cycle.id === itemId) || null;
       const linkedProject = allMaintainProjects.find((project) => project.id === linkedCycle?.projectId) || null;
       setEditCycleParentProjectId(linkedProject?.id || maintainCycleParentProjectOptions[0]?.id || '');
-      for (const progId in mockCycles) {
-        const cycle = mockCycles[progId]?.find(c => c.id === itemId);
-        if (cycle) {
-          setEditItemName(cycle.name);
-          setEditItemDesc('');
-          setEditStartDate(cycle.startDate);
-          setEditEndDate(cycle.endDate);
-          setEditCycleScheduleMode((cycle.scheduleMode || 'all_days') as CalendarMode);
-          setEditAccentColor(cycle.accentColor || '');
-          break;
-        }
+      setEditItemName(linkedCycle?.name || '');
+      setEditItemDesc('');
+      setEditStartDate(linkedCycle?.startDate || '');
+      setEditEndDate(linkedCycle?.endDate || '');
+      setEditCycleScheduleMode((linkedCycle?.scheduleMode || 'all_days') as CalendarMode);
+      setEditAccentColor(linkedCycle?.accentColor || '');
+
+      setCycleEntryCriteriaDraft(normalizeCriteriaDraft(linkedCycle?.entryCriteriaItems, MOCK_CYCLE_ENTRY_CRITERIA_DEFAULTS));
+      setCycleExitCriteriaDraft(normalizeCriteriaDraft(linkedCycle?.exitCriteriaItems, MOCK_CYCLE_EXIT_CRITERIA_DEFAULTS));
+      setCycleWorkflowEvaluation(null);
+
+      if (linkedCycle?.projectId) {
+        apiClient.get(`/api/projects/${linkedCycle.projectId}/workflow-roles`)
+          .then((response) => {
+            const payload = response.data?.data || {};
+            setProjectLeadUserIdDraft(payload.leadUserId || '');
+            setProjectManagerUserIdDraft(payload.projectManagerUserId || '');
+          })
+          .catch(() => {
+            setProjectLeadUserIdDraft('');
+            setProjectManagerUserIdDraft('');
+          });
+      } else {
+        setProjectLeadUserIdDraft('');
+        setProjectManagerUserIdDraft('');
       }
+
+      apiClient.get(`/api/mock-cycles/${itemId}/workflow-status`)
+        .then((response) => {
+          setCycleWorkflowEvaluation(response.data?.data || null);
+        })
+        .catch(() => {
+          setCycleWorkflowEvaluation(null);
+        });
     } else if (type === 'project') {
       const project = allMaintainProjects.find((p) => p.id === itemId) || null;
       if (project) {
@@ -8957,125 +8980,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                             </Box>
                           </Box>
 
-                          {selectedMaintainCycle ? (
-                            <Card sx={{ backgroundColor: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.1)' }}>
-                              <CardContent sx={{ p: 2 }}>
-                                <Typography variant="subtitle1" sx={{ color: '#DCE6FF', fontWeight: 700, mb: 1.25 }}>
-                                  Cycle Governance: {selectedMaintainCycle.name}
-                                </Typography>
-
-                                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
-                                  <Typography variant="subtitle2">Entry Criteria</Typography>
-                                  <Box sx={{ border: '1px solid rgba(255,255,255,0.1)', borderRadius: 1.25, overflow: 'hidden' }}>
-                                    {cycleEntryCriteriaDraft.map((criterion, idx) => (
-                                      <Box key={`structure-entry-${criterion.key}`} sx={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 1, px: 1.25, py: 0.8, borderBottom: idx === cycleEntryCriteriaDraft.length - 1 ? 'none' : '1px solid rgba(255,255,255,0.06)', backgroundColor: idx % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent' }}>
-                                        <TextField
-                                          size="small"
-                                          value={criterion.label}
-                                          onChange={(e) => setCycleEntryCriteriaDraft((prev) => prev.map((row) => row.key === criterion.key ? { ...row, label: e.target.value } : row))}
-                                        />
-                                        <FormControlLabel
-                                          control={<Checkbox checked={criterion.completed} onChange={(e) => setCycleEntryCriteriaDraft((prev) => prev.map((row) => row.key === criterion.key ? { ...row, completed: e.target.checked } : row))} />}
-                                          label="Done"
-                                        />
-                                        <FormControlLabel
-                                          control={<Checkbox checked={criterion.enforced} onChange={(e) => setCycleEntryCriteriaDraft((prev) => prev.map((row) => row.key === criterion.key ? { ...row, enforced: e.target.checked } : row))} />}
-                                          label="Enforce"
-                                        />
-                                      </Box>
-                                    ))}
-                                  </Box>
-
-                                  <Typography variant="subtitle2" sx={{ mt: 0.5 }}>Exit Criteria</Typography>
-                                  <Box sx={{ border: '1px solid rgba(255,255,255,0.1)', borderRadius: 1.25, overflow: 'hidden' }}>
-                                    {cycleExitCriteriaDraft.map((criterion, idx) => (
-                                      <Box key={`structure-exit-${criterion.key}`} sx={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 1, px: 1.25, py: 0.8, borderBottom: idx === cycleExitCriteriaDraft.length - 1 ? 'none' : '1px solid rgba(255,255,255,0.06)', backgroundColor: idx % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent' }}>
-                                        <TextField
-                                          size="small"
-                                          value={criterion.label}
-                                          onChange={(e) => setCycleExitCriteriaDraft((prev) => prev.map((row) => row.key === criterion.key ? { ...row, label: e.target.value } : row))}
-                                        />
-                                        <FormControlLabel
-                                          control={<Checkbox checked={criterion.completed} onChange={(e) => setCycleExitCriteriaDraft((prev) => prev.map((row) => row.key === criterion.key ? { ...row, completed: e.target.checked } : row))} />}
-                                          label="Done"
-                                        />
-                                        <FormControlLabel
-                                          control={<Checkbox checked={criterion.enforced} onChange={(e) => setCycleExitCriteriaDraft((prev) => prev.map((row) => row.key === criterion.key ? { ...row, enforced: e.target.checked } : row))} />}
-                                          label="Enforce"
-                                        />
-                                      </Box>
-                                    ))}
-                                  </Box>
-
-                                  <Typography variant="subtitle2" sx={{ mt: 0.5 }}>Project Approvals</Typography>
-                                  <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(220px, 1fr))' }, gap: 1 }}>
-                                    <TextField
-                                      select
-                                      size="small"
-                                      label="Lead"
-                                      value={projectLeadUserIdDraft}
-                                      onChange={(e) => setProjectLeadUserIdDraft(e.target.value)}
-                                    >
-                                      <MenuItem value="">Unassigned</MenuItem>
-                                      {people.map((person: any) => (
-                                        <MenuItem key={`structure-lead-${person.id}`} value={person.id}>{person.name || person.email}</MenuItem>
-                                      ))}
-                                    </TextField>
-                                    <TextField
-                                      select
-                                      size="small"
-                                      label="Project Manager"
-                                      value={projectManagerUserIdDraft}
-                                      onChange={(e) => setProjectManagerUserIdDraft(e.target.value)}
-                                    >
-                                      <MenuItem value="">Unassigned</MenuItem>
-                                      {people.map((person: any) => (
-                                        <MenuItem key={`structure-pm-${person.id}`} value={person.id}>{person.name || person.email}</MenuItem>
-                                      ))}
-                                    </TextField>
-                                  </Box>
-
-                                  {cycleWorkflowEvaluation && (
-                                    <Alert severity={cycleWorkflowEvaluation?.progressionAllowed ? 'success' : 'warning'}>
-                                      {cycleWorkflowEvaluation?.progressionAllowed
-                                        ? 'Progression gate passed: all enforced criteria complete and approvals captured.'
-                                        : 'Progression blocked: complete enforced criteria and sequential approvals (Lead then Project Manager).'}
-                                    </Alert>
-                                  )}
-
-                                  <Alert severity="info">
-                                    Execution owns actual load statistics. Planning Structure only defines gate criteria and approvals.
-                                  </Alert>
-
-                                  <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-                                    <Button
-                                      variant="outlined"
-                                      sx={{ mr: 1 }}
-                                      onClick={() => handleSaveProjectWorkflowRoles(selectedMaintainCycle.projectId, selectedMaintainCycle.id)}
-                                      disabled={isSavingProjectWorkflowRoles || !selectedMaintainCycle.projectId}
-                                    >
-                                      {isSavingProjectWorkflowRoles ? 'Saving Roles...' : 'Save Roles'}
-                                    </Button>
-                                    <Button variant="outlined" sx={{ mr: 1 }} onClick={() => handleCycleApproval('lead', true, selectedMaintainCycle.id)} disabled={isApprovingCycle}>
-                                      Lead Approve
-                                    </Button>
-                                    <Button variant="outlined" sx={{ mr: 1 }} onClick={() => handleCycleApproval('project-manager', true, selectedMaintainCycle.id)} disabled={isApprovingCycle}>
-                                      PM Approve
-                                    </Button>
-                                    <Button
-                                      variant="contained"
-                                      onClick={() => handleSaveCycleCriteria(selectedMaintainCycle.id)}
-                                      disabled={isSavingCycleCriteria}
-                                    >
-                                      {isSavingCycleCriteria ? 'Saving...' : 'Save Cycle Workflow'}
-                                    </Button>
-                                  </Box>
-                                </Box>
-                              </CardContent>
-                            </Card>
-                          ) : (
-                            <Alert severity="info">Select a mock cycle to edit entry/exit criteria and approvals.</Alert>
-                          )}
+                          <Alert severity="info">Use the edit icon on a mock cycle row to manage entry/exit criteria and approvals in the modal.</Alert>
                         </Box>
                       )}
 
@@ -10133,7 +10038,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
       </Dialog>
 
       {/* Edit Dialog */}
-      <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 2 } }}>
+      <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)} maxWidth={editItemType === 'cycle' ? 'md' : 'sm'} fullWidth PaperProps={{ sx: { borderRadius: 2 } }}>
         <DialogTitle sx={{ 
           background: theme => `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark || theme.palette.primary.main} 100%)`,
           color: 'white',
@@ -10227,6 +10132,91 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                   <Typography variant="body2">{editCycleScheduleMode === 'all_days' ? 'Checked: all days' : 'Unchecked: working days only'}</Typography>
                 </Box>
               </Box>
+
+              <Divider />
+              <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>Cycle Governance</Typography>
+
+              <Typography variant="subtitle2">Entry Criteria</Typography>
+              <Box sx={{ border: '1px solid rgba(255,255,255,0.1)', borderRadius: 1.25, overflow: 'hidden' }}>
+                {cycleEntryCriteriaDraft.map((criterion, idx) => (
+                  <Box key={`modal-entry-${criterion.key}`} sx={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 1, px: 1.25, py: 0.8, borderBottom: idx === cycleEntryCriteriaDraft.length - 1 ? 'none' : '1px solid rgba(255,255,255,0.06)', backgroundColor: idx % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent' }}>
+                    <TextField
+                      size="small"
+                      value={criterion.label}
+                      onChange={(e) => setCycleEntryCriteriaDraft((prev) => prev.map((row) => row.key === criterion.key ? { ...row, label: e.target.value } : row))}
+                    />
+                    <FormControlLabel
+                      control={<Checkbox checked={criterion.completed} onChange={(e) => setCycleEntryCriteriaDraft((prev) => prev.map((row) => row.key === criterion.key ? { ...row, completed: e.target.checked } : row))} />}
+                      label="Done"
+                    />
+                    <FormControlLabel
+                      control={<Checkbox checked={criterion.enforced} onChange={(e) => setCycleEntryCriteriaDraft((prev) => prev.map((row) => row.key === criterion.key ? { ...row, enforced: e.target.checked } : row))} />}
+                      label="Enforce"
+                    />
+                  </Box>
+                ))}
+              </Box>
+
+              <Typography variant="subtitle2">Exit Criteria</Typography>
+              <Box sx={{ border: '1px solid rgba(255,255,255,0.1)', borderRadius: 1.25, overflow: 'hidden' }}>
+                {cycleExitCriteriaDraft.map((criterion, idx) => (
+                  <Box key={`modal-exit-${criterion.key}`} sx={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 1, px: 1.25, py: 0.8, borderBottom: idx === cycleExitCriteriaDraft.length - 1 ? 'none' : '1px solid rgba(255,255,255,0.06)', backgroundColor: idx % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent' }}>
+                    <TextField
+                      size="small"
+                      value={criterion.label}
+                      onChange={(e) => setCycleExitCriteriaDraft((prev) => prev.map((row) => row.key === criterion.key ? { ...row, label: e.target.value } : row))}
+                    />
+                    <FormControlLabel
+                      control={<Checkbox checked={criterion.completed} onChange={(e) => setCycleExitCriteriaDraft((prev) => prev.map((row) => row.key === criterion.key ? { ...row, completed: e.target.checked } : row))} />}
+                      label="Done"
+                    />
+                    <FormControlLabel
+                      control={<Checkbox checked={criterion.enforced} onChange={(e) => setCycleExitCriteriaDraft((prev) => prev.map((row) => row.key === criterion.key ? { ...row, enforced: e.target.checked } : row))} />}
+                      label="Enforce"
+                    />
+                  </Box>
+                ))}
+              </Box>
+
+              <Typography variant="subtitle2">Project Approvals</Typography>
+              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(220px, 1fr))' }, gap: 1 }}>
+                <TextField
+                  select
+                  size="small"
+                  label="Lead"
+                  value={projectLeadUserIdDraft}
+                  onChange={(e) => setProjectLeadUserIdDraft(e.target.value)}
+                >
+                  <MenuItem value="">Unassigned</MenuItem>
+                  {people.map((person: any) => (
+                    <MenuItem key={`modal-lead-${person.id}`} value={person.id}>{person.name || person.email}</MenuItem>
+                  ))}
+                </TextField>
+                <TextField
+                  select
+                  size="small"
+                  label="Project Manager"
+                  value={projectManagerUserIdDraft}
+                  onChange={(e) => setProjectManagerUserIdDraft(e.target.value)}
+                >
+                  <MenuItem value="">Unassigned</MenuItem>
+                  {people.map((person: any) => (
+                    <MenuItem key={`modal-pm-${person.id}`} value={person.id}>{person.name || person.email}</MenuItem>
+                  ))}
+                </TextField>
+              </Box>
+
+              {cycleWorkflowEvaluation && (
+                <Alert severity={cycleWorkflowEvaluation?.progressionAllowed ? 'success' : 'warning'}>
+                  {cycleWorkflowEvaluation?.progressionAllowed
+                    ? 'Progression gate passed: all enforced criteria complete and approvals captured.'
+                    : 'Progression blocked: complete enforced criteria and sequential approvals (Lead then Project Manager).'}
+                </Alert>
+              )}
+
+              <Alert severity="info">
+                Execution owns actual load statistics. This modal defines criteria and approvals only.
+              </Alert>
             </>
           )}
 
@@ -10278,6 +10268,32 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
           <Button onClick={() => setEditDialogOpen(false)} disabled={isEditing} sx={{ textTransform: 'none' }}>
             Cancel
           </Button>
+          {editItemType === 'cycle' && editItemId && (
+            <>
+              <Button
+                variant="outlined"
+                onClick={() => handleSaveProjectWorkflowRoles(editCycleParentProjectId, editItemId)}
+                disabled={isSavingProjectWorkflowRoles || !editCycleParentProjectId}
+                sx={{ textTransform: 'none' }}
+              >
+                {isSavingProjectWorkflowRoles ? 'Saving Roles...' : 'Save Roles'}
+              </Button>
+              <Button variant="outlined" onClick={() => handleCycleApproval('lead', true, editItemId)} disabled={isApprovingCycle} sx={{ textTransform: 'none' }}>
+                Lead Approve
+              </Button>
+              <Button variant="outlined" onClick={() => handleCycleApproval('project-manager', true, editItemId)} disabled={isApprovingCycle} sx={{ textTransform: 'none' }}>
+                PM Approve
+              </Button>
+              <Button
+                variant="outlined"
+                onClick={() => handleSaveCycleCriteria(editItemId)}
+                disabled={isSavingCycleCriteria}
+                sx={{ textTransform: 'none' }}
+              >
+                {isSavingCycleCriteria ? 'Saving Workflow...' : 'Save Cycle Workflow'}
+              </Button>
+            </>
+          )}
           <Button
             onClick={handleEditConfirm}
             variant="contained"
