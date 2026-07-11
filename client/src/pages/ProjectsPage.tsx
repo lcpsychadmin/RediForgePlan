@@ -6218,12 +6218,19 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                           <Box
                                             key={`${projectGroupKey}-${node.id}`}
                                             onClick={() => {
-                                              // Deliverable nodes in planning hierarchy should open the plan task workspace,
-                                              // not the maintenance screens.
                                               if (firstCycle) {
-                                                handleHierarchySelection({ type: 'project', id: firstCycleProject.id, cycleId: firstCycle.id });
+                                                handleHierarchySelection({
+                                                  type: 'deliverable',
+                                                  projectId: firstCycleProject.id,
+                                                  cycleId: firstCycle.id,
+                                                  deliverableId: node.id,
+                                                });
                                               } else {
-                                                handleHierarchySelection({ type: 'project', id: project.id });
+                                                handleHierarchySelection({
+                                                  type: 'deliverable',
+                                                  projectId: project.id,
+                                                  deliverableId: node.id,
+                                                });
                                               }
                                               navigate('/planning/plan');
                                             }}
@@ -6645,70 +6652,24 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                 <Alert severity="info">Select an item from the list to view details</Alert>
               ) : selectedDetails ? (
                 <>
-                  {selectedItem.type === 'deliverable' ? (() => {
-                    const project = selectedDetails as Project;
-                    const deliverableConfig = PLAN_DELIVERABLE_NODES.find((node) => node.id === selectedItem.deliverableId);
-                    const deliverableAccent = deliverableConfig?.accentColor || project.accentColor || '#00BFA5';
-                    const deliverableLabel = deliverableConfig?.label || 'Deliverable';
-                    let parentCycleName = '';
-                    let parentProgramName = '';
-                    let parentProgramId = '';
-                    for (const progId in mockCycles) {
-                      const cycle = (mockCycles[progId] || []).find((c: MockCycle) => c.id === selectedItem.cycleId);
-                      if (cycle) {
-                        parentCycleName = cycle.name;
-                        const prog = programs.find((p: Program) => p.id === progId);
-                        parentProgramName = prog?.name || '';
-                        parentProgramId = progId;
-                        break;
-                      }
-                    }
-                    const normalizedProjectName = (project.name || '').trim().toLowerCase();
-                    const projectCycleInstances = (parentProgramId ? (mockCycles[parentProgramId] || []) : [])
-                      .map((cycle: MockCycle) => (projectsByMockCycle[cycle.id] || []).find((p: Project) => (p.name || '').trim().toLowerCase() === normalizedProjectName))
-                      .filter(Boolean) as Project[];
-
-                    return (
-                      <Box>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1.5 }}>
-                          {parentProgramName && <><Typography variant="caption" color="text.disabled">{parentProgramName}</Typography><Typography variant="caption" color="text.disabled">›</Typography></>}
-                          {parentCycleName && <><Typography variant="caption" color="text.disabled">{parentCycleName}</Typography><Typography variant="caption" color="text.disabled">›</Typography></>}
-                          <Typography variant="caption" sx={{ color: project.accentColor || '#00BFA5', fontWeight: 600 }}>{project.name}</Typography>
-                          <Typography variant="caption" color="text.disabled">›</Typography>
-                          <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>{deliverableLabel}</Typography>
-                        </Box>
-
-                        <Typography variant="h4" sx={{ fontWeight: 700, color: deliverableAccent, mb: 1, fontSize: { xs: '1.45rem', sm: '1.9rem' }, display: 'flex', alignItems: 'center', gap: 1 }}>
-                          {renderIconChoice(deliverableConfig?.icon || 'fa-clipboard-list', deliverableAccent, '1.25rem')}
-                          {deliverableLabel}
-                        </Typography>
-
-                        <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-                          Deliverable-level planning workspace for {project.name}. Tasks and approvals below are scoped to this deliverable.
-                        </Typography>
-
-                        <PlanningDeliverablesTracker
-                          projectId={project.id}
-                          projectName={project.name}
-                          projectCycles={projectCycleInstances}
-                          inventoryItems={projectInventoryItems}
-                          workflowUsers={workflowUsers}
-                          currentUserId={user?.id}
-                          selectedDeliverableId={selectedItem.deliverableId}
-                          selectedDeliverableLabel={deliverableLabel}
-                          selectedDeliverableAccent={deliverableAccent}
-                        />
-                      </Box>
-                    );
-                  })() : selectedItem.type === 'project' || selectedItem.type === 'processArea' ? (() => {
+                  {selectedItem.type === 'project' || selectedItem.type === 'processArea' || selectedItem.type === 'deliverable' ? (() => {
                     const project = selectedDetails as Project;
                     const accentColor = project.accentColor || '#00BFA5';
                     const parentCycleId = selectedItem.type === 'project' ? selectedItem.cycleId : selectedItem.cycleId;
+                    const deliverableConfig = selectedItem.type === 'deliverable'
+                      ? PLAN_DELIVERABLE_NODES.find((node) => node.id === selectedItem.deliverableId)
+                      : null;
+                    const deliverableLabel = deliverableConfig?.label || 'Deliverable';
+                    const deliverableAccent = deliverableConfig?.accentColor || accentColor;
                     const selectedAreaLabel = selectedItem.type === 'processArea'
                       ? getProcessAreaDisplayName(project.id, selectedItem.area)
+                      : selectedItem.type === 'deliverable'
+                        ? deliverableLabel
                       : '';
                     const selectedAreaAccent = selectedItem.type === 'processArea'
                       ? getProcessAreaAccent(project.id, selectedItem.area, accentColor, parentCycleId || undefined)
+                      : selectedItem.type === 'deliverable'
+                        ? deliverableAccent
                       : accentColor;
                     // Use the raw area code (selectedItem.area) for accent lookup, not the display label.
                     // The display label may be a user-defined description (e.g. "Master Data Management")
@@ -6944,6 +6905,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                             inventoryItems={projectInventoryItems}
                             workflowUsers={workflowUsers}
                             currentUserId={user?.id}
+                            selectedDeliverableId={selectedItem.type === 'deliverable' ? selectedItem.deliverableId : undefined}
+                            selectedDeliverableLabel={selectedItem.type === 'deliverable' ? deliverableLabel : undefined}
+                            selectedDeliverableAccent={selectedItem.type === 'deliverable' ? deliverableAccent : undefined}
                           />
                         )}
 
