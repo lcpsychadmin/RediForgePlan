@@ -2428,6 +2428,30 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
 
   // planningAdditionalGroups is now keyed by cycleId (not projectId) so that
   // cycles sharing the same project have independent plan-group label sets.
+  const getDeliverableAssignedGroupIds = React.useCallback((projectId: string) => {
+    return new Set(Object.keys(deliverableTaskGroupAssignments[projectId] || {}));
+  }, [deliverableTaskGroupAssignments]);
+
+  const isDeliverableAssignedGroup = React.useCallback((projectId: string, group: any) => {
+    if (!projectId || !group?.id) return false;
+    return !!deliverableTaskGroupAssignments[projectId]?.[group.id];
+  }, [deliverableTaskGroupAssignments]);
+
+  const getVisiblePlanningAdditionalGroups = React.useCallback((projectId: string, cycleId?: string) => {
+    const key = cycleId || projectId;
+    const assignedIds = getDeliverableAssignedGroupIds(projectId);
+    return (planningAdditionalGroups[key] || []).filter((groupName) => {
+      const normalizedGroupName = (groupName || '').trim().toLowerCase();
+      if (!normalizedGroupName) return false;
+      return !projectTaskGroups.some((group: any) => (
+        group.projectId === projectId &&
+        !group.processArea &&
+        assignedIds.has(group.id) &&
+        (group.name || '').trim().toLowerCase() === normalizedGroupName
+      ));
+    });
+  }, [getDeliverableAssignedGroupIds, planningAdditionalGroups, projectTaskGroups]);
+
   const getProcessAreasForProjectCycle = (projectId: string, cycleId?: string) => {
     const key = cycleId || projectId;
     const areas = new Set<string>();
@@ -2436,7 +2460,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
       const label = (area || '').trim();
       if (label) areas.add(label);
     });
-    const additional = planningAdditionalGroups[key] || [];
+    const additional = getVisiblePlanningAdditionalGroups(projectId, cycleId);
     additional.forEach((groupName) => {
       const label = (groupName || '').trim();
       if (label) areas.add(label);
@@ -3295,7 +3319,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
               const label = (item.processArea || '').trim();
               if (label) areaLabels.add(label);
             });
-          (planningAdditionalGroups[cycleId || project.id] || []).forEach((groupName) => {
+          getVisiblePlanningAdditionalGroups(project.id, cycleId).forEach((groupName) => {
             const label = (groupName || '').trim();
             if (label) areaLabels.add(label);
           });
@@ -3304,7 +3328,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
       }
       return { programs: nextPrograms, cycles: nextCycles, projects: nextProjects, projectGroups: nextProjectGroups, processAreas: nextProcessAreas };
     });
-  }, [programs, mockCycles, projectsByMockCycle, projectsByProgram, projectHierarchySummaries, projectInventoryItems, planningAdditionalGroups]);
+  }, [programs, mockCycles, projectsByMockCycle, projectsByProgram, projectHierarchySummaries, projectInventoryItems, getVisiblePlanningAdditionalGroups]);
 
   // Persist tree ordering.
   // Also ensure all project groups for expanded programs are auto-expanded so
@@ -3608,7 +3632,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
         // Sync any localStorage-only plan groups to the DB so they are
         // included in future cycle copies.
         if (activeCycleId && activeProjectId) {
-          const localGroupNames: string[] = planningAdditionalGroups[activeCycleId || activeProjectId] || [];
+          const localGroupNames: string[] = getVisiblePlanningAdditionalGroups(activeProjectId, activeCycleId);
           const dbGroupNames = new Set(groups.map((g: any) => (g.name || '').trim().toLowerCase()));
           const missingNames = localGroupNames.filter(n => n.trim() && !dbGroupNames.has(n.trim().toLowerCase()));
           for (const name of missingNames) {
@@ -3623,7 +3647,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
           // process_area — these are top-level plan group nodes in the hierarchy.
           // This ensures cycles that received data via copy show correctly.
           const topLevelGroupNames = groups
-            .filter((g: any) => !g.processArea)
+            .filter((g: any) => !g.processArea && !isDeliverableAssignedGroup(activeProjectId, g))
             .map((g: any) => (g.name || '').trim())
             .filter(Boolean);
           if (topLevelGroupNames.length > 0) {
@@ -3644,7 +3668,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
     };
 
     loadTasksAndGroups();
-  }, [activeProjectId, activeCycleId]);
+  }, [activeProjectId, activeCycleId, getVisiblePlanningAdditionalGroups, isDeliverableAssignedGroup]);
 
   useEffect(() => {
     seededDefaultTaskObjectsRef.current = new Set();
@@ -6273,15 +6297,26 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                               pl: 1.1,
                                               pr: 0.6,
                                               cursor: 'pointer',
+                                              position: 'relative',
                                               borderRadius: 0.75,
                                               backgroundColor: isNodeSelected ? 'rgba(91, 103, 202, 0.2)' : 'transparent',
+                                              '&::before': isNodeSelected ? {
+                                                content: '""',
+                                                position: 'absolute',
+                                                left: 0,
+                                                top: '3px',
+                                                bottom: '3px',
+                                                width: '3px',
+                                                backgroundColor: nodeAccent,
+                                                borderRadius: '2px',
+                                              } : {},
                                               '&:hover': { backgroundColor: isNodeSelected ? 'rgba(91, 103, 202, 0.24)' : 'rgba(255,255,255,0.06)' },
                                             }}
                                           >
                                             <Box sx={{ mr: 0.55, display: 'inline-flex', alignItems: 'center' }}>
                                               {renderIconChoice(node.icon, nodeAccent, '0.78rem')}
                                             </Box>
-                                            <Typography variant="caption" sx={{ fontWeight: isNodeSelected ? 700 : 500, color: nodeAccent, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                            <Typography variant="caption" sx={{ fontWeight: isNodeSelected ? 700 : 500, color: isNodeSelected ? nodeAccent : 'inherit', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                               {node.label}
                                             </Typography>
                                             {node.isFuture && (
@@ -6409,7 +6444,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                             const resolvedAreaKey = getResolvedProcessAreaKey(realProject.id, area, cycle.id);
                                             const cachedAreaSummary = projectHierarchySummaries[summaryKeyForArea]?.processAreas?.[resolvedAreaKey];
                                             const activeAreaObjectCount = projectInventoryItems.filter((item: any) => item.projectId === realProject.id && ((item.processArea || '').trim().toLowerCase() === normalizedArea)).length;
-                                            const activeAreaTaskGroupCount = projectTaskGroups.filter((group: any) => group.projectId === realProject.id && ((group.processArea || '').trim().toLowerCase() === normalizedArea)).length;
+                                            const activeAreaTaskGroupCount = projectTaskGroups.filter((group: any) => group.projectId === realProject.id && !isDeliverableAssignedGroup(realProject.id, group) && ((group.processArea || '').trim().toLowerCase() === normalizedArea)).length;
                                             const areaObjectCount = activeProjectId === realProject.id
                                               ? activeAreaObjectCount
                                               : (cachedAreaSummary?.objectCount ?? 0);
@@ -6419,7 +6454,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                             const areaTaskCount = activeProjectId === realProject.id
                                               ? projectTasks.filter((task: any) => {
                                                   const objectInArea = !!task.projectObjectId && projectInventoryItems.some((item: any) => item.id === task.projectObjectId && ((item.processArea || '').trim().toLowerCase() === normalizedArea));
-                                                  const groupInArea = !!task.taskGroupId && projectTaskGroups.some((group: any) => group.id === task.taskGroupId && ((group.processArea || '').trim().toLowerCase() === normalizedArea));
+                                                  const groupInArea = !!task.taskGroupId && projectTaskGroups.some((group: any) => group.id === task.taskGroupId && !isDeliverableAssignedGroup(realProject.id, group) && ((group.processArea || '').trim().toLowerCase() === normalizedArea));
                                                   return objectInArea || groupInArea;
                                                 }).length
                                               : (cachedAreaSummary?.taskCount ?? 0);
@@ -6735,7 +6770,14 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                     const filteredGroupIds = isDeliverableSelection
                       ? allGroupIds.filter((id: string) => assignedDeliverableGroups[id] === selectedItem.deliverableId)
                       : [];
-                    const allPlanTasks = projectTasks.filter(t => t.projectObjectId || t.taskGroupId);
+                    const allPlanTasks = projectTasks.filter((t) => {
+                      if (!(t.projectObjectId || t.taskGroupId)) return false;
+                      if (!isDeliverableSelection && t.taskGroupId) {
+                        const assignedDeliverableId = deliverableTaskGroupAssignments[project.id]?.[t.taskGroupId];
+                        if (assignedDeliverableId) return false;
+                      }
+                      return true;
+                    });
                     const scopedPlanTasks = isDeliverableSelection
                       ? allPlanTasks.filter((t: any) => !!t.taskGroupId && filteredGroupIds.includes(t.taskGroupId))
                       : selectedItem.type === 'processArea'
@@ -6795,6 +6837,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                       ? filteredGroupIds
                       : (showProjectSummaryOnly ? [] : allGroupIds).filter((id: string) => {
                           const group = projectTaskGroups.find(g => g.id === id);
+                          if (!group || isDeliverableAssignedGroup(project.id, group)) return false;
                           return getTaskGroupProcessArea(group).toLowerCase() === normalizedProcessAreaFilter;
                         });
                     const projectProcessAreas = new Set<string>();
@@ -6808,6 +6851,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                       if (label) projectProcessAreas.add(label);
                     });
                     projectTaskGroups.forEach((group: any) => {
+                      if (isDeliverableAssignedGroup(project.id, group)) return;
                       const label = (group.processArea || '').trim();
                       if (label) projectProcessAreas.add(label);
                     });
