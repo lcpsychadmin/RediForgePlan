@@ -6218,30 +6218,14 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                           <Box
                                             key={`${projectGroupKey}-${node.id}`}
                                             onClick={() => {
-                                              if (node.targetView && node.targetView !== 'plan') {
-                                                if (firstCycle) {
-                                                  handleHierarchySelection({ type: 'project', id: firstCycleProject.id, cycleId: firstCycle.id });
-                                                } else {
-                                                  handleHierarchySelection({ type: 'project', id: project.id });
-                                                }
-                                                navigate(`/planning/${node.targetView}`);
-                                                return;
-                                              }
-
+                                              // Deliverable nodes in planning hierarchy should open the plan task workspace,
+                                              // not the maintenance screens.
                                               if (firstCycle) {
-                                                handleHierarchySelection({
-                                                  type: 'deliverable',
-                                                  projectId: firstCycleProject.id,
-                                                  cycleId: firstCycle.id,
-                                                  deliverableId: node.id,
-                                                });
+                                                handleHierarchySelection({ type: 'project', id: firstCycleProject.id, cycleId: firstCycle.id });
                                               } else {
-                                                handleHierarchySelection({
-                                                  type: 'deliverable',
-                                                  projectId: project.id,
-                                                  deliverableId: node.id,
-                                                });
+                                                handleHierarchySelection({ type: 'project', id: project.id });
                                               }
+                                              navigate('/planning/plan');
                                             }}
                                             sx={{
                                               display: 'flex',
