@@ -6281,7 +6281,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                             <Box sx={{ mr: 0.55, display: 'inline-flex', alignItems: 'center' }}>
                                               {renderIconChoice(node.icon, nodeAccent, '0.78rem')}
                                             </Box>
-                                            <Typography variant="caption" sx={{ fontWeight: isNodeSelected ? 700 : 500, color: isNodeSelected ? nodeAccent : 'inherit', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                            <Typography variant="caption" sx={{ fontWeight: isNodeSelected ? 700 : 500, color: nodeAccent, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                               {node.label}
                                             </Typography>
                                             {node.isFuture && (
