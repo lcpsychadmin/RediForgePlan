@@ -1053,6 +1053,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   const [isSavingProjectWorkflowRoles, setIsSavingProjectWorkflowRoles] = useState(false);
   const [isSavingCycleCriteria, setIsSavingCycleCriteria] = useState(false);
   const [planningAdditionalGroups, setPlanningAdditionalGroups] = useState<Record<string, string[]>>({});
+  const [deliverableTaskGroupAssignments, setDeliverableTaskGroupAssignments] = useState<Record<string, Record<string, string>>>({});
   const [planningAdditionalProcessAreas, setPlanningAdditionalProcessAreas] = useState<Record<string, string[]>>({});
   const [hiddenProcessAreas, setHiddenProcessAreas] = useState<Record<string, string[]>>({});
   const [selectedExecutionProcessArea, setSelectedExecutionProcessArea] = useState('');
@@ -2730,6 +2731,16 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
     );
     if (dbGroup) {
       setProjectTaskGroups((prev: any[]) => prev.filter((g: any) => g.id !== dbGroup.id));
+      setDeliverableTaskGroupAssignments((prev) => {
+        const projectKey = activeProjectId || '';
+        if (!projectKey || !prev[projectKey]?.[dbGroup.id]) return prev;
+        const nextProjectAssignments = { ...(prev[projectKey] || {}) };
+        delete nextProjectAssignments[dbGroup.id];
+        return {
+          ...prev,
+          [projectKey]: nextProjectAssignments,
+        };
+      });
       apiClient.delete(`/api/tasks/groups/${dbGroup.id}`).catch(() => {});
     }
   };
@@ -3131,6 +3142,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
             applyExpandedState(parsed);
           }
           if (parsed?.planningAdditionalGroups && typeof parsed.planningAdditionalGroups === 'object') setPlanningAdditionalGroups(parsed.planningAdditionalGroups);
+          if (parsed?.deliverableTaskGroupAssignments && typeof parsed.deliverableTaskGroupAssignments === 'object') {
+            setDeliverableTaskGroupAssignments(parsed.deliverableTaskGroupAssignments);
+          }
           if (parsed?.planningAdditionalProcessAreas && typeof parsed.planningAdditionalProcessAreas === 'object') setPlanningAdditionalProcessAreas(parsed.planningAdditionalProcessAreas);
           if (parsed?.hiddenProcessAreas && typeof parsed.hiddenProcessAreas === 'object') setHiddenProcessAreas(parsed.hiddenProcessAreas);
           if (parsed?.processAreaAccentOverrides && typeof parsed.processAreaAccentOverrides === 'object') setProcessAreaAccentOverrides(parsed.processAreaAccentOverrides);
@@ -3205,6 +3219,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
           }
           if (typeof parsed.processAreaIconOverrides === 'object') {
             setProcessAreaIconOverrides(parsed.processAreaIconOverrides || {});
+          }
+          if (typeof parsed.deliverableTaskGroupAssignments === 'object') {
+            setDeliverableTaskGroupAssignments(parsed.deliverableTaskGroupAssignments || {});
           }
         }).catch(() => {});
       }
@@ -3323,6 +3340,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
         expandedProjectGroups: Array.from(expandedProjectGroups),
         expandedObjects: Array.from(expandedObjects),
         planningAdditionalGroups,
+        deliverableTaskGroupAssignments,
         planningAdditionalProcessAreas,
         hiddenProcessAreas,
         processAreaAccentOverrides,
@@ -3344,6 +3362,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
     expandedProjectGroups,
     expandedObjects,
     planningAdditionalGroups,
+    deliverableTaskGroupAssignments,
     planningAdditionalProcessAreas,
     hiddenProcessAreas,
     processAreaAccentOverrides,
@@ -4291,6 +4310,19 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
         setProjectTasks(prev => prev.filter(t => t.id !== deleteItemId));
       } else if (deleteItemType === 'taskGroup') {
         await apiClient.delete(`/api/tasks/groups/${deleteItemId}`);
+        setDeliverableTaskGroupAssignments((prev) => {
+          let changed = false;
+          const next = Object.fromEntries(
+            Object.entries(prev).map(([projectId, assignments]) => {
+              if (!assignments?.[deleteItemId]) return [projectId, assignments];
+              changed = true;
+              const nextAssignments = { ...assignments };
+              delete nextAssignments[deleteItemId];
+              return [projectId, nextAssignments];
+            })
+          );
+          return changed ? next : prev;
+        });
       }
       
       // Refresh hierarchy queries immediately so deleted items disappear without stale selection errors.
@@ -6655,6 +6687,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                   {selectedItem.type === 'project' || selectedItem.type === 'processArea' || selectedItem.type === 'deliverable' ? (() => {
                     const project = selectedDetails as Project;
                     const accentColor = project.accentColor || '#00BFA5';
+                    const isDeliverableSelection = selectedItem.type === 'deliverable';
                     const parentCycleId = selectedItem.type === 'project' ? selectedItem.cycleId : selectedItem.cycleId;
                     const deliverableConfig = selectedItem.type === 'deliverable'
                       ? PLAN_DELIVERABLE_NODES.find((node) => node.id === selectedItem.deliverableId)
@@ -6695,8 +6728,17 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                     const projectCycleInstances = (parentProgramId ? (mockCycles[parentProgramId] || []) : [])
                       .map((cycle: MockCycle) => (projectsByMockCycle[cycle.id] || []).find((p: Project) => (p.name || '').trim().toLowerCase() === normalizedProjectName))
                       .filter(Boolean) as Project[];
+                    const allGroupIds = projectTaskGroups.map(g => g.id);
+                    const assignedDeliverableGroups = isDeliverableSelection
+                      ? (deliverableTaskGroupAssignments[project.id] || {})
+                      : {};
+                    const filteredGroupIds = isDeliverableSelection
+                      ? allGroupIds.filter((id: string) => assignedDeliverableGroups[id] === selectedItem.deliverableId)
+                      : [];
                     const allPlanTasks = projectTasks.filter(t => t.projectObjectId || t.taskGroupId);
-                    const scopedPlanTasks = selectedItem.type === 'processArea'
+                    const scopedPlanTasks = isDeliverableSelection
+                      ? allPlanTasks.filter((t: any) => !!t.taskGroupId && filteredGroupIds.includes(t.taskGroupId))
+                      : selectedItem.type === 'processArea'
                       ? allPlanTasks.filter((t: any) => taskMatchesProcessArea(project.id, t, selectedItem.area, parentCycleId || undefined))
                       : allPlanTasks;
                     const progressPct = scopedPlanTasks.length > 0
@@ -6709,7 +6751,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                       ? (selectedItem.area || '')
                       : (selectedExecutionProcessArea || '');
                     const normalizedProcessAreaFilter = rawProcessAreaFilter.trim().toLowerCase();
-                    const showProjectSummaryOnly = !normalizedProcessAreaFilter;
+                    const showProjectSummaryOnly = isDeliverableSelection ? false : !normalizedProcessAreaFilter;
                     const getObjectProcessArea = (objectId: string) => {
                       const inventoryObject = projectInventoryItems.find(obj => obj.id === objectId);
                       return (inventoryObject?.processArea || 'Unassigned Process Area').trim() || 'Unassigned Process Area';
@@ -6730,7 +6772,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                     // Tasks load asynchronously and appear under the objects as they arrive.
                     // Using inventory as the source of truth prevents the "flash then disappear"
                     // caused by racing between inventory and task loads.
-                    const sortedObjectIds = showProjectSummaryOnly ? [] : projectInventoryItems
+                    const sortedObjectIds = (showProjectSummaryOnly || isDeliverableSelection) ? [] : projectInventoryItems
                       .filter((item: any) => !item.parentProjectObjectId)
                       .filter((item: any) => (item.processArea || '').trim().toLowerCase() === normalizedProcessAreaFilter)
                       .filter((item: any) => {
@@ -6748,12 +6790,13 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                         const bObj = projectInventoryItems.find((o: any) => o.id === b);
                         return (aObj?.objectId || '').localeCompare(bObj?.objectId || '');
                       });
-                    const allGroupIds = projectTaskGroups.map(g => g.id);
                     const getTaskGroupProcessArea = (group: any) => (group?.processArea || '').trim();
-                    const filteredGroupIds = (showProjectSummaryOnly ? [] : allGroupIds).filter((id: string) => {
-                      const group = projectTaskGroups.find(g => g.id === id);
-                      return getTaskGroupProcessArea(group).toLowerCase() === normalizedProcessAreaFilter;
-                    });
+                    const effectiveGroupIds = isDeliverableSelection
+                      ? filteredGroupIds
+                      : (showProjectSummaryOnly ? [] : allGroupIds).filter((id: string) => {
+                          const group = projectTaskGroups.find(g => g.id === id);
+                          return getTaskGroupProcessArea(group).toLowerCase() === normalizedProcessAreaFilter;
+                        });
                     const projectProcessAreas = new Set<string>();
                     const summaryKey = parentCycleId ? `${project.id}_${parentCycleId}` : project.id;
                     Object.keys(projectHierarchySummaries[summaryKey]?.processAreas || {}).forEach((area) => {
@@ -6781,11 +6824,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                       });
                     const currentPlanRowKeys = [
                       ...sortedObjectIds.map((id: string) => objectRowKey(id)),
-                      ...filteredGroupIds.map((id: string) => taskGroupRowKey(id)),
+                      ...effectiveGroupIds.map((id: string) => taskGroupRowKey(id)),
                     ];
                     const orderedPlanRowKeys = mergeOrder(planRowOrder, currentPlanRowKeys);
                     const rowOrderIndex = new Map(orderedPlanRowKeys.map((k, idx) => [k, idx]));
-                    const sortedTaskGroupIds = [...filteredGroupIds].sort((a: string, b: string) => {
+                    const sortedTaskGroupIds = [...effectiveGroupIds].sort((a: string, b: string) => {
                       const groupA = projectTaskGroups.find(g => g.id === a);
                       const groupB = projectTaskGroups.find(g => g.id === b);
                       const areaA = getTaskGroupProcessArea(groupA).toLowerCase();
@@ -6799,7 +6842,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                       .map(id => projectTaskGroups.find(g => g.id === id))
                       .filter(Boolean) as any[];
                     const canReorderPlan = orderedPlanRowKeys.length > 1;
-                    const canAddDataObjectHere = !showProjectSummaryOnly && !!activeProjectId;
+                    const canAddDataObjectHere = !isDeliverableSelection && !showProjectSummaryOnly && !!activeProjectId;
                     const activePlanGroup = selectedItem?.type === 'processArea' ? selectedItem.area : '';
                     const taskFieldSx = {
                       width: '100%',
@@ -6897,7 +6940,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                           );
                         })()}
 
-                        {isPlanningPlanHierarchy && (
+                        {isPlanningPlanHierarchy && selectedItem.type !== 'deliverable' && (
                           <PlanningDeliverablesTracker
                             projectId={project.id}
                             projectName={project.name}
@@ -6954,7 +6997,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                               <MenuItem key={p.id} value={p.id}>{p.name || p.email}</MenuItem>
                             ))}
                           </TextField>
-                          {selectedItem?.type !== 'processArea' && (
+                          {selectedItem?.type !== 'processArea' && selectedItem?.type !== 'deliverable' && (
                             <TextField
                               select
                               size="small"
@@ -6995,7 +7038,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                               ))
                             )}
                           </Box>
-                        ) : sortedObjectIds.length === 0 && filteredGroupIds.length === 0 ? (
+                          ) : sortedObjectIds.length === 0 && effectiveGroupIds.length === 0 ? (
                           <Alert severity="info">No tasks added to plan yet</Alert>
                         ) : (
                           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
@@ -8025,7 +8068,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                               if (planAssignedFilter && !groupTasks.some(t => t.draUserId === planAssignedFilter || t.developerUserId === planAssignedFilter)) return null;
                               return (
                                 <React.Fragment key={`group-${group.id}`}>
-                                  {showGroupAreaHeader && selectedItem?.type !== 'processArea' && (
+                                  {showGroupAreaHeader && selectedItem?.type !== 'processArea' && !isDeliverableSelection && (
                                     <Box sx={{ px: 0.5, pt: groupIndex === 0 ? 1.25 : 1.25, pb: 0.25 }}>
                                       <Typography variant="caption" sx={{ color: planAccentColor, letterSpacing: '0.08em', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
                                         {renderHierarchyIcon('planGroup', planAccentColor, '0.8rem', activeCycleId || undefined, groupArea || undefined)}
@@ -8144,7 +8187,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                   {isExpanded && (
                                     <Box sx={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
                                       {/* ── Member objects section ── */}
-                                      {(() => {
+                                      {!isDeliverableSelection && (() => {
                                         const memberIds: string[] = Array.isArray(group.members) ? group.members : [];
                                         const directTasks = groupTasks.filter((t: any) => !t.projectObjectId);
                                         const pickerOpen = groupObjectPickerGroupId === group.id;
@@ -11227,6 +11270,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
             <Typography variant="body2" sx={{ fontWeight: 600 }}>
               {selectedItem?.type === 'processArea' && selectedItem?.projectId
                 ? getProcessAreaDisplayName(selectedItem.projectId, selectedItem.area)
+                : selectedItem?.type === 'deliverable'
+                  ? (PLAN_DELIVERABLE_NODES.find((node) => node.id === selectedItem.deliverableId)?.label || 'Selected Deliverable')
                 : 'Additional Grouping (Unassigned)'}
             </Typography>
           </Box>
@@ -11259,6 +11304,15 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                 console.log('Task group created successfully:', response.data);
                 const newGroup = response.data.data;
                 setProjectTaskGroups([...projectTaskGroups, newGroup]);
+                if (selectedItem?.type === 'deliverable' && newGroup?.id) {
+                  setDeliverableTaskGroupAssignments((prev) => ({
+                    ...prev,
+                    [activeProjectId]: {
+                      ...(prev[activeProjectId] || {}),
+                      [newGroup.id]: selectedItem.deliverableId,
+                    },
+                  }));
+                }
                 setTaskGroupDialogOpen(false);
                 setNewTaskGroupName('');
                 setNewTaskGroupProcessArea('');
