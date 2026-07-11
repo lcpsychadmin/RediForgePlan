@@ -6736,7 +6736,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                     // The display label may be a user-defined description (e.g. "Master Data Management")
                     // which won't match the processAreaAccentOverrides key (e.g. "MDM").
                     const rawEffectiveArea = (selectedItem.type === 'processArea' ? selectedItem.area : selectedExecutionProcessArea || '').trim();
-                    const planAccentColor = rawEffectiveArea
+                    const planAccentColor = isDeliverableSelection
+                      ? deliverableAccent
+                      : rawEffectiveArea
                       ? getProcessAreaAccent(project.id, rawEffectiveArea, accentColor, parentCycleId || undefined)
                       : accentColor;
                     let parentCycleName = '';
