@@ -6258,17 +6258,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                     <Box sx={{ display: 'grid', gap: 0.5, pb: 0.5 }}>
                                       {PLAN_DELIVERABLE_NODES.map((node) => {
                                         const nodeAccent = node.isFuture ? 'rgba(255,255,255,0.7)' : node.accentColor;
-                                        const isStrategyNode = node.targetView === 'strategy';
-                                        const isInventoryNode = node.targetView === 'inventory';
-                                        const isRoadmapNode = node.targetView === 'roadmap';
-                                        const isStructureNode = node.targetView === 'structure';
-                                        const isPlanDeliverableNode = node.targetView === 'plan' || !node.targetView;
                                         const isNodeSelected =
-                                          (isPlanDeliverableNode && planningView === 'plan' && selectedItem?.type === 'deliverable' && selectedItem?.projectId === firstCycleProject.id && selectedItem?.deliverableId === node.id) ||
-                                          (isStrategyNode && planningView === 'strategy') ||
-                                          (isInventoryNode && planningView === 'inventory') ||
-                                          (isRoadmapNode && planningView === 'roadmap') ||
-                                          (isStructureNode && planningView === 'structure');
+                                          selectedItem?.type === 'deliverable' &&
+                                          selectedItem?.projectId === firstCycleProject.id &&
+                                          selectedItem?.deliverableId === node.id;
 
                                         return (
                                           <Box
