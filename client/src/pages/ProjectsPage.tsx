@@ -267,12 +267,15 @@ interface ProjectsPageProps {
 const PLAN_DELIVERABLE_NODES: Array<{
   id: string;
   label: string;
+  parentId?: string;
   targetView?: 'plan' | 'strategy' | 'inventory' | 'structure' | 'roadmap';
   isFuture?: boolean;
   accentColor: string;
   icon: HierarchyIconChoice;
 }> = [
-  { id: 'structureRolesCycles', label: 'Project Structure, Roles, and Mock Cycles', targetView: 'structure', accentColor: '#4FC3F7', icon: 'fa-diagram-project' },
+  { id: 'projectStructure', label: 'Project Structure', targetView: 'structure', accentColor: '#4FC3F7', icon: 'fa-diagram-project' },
+  { id: 'projectSettings', parentId: 'projectStructure', label: 'Project Settings', targetView: 'structure', accentColor: '#64B5F6', icon: 'settings' },
+  { id: 'projectMockCycles', parentId: 'projectStructure', label: 'Mock Cycles', targetView: 'structure', accentColor: '#FFB74D', icon: 'sync' },
   { id: 'processAreasRoles', label: 'Process Areas and Assigned Roles', targetView: 'structure', accentColor: '#7E57C2', icon: 'accountTree' },
   { id: 'objectInventory', label: 'Object Inventory by Process Area', targetView: 'inventory', accentColor: '#26A69A', icon: 'storage' },
   { id: 'migrationStrategy', label: 'Data Migration Strategy', targetView: 'strategy', accentColor: '#EC407A', icon: 'fa-file-lines' },
@@ -6564,8 +6567,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                 <Box sx={{ ml: 2.75 }}>
                                   {isPlanningPlanHierarchy ? (
                                     <Box sx={{ display: 'grid', gap: 0.5, pb: 0.5 }}>
-                                      {PLAN_DELIVERABLE_NODES.map((node) => {
+                                      {PLAN_DELIVERABLE_NODES.filter((candidate) => !candidate.parentId).map((node) => {
                                         const nodeAccent = node.isFuture ? 'rgba(255,255,255,0.7)' : node.accentColor;
+                                        const childNodes = PLAN_DELIVERABLE_NODES.filter((candidate) => candidate.parentId === node.id);
                                         const isEstimationNode = node.id === 'designBuildEstimation';
                                         const deliverableNodeKey = `${firstCycleProject.id}::${firstCycle?.id || ''}::${node.id}`;
                                         const summaryKey = firstCycle ? `${firstCycleProject.id}_${firstCycle.id}` : firstCycleProject.id;
@@ -6580,10 +6584,14 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                         const estimationProcessAreas = isEstimationNode
                                           ? Array.from(new Set([...assignedProcessAreas, ...cachedAreaKeys, ...activeInventoryAreas])).sort((a, b) => a.localeCompare(b))
                                           : [];
-                                        const isEstimationExpanded = (selectedItem?.type === 'deliverableProcessArea'
+                                        const hasExpandableChildren = (isEstimationNode && estimationProcessAreas.length > 0) || childNodes.length > 0;
+                                        const isNodeExpanded = (selectedItem?.type === 'deliverableProcessArea'
                                           && selectedItem?.projectId === firstCycleProject.id
                                           && selectedItem?.deliverableId === node.id)
                                           || expandedEstimationDeliverables.has(deliverableNodeKey);
+                                        const selectedChildNodeId = selectedItem?.type === 'deliverable' && selectedItem?.projectId === firstCycleProject.id
+                                          ? selectedItem.deliverableId
+                                          : null;
                                         const isNodeSelected =
                                           selectedItem?.type === 'deliverable' &&
                                           selectedItem?.projectId === firstCycleProject.id &&
@@ -6593,7 +6601,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                           <Box key={`${projectGroupKey}-${node.id}`}>
                                             <Box
                                               onClick={() => {
-                                                if (isEstimationNode && estimationProcessAreas.length > 0) {
+                                                if (hasExpandableChildren) {
                                                   setExpandedEstimationDeliverables((prev) => {
                                                     const next = new Set(prev);
                                                     if (next.has(deliverableNodeKey)) next.delete(deliverableNodeKey);
@@ -6601,6 +6609,13 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                                     return next;
                                                   });
                                                 }
+
+                                                const applyStructureSubview = (deliverableId: string) => {
+                                                  if (deliverableId === 'processAreasRoles') setMaintainFormView('assignment');
+                                                  else if (deliverableId === 'projectMockCycles') setMaintainFormView('cycle');
+                                                  else if (deliverableId === 'projectSettings' || deliverableId === 'projectStructure') setMaintainFormView('project');
+                                                };
+
                                                 if (firstCycle) {
                                                   handleHierarchySelection({
                                                     type: 'deliverable',
@@ -6615,7 +6630,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                                     deliverableId: node.id,
                                                   });
                                                 }
-                                                navigate('/planning/plan');
+                                                if (node.targetView === 'structure') {
+                                                  applyStructureSubview(node.id);
+                                                }
+                                                navigate(node.targetView ? `/planning/${node.targetView}` : '/planning/plan');
                                               }}
                                               sx={{
                                                 display: 'flex',
@@ -6644,7 +6662,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                                 '&:hover': { backgroundColor: isNodeSelected ? 'rgba(91, 103, 202, 0.24)' : 'rgba(255,255,255,0.06)' },
                                               }}
                                             >
-                                              {isEstimationNode && estimationProcessAreas.length > 0 && (
+                                              {hasExpandableChildren && (
                                                 <IconButton
                                                   size="small"
                                                   onClick={(e) => {
@@ -6658,7 +6676,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                                   }}
                                                   sx={{ p: 0.15, mr: 0.25 }}
                                                 >
-                                                  <ChevronRightIcon sx={{ fontSize: '0.82rem', color: 'text.secondary', transform: isEstimationExpanded ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
+                                                  <ChevronRightIcon sx={{ fontSize: '0.82rem', color: 'text.secondary', transform: isNodeExpanded ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
                                                 </IconButton>
                                               )}
                                               <Box sx={{ mr: 0.55, display: 'inline-flex', alignItems: 'center' }}>
@@ -6672,7 +6690,75 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                               )}
                                             </Box>
 
-                                            {isEstimationNode && estimationProcessAreas.length > 0 && isEstimationExpanded && (
+                                            {childNodes.length > 0 && isNodeExpanded && (
+                                              <Box sx={{ ml: 2.2, mt: 0.2, display: 'grid', gap: 0.35 }}>
+                                                {childNodes.map((childNode) => {
+                                                  const childAccent = childNode.isFuture ? 'rgba(255,255,255,0.7)' : childNode.accentColor;
+                                                  const childSelected = selectedChildNodeId === childNode.id;
+                                                  return (
+                                                    <Box
+                                                      key={`${projectGroupKey}-${node.id}-${childNode.id}`}
+                                                      onClick={() => {
+                                                        if (firstCycle) {
+                                                          handleHierarchySelection({
+                                                            type: 'deliverable',
+                                                            projectId: firstCycleProject.id,
+                                                            cycleId: firstCycle.id,
+                                                            deliverableId: childNode.id,
+                                                          });
+                                                        } else {
+                                                          handleHierarchySelection({
+                                                            type: 'deliverable',
+                                                            projectId: project.id,
+                                                            deliverableId: childNode.id,
+                                                          });
+                                                        }
+
+                                                        if (childNode.id === 'projectMockCycles') setMaintainFormView('cycle');
+                                                        else setMaintainFormView('project');
+
+                                                        navigate(childNode.targetView ? `/planning/${childNode.targetView}` : '/planning/plan');
+                                                      }}
+                                                      sx={{
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        minWidth: 0,
+                                                        width: '100%',
+                                                        maxWidth: '100%',
+                                                        overflow: 'hidden',
+                                                        py: 0.35,
+                                                        pl: 1.35,
+                                                        pr: 0.45,
+                                                        cursor: 'pointer',
+                                                        position: 'relative',
+                                                        borderRadius: 0.75,
+                                                        backgroundColor: childSelected ? 'rgba(91, 103, 202, 0.22)' : 'transparent',
+                                                        '&::before': childSelected ? {
+                                                          content: '""',
+                                                          position: 'absolute',
+                                                          left: 0,
+                                                          top: '3px',
+                                                          bottom: '3px',
+                                                          width: '3px',
+                                                          backgroundColor: childAccent,
+                                                          borderRadius: '2px',
+                                                        } : {},
+                                                        '&:hover': { backgroundColor: childSelected ? 'rgba(91, 103, 202, 0.25)' : 'rgba(255,255,255,0.06)' },
+                                                      }}
+                                                    >
+                                                      <Box sx={{ mr: 0.45, display: 'inline-flex', alignItems: 'center' }}>
+                                                        {renderIconChoice(childNode.icon, childAccent, '0.72rem')}
+                                                      </Box>
+                                                      <Typography variant="caption" sx={{ fontWeight: childSelected ? 700 : 500, color: childSelected ? childAccent : 'text.secondary', flex: '1 1 auto', minWidth: 0, maxWidth: '100%', width: 0, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                        {childNode.label}
+                                                      </Typography>
+                                                    </Box>
+                                                  );
+                                                })}
+                                              </Box>
+                                            )}
+
+                                            {isEstimationNode && estimationProcessAreas.length > 0 && isNodeExpanded && (
                                               <Box sx={{ ml: 2.2, mt: 0.2, display: 'grid', gap: 0.35 }}>
                                                 {estimationProcessAreas.map((area) => {
                                                   const areaSelected = selectedItem?.type === 'deliverableProcessArea'
