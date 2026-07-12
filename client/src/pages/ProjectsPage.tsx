@@ -7462,6 +7462,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                       );
                     }
                     const allGroupIds = projectTaskGroups.map(g => g.id);
+                    const isDesignBuildEstimationGroup = (group: any) => {
+                      const name = String(group?.name || '').trim().toLowerCase();
+                      return name.startsWith('design/build estimation -');
+                    };
                     const assignedDeliverableGroups = isDeliverableSelection
                       ? (deliverableTaskGroupAssignments[project.id] || {})
                       : {};
@@ -7471,6 +7475,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                     const allPlanTasks = projectTasks.filter((t) => {
                       if (!(t.projectObjectId || t.taskGroupId)) return false;
                       if (!isDeliverableSelection && t.taskGroupId) {
+                        const taskGroup = projectTaskGroups.find((group: any) => group.id === t.taskGroupId);
+                        if (isDesignBuildEstimationGroup(taskGroup)) return false;
                         const assignedDeliverableId = deliverableTaskGroupAssignments[project.id]?.[t.taskGroupId];
                         if (assignedDeliverableId) return false;
                       }
@@ -7536,6 +7542,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                       : (showProjectSummaryOnly ? [] : allGroupIds).filter((id: string) => {
                           const group = projectTaskGroups.find(g => g.id === id);
                           if (!group || isDeliverableAssignedGroup(project.id, group)) return false;
+                          if (isDesignBuildEstimationGroup(group)) return false;
                           return getTaskGroupProcessArea(group).toLowerCase() === normalizedProcessAreaFilter;
                         });
                     const projectProcessAreas = new Set<string>();
@@ -7550,6 +7557,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                     });
                     projectTaskGroups.forEach((group: any) => {
                       if (isDeliverableAssignedGroup(project.id, group)) return;
+                      if (isDesignBuildEstimationGroup(group)) return;
                       const label = (group.processArea || '').trim();
                       if (label) projectProcessAreas.add(label);
                     });
