@@ -7098,6 +7098,20 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                         });
                         return acc;
                       }, {} as Record<string, number>);
+                      const translucentMetricCardSx = {
+                        p: 1.25,
+                        border: `1px solid ${deliverableAccent}33`,
+                        background: 'linear-gradient(180deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%)',
+                        backdropFilter: 'blur(8px)',
+                      };
+                      const translucentPanelSx = {
+                        p: 1.5,
+                        border: `1px solid ${deliverableAccent}33`,
+                        background: 'linear-gradient(180deg, rgba(255,255,255,0.085) 0%, rgba(255,255,255,0.04) 100%)',
+                        backdropFilter: 'blur(8px)',
+                        boxShadow: '0 10px 28px rgba(0,0,0,0.14)',
+                      };
+                      const accentHeaderSx = { color: deliverableAccent, fontWeight: 700 };
 
                       return (
                         <Box>
@@ -7116,33 +7130,33 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                           {!isEstimationProcessAreaSelection && (
                             <>
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
-                                <LinearProgress variant="determinate" value={completionPct} sx={{ width: 180, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.1)', '& .MuiLinearProgress-bar': { backgroundColor: deliverableAccent, borderRadius: 3 } }} />
+                                <LinearProgress variant="determinate" value={completionPct} sx={{ width: 180, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.22)', '& .MuiLinearProgress-bar': { backgroundColor: deliverableAccent, borderRadius: 3 } }} />
                                 <Typography variant="body2" sx={{ color: deliverableAccent, fontWeight: 600 }}>{completionPct}% configured</Typography>
                               </Box>
 
                               <Box sx={{ display: 'grid', gap: 1, gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(160px, 1fr))', lg: 'repeat(6, minmax(140px, 1fr))' }, mb: 2 }}>
-                                <Paper sx={{ p: 1.25, border: '1px solid rgba(255,255,255,0.08)', backgroundColor: 'rgba(255,255,255,0.03)' }}>
-                                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>Inventory Objects</Typography>
-                                  <Typography variant="h6" sx={{ mt: 0.25, fontWeight: 700 }}>{objectRows.length}</Typography>
+                                <Paper sx={translucentMetricCardSx}>
+                                  <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.78)' }}>Inventory Objects</Typography>
+                                  <Typography variant="h6" sx={{ mt: 0.25, fontWeight: 700, color: deliverableAccent }}>{objectRows.length}</Typography>
                                 </Paper>
-                                <Paper sx={{ p: 1.25, border: '1px solid rgba(255,255,255,0.08)', backgroundColor: 'rgba(255,255,255,0.03)' }}>
-                                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>Process Areas</Typography>
-                                  <Typography variant="h6" sx={{ mt: 0.25, fontWeight: 700 }}>{displayedProcessAreaRows.length}</Typography>
+                                <Paper sx={translucentMetricCardSx}>
+                                  <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.78)' }}>Process Areas</Typography>
+                                  <Typography variant="h6" sx={{ mt: 0.25, fontWeight: 700, color: deliverableAccent }}>{displayedProcessAreaRows.length}</Typography>
                                 </Paper>
-                                <Paper sx={{ p: 1.25, border: '1px solid rgba(255,255,255,0.08)', backgroundColor: 'rgba(255,255,255,0.03)' }}>
-                                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>Auto Task Groups</Typography>
-                                  <Typography variant="h6" sx={{ mt: 0.25, fontWeight: 700 }}>{estimationGroups.length}</Typography>
+                                <Paper sx={translucentMetricCardSx}>
+                                  <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.78)' }}>Auto Task Groups</Typography>
+                                  <Typography variant="h6" sx={{ mt: 0.25, fontWeight: 700, color: deliverableAccent }}>{estimationGroups.length}</Typography>
                                 </Paper>
-                                <Paper sx={{ p: 1.25, border: '1px solid rgba(255,255,255,0.08)', backgroundColor: 'rgba(255,255,255,0.03)' }}>
-                                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>Configured Objects</Typography>
-                                  <Typography variant="h6" sx={{ mt: 0.25, fontWeight: 700 }}>{configuredCount}</Typography>
+                                <Paper sx={translucentMetricCardSx}>
+                                  <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.78)' }}>Configured Objects</Typography>
+                                  <Typography variant="h6" sx={{ mt: 0.25, fontWeight: 700, color: deliverableAccent }}>{configuredCount}</Typography>
                                 </Paper>
-                                <Paper sx={{ p: 1.25, border: '1px solid rgba(255,255,255,0.08)', backgroundColor: 'rgba(255,255,255,0.03)' }}>
-                                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>Missing Required Fields</Typography>
-                                  <Typography variant="h6" sx={{ mt: 0.25, fontWeight: 700 }}>{missingRequiredCount}</Typography>
+                                <Paper sx={translucentMetricCardSx}>
+                                  <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.78)' }}>Missing Required Fields</Typography>
+                                  <Typography variant="h6" sx={{ mt: 0.25, fontWeight: 700, color: deliverableAccent }}>{missingRequiredCount}</Typography>
                                 </Paper>
-                                <Paper sx={{ p: 1.25, border: `1px solid ${deliverableAccent}55`, backgroundColor: 'rgba(255,255,255,0.03)' }}>
-                                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>Design / Build / Total Hours</Typography>
+                                <Paper sx={{ ...translucentMetricCardSx, border: `1px solid ${deliverableAccent}66` }}>
+                                  <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.78)' }}>Design / Build / Total Hours</Typography>
                                   <Typography variant="body2" sx={{ mt: 0.25, fontWeight: 700, color: deliverableAccent }}>
                                     {totalDesignHours.toFixed(2)} / {totalBuildHours.toFixed(2)} / {totalHours.toFixed(2)}
                                   </Typography>
@@ -7152,30 +7166,30 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                           )}
 
                           {missingRequiredCount > 0 && (
-                            <Alert severity="warning" sx={{ mb: 1.25 }}>
+                            <Alert severity="warning" sx={{ mb: 1.25, border: `1px solid ${deliverableAccent}44`, backgroundColor: 'rgba(255,255,255,0.07)' }}>
                               {missingRequiredCount} object(s) are missing one or more required fields: Build Type, Factor Type, and Complexity.
                             </Alert>
                           )}
                           {unconfiguredCount > 0 && (
-                            <Alert severity="info" sx={{ mb: 1.25 }}>
+                            <Alert severity="info" sx={{ mb: 1.25, border: `1px solid ${deliverableAccent}44`, backgroundColor: 'rgba(255,255,255,0.07)' }}>
                               {unconfiguredCount} object(s) have required fields populated but no matching estimation matrix rows in Settings.
                             </Alert>
                           )}
 
-                          <Paper sx={{ p: 1.5, border: '1px solid rgba(255,255,255,0.08)', backgroundColor: 'rgba(255,255,255,0.02)', mb: 2 }}>
-                            <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>Process Area Effort Summary</Typography>
+                          <Paper sx={{ ...translucentPanelSx, mb: 2 }}>
+                            <Typography variant="subtitle2" sx={{ ...accentHeaderSx, mb: 1 }}>Process Area Effort Summary</Typography>
                             <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 90px 90px 90px 80px 90px', gap: 1, pb: 0.5, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-                              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>Process Area</Typography>
-                              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700, textAlign: 'right' }}>Objects</Typography>
-                              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700, textAlign: 'right' }}>Task Groups</Typography>
-                              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700, textAlign: 'right' }}>Design Hrs</Typography>
-                              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700, textAlign: 'right' }}>Build Hrs</Typography>
-                              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700, textAlign: 'right' }}>Total Hrs</Typography>
+                              <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>Process Area</Typography>
+                              <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700, textAlign: 'right' }}>Objects</Typography>
+                              <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700, textAlign: 'right' }}>Task Groups</Typography>
+                              <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700, textAlign: 'right' }}>Design Hrs</Typography>
+                              <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700, textAlign: 'right' }}>Build Hrs</Typography>
+                              <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700, textAlign: 'right' }}>Total Hrs</Typography>
                             </Box>
                             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.35, mt: 0.5 }}>
                               {displayedProcessAreaRows.map((areaRow) => (
                                 <Box key={areaRow.area} sx={{ display: 'grid', gridTemplateColumns: '1fr 90px 90px 90px 80px 90px', gap: 1, py: 0.35, borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                                  <Typography variant="body2" sx={{ fontWeight: 600 }}>{getProcessAreaDisplayName(project.id, areaRow.area, parentCycleId || undefined)}</Typography>
+                                  <Typography variant="body2" sx={{ fontWeight: 600, color: deliverableAccent }}>{getProcessAreaDisplayName(project.id, areaRow.area, parentCycleId || undefined)}</Typography>
                                   <Typography variant="body2" sx={{ textAlign: 'right' }}>{areaRow.objectCount}</Typography>
                                   <Typography variant="body2" sx={{ textAlign: 'right' }}>{areaRow.taskGroupCount}</Typography>
                                   <Typography variant="body2" sx={{ textAlign: 'right' }}>{areaRow.designHours.toFixed(2)}</Typography>
@@ -7190,23 +7204,23 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                           </Paper>
 
                           {displayedProcessAreaRows.map((areaRow) => (
-                            <Paper key={`area-objects-${areaRow.area}`} sx={{ p: 1.5, border: '1px solid rgba(255,255,255,0.08)', backgroundColor: 'rgba(255,255,255,0.02)', mb: 2 }}>
+                            <Paper key={`area-objects-${areaRow.area}`} sx={{ ...translucentPanelSx, mb: 2 }}>
                               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-                                <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                                <Typography variant="subtitle2" sx={accentHeaderSx}>
                                   {getProcessAreaDisplayName(project.id, areaRow.area, parentCycleId || undefined)}
                                 </Typography>
-                                <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                                <Typography variant="caption" sx={{ color: deliverableAccent }}>
                                   Design {areaRow.designHours.toFixed(2)}h · Build {areaRow.buildHours.toFixed(2)}h · Total {areaRow.hours.toFixed(2)}h
                                 </Typography>
                               </Box>
                               <Box sx={{ display: 'grid', gridTemplateColumns: '1.1fr 0.7fr 1.3fr 0.7fr 0.6fr 0.6fr 0.6fr', gap: 1, pb: 0.5, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-                                <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>Object</Typography>
-                                <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>Build Type</Typography>
-                                <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>Factor Type</Typography>
-                                <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>Complexity</Typography>
-                                <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700, textAlign: 'right' }}>Design</Typography>
-                                <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700, textAlign: 'right' }}>Build</Typography>
-                                <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700, textAlign: 'right' }}>Total</Typography>
+                                <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>Object</Typography>
+                                <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>Build Type</Typography>
+                                <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>Factor Type</Typography>
+                                <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>Complexity</Typography>
+                                <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700, textAlign: 'right' }}>Design</Typography>
+                                <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700, textAlign: 'right' }}>Build</Typography>
+                                <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700, textAlign: 'right' }}>Total</Typography>
                               </Box>
                               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.45, mt: 0.5 }}>
                                 {areaRow.rows.map((row) => (
@@ -7259,8 +7273,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                             </Paper>
                           ))}
 
-                          <Paper sx={{ p: 1.5, border: '1px solid rgba(255,255,255,0.08)', backgroundColor: 'rgba(255,255,255,0.02)' }}>
-                            <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>Task Hour Totals</Typography>
+                          <Paper sx={translucentPanelSx}>
+                            <Typography variant="subtitle2" sx={{ ...accentHeaderSx, mb: 1 }}>Task Hour Totals</Typography>
                             {Object.keys(taskTotals).length === 0 ? (
                               <Typography variant="body2" color="text.secondary">No task hours calculated yet.</Typography>
                             ) : (
