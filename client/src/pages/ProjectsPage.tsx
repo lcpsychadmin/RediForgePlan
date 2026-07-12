@@ -3415,12 +3415,15 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   }, [programs, mockCycles, projectsByMockCycle, projectsByProgram, projectHierarchySummaries, projectInventoryItems]);
 
   useEffect(() => {
-    const projectIds = Array.from(new Set(
-      Object.values(projectsByMockCycle)
-        .flat()
-        .map((project: any) => String(project?.id || '').trim())
-        .filter(Boolean)
-    ));
+    const projectRecords = Object.values(projectsByMockCycle)
+      .flat()
+      .map((project: any) => ({
+        id: String(project?.id || '').trim(),
+        nameKey: String(project?.name || '').trim().toLowerCase(),
+        programId: String(project?.programId || '').trim(),
+      }))
+      .filter((project) => !!project.id);
+    const projectIds = Array.from(new Set(projectRecords.map((project) => project.id)));
     if (projectIds.length === 0) {
       setProjectAssignedProcessAreas({});
       return;
@@ -3447,7 +3450,27 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
               .filter(Boolean)
           )).sort((a, b) => a.localeCompare(b));
         });
-        setProjectAssignedProcessAreas(nextMap);
+
+        // Some cycles may reference the same project by different IDs.
+        // Union assignments by program + project name so each cycle instance
+        // shows the full assigned area set.
+        const byProjectGroup: Record<string, Set<string>> = {};
+        projectRecords.forEach((project) => {
+          const groupKey = `${project.programId}::${project.nameKey}`;
+          if (!project.nameKey) return;
+          if (!byProjectGroup[groupKey]) byProjectGroup[groupKey] = new Set<string>();
+          (nextMap[project.id] || []).forEach((area) => byProjectGroup[groupKey].add(area));
+        });
+
+        const normalizedMap: Record<string, string[]> = { ...nextMap };
+        projectRecords.forEach((project) => {
+          const groupKey = `${project.programId}::${project.nameKey}`;
+          const groupedAreas = byProjectGroup[groupKey];
+          if (!groupedAreas || groupedAreas.size === 0) return;
+          normalizedMap[project.id] = Array.from(groupedAreas).sort((a, b) => a.localeCompare(b));
+        });
+
+        setProjectAssignedProcessAreas(normalizedMap);
       } catch {
         if (!cancelled) setProjectAssignedProcessAreas({});
       }
