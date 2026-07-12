@@ -1334,6 +1334,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   const [invDialogAppOptions, setInvDialogAppOptions] = useState<{id: string; name: string; applicationId: string}[]>([]);
   const [invDialogSubObjects, setInvDialogSubObjects] = useState<{name: string; description: string}[]>([]);
   const [invDialogSubLoading, setInvDialogSubLoading] = useState(false);
+  const [expandedInventoryParents, setExpandedInventoryParents] = useState<Set<string>>(new Set());
 
   // Project Inventory item dialog states
   const [projectInventoryDialogOpen, setProjectInventoryDialogOpen] = useState(false);
@@ -9526,12 +9527,24 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                           </Box>
                         ))}
 
-                        {getFilteredSortedInventoryItems().length === 0 ? (
+                        {(() => {
+                          const filteredInventoryItems = getFilteredSortedInventoryItems();
+                          const visibleParentIds = new Set(
+                            filteredInventoryItems
+                              .filter((entry: any) => !entry.parentProjectObjectId)
+                              .map((entry: any) => entry.id)
+                          );
+                          const renderedInventoryItems = filteredInventoryItems.filter((entry: any) => {
+                            if (!entry.parentProjectObjectId) return true;
+                            if (!visibleParentIds.has(entry.parentProjectObjectId)) return true;
+                            return expandedInventoryParents.has(entry.parentProjectObjectId);
+                          });
+                          return renderedInventoryItems.length === 0 ? (
                           <Box sx={{ gridColumn: '1 / -1', p: 2, textAlign: 'center', color: 'rgba(255,255,255,0.35)', fontSize: '0.85rem', backgroundColor: 'rgba(255,255,255,0.02)' }}>
                             No items in project inventory yet
                           </Box>
                         ) : (
-                          getFilteredSortedInventoryItems().map((item, idx) => {
+                          renderedInventoryItems.map((item, idx) => {
                             const rowBg = idx % 2 === 0 ? 'rgba(255,255,255,0.03)' : 'transparent';
                             const catalogObj = inventoryObjects.find(obj => obj.objectId === item.dataObjectId);
                             const description = item.subObjectDescription || catalogObj?.description || '';
@@ -9555,6 +9568,25 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                             return (
                               <React.Fragment key={item.id}>
                                 <Box sx={{ p: 0.85, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: rowBg, display: 'flex', alignItems: 'center', gap: 0.75, minHeight: 36 }}>
+                                  {!isSubObject && subObjectCount > 0 && (
+                                    <IconButton
+                                      size="small"
+                                      onClick={() => {
+                                        setExpandedInventoryParents((prev) => {
+                                          const next = new Set(prev);
+                                          if (next.has(item.id)) next.delete(item.id);
+                                          else next.add(item.id);
+                                          return next;
+                                        });
+                                      }}
+                                      sx={{ p: 0.1, mr: 0.1, color: 'rgba(255,255,255,0.6)' }}
+                                    >
+                                      <ChevronRightIcon sx={{ fontSize: '0.9rem', transform: expandedInventoryParents.has(item.id) ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
+                                    </IconButton>
+                                  )}
+                                  {!isSubObject && subObjectCount === 0 && (
+                                    <Box sx={{ width: 18, flexShrink: 0 }} />
+                                  )}
                                   {isSubObject && (
                                     <Box sx={{ width: 12, textAlign: 'center', color: 'rgba(255,255,255,0.4)', fontSize: '0.72rem', lineHeight: 1 }}>
                                       ↳
@@ -9665,7 +9697,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                               </React.Fragment>
                             );
                           })
-                        )}
+                        );
+                        })()}
                       </Box>
                     </Box>
                   </CardContent>
