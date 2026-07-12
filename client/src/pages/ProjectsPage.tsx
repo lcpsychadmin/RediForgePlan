@@ -1109,6 +1109,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   const [planningAdditionalProcessAreas, setPlanningAdditionalProcessAreas] = useState<Record<string, string[]>>({});
   const [hiddenProcessAreas, setHiddenProcessAreas] = useState<Record<string, string[]>>({});
   const [projectManualProcessAreas, setProjectManualProcessAreas] = useState<Record<string, string[]>>({});
+  const [projectAssignedProcessAreas, setProjectAssignedProcessAreas] = useState<Record<string, string[]>>({});
   const [selectedExecutionProcessArea, setSelectedExecutionProcessArea] = useState('');
   
   // State for expanded nodes in tree
@@ -2536,6 +2537,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
       const label = (areaName || '').trim();
       if (label && !additionalGroupSet.has(label.toLowerCase())) areas.add(label);
     });
+    const structureAssignedAreas = projectAssignedProcessAreas[projectId] || [];
+    structureAssignedAreas.forEach((areaName) => {
+      const label = (areaName || '').trim();
+      if (label && !additionalGroupSet.has(label.toLowerCase())) areas.add(label);
+    });
 
     const hiddenAreaSet = new Set((hiddenProcessAreas[key] || []).map((area) => (area || '').trim().toLowerCase()));
     const allAreas = Array.from(areas).filter((area) => !hiddenAreaSet.has((area || '').trim().toLowerCase()));
@@ -3407,6 +3413,50 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
       return { programs: nextPrograms, cycles: nextCycles, projects: nextProjects, projectGroups: nextProjectGroups, processAreas: nextProcessAreas };
     });
   }, [programs, mockCycles, projectsByMockCycle, projectsByProgram, projectHierarchySummaries, projectInventoryItems]);
+
+  useEffect(() => {
+    const projectIds = Array.from(new Set(
+      Object.values(projectsByMockCycle)
+        .flat()
+        .map((project: any) => String(project?.id || '').trim())
+        .filter(Boolean)
+    ));
+    if (projectIds.length === 0) {
+      setProjectAssignedProcessAreas({});
+      return;
+    }
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const responses = await Promise.all(projectIds.map(async (projectId) => {
+          try {
+            const response = await apiClient.get(`/api/hierarchy-preferences/project-role-assignments/${projectId}`);
+            const processAreas = Array.isArray(response.data?.data?.processAreas) ? response.data.data.processAreas : [];
+            return [projectId, processAreas] as const;
+          } catch {
+            return [projectId, []] as const;
+          }
+        }));
+        if (cancelled) return;
+        const nextMap: Record<string, string[]> = {};
+        responses.forEach(([projectId, areas]) => {
+          nextMap[projectId] = Array.from(new Set(
+            areas
+              .map((entry: any) => String(entry || '').trim())
+              .filter(Boolean)
+          )).sort((a, b) => a.localeCompare(b));
+        });
+        setProjectAssignedProcessAreas(nextMap);
+      } catch {
+        if (!cancelled) setProjectAssignedProcessAreas({});
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [projectsByMockCycle]);
 
   // Persist tree ordering.
   // Also ensure all project groups for expanded programs are auto-expanded so
