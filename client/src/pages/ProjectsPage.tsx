@@ -8211,6 +8211,250 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                         </Box>
                       );
                     }
+                    if (isObjectInventoryAreaSelection) {
+                      const selectedAreaNorm = (selectedItem.area || '').trim().toLowerCase();
+                      const inventoryById = new Map(projectInventoryItems.map((item: any) => [item.id, item]));
+                      const getRootInventoryItem = (item: any) => {
+                        let current = item;
+                        while (current?.parentProjectObjectId && inventoryById.has(current.parentProjectObjectId)) {
+                          current = inventoryById.get(current.parentProjectObjectId);
+                        }
+                        return current || item;
+                      };
+
+                      const areaItems = projectInventoryItems
+                        .filter((item: any) => {
+                          const root = getRootInventoryItem(item);
+                          const rootArea = String(root?.processArea || '').trim().toLowerCase();
+                          return rootArea === selectedAreaNorm;
+                        })
+                        .sort((a: any, b: any) => {
+                          const rootA = getRootInventoryItem(a);
+                          const rootB = getRootInventoryItem(b);
+                          const rootNameA = String(rootA?.dataObjectId || rootA?.objectId || '').toLowerCase();
+                          const rootNameB = String(rootB?.dataObjectId || rootB?.objectId || '').toLowerCase();
+                          if (rootNameA !== rootNameB) return rootNameA.localeCompare(rootNameB);
+
+                          const aIsSub = !!a.parentProjectObjectId;
+                          const bIsSub = !!b.parentProjectObjectId;
+                          if (aIsSub !== bIsSub) return aIsSub ? 1 : -1;
+
+                          const suffixA = String(a.subObjectSuffix || '').toLowerCase();
+                          const suffixB = String(b.subObjectSuffix || '').toLowerCase();
+                          return suffixA.localeCompare(suffixB);
+                        });
+
+                      const visibleParentIds = new Set(
+                        areaItems
+                          .filter((entry: any) => !entry.parentProjectObjectId)
+                          .map((entry: any) => entry.id)
+                      );
+                      const renderedAreaItems = areaItems.filter((entry: any) => {
+                        if (!entry.parentProjectObjectId) return true;
+                        if (!visibleParentIds.has(entry.parentProjectObjectId)) return true;
+                        return expandedInventoryParents.has(entry.parentProjectObjectId);
+                      });
+
+                      const openAreaInventoryDialog = () => {
+                        setSelectedProjectForInventory(project.id);
+                        setEditingInventoryItemId(null);
+                        setInventoryDialogProcessAreaFilter(selectedItem.area);
+                        setProjectInventoryItem({
+                          ...getEmptyProjectInventoryItem(),
+                          processArea: selectedItem.area,
+                        });
+                        setProjectInventoryDialogOpen(true);
+                      };
+
+                      return (
+                        <Box>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1.5 }}>
+                            {parentProgramName && <><Typography variant="caption" color="text.disabled">{parentProgramName}</Typography><Typography variant="caption" color="text.disabled">›</Typography></>}
+                            {parentCycleName && <><Typography variant="caption" color="text.disabled">{parentCycleName}</Typography><Typography variant="caption" color="text.disabled">›</Typography></>}
+                            <Typography variant="caption" sx={{ color: accentColor, fontWeight: 600 }}>{project.name}</Typography>
+                            <Typography variant="caption" color="text.disabled">›</Typography>
+                            <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>{deliverableLabel}</Typography>
+                            <Typography variant="caption" color="text.disabled">›</Typography>
+                            <Typography variant="caption" sx={{ color: selectedAreaAccent, fontWeight: 700 }}>{selectedAreaLabel}</Typography>
+                          </Box>
+
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1.5, mb: 1.5, flexWrap: 'wrap' }}>
+                            <Typography variant="h4" sx={{ fontWeight: 700, color: selectedAreaAccent, fontSize: { xs: '1.55rem', sm: '2.125rem' } }}>
+                              {selectedAreaLabel} Inventory
+                            </Typography>
+                            <Button
+                              variant="contained"
+                              startIcon={<AddIcon />}
+                              onClick={openAreaInventoryDialog}
+                              sx={{
+                                background: `linear-gradient(135deg, ${selectedAreaAccent} 0%, ${selectedAreaAccent}99 100%)`,
+                                textTransform: 'none',
+                                fontWeight: 700,
+                                boxShadow: 'none',
+                              }}
+                            >
+                              Add to Inventory
+                            </Button>
+                          </Box>
+
+                          <Paper sx={{ p: 1.25, border: `1px solid ${selectedAreaAccent}44`, backgroundColor: 'rgba(255,255,255,0.04)' }}>
+                            <Box sx={{ overflowX: 'auto' }}>
+                              <Box sx={{ minWidth: 1120, display: 'grid', gridTemplateColumns: '2.2fr 0.9fr 0.9fr 1.05fr 0.75fr 0.75fr 0.55fr', gap: 0, borderRadius: 1.25, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)' }}>
+                                {['DATA OBJECT', 'PROCESS AREA', 'COMPLEXITY', 'DEPLOY. DISPOSITION', 'BUILD TYPE', 'OBJECT TYPE', 'ACTIONS'].map((header) => (
+                                  <Box key={header} sx={{ backgroundColor: 'rgba(255,255,255,0.07)', p: 1, fontWeight: 700, color: 'rgba(255,255,255,0.5)', fontSize: '0.72rem', letterSpacing: '0.4px' }}>
+                                    {header}
+                                  </Box>
+                                ))}
+
+                                {renderedAreaItems.length === 0 ? (
+                                  <Box sx={{ gridColumn: '1 / -1', p: 2, textAlign: 'center', color: 'rgba(255,255,255,0.35)', fontSize: '0.85rem', backgroundColor: 'rgba(255,255,255,0.02)' }}>
+                                    No inventory items assigned to this process area yet
+                                  </Box>
+                                ) : renderedAreaItems.map((item: any, idx: number) => {
+                                  const rowBg = idx % 2 === 0 ? 'rgba(255,255,255,0.03)' : 'transparent';
+                                  const catalogObj = inventoryObjects.find((obj) => obj.objectId === item.dataObjectId);
+                                  const description = item.subObjectDescription || catalogObj?.description || '';
+                                  const inPlan = projectTasks.some((task: any) => task.projectObjectId === item.id);
+                                  const isSubObject = !!item.parentProjectObjectId;
+                                  const parentObject = isSubObject
+                                    ? projectInventoryItems.find((entry: any) => entry.id === item.parentProjectObjectId)
+                                    : null;
+                                  const subObjectCount = !isSubObject ? getSubObjectsForParent(item.id).length : 0;
+
+                                  const selectSx = {
+                                    width: '100%',
+                                    p: '4px 8px',
+                                    border: '1px solid rgba(255,255,255,0.15)',
+                                    borderRadius: '6px',
+                                    fontSize: '0.78rem',
+                                    color: '#DBE7FF',
+                                    backgroundColor: 'rgba(255,255,255,0.06)',
+                                  } as const;
+
+                                  return (
+                                    <React.Fragment key={item.id}>
+                                      <Box sx={{ p: 0.85, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: rowBg, display: 'flex', alignItems: 'center', gap: 0.75, minHeight: 36 }}>
+                                        {!isSubObject && subObjectCount > 0 && (
+                                          <IconButton
+                                            size="small"
+                                            onClick={() => {
+                                              setExpandedInventoryParents((prev) => {
+                                                const next = new Set(prev);
+                                                if (next.has(item.id)) next.delete(item.id);
+                                                else next.add(item.id);
+                                                return next;
+                                              });
+                                            }}
+                                            sx={{ p: 0.1, mr: 0.1, color: 'rgba(255,255,255,0.6)' }}
+                                          >
+                                            <ChevronRightIcon sx={{ fontSize: '0.9rem', transform: expandedInventoryParents.has(item.id) ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
+                                          </IconButton>
+                                        )}
+                                        {!isSubObject && subObjectCount === 0 && <Box sx={{ width: 18, flexShrink: 0 }} />}
+                                        {isSubObject && (
+                                          <Box sx={{ width: 12, textAlign: 'center', color: 'rgba(255,255,255,0.4)', fontSize: '0.72rem', lineHeight: 1 }}>↳</Box>
+                                        )}
+                                        <Box sx={{ px: 0.7, py: 0.22, borderRadius: 0.8, backgroundColor: 'rgba(255,255,255,0.08)', color: '#D6E2FF', fontFamily: 'monospace', fontWeight: 700, fontSize: '0.8rem', lineHeight: 1.1, whiteSpace: 'nowrap' }}>
+                                          {item.dataObjectId}
+                                        </Box>
+                                        <Typography sx={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.79rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>
+                                          {description || 'No description'}
+                                        </Typography>
+                                        {isSubObject && parentObject && (
+                                          <Box sx={{ px: 0.55, py: 0.1, borderRadius: 0.7, backgroundColor: 'rgba(124,131,208,0.18)', border: '1px solid rgba(124,131,208,0.35)', color: '#AAB4F2', fontSize: '0.62rem', fontWeight: 700, flexShrink: 0 }}>
+                                            Sub of {parentObject.objectId}
+                                          </Box>
+                                        )}
+                                        {!isSubObject && subObjectCount > 0 && (
+                                          <Box sx={{ px: 0.55, py: 0.1, borderRadius: 0.7, backgroundColor: 'rgba(86,180,255,0.18)', border: '1px solid rgba(86,180,255,0.35)', color: '#8ED8FF', fontSize: '0.62rem', fontWeight: 700, flexShrink: 0 }}>
+                                            {subObjectCount} sub-object{subObjectCount === 1 ? '' : 's'}
+                                          </Box>
+                                        )}
+                                        {inPlan && (
+                                          <Box sx={{ px: 0.55, py: 0.1, borderRadius: 0.7, backgroundColor: 'rgba(54,182,113,0.2)', border: '1px solid rgba(54,182,113,0.4)', color: '#73E0A5', fontSize: '0.65rem', fontWeight: 700, flexShrink: 0 }}>
+                                            In Plan
+                                          </Box>
+                                        )}
+                                      </Box>
+
+                                      <Box sx={{ p: 0.6, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: rowBg }}>
+                                        {isSubObject ? (
+                                          <Typography sx={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.75)', px: 0.4, py: 0.4 }}>{item.processArea || '—'}</Typography>
+                                        ) : (
+                                          <Box component="select" value={item.processArea || ''} onChange={(e) => handleProjectInventoryInlineChange(item.id, 'processArea', e.target.value)} sx={selectSx}>
+                                            <option value="">—</option>
+                                            {processAreaOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+                                          </Box>
+                                        )}
+                                      </Box>
+
+                                      <Box sx={{ p: 0.6, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: rowBg }}>
+                                        {isSubObject ? (
+                                          <Typography sx={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.75)', px: 0.4, py: 0.4 }}>{item.complexity || '—'}</Typography>
+                                        ) : (
+                                          <Box component="select" value={item.complexity || ''} onChange={(e) => handleProjectInventoryInlineChange(item.id, 'complexity', e.target.value)} sx={selectSx}>
+                                            <option value="">—</option>
+                                            {complexityOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+                                          </Box>
+                                        )}
+                                      </Box>
+
+                                      <Box sx={{ p: 0.6, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: rowBg }}>
+                                        {isSubObject ? (
+                                          <Typography sx={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.75)', px: 0.4, py: 0.4 }}>{item.deploymentDisposition || '—'}</Typography>
+                                        ) : (
+                                          <Box component="select" value={item.deploymentDisposition || ''} onChange={(e) => handleProjectInventoryInlineChange(item.id, 'deploymentDisposition', e.target.value)} sx={selectSx}>
+                                            <option value="">—</option>
+                                            {deploymentDispositionOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+                                          </Box>
+                                        )}
+                                      </Box>
+
+                                      <Box sx={{ p: 0.6, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: rowBg }}>
+                                        {isSubObject ? (
+                                          <Typography sx={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.75)', px: 0.4, py: 0.4 }}>{item.buildType || '—'}</Typography>
+                                        ) : (
+                                          <Box component="select" value={item.buildType || ''} onChange={(e) => handleProjectInventoryInlineChange(item.id, 'buildType', e.target.value)} sx={selectSx}>
+                                            <option value="">—</option>
+                                            {buildTypeOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+                                          </Box>
+                                        )}
+                                      </Box>
+
+                                      <Box sx={{ p: 0.6, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: rowBg }}>
+                                        {isSubObject ? (
+                                          <Typography sx={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.75)', px: 0.4, py: 0.4 }}>{item.objectType || '—'}</Typography>
+                                        ) : (
+                                          <Box component="select" value={item.objectType || ''} onChange={(e) => handleProjectInventoryInlineChange(item.id, 'objectType', e.target.value)} sx={selectSx}>
+                                            <option value="">—</option>
+                                            {objectTypeOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+                                          </Box>
+                                        )}
+                                      </Box>
+
+                                      <Box sx={{ p: 0.45, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: rowBg, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 0.2 }}>
+                                        {isSubObject ? (
+                                          <Typography sx={{ color: 'rgba(255,255,255,0.3)', fontSize: '0.85rem' }}>—</Typography>
+                                        ) : (
+                                          <>
+                                            <IconButton size="small" title="Edit" onClick={() => handleEditInventoryItem(item)} sx={{ color: 'rgba(255,255,255,0.5)', '&:hover': { color: 'white', backgroundColor: 'rgba(255,255,255,0.08)' } }}>
+                                              <EditIcon sx={{ fontSize: '0.95rem' }} />
+                                            </IconButton>
+                                            <IconButton size="small" title="Delete" onClick={() => handleDeleteInventoryItem(item)} sx={{ color: 'rgba(255,255,255,0.4)', '&:hover': { color: '#ef5350', backgroundColor: 'rgba(239,83,80,0.1)' } }}>
+                                              <DeleteIcon sx={{ fontSize: '0.95rem' }} />
+                                            </IconButton>
+                                          </>
+                                        )}
+                                      </Box>
+                                    </React.Fragment>
+                                  );
+                                })}
+                              </Box>
+                            </Box>
+                          </Paper>
+                        </Box>
+                      );
+                    }
                     const allGroupIds = projectTaskGroups.map(g => g.id);
                     const isDesignBuildEstimationGroup = (group: any) => {
                       const name = String(group?.name || '').trim().toLowerCase();
