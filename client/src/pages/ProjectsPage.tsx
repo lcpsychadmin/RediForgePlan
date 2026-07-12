@@ -9649,12 +9649,18 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                 </Box>
 
                                 <Box sx={{ p: 0.45, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: rowBg, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 0.2 }}>
-                                  <IconButton size="small" title="Edit" onClick={() => handleEditInventoryItem(item)} sx={{ color: 'rgba(255,255,255,0.5)', '&:hover': { color: 'white', backgroundColor: 'rgba(255,255,255,0.08)' } }}>
-                                    <EditIcon sx={{ fontSize: '0.95rem' }} />
-                                  </IconButton>
-                                  <IconButton size="small" title="Delete" onClick={() => handleDeleteInventoryItem(item)} sx={{ color: 'rgba(255,255,255,0.4)', '&:hover': { color: '#ef5350', backgroundColor: 'rgba(239,83,80,0.1)' } }}>
-                                    <DeleteIcon sx={{ fontSize: '0.95rem' }} />
-                                  </IconButton>
+                                  {isSubObject ? (
+                                    <Typography sx={{ color: 'rgba(255,255,255,0.3)', fontSize: '0.85rem' }}>—</Typography>
+                                  ) : (
+                                    <>
+                                      <IconButton size="small" title="Edit" onClick={() => handleEditInventoryItem(item)} sx={{ color: 'rgba(255,255,255,0.5)', '&:hover': { color: 'white', backgroundColor: 'rgba(255,255,255,0.08)' } }}>
+                                        <EditIcon sx={{ fontSize: '0.95rem' }} />
+                                      </IconButton>
+                                      <IconButton size="small" title="Delete" onClick={() => handleDeleteInventoryItem(item)} sx={{ color: 'rgba(255,255,255,0.4)', '&:hover': { color: '#ef5350', backgroundColor: 'rgba(239,83,80,0.1)' } }}>
+                                        <DeleteIcon sx={{ fontSize: '0.95rem' }} />
+                                      </IconButton>
+                                    </>
+                                  )}
                                 </Box>
                               </React.Fragment>
                             );
