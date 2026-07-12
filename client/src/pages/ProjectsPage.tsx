@@ -4778,11 +4778,21 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
         });
       }
 
-      // Invalidate queries
-      queryClient.invalidateQueries({ queryKey: ['programs'] });
-      queryClient.invalidateQueries({ queryKey: ['mockCycles'] });
-      queryClient.invalidateQueries({ queryKey: ['projectsByMockCycle'] });
-      queryClient.invalidateQueries({ queryKey: ['projectsByProgram'] });
+      // Refresh all hierarchy data sources used by maintain + tree views.
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['programs'] }),
+        queryClient.invalidateQueries({ queryKey: ['mockCycles'] }),
+        queryClient.invalidateQueries({ queryKey: ['allMockCyclesForMaintain'] }),
+        queryClient.invalidateQueries({ queryKey: ['projectsByMockCycle'] }),
+        queryClient.invalidateQueries({ queryKey: ['projectsByProgram'] }),
+      ]);
+
+      await Promise.all([
+        queryClient.refetchQueries({ queryKey: ['mockCycles'], type: 'active' }),
+        queryClient.refetchQueries({ queryKey: ['allMockCyclesForMaintain'], type: 'active' }),
+        queryClient.refetchQueries({ queryKey: ['projectsByMockCycle'], type: 'active' }),
+        queryClient.refetchQueries({ queryKey: ['projectsByProgram'], type: 'active' }),
+      ]);
 
       setEditDialogOpen(false);
     } catch (error) {
