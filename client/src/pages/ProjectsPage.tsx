@@ -4462,6 +4462,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
       return mockCycles[itemId]?.length ?? 0;
     } else if (type === 'cycle') {
       return projectsByMockCycle[itemId]?.length ?? 0;
+    } else if (type === 'project') {
+      return Object.values(mockCycles)
+        .flat()
+        .filter((cycle: any) => cycle?.projectId === itemId).length;
     }
     return 0;
   };
@@ -4618,7 +4622,26 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
       setDeleteDialogOpen(false);
     } catch (error: any) {
       console.error('Failed to delete:', error);
-      const msg = error?.response?.data?.message || error?.response?.status || error?.message || 'Unknown error';
+      const rawMessage = String(
+        error?.response?.data?.error
+        || error?.response?.data?.message
+        || error?.message
+        || ''
+      ).trim();
+      let msg = rawMessage || String(error?.response?.status || 'Unknown error');
+
+      if (error?.response?.status === 409) {
+        if (/Cannot delete project with existing mock cycles/i.test(rawMessage)) {
+          msg = 'Cannot delete project because it is linked to one or more mock cycles. Reassign or delete those mock cycles first.';
+        } else if (/Cannot delete project with existing project objects/i.test(rawMessage)) {
+          msg = 'Cannot delete project because it still has inventory objects. Remove those objects first.';
+        } else if (/Cannot delete project with existing task groups/i.test(rawMessage)) {
+          msg = 'Cannot delete project because it still has task groups. Remove task groups first.';
+        } else if (/Cannot delete project with existing tasks/i.test(rawMessage)) {
+          msg = 'Cannot delete project because it still has tasks. Remove tasks first.';
+        }
+      }
+
       alert(`Failed to delete: ${msg}`);
     } finally {
       setIsDeleting(false);
