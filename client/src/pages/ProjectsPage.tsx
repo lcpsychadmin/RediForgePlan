@@ -2536,12 +2536,12 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
     const manualAssignedAreas = projectManualProcessAreas[projectId] || [];
     manualAssignedAreas.forEach((areaName) => {
       const label = (areaName || '').trim();
-      if (label && !additionalGroupSet.has(label.toLowerCase())) areas.add(label);
+      if (label) areas.add(label);
     });
     const structureAssignedAreas = projectAssignedProcessAreas[projectId] || [];
     structureAssignedAreas.forEach((areaName) => {
       const label = (areaName || '').trim();
-      if (label && !additionalGroupSet.has(label.toLowerCase())) {
+      if (label) {
         areas.add(label);
         structureAssignedAreaNorms.add(label.toLowerCase());
       }
