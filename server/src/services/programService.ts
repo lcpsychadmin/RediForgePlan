@@ -11,6 +11,8 @@ export class ProgramService {
     if (this.mockCycleCriteriaColumnsReady) return;
     await db.query(
       `ALTER TABLE mock_cycles
+        ADD COLUMN IF NOT EXISTS description TEXT,
+        ADD COLUMN IF NOT EXISTS test_phase VARCHAR(255),
          ADD COLUMN IF NOT EXISTS entry_criteria TEXT,
          ADD COLUMN IF NOT EXISTS exit_criteria TEXT,
          ADD COLUMN IF NOT EXISTS entry_criteria_items JSONB NOT NULL DEFAULT '[]'::jsonb,
@@ -116,7 +118,7 @@ export class ProgramService {
     await this.ensureMockCycleCriteriaColumns();
     // Hierarchy view: only cycles marked in_hierarchy = true
     const result = await db.query(
-      `SELECT mc.id, p.program_id, mc.project_id, mc.name, mc.start_date, mc.end_date, mc.accent_color, mc.schedule_mode, mc.entry_criteria, mc.exit_criteria, mc.entry_criteria_items, mc.exit_criteria_items, mc.target_success_rate, mc.target_coverage_rate, mc.total_records_scope, mc.invalid_records, mc.records_attempted, mc.load_errors, mc.records_loaded, mc.load_success_rate, mc.load_coverage_rate, mc.lead_approved_by, mc.lead_approved_at, mc.project_manager_approved_by, mc.project_manager_approved_at, mc.in_hierarchy, mc.created_at, mc.updated_at
+      `SELECT mc.id, p.program_id, mc.project_id, mc.name, mc.description, mc.test_phase, mc.start_date, mc.end_date, mc.accent_color, mc.schedule_mode, mc.entry_criteria, mc.exit_criteria, mc.entry_criteria_items, mc.exit_criteria_items, mc.target_success_rate, mc.target_coverage_rate, mc.total_records_scope, mc.invalid_records, mc.records_attempted, mc.load_errors, mc.records_loaded, mc.load_success_rate, mc.load_coverage_rate, mc.lead_approved_by, mc.lead_approved_at, mc.project_manager_approved_by, mc.project_manager_approved_at, mc.in_hierarchy, mc.created_at, mc.updated_at
        FROM mock_cycles mc
        JOIN projects p ON p.id = mc.project_id
        WHERE p.program_id = $1
@@ -132,7 +134,7 @@ export class ProgramService {
     // Maintain view: only active cycles (in_hierarchy = true)
     // Both hierarchy and maintain views show the same filtered list
     const result = await db.query(
-      `SELECT mc.id, p.program_id, mc.project_id, mc.name, mc.start_date, mc.end_date, mc.accent_color, mc.schedule_mode, mc.entry_criteria, mc.exit_criteria, mc.entry_criteria_items, mc.exit_criteria_items, mc.target_success_rate, mc.target_coverage_rate, mc.total_records_scope, mc.invalid_records, mc.records_attempted, mc.load_errors, mc.records_loaded, mc.load_success_rate, mc.load_coverage_rate, mc.lead_approved_by, mc.lead_approved_at, mc.project_manager_approved_by, mc.project_manager_approved_at, mc.in_hierarchy, mc.created_at, mc.updated_at
+      `SELECT mc.id, p.program_id, mc.project_id, mc.name, mc.description, mc.test_phase, mc.start_date, mc.end_date, mc.accent_color, mc.schedule_mode, mc.entry_criteria, mc.exit_criteria, mc.entry_criteria_items, mc.exit_criteria_items, mc.target_success_rate, mc.target_coverage_rate, mc.total_records_scope, mc.invalid_records, mc.records_attempted, mc.load_errors, mc.records_loaded, mc.load_success_rate, mc.load_coverage_rate, mc.lead_approved_by, mc.lead_approved_at, mc.project_manager_approved_by, mc.project_manager_approved_at, mc.in_hierarchy, mc.created_at, mc.updated_at
        FROM mock_cycles mc
        JOIN projects p ON p.id = mc.project_id
        WHERE p.program_id = $1
@@ -146,7 +148,7 @@ export class ProgramService {
   async getMockCyclesByProject(projectId: string) {
     await this.ensureMockCycleCriteriaColumns();
     const result = await db.query(
-      `SELECT mc.id, p.program_id, mc.project_id, mc.name, mc.start_date, mc.end_date, mc.accent_color, mc.schedule_mode, mc.entry_criteria, mc.exit_criteria, mc.entry_criteria_items, mc.exit_criteria_items, mc.target_success_rate, mc.target_coverage_rate, mc.total_records_scope, mc.invalid_records, mc.records_attempted, mc.load_errors, mc.records_loaded, mc.load_success_rate, mc.load_coverage_rate, mc.lead_approved_by, mc.lead_approved_at, mc.project_manager_approved_by, mc.project_manager_approved_at, mc.in_hierarchy, mc.created_at, mc.updated_at
+      `SELECT mc.id, p.program_id, mc.project_id, mc.name, mc.description, mc.test_phase, mc.start_date, mc.end_date, mc.accent_color, mc.schedule_mode, mc.entry_criteria, mc.exit_criteria, mc.entry_criteria_items, mc.exit_criteria_items, mc.target_success_rate, mc.target_coverage_rate, mc.total_records_scope, mc.invalid_records, mc.records_attempted, mc.load_errors, mc.records_loaded, mc.load_success_rate, mc.load_coverage_rate, mc.lead_approved_by, mc.lead_approved_at, mc.project_manager_approved_by, mc.project_manager_approved_at, mc.in_hierarchy, mc.created_at, mc.updated_at
        FROM mock_cycles mc
        JOIN projects p ON p.id = mc.project_id
        WHERE mc.project_id = $1
@@ -159,7 +161,7 @@ export class ProgramService {
   async getMockCycleById(mockCycleId: string) {
     await this.ensureMockCycleCriteriaColumns();
     const result = await db.query(
-      `SELECT mc.id, p.program_id, mc.project_id, mc.name, mc.start_date, mc.end_date, mc.accent_color, mc.schedule_mode, mc.entry_criteria, mc.exit_criteria, mc.entry_criteria_items, mc.exit_criteria_items, mc.target_success_rate, mc.target_coverage_rate, mc.total_records_scope, mc.invalid_records, mc.records_attempted, mc.load_errors, mc.records_loaded, mc.load_success_rate, mc.load_coverage_rate, mc.lead_approved_by, mc.lead_approved_at, mc.project_manager_approved_by, mc.project_manager_approved_at, mc.in_hierarchy, mc.created_at, mc.updated_at
+      `SELECT mc.id, p.program_id, mc.project_id, mc.name, mc.description, mc.test_phase, mc.start_date, mc.end_date, mc.accent_color, mc.schedule_mode, mc.entry_criteria, mc.exit_criteria, mc.entry_criteria_items, mc.exit_criteria_items, mc.target_success_rate, mc.target_coverage_rate, mc.total_records_scope, mc.invalid_records, mc.records_attempted, mc.load_errors, mc.records_loaded, mc.load_success_rate, mc.load_coverage_rate, mc.lead_approved_by, mc.lead_approved_at, mc.project_manager_approved_by, mc.project_manager_approved_at, mc.in_hierarchy, mc.created_at, mc.updated_at
        FROM mock_cycles mc
        JOIN projects p ON p.id = mc.project_id
        WHERE mc.id = $1`,
@@ -172,6 +174,8 @@ export class ProgramService {
   async createMockCycle(
     projectId: string,
     name: string,
+    description: string | undefined,
+    testPhase: string | undefined,
     startDate: string,
     endDate: string,
     scheduleMode: string = 'all_days',
@@ -179,10 +183,10 @@ export class ProgramService {
   ) {
     await this.ensureMockCycleCriteriaColumns();
     const result = await db.query(
-      `INSERT INTO mock_cycles (project_id, name, start_date, end_date, schedule_mode, accent_color)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       RETURNING id, project_id, name, start_date, end_date, accent_color, schedule_mode, created_at, updated_at`,
-      [projectId, name, startDate, endDate, scheduleMode, accentColor || null]
+      `INSERT INTO mock_cycles (project_id, name, description, test_phase, start_date, end_date, schedule_mode, accent_color)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING id, project_id, name, description, test_phase, start_date, end_date, accent_color, schedule_mode, created_at, updated_at`,
+      [projectId, name, description || null, testPhase || null, startDate, endDate, scheduleMode, accentColor || null]
     );
 
     return this.getMockCycleById(result.rows[0].id);
@@ -192,6 +196,8 @@ export class ProgramService {
     mockCycleId: string,
     data: {
       name?: string;
+      description?: string;
+      testPhase?: string;
       startDate?: string;
       endDate?: string;
       scheduleMode?: string;
@@ -223,6 +229,16 @@ export class ProgramService {
     if (data.name !== undefined) {
       fields.push(`name = $${paramCount}`);
       values.push(data.name);
+      paramCount++;
+    }
+    if (data.description !== undefined) {
+      fields.push(`description = $${paramCount}`);
+      values.push(data.description || null);
+      paramCount++;
+    }
+    if (data.testPhase !== undefined) {
+      fields.push(`test_phase = $${paramCount}`);
+      values.push(data.testPhase || null);
       paramCount++;
     }
     if (data.startDate !== undefined) {
@@ -988,6 +1004,8 @@ export class ProgramService {
       programId: row.program_id,
       projectId: row.project_id,
       name: normalizedName,
+      description: row.description || null,
+      testPhase: row.test_phase || null,
       startDate: row.start_date,
       endDate: row.end_date,
       accentColor: row.accent_color,

@@ -104,6 +104,7 @@ interface MockCycle {
   projectId: string;
   name: string;
   description?: string;
+  testPhase?: string;
   entryCriteria?: string;
   exitCriteria?: string;
   entryCriteriaItems?: MockCycleCriterionDraft[];
@@ -1144,6 +1145,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   const [treeProjectCreateByNameMode, setTreeProjectCreateByNameMode] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [newCycleScheduleMode, setNewCycleScheduleMode] = useState<CalendarMode>('all_days');
+  const [newCycleTestPhase, setNewCycleTestPhase] = useState('');
   const [contextProgramId, setContextProgramId] = useState<string | null>(null);
   const [contextCycleId, setContextCycleId] = useState<string | null>(null);
   
@@ -1190,6 +1192,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   const [editStartDate, setEditStartDate] = useState('');
   const [editEndDate, setEditEndDate] = useState('');
   const [editCycleScheduleMode, setEditCycleScheduleMode] = useState<CalendarMode>('all_days');
+  const [editCycleTestPhase, setEditCycleTestPhase] = useState('');
   const [editAccentColor, setEditAccentColor] = useState('');
   const [editCycleParentProjectId, setEditCycleParentProjectId] = useState('');
   const [editProjectParentProgramId, setEditProjectParentProgramId] = useState('');
@@ -4223,6 +4226,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
       } else if (dialogMode === 'cycle' && contextProgramId) {
         const response = await apiClient.post(`/api/programs/${contextProgramId}/mock-cycles`, {
           name: newItemName,
+          description: newItemDesc,
+          testPhase: newCycleTestPhase,
           startDate: new Date().toISOString().split('T')[0],
           endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
           scheduleMode: newCycleScheduleMode,
@@ -4274,6 +4279,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
       setNewItemName('');
       setNewItemDesc('');
       setNewItemAccentColor('');
+      setNewCycleTestPhase('');
       setCreateDialogOpen(false);
       setContextProgramId(null);
       setContextCycleId(null);
@@ -4289,6 +4295,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
       setTreeProjectCreateByNameMode(false);
       setNewProjectParentProgramId('');
       setSelectedExistingProjectOptionId('');
+      setNewCycleTestPhase('');
       setMaintainPendingCycleProjectId(null);
     }
   };
@@ -4370,6 +4377,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
     setNewItemName('');
     setNewItemDesc('');
     setNewItemAccentColor('');
+    setNewCycleTestPhase('');
     setNewProjectParentProgramId(
       mode === 'project'
         ? (programId || maintainProjectParentProgramId || programs[0]?.id || '')
@@ -4661,10 +4669,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
       const linkedProject = allMaintainProjects.find((project) => project.id === linkedCycle?.projectId) || null;
       setEditCycleParentProjectId(linkedProject?.id || maintainCycleParentProjectOptions[0]?.id || '');
       setEditItemName(linkedCycle?.name || '');
-      setEditItemDesc('');
+      setEditItemDesc(linkedCycle?.description || '');
       setEditStartDate(linkedCycle?.startDate || '');
       setEditEndDate(linkedCycle?.endDate || '');
       setEditCycleScheduleMode((linkedCycle?.scheduleMode || 'all_days') as CalendarMode);
+      setEditCycleTestPhase(linkedCycle?.testPhase || '');
       setEditAccentColor(linkedCycle?.accentColor || '');
 
       setCycleEntryCriteriaDraft(normalizeCriteriaDraft(linkedCycle?.entryCriteriaItems, MOCK_CYCLE_ENTRY_CRITERIA_DEFAULTS));
@@ -4749,6 +4758,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
 
         await apiClient.patch(`/api/mock-cycles/${editItemId}`, {
           name: editItemName,
+          description: editItemDesc,
+          testPhase: editCycleTestPhase,
           scheduleMode: editCycleScheduleMode,
           accentColor: editAccentColor || null,
         });
@@ -7526,20 +7537,18 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                           </Box>
 
                           <Paper sx={{ border: `1px solid ${deliverableAccent}44`, backgroundColor: 'rgba(255,255,255,0.03)' }}>
-                            <Box sx={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 0.8fr 0.5fr', px: 1, py: 0.75, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-                              <Typography variant="caption" sx={{ fontWeight: 700, color: deliverableAccent }}>Mock Cycle</Typography>
-                              <Typography variant="caption" sx={{ fontWeight: 700, color: deliverableAccent }}>Date Range</Typography>
-                              <Typography variant="caption" sx={{ fontWeight: 700, color: deliverableAccent }}>Mode</Typography>
+                            <Box sx={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr 0.4fr', px: 1, py: 0.75, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                              <Typography variant="caption" sx={{ fontWeight: 700, color: deliverableAccent }}>Mock Cycle Description</Typography>
+                              <Typography variant="caption" sx={{ fontWeight: 700, color: deliverableAccent }}>Test Phase</Typography>
                               <Typography variant="caption" sx={{ fontWeight: 700, color: deliverableAccent, textAlign: 'right' }}>Actions</Typography>
                             </Box>
                             {cycleRows.length === 0 ? (
                               <Typography variant="body2" color="text.secondary" sx={{ p: 1.25 }}>No mock cycles found for this project.</Typography>
                             ) : (
                               cycleRows.map((cycle, idx) => (
-                                <Box key={cycle.id} sx={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 0.8fr 0.5fr', px: 1, py: 0.75, borderBottom: idx === cycleRows.length - 1 ? 'none' : '1px solid rgba(255,255,255,0.06)', backgroundColor: idx % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent', alignItems: 'center' }}>
-                                  <Typography variant="body2" sx={{ fontWeight: 600 }}>{cycle.name}</Typography>
-                                  <Typography variant="body2" color="text.secondary">{toDateInputValue(cycle.startDate) || '—'} → {toDateInputValue(cycle.endDate) || '—'}</Typography>
-                                  <Typography variant="body2" color="text.secondary">{cycle.scheduleMode === 'working_days' ? 'Working Days' : 'All Days'}</Typography>
+                                <Box key={cycle.id} sx={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr 0.4fr', px: 1, py: 0.75, borderBottom: idx === cycleRows.length - 1 ? 'none' : '1px solid rgba(255,255,255,0.06)', backgroundColor: idx % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent', alignItems: 'center' }}>
+                                  <Typography variant="body2" sx={{ fontWeight: 600 }}>{cycle.description || cycle.name}</Typography>
+                                  <Typography variant="body2" color="text.secondary">{cycle.testPhase || '—'}</Typography>
                                   <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.25 }}>
                                     <IconButton size="small" onClick={() => openEditDialog('cycle', cycle.id)} sx={{ color: 'rgba(255,255,255,0.6)', '&:hover': { color: 'white' } }}>
                                       <EditIcon sx={{ fontSize: '1rem' }} />
@@ -10402,8 +10411,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                       {maintainFormView === 'cycle' && (
                         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
                           <Box sx={{ borderRadius: 1.25, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)' }}>
-                            <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 0.6fr 0.4fr' }}>
-                              {['MOCK CYCLE', 'PROJECT', 'PROGRAM', 'DATE RANGE', 'MODE', 'ACTIONS'].map(h => (
+                            <Box sx={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr 0.4fr' }}>
+                              {['MOCK CYCLE DESCRIPTION', 'TEST PHASE', 'ACTIONS'].map(h => (
                                 <Box key={h} sx={{ backgroundColor: 'rgba(255,255,255,0.07)', p: 1, fontWeight: 700, color: 'rgba(255,255,255,0.5)', fontSize: '0.72rem', letterSpacing: '0.4px' }}>{h}</Box>
                               ))}
                               {visibleMaintainCycleRows.length === 0 ? (
@@ -10418,11 +10427,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
 
                                 return (
                                   <React.Fragment key={cycle.id}>
-                                    <Box onClick={() => setMaintainSelectedCycleId(cycle.id)} sx={{ p: 1, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: rowBackground, color: '#DCE7FF', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer' }}>{cycle.name}</Box>
-                                    <Box onClick={() => setMaintainSelectedCycleId(cycle.id)} sx={{ p: 1, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: rowBackground, color: 'rgba(255,255,255,0.7)', fontSize: '0.85rem', cursor: 'pointer' }}>{cycle.linkedProjectName}</Box>
-                                    <Box onClick={() => setMaintainSelectedCycleId(cycle.id)} sx={{ p: 1, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: rowBackground, color: 'rgba(255,255,255,0.7)', fontSize: '0.85rem', cursor: 'pointer' }}>{cycle.programName}</Box>
-                                    <Box onClick={() => setMaintainSelectedCycleId(cycle.id)} sx={{ p: 1, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: rowBackground, color: 'rgba(255,255,255,0.6)', fontSize: '0.82rem', cursor: 'pointer' }}>{toDateInputValue(cycle.startDate) || '—'} → {toDateInputValue(cycle.endDate) || '—'}</Box>
-                                    <Box onClick={() => setMaintainSelectedCycleId(cycle.id)} sx={{ p: 1, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: rowBackground, color: 'rgba(255,255,255,0.6)', fontSize: '0.82rem', cursor: 'pointer' }}>{cycle.scheduleMode === 'working_days' ? 'Working Days' : 'All Days'}</Box>
+                                    <Box onClick={() => setMaintainSelectedCycleId(cycle.id)} sx={{ p: 1, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: rowBackground, color: '#DCE7FF', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer' }}>{cycle.description || cycle.name}</Box>
+                                    <Box onClick={() => setMaintainSelectedCycleId(cycle.id)} sx={{ p: 1, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: rowBackground, color: 'rgba(255,255,255,0.7)', fontSize: '0.85rem', cursor: 'pointer' }}>{cycle.testPhase || '—'}</Box>
                                     <Box sx={{ p: 0.75, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: rowBackground, display: 'flex', gap: 0.25 }}>
                                       <IconButton size="small" onClick={() => openEditDialog('cycle', cycle.id)} sx={{ color: 'rgba(255,255,255,0.5)', '&:hover': { color: 'white' } }}><EditIcon sx={{ fontSize: '1rem' }} /></IconButton>
                                       <IconButton size="small" onClick={() => openDeleteDialog('cycle', cycle.id, cycle.name)} sx={{ color: 'rgba(255,255,255,0.4)', '&:hover': { color: '#ef5350' } }}><DeleteIcon sx={{ fontSize: '1rem' }} /></IconButton>
@@ -10914,6 +10920,26 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                   <MenuItem key={project.id} value={project.id}>{project.name}</MenuItem>
                 ))}
               </TextField>
+              <TextField
+                fullWidth
+                label="Mock Cycle Description"
+                value={newItemDesc}
+                onChange={(e) => setNewItemDesc(e.target.value)}
+                multiline
+                rows={2}
+                variant="outlined"
+                size="small"
+                sx={{ mb: 2 }}
+              />
+              <TextField
+                fullWidth
+                label="Test Phase"
+                value={newCycleTestPhase}
+                onChange={(e) => setNewCycleTestPhase(e.target.value)}
+                variant="outlined"
+                size="small"
+                sx={{ mb: 2 }}
+              />
               <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Include Weekends</Typography>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <Checkbox
@@ -11554,6 +11580,24 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
           {editItemType === 'cycle' && (
             <>
               <TextField
+                label="Mock Cycle Description"
+                value={editItemDesc}
+                onChange={(e) => setEditItemDesc(e.target.value)}
+                fullWidth
+                multiline
+                rows={2}
+                variant="outlined"
+                size="small"
+              />
+              <TextField
+                label="Test Phase"
+                value={editCycleTestPhase}
+                onChange={(e) => setEditCycleTestPhase(e.target.value)}
+                fullWidth
+                variant="outlined"
+                size="small"
+              />
+              <TextField
                 select
                 label="Parent Project"
                 value={editCycleParentProjectId}
@@ -11594,10 +11638,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                 </Box>
               </Box>
 
-              <Divider />
-              <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>Cycle Governance</Typography>
+              <Divider sx={{ display: 'none' }} />
+              <Typography variant="subtitle1" sx={{ fontWeight: 700, display: 'none' }}>Cycle Governance</Typography>
 
               {/* Helper to patch one field in a criteria draft */}
+              <Box sx={{ display: 'none' }}>
               {(() => {
                 const patchEntry = (key: string, patch: Partial<MockCycleCriterionDraft>) =>
                   setCycleEntryCriteriaDraft(MOCK_CYCLE_ENTRY_CRITERIA_DEFAULTS.map((d) => {
@@ -11710,6 +11755,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                   </>
                 );
               })()}
+              </Box>
             </>
           )}
 

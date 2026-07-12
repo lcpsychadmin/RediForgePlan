@@ -1,0 +1,7 @@
+BEGIN;
+
+ALTER TABLE mock_cycles
+  ADD COLUMN IF NOT EXISTS description TEXT,
+  ADD COLUMN IF NOT EXISTS test_phase VARCHAR(255);
+
+COMMIT;

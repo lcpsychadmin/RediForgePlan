@@ -135,7 +135,7 @@ router.post(
         throw new ApiError(404, 'Project not found', 'NOT_FOUND');
       }
 
-      const { name, startDate, endDate, scheduleMode, accentColor } = req.body;
+      const { name, description, testPhase, startDate, endDate, scheduleMode, accentColor } = req.body;
       if (!name || !startDate || !endDate) {
         throw new ApiError(400, 'Mock cycle name, startDate, and endDate are required', 'MISSING_FIELD');
       }
@@ -143,6 +143,8 @@ router.post(
       const cycle = await programService.createMockCycle(
         req.params.projectId,
         name,
+        description,
+        testPhase,
         startDate,
         endDate,
         scheduleMode || 'all_days',

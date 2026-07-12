@@ -110,6 +110,8 @@ CREATE TABLE mock_cycles (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   name VARCHAR(255) NOT NULL,
+  description TEXT,
+  test_phase VARCHAR(255),
   entry_criteria TEXT,
   exit_criteria TEXT,
   entry_criteria_items JSONB NOT NULL DEFAULT '[]'::jsonb,
