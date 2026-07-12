@@ -112,11 +112,11 @@ router.put('/tree-order', requireAuth, async (req: Request, res: Response, next:
 router.put('/global-process-areas', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const {
-      globalProcessAreaAccents = {},
-      globalProcessAreaIcons = {},
-      globalProcessAreaDescriptions = {},
+      globalProcessAreaAccents = undefined,
+      globalProcessAreaIcons = undefined,
+      globalProcessAreaDescriptions = undefined,
       globalProcessAreaRoleAssignments = undefined,
-      picklistValues = {},
+      picklistValues = undefined,
       roadmapItems = undefined,
       roadmapRowOrder = undefined,
       roadmapLaneAssign = undefined,
@@ -126,16 +126,25 @@ router.put('/global-process-areas', requireAuth, async (req: Request, res: Respo
     } = req.body || {};
 
     // Build the merge object dynamically so roadmapItems is only included when provided
-    const mergeKeys = [
-      'globalProcessAreaAccents', 'globalProcessAreaIcons',
-      'globalProcessAreaDescriptions', 'picklistValues',
-    ];
-    const mergeValues: string[] = [
-      JSON.stringify(globalProcessAreaAccents),
-      JSON.stringify(globalProcessAreaIcons),
-      JSON.stringify(globalProcessAreaDescriptions),
-      JSON.stringify(picklistValues),
-    ];
+    const mergeKeys: string[] = [];
+    const mergeValues: string[] = [];
+
+    if (globalProcessAreaAccents !== undefined) {
+      mergeKeys.push('globalProcessAreaAccents');
+      mergeValues.push(JSON.stringify(globalProcessAreaAccents));
+    }
+    if (globalProcessAreaIcons !== undefined) {
+      mergeKeys.push('globalProcessAreaIcons');
+      mergeValues.push(JSON.stringify(globalProcessAreaIcons));
+    }
+    if (globalProcessAreaDescriptions !== undefined) {
+      mergeKeys.push('globalProcessAreaDescriptions');
+      mergeValues.push(JSON.stringify(globalProcessAreaDescriptions));
+    }
+    if (picklistValues !== undefined) {
+      mergeKeys.push('picklistValues');
+      mergeValues.push(JSON.stringify(picklistValues));
+    }
     if (roadmapItems !== undefined) {
       mergeKeys.push('roadmapItems');
       mergeValues.push(JSON.stringify(roadmapItems));
@@ -165,6 +174,11 @@ router.put('/global-process-areas', requireAuth, async (req: Request, res: Respo
       mergeValues.push(JSON.stringify(globalProcessAreaRoleAssignments));
     }
 
+    if (mergeKeys.length === 0) {
+      res.json(formatSingleResponse({}));
+      return;
+    }
+
     const keyValuePairs = mergeKeys.map((k, i) => `'${k}', $${i + 1}::jsonb`).join(', ');
 
     await db.query(
@@ -179,11 +193,11 @@ router.put('/global-process-areas', requireAuth, async (req: Request, res: Respo
     );
 
     res.json(formatSingleResponse({
-      globalProcessAreaAccents,
-      globalProcessAreaIcons,
-      globalProcessAreaDescriptions,
+      ...(globalProcessAreaAccents !== undefined ? { globalProcessAreaAccents } : {}),
+      ...(globalProcessAreaIcons !== undefined ? { globalProcessAreaIcons } : {}),
+      ...(globalProcessAreaDescriptions !== undefined ? { globalProcessAreaDescriptions } : {}),
       ...(globalProcessAreaRoleAssignments !== undefined ? { globalProcessAreaRoleAssignments } : {}),
-      picklistValues,
+      ...(picklistValues !== undefined ? { picklistValues } : {}),
       ...(roadmapItems !== undefined ? { roadmapItems } : {}),
       ...(deliverableWorkflows !== undefined ? { deliverableWorkflows } : {}),
       ...(designBuildEstimationRows !== undefined ? { designBuildEstimationRows } : {}),

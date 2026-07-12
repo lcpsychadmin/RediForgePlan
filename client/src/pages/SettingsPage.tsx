@@ -267,6 +267,7 @@ const SettingsPage: React.FC = () => {
     apiClient.get('/api/hierarchy-preferences/state').then(res => {
       const parsed = res.data?.data;
       if (!parsed) return;
+      let legacyFlatDescriptions: Record<string, string> = {};
       if (parsed.processAreaDescriptions && typeof parsed.processAreaDescriptions === 'object') {
         // Descriptions are stored keyed by area name at top level (not per-cycle) OR in legacy localStorage
         const flat: Record<string, string> = {};
@@ -274,6 +275,7 @@ const SettingsPage: React.FC = () => {
         Object.values(parsed.processAreaDescriptions).forEach((v: any) => {
           if (v && typeof v === 'object') Object.assign(flat, v);
         });
+        legacyFlatDescriptions = flat;
         if (Object.keys(flat).length > 0) setProcessAreaDescriptions(flat);
       }
       if (parsed.globalProcessAreaAccents && typeof parsed.globalProcessAreaAccents === 'object') {
@@ -284,6 +286,11 @@ const SettingsPage: React.FC = () => {
       }
       if (parsed.globalProcessAreaDescriptions && typeof parsed.globalProcessAreaDescriptions === 'object') {
         setProcessAreaDescriptions(parsed.globalProcessAreaDescriptions);
+      } else if (Object.keys(legacyFlatDescriptions).length > 0) {
+        // Self-heal: backfill global descriptions so values persist across sessions/devices.
+        apiClient.put('/api/hierarchy-preferences/global-process-areas', {
+          globalProcessAreaDescriptions: legacyFlatDescriptions,
+        }).catch(() => {});
       }
       if (parsed.globalProcessAreaRoleAssignments && typeof parsed.globalProcessAreaRoleAssignments === 'object') {
         setGlobalProcessAreaRoleAssignments(parsed.globalProcessAreaRoleAssignments as Record<string, Partial<Record<UnifiedRoleKey, string>>>);
