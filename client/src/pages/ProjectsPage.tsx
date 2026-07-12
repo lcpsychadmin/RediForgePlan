@@ -1115,6 +1115,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   const [expandedCycles, setExpandedCycles] = useState<Set<string>>(new Set());
   const [expandedProjectGroups, setExpandedProjectGroups] = useState<Set<string>>(new Set());
   const [expandedEstimationDeliverables, setExpandedEstimationDeliverables] = useState<Set<string>>(new Set());
+  const [collapsedEstimationProcessAreaSections, setCollapsedEstimationProcessAreaSections] = useState<Set<string>>(new Set());
   const [expandedObjects, setExpandedObjects] = useState<Set<string>>(new Set());
   
   // State for selected item
@@ -7212,14 +7213,39 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
 
                           {displayedProcessAreaRows.map((areaRow) => (
                             <Paper key={`area-objects-${areaRow.area}`} sx={{ ...translucentPanelSx, mb: 2 }}>
+                              {(() => {
+                                const sectionKey = `${project.id}_${parentCycleId || ''}_${areaRow.area}`;
+                                const isSectionCollapsed = collapsedEstimationProcessAreaSections.has(sectionKey);
+                                return (
+                                  <>
                               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-                                <Typography variant="subtitle2" sx={accentHeaderSx}>
-                                  {getProcessAreaDisplayName(project.id, areaRow.area, parentCycleId || undefined)}
-                                </Typography>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4 }}>
+                                  <IconButton
+                                    size="small"
+                                    onClick={() => {
+                                      setCollapsedEstimationProcessAreaSections((prev) => {
+                                        const next = new Set(prev);
+                                        if (next.has(sectionKey)) next.delete(sectionKey);
+                                        else next.add(sectionKey);
+                                        return next;
+                                      });
+                                    }}
+                                    sx={{ p: 0.2 }}
+                                  >
+                                    {isSectionCollapsed
+                                      ? <ExpandMoreIcon sx={{ fontSize: '0.95rem', color: estimationAccent }} />
+                                      : <ExpandLessIcon sx={{ fontSize: '0.95rem', color: estimationAccent }} />}
+                                  </IconButton>
+                                  <Typography variant="subtitle2" sx={accentHeaderSx}>
+                                    {getProcessAreaDisplayName(project.id, areaRow.area, parentCycleId || undefined)}
+                                  </Typography>
+                                </Box>
                                 <Typography variant="caption" sx={{ color: estimationAccent }}>
                                   Design {areaRow.designHours.toFixed(2)}h · Build {areaRow.buildHours.toFixed(2)}h · Total {areaRow.hours.toFixed(2)}h
                                 </Typography>
                               </Box>
+                              {!isSectionCollapsed && (
+                                <>
                               <Box sx={{ display: 'grid', gridTemplateColumns: '1.1fr 0.7fr 1.3fr 0.7fr 0.6fr 0.6fr 0.6fr', gap: 1, pb: 0.5, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
                                 <Typography variant="caption" sx={{ color: estimationAccent, fontWeight: 700 }}>Object</Typography>
                                 <Typography variant="caption" sx={{ color: estimationAccent, fontWeight: 700 }}>Build Type</Typography>
@@ -7277,6 +7303,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                   </Box>
                                 ))}
                               </Box>
+                                </>
+                              )}
+                                  </>
+                                );
+                              })()}
                             </Paper>
                           ))}
 
