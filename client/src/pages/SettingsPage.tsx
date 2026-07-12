@@ -46,6 +46,7 @@ import { faDatabase, faServer, faCloud, faCode, faGears, faDiagramProject, faLis
 import Layout from '../components/Layout';
 import apiClient from '../api/client';
 import { UNIFIED_ROLE_MODEL, type UnifiedRoleKey } from '../constants/unifiedRoleModel';
+import { DEFAULT_DESIGN_BUILD_ESTIMATION_ROWS, type DesignBuildEstimationRow } from '../constants/designBuildEstimationDefaults';
 
 interface Picklist {
   name: string;
@@ -189,6 +190,7 @@ const SettingsPage: React.FC = () => {
   const [newRoleName, setNewRoleName] = useState('');
   const [addRoleOpen, setAddRoleOpen] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [designBuildEstimationRows, setDesignBuildEstimationRows] = useState<DesignBuildEstimationRow[]>(DEFAULT_DESIGN_BUILD_ESTIMATION_ROWS);
 
   // Applications state
   const [applications, setApplications] = useState<any[]>([]);
@@ -249,6 +251,17 @@ const SettingsPage: React.FC = () => {
           return merged;
         });
       }
+      if (Array.isArray(parsed.designBuildEstimationRows)) {
+        const mappedRows = parsed.designBuildEstimationRows.map((row: any, index: number) => ({
+          id: row?.id || `${Date.now()}-${index}`,
+          buildType: String(row?.buildType || ''),
+          factorType: String(row?.factorType || ''),
+          complexity: String(row?.complexity || ''),
+          taskName: String(row?.taskName || ''),
+          hours: Number(row?.hours) || 0,
+        }));
+        setDesignBuildEstimationRows(mappedRows.length > 0 ? mappedRows : DEFAULT_DESIGN_BUILD_ESTIMATION_ROWS);
+      }
     }).catch(() => {
       // fall back to localStorage
       try {
@@ -264,6 +277,7 @@ const SettingsPage: React.FC = () => {
   const isPicklistMode = !!selectedPicklist;
   const isPeopleRolesMode = selectedMenuItem === 'peopleRoles';
   const isTaskTemplatesMode = selectedMenuItem === 'taskTemplates';
+  const isDesignBuildEstimationMode = selectedMenuItem === 'designBuildEstimation';
   const isApplicationsMode = selectedMenuItem === 'applications';
 
   const handleAddValue = () => {
@@ -370,6 +384,14 @@ const SettingsPage: React.FC = () => {
         picklistValues: Object.fromEntries(
           Object.entries(picklists).map(([key, pl]) => [key, pl.values])
         ),
+        designBuildEstimationRows: designBuildEstimationRows.map((row) => ({
+          id: row.id,
+          buildType: row.buildType,
+          factorType: row.factorType,
+          complexity: row.complexity,
+          taskName: row.taskName,
+          hours: Number(row.hours) || 0,
+        })),
       });
       localStorage.setItem(SETTINGS_PROCESS_AREA_DESCRIPTIONS_KEY, JSON.stringify(processAreaDescriptions));
       setSaveStatus('saved');
@@ -442,6 +464,19 @@ const SettingsPage: React.FC = () => {
                 >
                   <ListItemText primary="Default Task Templates" />
                 </ListItem>
+                <ListItem
+                  button
+                  selected={isDesignBuildEstimationMode}
+                  onClick={() => setSelectedMenuItem('designBuildEstimation')}
+                  sx={{
+                    backgroundColor: isDesignBuildEstimationMode ? 'primary.lighter' : 'transparent',
+                    '&:hover': { backgroundColor: 'action.hover' },
+                    borderLeft: isDesignBuildEstimationMode ? '4px solid' : 'none',
+                    borderColor: 'primary.main',
+                  }}
+                >
+                  <ListItemText primary="Design/Build Estimation" />
+                </ListItem>
                 <Divider sx={{ my: 0.75 }} />
                 <Box sx={{ px: 2, pt: 0.5, pb: 0.5 }}>
                   <Typography variant="subtitle2" color="text.secondary">Reference Data</Typography>
@@ -470,6 +505,8 @@ const SettingsPage: React.FC = () => {
                 ? `Edit ${picklists[selectedPicklist]?.name || 'Picklist'}`
                 : isPeopleRolesMode
                   ? 'People Roles'
+                  : isDesignBuildEstimationMode
+                    ? 'Design/Build Estimation'
                   : isApplicationsMode
                     ? 'Applications'
                     : 'Default Task Templates'
@@ -658,8 +695,114 @@ const SettingsPage: React.FC = () => {
               </Box>
               )}
 
+              {/* Design/Build Estimation Section */}
+              {isDesignBuildEstimationMode && (
+              <Box>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                  <Box>
+                    <Typography variant="h6" sx={{ fontWeight: 600 }}>Design/Build Estimation Matrix</Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Global effort matrix used in Planning Design and Build Estimation. Rows are matched by Build Type, Factor Type, and Complexity.
+                    </Typography>
+                  </Box>
+                  <Button
+                    size="small"
+                    variant="contained"
+                    startIcon={<AddIcon />}
+                    onClick={() => {
+                      const defaultBuildType = picklists.buildType.values[0] || '';
+                      const defaultFactorType = picklists.factorType.values[0] || '';
+                      const defaultComplexity = picklists.complexity.values[0] || '';
+                      setDesignBuildEstimationRows((prev) => ([
+                        ...prev,
+                        {
+                          id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+                          buildType: defaultBuildType,
+                          factorType: defaultFactorType,
+                          complexity: defaultComplexity,
+                          taskName: '',
+                          hours: 0,
+                        },
+                      ]));
+                    }}
+                    sx={{ textTransform: 'none' }}
+                  >
+                    Add Row
+                  </Button>
+                </Box>
+
+                <Box sx={{ display: 'grid', gridTemplateColumns: '170px 1fr 150px 180px 80px 36px', gap: 1, alignItems: 'center', mb: 1 }}>
+                  <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.05em' }}>BUILD TYPE</Typography>
+                  <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.05em' }}>FACTOR TYPE</Typography>
+                  <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.05em' }}>COMPLEXITY</Typography>
+                  <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.05em' }}>TASK</Typography>
+                  <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.05em' }}>HOURS</Typography>
+                  <span />
+                </Box>
+
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
+                  {designBuildEstimationRows.map((row) => (
+                    <Box key={row.id} sx={{ display: 'grid', gridTemplateColumns: '170px 1fr 150px 180px 80px 36px', gap: 1, alignItems: 'center' }}>
+                      <TextField
+                        select
+                        size="small"
+                        value={row.buildType}
+                        onChange={(e) => setDesignBuildEstimationRows((prev) => prev.map((r) => r.id === row.id ? { ...r, buildType: e.target.value } : r))}
+                      >
+                        {picklists.buildType.values.map((option) => (
+                          <MenuItem key={option} value={option}>{option}</MenuItem>
+                        ))}
+                      </TextField>
+                      <TextField
+                        select
+                        size="small"
+                        value={row.factorType}
+                        onChange={(e) => setDesignBuildEstimationRows((prev) => prev.map((r) => r.id === row.id ? { ...r, factorType: e.target.value } : r))}
+                      >
+                        {picklists.factorType.values.map((option) => (
+                          <MenuItem key={option} value={option}>{option}</MenuItem>
+                        ))}
+                      </TextField>
+                      <TextField
+                        select
+                        size="small"
+                        value={row.complexity}
+                        onChange={(e) => setDesignBuildEstimationRows((prev) => prev.map((r) => r.id === row.id ? { ...r, complexity: e.target.value } : r))}
+                      >
+                        {picklists.complexity.values.map((option) => (
+                          <MenuItem key={option} value={option}>{option}</MenuItem>
+                        ))}
+                      </TextField>
+                      <TextField
+                        size="small"
+                        value={row.taskName}
+                        placeholder="Task name"
+                        onChange={(e) => setDesignBuildEstimationRows((prev) => prev.map((r) => r.id === row.id ? { ...r, taskName: e.target.value } : r))}
+                      />
+                      <TextField
+                        size="small"
+                        type="number"
+                        value={row.hours}
+                        onChange={(e) => setDesignBuildEstimationRows((prev) => prev.map((r) => r.id === row.id ? { ...r, hours: Math.max(0, Number(e.target.value) || 0) } : r))}
+                        inputProps={{ min: 0, step: 0.25 }}
+                      />
+                      <IconButton size="small" onClick={() => setDesignBuildEstimationRows((prev) => prev.filter((r) => r.id !== row.id))}>
+                        <DeleteIcon sx={{ fontSize: '1rem' }} />
+                      </IconButton>
+                    </Box>
+                  ))}
+                </Box>
+
+                {designBuildEstimationRows.length === 0 && (
+                  <Alert severity="info" sx={{ mt: 1.5 }}>
+                    No estimation rows yet. Add rows to define hours by Build Type, Factor Type, Complexity, and Task.
+                  </Alert>
+                )}
+              </Box>
+              )}
+
               {/* Save Button */}
-              {isPicklistMode && (
+              {(isPicklistMode || isDesignBuildEstimationMode) && (
                 <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end', mt: 4, pt: 2, borderTop: '1px solid', borderColor: 'divider' }}>
                   <Button
                     variant="contained"

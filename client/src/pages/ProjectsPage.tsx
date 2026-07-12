@@ -82,6 +82,7 @@ import ProjectDefectsPage from './ProjectDefectsPage';
 import DataMigrationStrategyView from '../components/strategy/DataMigrationStrategyView';
 import PlanningDeliverablesTracker from '../components/plan/PlanningDeliverablesTracker';
 import { useAuth } from '../contexts/AuthContext';
+import { DEFAULT_DESIGN_BUILD_ESTIMATION_ROWS, type DesignBuildEstimationRow } from '../constants/designBuildEstimationDefaults';
 
 interface Program {
   id: string;
@@ -269,7 +270,7 @@ const PLAN_DELIVERABLE_NODES: Array<{
   { id: 'migrationStrategy', label: 'Data Migration Strategy', targetView: 'strategy', accentColor: '#EC407A', icon: 'fa-file-lines' },
   { id: 'projectRoadmap', label: 'Project Roadmap', targetView: 'roadmap', accentColor: '#FFB74D', icon: 'fa-chart-gantt' },
   { id: 'mockCriteria', label: 'Mock Entry and Exit Criteria', targetView: 'plan', accentColor: '#66BB6A', icon: 'fa-list-check' },
-  { id: 'designBuildEstimation', label: 'Design and Build Estimation (Not Built Yet)', isFuture: true, accentColor: '#B0BEC5', icon: 'fa-triangle-exclamation' },
+  { id: 'designBuildEstimation', label: 'Design and Build Estimation', targetView: 'plan', accentColor: '#B0BEC5', icon: 'fa-triangle-exclamation' },
   { id: 'designBuildCompletion', label: 'Design and Build Phase Plan Completion', targetView: 'plan', accentColor: '#5C6BC0', icon: 'fa-clipboard-list' },
 ];
 
@@ -1054,6 +1055,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   const [isSavingCycleCriteria, setIsSavingCycleCriteria] = useState(false);
   const [planningAdditionalGroups, setPlanningAdditionalGroups] = useState<Record<string, string[]>>({});
   const [deliverableTaskGroupAssignments, setDeliverableTaskGroupAssignments] = useState<Record<string, Record<string, string>>>({});
+  const [designBuildEstimationRows, setDesignBuildEstimationRows] = useState<DesignBuildEstimationRow[]>(DEFAULT_DESIGN_BUILD_ESTIMATION_ROWS);
   const [planningAdditionalProcessAreas, setPlanningAdditionalProcessAreas] = useState<Record<string, string[]>>({});
   const [hiddenProcessAreas, setHiddenProcessAreas] = useState<Record<string, string[]>>({});
   const [selectedExecutionProcessArea, setSelectedExecutionProcessArea] = useState('');
@@ -3169,6 +3171,17 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
           if (parsed?.deliverableTaskGroupAssignments && typeof parsed.deliverableTaskGroupAssignments === 'object') {
             setDeliverableTaskGroupAssignments(parsed.deliverableTaskGroupAssignments);
           }
+          if (Array.isArray(parsed?.designBuildEstimationRows)) {
+            const mappedRows = parsed.designBuildEstimationRows.map((row: any, index: number) => ({
+              id: row?.id || `${Date.now()}-${index}`,
+              buildType: String(row?.buildType || ''),
+              factorType: String(row?.factorType || ''),
+              complexity: String(row?.complexity || ''),
+              taskName: String(row?.taskName || ''),
+              hours: Number(row?.hours) || 0,
+            }));
+            setDesignBuildEstimationRows(mappedRows.length > 0 ? mappedRows : DEFAULT_DESIGN_BUILD_ESTIMATION_ROWS);
+          }
           if (parsed?.planningAdditionalProcessAreas && typeof parsed.planningAdditionalProcessAreas === 'object') setPlanningAdditionalProcessAreas(parsed.planningAdditionalProcessAreas);
           if (parsed?.hiddenProcessAreas && typeof parsed.hiddenProcessAreas === 'object') setHiddenProcessAreas(parsed.hiddenProcessAreas);
           if (parsed?.processAreaAccentOverrides && typeof parsed.processAreaAccentOverrides === 'object') setProcessAreaAccentOverrides(parsed.processAreaAccentOverrides);
@@ -3246,6 +3259,17 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
           }
           if (typeof parsed.deliverableTaskGroupAssignments === 'object') {
             setDeliverableTaskGroupAssignments(parsed.deliverableTaskGroupAssignments || {});
+          }
+          if (Array.isArray(parsed.designBuildEstimationRows)) {
+            const mappedRows = parsed.designBuildEstimationRows.map((row: any, index: number) => ({
+              id: row?.id || `${Date.now()}-${index}`,
+              buildType: String(row?.buildType || ''),
+              factorType: String(row?.factorType || ''),
+              complexity: String(row?.complexity || ''),
+              taskName: String(row?.taskName || ''),
+              hours: Number(row?.hours) || 0,
+            }));
+            setDesignBuildEstimationRows(mappedRows.length > 0 ? mappedRows : DEFAULT_DESIGN_BUILD_ESTIMATION_ROWS);
           }
         }).catch(() => {});
       }
@@ -6758,6 +6782,142 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                     const projectCycleInstances = (parentProgramId ? (mockCycles[parentProgramId] || []) : [])
                       .map((cycle: MockCycle) => (projectsByMockCycle[cycle.id] || []).find((p: Project) => (p.name || '').trim().toLowerCase() === normalizedProjectName))
                       .filter(Boolean) as Project[];
+                    const isDesignBuildEstimationDeliverable = isDeliverableSelection && selectedItem.deliverableId === 'designBuildEstimation';
+                    if (isDesignBuildEstimationDeliverable) {
+                      const topLevelObjects = projectInventoryItems.filter((item: any) => !item.parentProjectObjectId);
+                      const hasRequiredFields = (item: any) => !!item.buildType && !!item.factorType && !!item.complexity;
+                      const matrixRows = designBuildEstimationRows.filter((row) => (
+                        !!row.taskName && Number(row.hours) > 0
+                      ));
+                      const objectRows = topLevelObjects.map((item: any) => {
+                        const matches = hasRequiredFields(item)
+                          ? matrixRows.filter((row) => (
+                              row.buildType === item.buildType
+                              && row.factorType === item.factorType
+                              && row.complexity === item.complexity
+                            ))
+                          : [];
+                        const hours = matches.reduce((sum, row) => sum + (Number(row.hours) || 0), 0);
+                        return {
+                          id: item.id,
+                          objectId: item.objectId || item.dataObjectId || item.name || 'Object',
+                          buildType: item.buildType || '',
+                          factorType: item.factorType || '',
+                          complexity: item.complexity || '',
+                          hasRequired: hasRequiredFields(item),
+                          matches,
+                          hours,
+                        };
+                      });
+                      const missingRequiredCount = objectRows.filter((row) => !row.hasRequired).length;
+                      const unconfiguredCount = objectRows.filter((row) => row.hasRequired && row.matches.length === 0).length;
+                      const totalHours = objectRows.reduce((sum, row) => sum + row.hours, 0);
+                      const configuredCount = objectRows.filter((row) => row.hasRequired && row.matches.length > 0).length;
+                      const completionPct = objectRows.length > 0
+                        ? Math.round((configuredCount / objectRows.length) * 100)
+                        : 0;
+
+                      const taskTotals = objectRows.reduce((acc, row) => {
+                        row.matches.forEach((match: any) => {
+                          acc[match.taskName] = (acc[match.taskName] || 0) + (Number(match.hours) || 0);
+                        });
+                        return acc;
+                      }, {} as Record<string, number>);
+
+                      return (
+                        <Box>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1.5 }}>
+                            {parentProgramName && <><Typography variant="caption" color="text.disabled">{parentProgramName}</Typography><Typography variant="caption" color="text.disabled">›</Typography></>}
+                            {parentCycleName && <><Typography variant="caption" color="text.disabled">{parentCycleName}</Typography><Typography variant="caption" color="text.disabled">›</Typography></>}
+                            <Typography variant="caption" sx={{ color: accentColor, fontWeight: 600 }}>{project.name}</Typography>
+                            <Typography variant="caption" color="text.disabled">›</Typography>
+                            <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>{deliverableLabel}</Typography>
+                          </Box>
+
+                          <Typography variant="h4" sx={{ fontWeight: 700, color: deliverableAccent, mb: 0.75, fontSize: { xs: '1.55rem', sm: '2.125rem' } }}>
+                            {deliverableLabel}
+                          </Typography>
+
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+                            <LinearProgress variant="determinate" value={completionPct} sx={{ width: 180, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.1)', '& .MuiLinearProgress-bar': { backgroundColor: deliverableAccent, borderRadius: 3 } }} />
+                            <Typography variant="body2" sx={{ color: deliverableAccent, fontWeight: 600 }}>{completionPct}% configured</Typography>
+                          </Box>
+
+                          <Box sx={{ display: 'grid', gap: 1, gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(160px, 1fr))', lg: 'repeat(4, minmax(160px, 1fr))' }, mb: 2 }}>
+                            <Paper sx={{ p: 1.25, border: '1px solid rgba(255,255,255,0.08)', backgroundColor: 'rgba(255,255,255,0.03)' }}>
+                              <Typography variant="caption" sx={{ color: 'text.secondary' }}>Inventory Objects</Typography>
+                              <Typography variant="h6" sx={{ mt: 0.25, fontWeight: 700 }}>{objectRows.length}</Typography>
+                            </Paper>
+                            <Paper sx={{ p: 1.25, border: '1px solid rgba(255,255,255,0.08)', backgroundColor: 'rgba(255,255,255,0.03)' }}>
+                              <Typography variant="caption" sx={{ color: 'text.secondary' }}>Configured Objects</Typography>
+                              <Typography variant="h6" sx={{ mt: 0.25, fontWeight: 700 }}>{configuredCount}</Typography>
+                            </Paper>
+                            <Paper sx={{ p: 1.25, border: '1px solid rgba(255,255,255,0.08)', backgroundColor: 'rgba(255,255,255,0.03)' }}>
+                              <Typography variant="caption" sx={{ color: 'text.secondary' }}>Missing Required Fields</Typography>
+                              <Typography variant="h6" sx={{ mt: 0.25, fontWeight: 700 }}>{missingRequiredCount}</Typography>
+                            </Paper>
+                            <Paper sx={{ p: 1.25, border: `1px solid ${deliverableAccent}55`, backgroundColor: 'rgba(255,255,255,0.03)' }}>
+                              <Typography variant="caption" sx={{ color: 'text.secondary' }}>Total Estimated Hours</Typography>
+                              <Typography variant="h6" sx={{ mt: 0.25, fontWeight: 700, color: deliverableAccent }}>{totalHours.toFixed(2)}</Typography>
+                            </Paper>
+                          </Box>
+
+                          {missingRequiredCount > 0 && (
+                            <Alert severity="warning" sx={{ mb: 1.25 }}>
+                              {missingRequiredCount} object(s) are missing one or more required fields: Build Type, Factor Type, and Complexity.
+                            </Alert>
+                          )}
+                          {unconfiguredCount > 0 && (
+                            <Alert severity="info" sx={{ mb: 1.25 }}>
+                              {unconfiguredCount} object(s) have required fields populated but no matching estimation matrix rows in Settings.
+                            </Alert>
+                          )}
+
+                          <Paper sx={{ p: 1.5, border: '1px solid rgba(255,255,255,0.08)', backgroundColor: 'rgba(255,255,255,0.02)', mb: 2 }}>
+                            <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>Object Estimation</Typography>
+                            <Box sx={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr 1.5fr 0.8fr 0.6fr', gap: 1, pb: 0.5, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>Object</Typography>
+                              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>Build Type</Typography>
+                              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>Factor Type</Typography>
+                              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>Complexity</Typography>
+                              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700, textAlign: 'right' }}>Hours</Typography>
+                            </Box>
+                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, mt: 0.5 }}>
+                              {objectRows.map((row) => (
+                                <Box key={row.id} sx={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr 1.5fr 0.8fr 0.6fr', gap: 1, py: 0.4, borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                                  <Typography variant="body2" sx={{ fontWeight: 600 }}>{row.objectId}</Typography>
+                                  <Typography variant="body2" color="text.secondary">{row.buildType || '—'}</Typography>
+                                  <Typography variant="body2" color="text.secondary">{row.factorType || '—'}</Typography>
+                                  <Typography variant="body2" color="text.secondary">{row.complexity || '—'}</Typography>
+                                  <Typography variant="body2" sx={{ textAlign: 'right', color: row.hours > 0 ? deliverableAccent : 'text.secondary', fontWeight: 700 }}>
+                                    {row.hours > 0 ? row.hours.toFixed(2) : '—'}
+                                  </Typography>
+                                </Box>
+                              ))}
+                              {objectRows.length === 0 && (
+                                <Typography variant="body2" color="text.secondary">No inventory objects found for this project.</Typography>
+                              )}
+                            </Box>
+                          </Paper>
+
+                          <Paper sx={{ p: 1.5, border: '1px solid rgba(255,255,255,0.08)', backgroundColor: 'rgba(255,255,255,0.02)' }}>
+                            <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>Task Hour Totals</Typography>
+                            {Object.keys(taskTotals).length === 0 ? (
+                              <Typography variant="body2" color="text.secondary">No task hours calculated yet.</Typography>
+                            ) : (
+                              <Box sx={{ display: 'grid', gap: 0.5 }}>
+                                {Object.entries(taskTotals).sort(([a], [b]) => a.localeCompare(b)).map(([taskName, hours]) => (
+                                  <Box key={taskName} sx={{ display: 'flex', justifyContent: 'space-between', py: 0.35, borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                                    <Typography variant="body2">{taskName}</Typography>
+                                    <Typography variant="body2" sx={{ fontWeight: 700, color: deliverableAccent }}>{hours.toFixed(2)}</Typography>
+                                  </Box>
+                                ))}
+                              </Box>
+                            )}
+                          </Paper>
+                        </Box>
+                      );
+                    }
                     const allGroupIds = projectTaskGroups.map(g => g.id);
                     const assignedDeliverableGroups = isDeliverableSelection
                       ? (deliverableTaskGroupAssignments[project.id] || {})
