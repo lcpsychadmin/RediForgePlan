@@ -6427,6 +6427,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                         const deliverableNodeKey = `${firstCycleProject.id}::${firstCycle?.id || ''}::${node.id}`;
                                         const summaryKey = firstCycle ? `${firstCycleProject.id}_${firstCycle.id}` : firstCycleProject.id;
                                         const cachedAreaKeys = Object.keys(projectHierarchySummaries[summaryKey]?.processAreas || {});
+                                        const assignedProcessAreas = getProcessAreasForProjectCycle(firstCycleProject.id, firstCycle?.id);
                                         const activeInventoryAreas = Array.from(new Set(
                                           projectInventoryItems
                                             .filter((item: any) => item.projectId === firstCycleProject.id && !item.parentProjectObjectId)
@@ -6434,7 +6435,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                             .filter(Boolean)
                                         ));
                                         const estimationProcessAreas = isEstimationNode
-                                          ? Array.from(new Set([...cachedAreaKeys, ...activeInventoryAreas])).sort((a, b) => a.localeCompare(b))
+                                          ? Array.from(new Set([...assignedProcessAreas, ...cachedAreaKeys, ...activeInventoryAreas])).sort((a, b) => a.localeCompare(b))
                                           : [];
                                         const isEstimationExpanded = (selectedItem?.type === 'deliverableProcessArea'
                                           && selectedItem?.projectId === firstCycleProject.id
@@ -7061,7 +7062,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                           hours,
                         };
                       });
-                      const processAreaRows = Array.from(new Set(objectRows.map((row) => row.processArea)))
+                      const assignedProcessAreas = getProcessAreasForProjectCycle(project.id, parentCycleId || undefined);
+                      const processAreaRows = Array.from(new Set([...assignedProcessAreas, ...objectRows.map((row) => row.processArea)]))
                         .sort((a, b) => a.localeCompare(b))
                         .map((area) => {
                           const rows = objectRows.filter((row) => row.processArea === area);
@@ -7294,6 +7296,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                     </Typography>
                                   </Box>
                                 ))}
+                                {areaRow.rows.length === 0 && (
+                                  <Typography variant="body2" color="text.secondary" sx={{ py: 0.5 }}>
+                                    No objects assigned yet.
+                                  </Typography>
+                                )}
                               </Box>
                                 </>
                               )}
