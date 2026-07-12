@@ -1406,6 +1406,13 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   const [projectTaskGroups, setProjectTaskGroups] = useState<any[]>([]);
   const [expandedTaskGroups, setExpandedTaskGroups] = useState<Set<string>>(new Set());
   const [editingTask, setEditingTask] = useState<any | null>(null);
+  const [editingApprovalEntry, setEditingApprovalEntry] = useState<any | null>(null);
+  const [editingApprovalEntryDraft, setEditingApprovalEntryDraft] = useState<{ notes: string; assignedTo: string; status: string }>({
+    notes: '',
+    assignedTo: '',
+    status: 'not_started',
+  });
+  const [isSavingApprovalEntry, setIsSavingApprovalEntry] = useState(false);
   const [depDialogTaskId, setDepDialogTaskId] = useState<string | null>(null);
   const [cycleTasksForDep, setCycleTasksForDep] = useState<any[]>([]);
   const [taskDeps, setTaskDeps] = useState<Record<string, any[]>>({});
@@ -1601,6 +1608,38 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   const openTaskDetails = (task: any, initialTab = 0) => {
     setEditingTask(task);
     setEditingTaskInitialTab(initialTab);
+  };
+
+  const openApprovalEntryEditor = (task: any) => {
+    setEditingApprovalEntry(task);
+    setEditingApprovalEntryDraft({
+      notes: String(task?.notes || ''),
+      assignedTo: String(task?.assignedTo || ''),
+      status: String(task?.status || 'not_started'),
+    });
+  };
+
+  const saveApprovalEntryEditor = async () => {
+    if (!editingApprovalEntry?.id) return;
+    try {
+      setIsSavingApprovalEntry(true);
+      const payload = {
+        notes: editingApprovalEntryDraft.notes.trim() || null,
+        assignedTo: editingApprovalEntryDraft.assignedTo || null,
+        status: editingApprovalEntryDraft.status || 'not_started',
+      };
+      const response = await apiClient.patch(`/api/tasks/${editingApprovalEntry.id}`, payload);
+      const updatedTask = normalizeTaskDateFields(response.data?.data || response.data || {});
+      if (updatedTask?.id) {
+        setProjectTasks((prev) => prev.map((task: any) => task.id === updatedTask.id ? { ...task, ...updatedTask } : task));
+        setEditingApprovalEntry((prev: any) => (prev?.id === updatedTask.id ? { ...prev, ...updatedTask } : prev));
+      }
+    } catch (error: any) {
+      console.error('Failed to save approval entry:', error);
+      alert(error?.response?.data?.error || error?.message || 'Failed to save approval entry.');
+    } finally {
+      setIsSavingApprovalEntry(false);
+    }
   };
 
   const handleHierarchySelection = (item: SelectableItem, options?: { preserveProcessArea?: boolean }) => {
@@ -8682,7 +8721,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                         {discussionCount} comment{discussionCount === 1 ? '' : 's'}
                                       </Button>
                                       <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.25 }}>
-                                        <IconButton size="small" title="Open entry" onClick={() => { setEditingTask(entry); setEditingTaskInitialTab(0); }} sx={{ color: 'rgba(255,255,255,0.65)', '&:hover': { color: 'white' } }}>
+                                        <IconButton size="small" title="Open entry" onClick={() => openApprovalEntryEditor(entry)} sx={{ color: 'rgba(255,255,255,0.65)', '&:hover': { color: 'white' } }}>
                                           <EditIcon sx={{ fontSize: '0.95rem' }} />
                                         </IconButton>
                                         <IconButton size="small" title="Delete entry" onClick={() => openDeleteDialog('task', entry.id, entry.name || 'Approval Entry')} sx={{ color: 'rgba(255,255,255,0.5)', '&:hover': { color: '#ef5350' } }}>
@@ -13015,6 +13054,129 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
           onCommentsChange={(count) => setTaskCommentCounts(prev => ({ ...prev, [commentModalTask.id]: count }))}
         />
       )}
+
+      <Dialog open={!!editingApprovalEntry} onClose={() => setEditingApprovalEntry(null)} maxWidth="md" fullWidth>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+          <Box>
+            <Typography variant="h6" sx={{ fontWeight: 700 }}>
+              {editingApprovalEntry?.name || 'Approval Entry'}
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              Strategy Approvals
+            </Typography>
+          </Box>
+          <IconButton size="small" onClick={() => setEditingApprovalEntry(null)}>
+            <CloseIcon sx={{ fontSize: '1rem' }} />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'grid', gap: 1.25, pt: 0.5 }}>
+            <TextField
+              select
+              size="small"
+              label="Assigned To"
+              value={editingApprovalEntryDraft.assignedTo}
+              onChange={(e) => setEditingApprovalEntryDraft((prev) => ({ ...prev, assignedTo: e.target.value }))}
+            >
+              <MenuItem value=""><em>Unassigned</em></MenuItem>
+              {people.map((person: any) => (
+                <MenuItem key={person.id} value={person.id}>{person.name || person.email}</MenuItem>
+              ))}
+            </TextField>
+
+            <TextField
+              select
+              size="small"
+              label="Status"
+              value={editingApprovalEntryDraft.status}
+              onChange={(e) => setEditingApprovalEntryDraft((prev) => ({ ...prev, status: e.target.value }))}
+            >
+              <MenuItem value="not_started">Not Started</MenuItem>
+              <MenuItem value="in_progress">In Progress</MenuItem>
+              <MenuItem value="blocked">Blocked</MenuItem>
+              <MenuItem value="complete">Complete</MenuItem>
+            </TextField>
+
+            <TextField
+              size="small"
+              label="Description"
+              multiline
+              rows={5}
+              value={editingApprovalEntryDraft.notes}
+              onChange={(e) => setEditingApprovalEntryDraft((prev) => ({ ...prev, notes: e.target.value }))}
+            />
+
+            <Paper sx={{ p: 1.1, border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'rgba(255,255,255,0.03)' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, flexWrap: 'wrap' }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Discussion</Typography>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  onClick={() => {
+                    if (!editingApprovalEntry?.id) return;
+                    setCommentModalTask({
+                      id: editingApprovalEntry.id,
+                      name: editingApprovalEntry.name || 'Approval Entry',
+                    });
+                  }}
+                  sx={{ textTransform: 'none' }}
+                >
+                  Open Discussion ({taskCommentCounts[editingApprovalEntry?.id || ''] || 0})
+                </Button>
+              </Box>
+            </Paper>
+
+            <Paper sx={{ p: 1.1, border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'rgba(255,255,255,0.03)' }}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.8 }}>Attachments</Typography>
+              {(() => {
+                const candidateAttachments = Array.isArray(editingApprovalEntry?.attachments)
+                  ? editingApprovalEntry.attachments
+                  : Array.isArray(editingApprovalEntry?.files)
+                    ? editingApprovalEntry.files
+                    : Array.isArray(editingApprovalEntry?.documents)
+                      ? editingApprovalEntry.documents
+                      : [];
+
+                if (candidateAttachments.length === 0) {
+                  return <Typography variant="body2" color="text.secondary">No attachments on this approval entry.</Typography>;
+                }
+
+                return (
+                  <Box sx={{ display: 'grid', gap: 0.5 }}>
+                    {candidateAttachments.map((attachment: any, index: number) => {
+                      const attachmentName = attachment.fileName || attachment.filename || attachment.name || `Attachment ${index + 1}`;
+                      const attachmentUrl = attachment.downloadUrl || attachment.url || attachment.href || '';
+                      return (
+                        <Box key={attachment.id || `${attachmentName}-${index}`} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, px: 1, py: 0.65, border: '1px solid rgba(255,255,255,0.08)', borderRadius: 1 }}>
+                          <Typography variant="body2" sx={{ fontWeight: 600 }}>{attachmentName}</Typography>
+                          {attachmentUrl ? (
+                            <Button size="small" variant="text" sx={{ textTransform: 'none' }} onClick={() => window.open(attachmentUrl, '_blank', 'noopener,noreferrer')}>
+                              Open
+                            </Button>
+                          ) : (
+                            <Typography variant="caption" color="text.secondary">Unavailable</Typography>
+                          )}
+                        </Box>
+                      );
+                    })}
+                  </Box>
+                );
+              })()}
+            </Paper>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setEditingApprovalEntry(null)} sx={{ textTransform: 'none' }}>Cancel</Button>
+          <Button
+            variant="contained"
+            onClick={saveApprovalEntryEditor}
+            disabled={isSavingApprovalEntry || !editingApprovalEntry?.id}
+            sx={{ textTransform: 'none' }}
+          >
+            {isSavingApprovalEntry ? 'Saving...' : 'Save'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <TaskDetailModal
         open={!!priorityModalTask}
