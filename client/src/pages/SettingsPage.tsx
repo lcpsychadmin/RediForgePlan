@@ -318,6 +318,7 @@ const SettingsPage: React.FC = () => {
   const isPicklistMode = !!selectedPicklist;
   const isPeopleRolesMode = selectedMenuItem === 'peopleRoles';
   const isTaskTemplatesMode = selectedMenuItem === 'taskTemplates';
+  const isDesignBuildTasksMode = selectedMenuItem === 'designBuildTasks';
   const isDesignBuildEstimationMode = selectedMenuItem === 'designBuildEstimation';
   const isApplicationsMode = selectedMenuItem === 'applications';
 
@@ -513,6 +514,19 @@ const SettingsPage: React.FC = () => {
                 </ListItem>
                 <ListItem
                   button
+                  selected={isDesignBuildTasksMode}
+                  onClick={() => setSelectedMenuItem('designBuildTasks')}
+                  sx={{
+                    backgroundColor: isDesignBuildTasksMode ? 'primary.lighter' : 'transparent',
+                    '&:hover': { backgroundColor: 'action.hover' },
+                    borderLeft: isDesignBuildTasksMode ? '4px solid' : 'none',
+                    borderColor: 'primary.main',
+                  }}
+                >
+                  <ListItemText primary="Design/Build Standardized Tasks" />
+                </ListItem>
+                <ListItem
+                  button
                   selected={isDesignBuildEstimationMode}
                   onClick={() => setSelectedMenuItem('designBuildEstimation')}
                   sx={{
@@ -552,6 +566,8 @@ const SettingsPage: React.FC = () => {
                 ? `Edit ${picklists[selectedPicklist]?.name || 'Picklist'}`
                 : isPeopleRolesMode
                   ? 'People Roles'
+                  : isDesignBuildTasksMode
+                    ? 'Design/Build Standardized Tasks'
                   : isDesignBuildEstimationMode
                     ? 'Design/Build Estimation'
                   : isApplicationsMode
@@ -743,51 +759,11 @@ const SettingsPage: React.FC = () => {
               )}
 
               {/* Design/Build Estimation Section */}
-              {isDesignBuildEstimationMode && (
+              {isDesignBuildTasksMode && (
               <Box>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                  <Box>
-                    <Typography variant="h6" sx={{ fontWeight: 600 }}>Design/Build Estimation Matrix</Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Global effort matrix used in Planning Design and Build Estimation. Rows are matched by Build Type, Factor Type, and Complexity.
-                    </Typography>
-                  </Box>
-                  <Button
-                    size="small"
-                    variant="contained"
-                    startIcon={<AddIcon />}
-                    onClick={() => {
-                      const defaultBuildType = picklists.buildType.values[0] || '';
-                      const defaultFactorType = picklists.factorType.values[0] || '';
-                      const defaultComplexity = picklists.complexity.values[0] || '';
-                      const defaultTaskId = designBuildEstimationTasks[0]?.id || '';
-                      setDesignBuildEstimationRows((prev) => ([
-                        ...prev,
-                        {
-                          id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-                          buildType: defaultBuildType,
-                          factorType: defaultFactorType,
-                          complexity: defaultComplexity,
-                          taskId: defaultTaskId,
-                          taskName: designBuildEstimationTasks.find((task) => task.id === defaultTaskId)?.label || '',
-                          hours: 0,
-                        },
-                      ]));
-                    }}
-                    sx={{ textTransform: 'none' }}
-                  >
-                    Add Row
-                  </Button>
-                </Box>
-
-                <Box sx={{ display: 'grid', gridTemplateColumns: '170px 1fr 150px 180px 80px 36px', gap: 1, alignItems: 'center', mb: 1 }}>
-                  <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.05em' }}>BUILD TYPE</Typography>
-                  <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.05em' }}>FACTOR TYPE</Typography>
-                  <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.05em' }}>COMPLEXITY</Typography>
-                  <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.05em' }}>TASK</Typography>
-                  <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.05em' }}>HOURS</Typography>
-                  <span />
-                </Box>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+                  Maintain the standardized task catalog used by Design/Build Estimation. Each task has a description and a task type.
+                </Typography>
 
                 <Paper sx={{ p: 1.25, border: '1px solid rgba(255,255,255,0.08)', backgroundColor: 'rgba(255,255,255,0.02)', mb: 1.5 }}>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
@@ -850,6 +826,58 @@ const SettingsPage: React.FC = () => {
                     ))}
                   </Box>
                 </Paper>
+              </Box>
+              )}
+
+              {/* Design/Build Estimation Section */}
+              {isDesignBuildEstimationMode && (
+              <Box>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                  <Box>
+                    <Typography variant="h6" sx={{ fontWeight: 600 }}>Design/Build Estimation Matrix</Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Global effort matrix used in Planning Design and Build Estimation. Rows are matched by Build Type, Factor Type, and Complexity.
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                      Maintain task descriptions/types in the separate "Design/Build Standardized Tasks" page.
+                    </Typography>
+                  </Box>
+                  <Button
+                    size="small"
+                    variant="contained"
+                    startIcon={<AddIcon />}
+                    onClick={() => {
+                      const defaultBuildType = picklists.buildType.values[0] || '';
+                      const defaultFactorType = picklists.factorType.values[0] || '';
+                      const defaultComplexity = picklists.complexity.values[0] || '';
+                      const defaultTaskId = designBuildEstimationTasks[0]?.id || '';
+                      setDesignBuildEstimationRows((prev) => ([
+                        ...prev,
+                        {
+                          id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+                          buildType: defaultBuildType,
+                          factorType: defaultFactorType,
+                          complexity: defaultComplexity,
+                          taskId: defaultTaskId,
+                          taskName: designBuildEstimationTasks.find((task) => task.id === defaultTaskId)?.label || '',
+                          hours: 0,
+                        },
+                      ]));
+                    }}
+                    sx={{ textTransform: 'none' }}
+                  >
+                    Add Row
+                  </Button>
+                </Box>
+
+                <Box sx={{ display: 'grid', gridTemplateColumns: '170px 1fr 150px 180px 80px 36px', gap: 1, alignItems: 'center', mb: 1 }}>
+                  <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.05em' }}>BUILD TYPE</Typography>
+                  <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.05em' }}>FACTOR TYPE</Typography>
+                  <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.05em' }}>COMPLEXITY</Typography>
+                  <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.05em' }}>TASK</Typography>
+                  <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.05em' }}>HOURS</Typography>
+                  <span />
+                </Box>
 
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
                   {designBuildEstimationRows.map((row) => (
@@ -923,7 +951,7 @@ const SettingsPage: React.FC = () => {
               )}
 
               {/* Save Button */}
-              {(isPicklistMode || isDesignBuildEstimationMode) && (
+              {(isPicklistMode || isDesignBuildTasksMode || isDesignBuildEstimationMode) && (
                 <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end', mt: 4, pt: 2, borderTop: '1px solid', borderColor: 'divider' }}>
                   <Button
                     variant="contained"
