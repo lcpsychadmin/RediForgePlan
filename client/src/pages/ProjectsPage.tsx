@@ -8299,8 +8299,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
 
                           <Paper sx={{ p: 1.25, border: `1px solid ${selectedAreaAccent}44`, backgroundColor: 'rgba(255,255,255,0.04)' }}>
                             <Box sx={{ overflowX: 'auto' }}>
-                              <Box sx={{ minWidth: 1120, display: 'grid', gridTemplateColumns: '2.2fr 0.9fr 0.9fr 1.05fr 0.75fr 0.75fr 0.55fr', gap: 0, borderRadius: 1.25, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)' }}>
-                                {['DATA OBJECT', 'PROCESS AREA', 'COMPLEXITY', 'DEPLOY. DISPOSITION', 'BUILD TYPE', 'OBJECT TYPE', 'ACTIONS'].map((header) => (
+                              <Box sx={{ minWidth: 980, display: 'grid', gridTemplateColumns: '2.4fr 0.85fr 1.25fr 0.85fr 0.5fr', gap: 0, borderRadius: 1.25, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)' }}>
+                                {['DATA OBJECT', 'BUILD TYPE', 'FACTOR TYPE', 'COMPLEXITY', 'ACTIONS'].map((header) => (
                                   <Box key={header} sx={{ backgroundColor: 'rgba(255,255,255,0.07)', p: 1, fontWeight: 700, color: 'rgba(255,255,255,0.5)', fontSize: '0.72rem', letterSpacing: '0.4px' }}>
                                     {header}
                                   </Box>
@@ -8379,39 +8379,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
 
                                       <Box sx={{ p: 0.6, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: rowBg }}>
                                         {isSubObject ? (
-                                          <Typography sx={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.75)', px: 0.4, py: 0.4 }}>{item.processArea || '—'}</Typography>
-                                        ) : (
-                                          <Box component="select" value={item.processArea || ''} onChange={(e) => handleProjectInventoryInlineChange(item.id, 'processArea', e.target.value)} sx={selectSx}>
-                                            <option value="">—</option>
-                                            {processAreaOptions.map((option) => <option key={option} value={option}>{option}</option>)}
-                                          </Box>
-                                        )}
-                                      </Box>
-
-                                      <Box sx={{ p: 0.6, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: rowBg }}>
-                                        {isSubObject ? (
-                                          <Typography sx={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.75)', px: 0.4, py: 0.4 }}>{item.complexity || '—'}</Typography>
-                                        ) : (
-                                          <Box component="select" value={item.complexity || ''} onChange={(e) => handleProjectInventoryInlineChange(item.id, 'complexity', e.target.value)} sx={selectSx}>
-                                            <option value="">—</option>
-                                            {complexityOptions.map((option) => <option key={option} value={option}>{option}</option>)}
-                                          </Box>
-                                        )}
-                                      </Box>
-
-                                      <Box sx={{ p: 0.6, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: rowBg }}>
-                                        {isSubObject ? (
-                                          <Typography sx={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.75)', px: 0.4, py: 0.4 }}>{item.deploymentDisposition || '—'}</Typography>
-                                        ) : (
-                                          <Box component="select" value={item.deploymentDisposition || ''} onChange={(e) => handleProjectInventoryInlineChange(item.id, 'deploymentDisposition', e.target.value)} sx={selectSx}>
-                                            <option value="">—</option>
-                                            {deploymentDispositionOptions.map((option) => <option key={option} value={option}>{option}</option>)}
-                                          </Box>
-                                        )}
-                                      </Box>
-
-                                      <Box sx={{ p: 0.6, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: rowBg }}>
-                                        {isSubObject ? (
                                           <Typography sx={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.75)', px: 0.4, py: 0.4 }}>{item.buildType || '—'}</Typography>
                                         ) : (
                                           <Box component="select" value={item.buildType || ''} onChange={(e) => handleProjectInventoryInlineChange(item.id, 'buildType', e.target.value)} sx={selectSx}>
@@ -8423,11 +8390,22 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
 
                                       <Box sx={{ p: 0.6, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: rowBg }}>
                                         {isSubObject ? (
-                                          <Typography sx={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.75)', px: 0.4, py: 0.4 }}>{item.objectType || '—'}</Typography>
+                                          <Typography sx={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.75)', px: 0.4, py: 0.4 }}>{item.factorType || '—'}</Typography>
                                         ) : (
-                                          <Box component="select" value={item.objectType || ''} onChange={(e) => handleProjectInventoryInlineChange(item.id, 'objectType', e.target.value)} sx={selectSx}>
+                                          <Box component="select" value={item.factorType || ''} onChange={(e) => handleProjectInventoryInlineChange(item.id, 'factorType', e.target.value)} sx={selectSx}>
                                             <option value="">—</option>
-                                            {objectTypeOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+                                            {factorTypeOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+                                          </Box>
+                                        )}
+                                      </Box>
+
+                                      <Box sx={{ p: 0.6, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: rowBg }}>
+                                        {isSubObject ? (
+                                          <Typography sx={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.75)', px: 0.4, py: 0.4 }}>{item.complexity || '—'}</Typography>
+                                        ) : (
+                                          <Box component="select" value={item.complexity || ''} onChange={(e) => handleProjectInventoryInlineChange(item.id, 'complexity', e.target.value)} sx={selectSx}>
+                                            <option value="">—</option>
+                                            {complexityOptions.map((option) => <option key={option} value={option}>{option}</option>)}
                                           </Box>
                                         )}
                                       </Box>
