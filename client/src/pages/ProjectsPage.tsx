@@ -6460,6 +6460,14 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                           <Box key={`${projectGroupKey}-${node.id}`}>
                                             <Box
                                               onClick={() => {
+                                                if (isEstimationNode && estimationProcessAreas.length > 0) {
+                                                  setExpandedEstimationDeliverables((prev) => {
+                                                    const next = new Set(prev);
+                                                    if (next.has(deliverableNodeKey)) next.delete(deliverableNodeKey);
+                                                    else next.add(deliverableNodeKey);
+                                                    return next;
+                                                  });
+                                                }
                                                 if (firstCycle) {
                                                   handleHierarchySelection({
                                                     type: 'deliverable',
