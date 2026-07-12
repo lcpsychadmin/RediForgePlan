@@ -5119,20 +5119,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
       return byId.get(item.parentProjectObjectId) || projectInventoryItems.find((entry: any) => entry.id === item.parentProjectObjectId) || item;
     };
 
-    const scopedInventoryProcessArea = (
-      selectedItem?.type === 'deliverableProcessArea' && selectedItem.deliverableId === 'objectInventory'
-    )
-      ? (selectedItem.area || '').trim().toLowerCase()
-      : '';
-
-    if (scopedInventoryProcessArea) {
-      filtered = filtered.filter((item: any) => {
-        const root = getRootItem(item);
-        const area = String(root?.processArea || item.processArea || '').trim().toLowerCase();
-        return area === scopedInventoryProcessArea;
-      });
-    }
-
     filtered.sort((a, b) => {
       const rootA = getRootItem(a);
       const rootB = getRootItem(b);
@@ -6708,15 +6694,14 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                                   });
                                                 }
                                                 if (node.id === 'objectInventory') {
-                                                  setSelectedInventoryProgramId(program.id);
-                                                  setSelectedProjectForInventory(firstCycleProject.id);
-                                                  setInventorySubTab(1);
-                                                  setInventoryDialogProcessAreaFilter('');
+                                                  setSelectedExecutionProcessArea('');
                                                 }
                                                 if (node.targetView === 'structure' || node.id === 'projectSettings' || node.id === 'projectMockCycles' || node.id === 'projectStructure') {
                                                   applyStructureSubview(node.id);
                                                 }
                                                 if (node.id === 'projectSettings' || node.id === 'projectMockCycles' || node.id === 'projectStructure') {
+                                                  navigate('/planning/plan');
+                                                } else if (node.id === 'objectInventory') {
                                                   navigate('/planning/plan');
                                                 } else {
                                                   navigate(node.targetView ? `/planning/${node.targetView}` : '/planning/plan');
@@ -6988,11 +6973,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                                           deliverableId: node.id,
                                                           area,
                                                         });
-                                                        setSelectedInventoryProgramId(program.id);
-                                                        setSelectedProjectForInventory(firstCycleProject.id);
-                                                        setInventorySubTab(1);
-                                                        setInventoryDialogProcessAreaFilter(area);
-                                                        navigate('/planning/inventory');
+                                                        setSelectedExecutionProcessArea(area);
+                                                        navigate('/planning/plan');
                                                       }}
                                                       sx={{
                                                         display: 'flex',
@@ -7505,6 +7487,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                     const isProcessAreasSummaryDeliverable = isDeliverableSelection && selectedItem.deliverableId === 'processAreasRoles' && selectedItem.type === 'deliverable';
                     const isProcessAreasAreaSelection = selectedItem.type === 'deliverableProcessArea' && selectedItem.deliverableId === 'processAreasRoles';
                     const isEstimationProcessAreaSelection = selectedItem.type === 'deliverableProcessArea';
+                    const isObjectInventorySummaryDeliverable = selectedItem.type === 'deliverable' && selectedItem.deliverableId === 'objectInventory';
+                    const isObjectInventoryAreaSelection = selectedItem.type === 'deliverableProcessArea' && selectedItem.deliverableId === 'objectInventory';
                     const estimationAccent = isEstimationProcessAreaSelection ? selectedAreaAccent : deliverableAccent;
                     const estimationSelectedArea = selectedItem.type === 'deliverableProcessArea'
                       ? (selectedItem.area || '').trim()
@@ -8178,6 +8162,55 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                         </Box>
                       );
                     }
+                    if (isObjectInventorySummaryDeliverable) {
+                      const objectSummaryRows = getProcessAreasForProjectCycle(project.id, parentCycleId || undefined)
+                        .map((area) => {
+                          const areaNorm = area.trim().toLowerCase();
+                          const objectCount = projectInventoryItems.filter((item: any) => (
+                            !item.parentProjectObjectId
+                            && String(item.processArea || '').trim().toLowerCase() === areaNorm
+                          )).length;
+                          return { area, objectCount };
+                        });
+                      const totalObjects = objectSummaryRows.reduce((sum, row) => sum + row.objectCount, 0);
+
+                      return (
+                        <Box>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1.5 }}>
+                            {parentProgramName && <><Typography variant="caption" color="text.disabled">{parentProgramName}</Typography><Typography variant="caption" color="text.disabled">›</Typography></>}
+                            {parentCycleName && <><Typography variant="caption" color="text.disabled">{parentCycleName}</Typography><Typography variant="caption" color="text.disabled">›</Typography></>}
+                            <Typography variant="caption" sx={{ color: accentColor, fontWeight: 600 }}>{project.name}</Typography>
+                            <Typography variant="caption" color="text.disabled">›</Typography>
+                            <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>{deliverableLabel}</Typography>
+                          </Box>
+
+                          <Typography variant="h4" sx={{ fontWeight: 700, color: deliverableAccent, mb: 0.75, fontSize: { xs: '1.55rem', sm: '2.125rem' } }}>
+                            {deliverableLabel}
+                          </Typography>
+
+                          <Paper sx={{ p: 1.5, border: `1px solid ${deliverableAccent}44`, backgroundColor: 'rgba(255,255,255,0.04)' }}>
+                            <Typography variant="subtitle2" sx={{ color: deliverableAccent, fontWeight: 700, mb: 1 }}>Node Summary</Typography>
+                            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 1 }}>
+                              <Chip size="small" label={`Process Areas: ${objectSummaryRows.length}`} sx={{ backgroundColor: 'rgba(255,255,255,0.08)' }} />
+                              <Chip size="small" label={`Objects: ${totalObjects}`} sx={{ backgroundColor: 'rgba(255,255,255,0.08)' }} />
+                            </Box>
+                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+                              Select a process area child node to add and maintain Object Inventory data for that area.
+                            </Typography>
+                            <Box sx={{ display: 'grid', gap: 0.45 }}>
+                              {objectSummaryRows.length === 0 ? (
+                                <Typography variant="caption" color="text.secondary">No process areas assigned to this project yet.</Typography>
+                              ) : objectSummaryRows.map((row) => (
+                                <Box key={`obj-inv-row-${row.area}`} sx={{ display: 'flex', justifyContent: 'space-between', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 1, px: 1, py: 0.55 }}>
+                                  <Typography variant="caption" sx={{ fontWeight: 700 }}>{getProcessAreaDisplayName(project.id, row.area, parentCycleId || undefined)}</Typography>
+                                  <Typography variant="caption" color="text.secondary">{row.objectCount} objects</Typography>
+                                </Box>
+                              ))}
+                            </Box>
+                          </Paper>
+                        </Box>
+                      );
+                    }
                     const allGroupIds = projectTaskGroups.map(g => g.id);
                     const isDesignBuildEstimationGroup = (group: any) => {
                       const name = String(group?.name || '').trim().toLowerCase();
@@ -8203,7 +8236,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                       ? selectedItem.deliverableId
                       : undefined;
                     const isSelectedProcessArea = 'area' in selectedItem;
-                    const scopedPlanTasks = isDeliverableSelection
+                    const scopedPlanTasks = isObjectInventoryAreaSelection
+                      ? allPlanTasks.filter((t: any) => taskMatchesProcessArea(project.id, t, selectedItem.area, parentCycleId || undefined))
+                      : isDeliverableSelection
                       ? allPlanTasks.filter((t: any) => !!t.taskGroupId && filteredGroupIds.includes(t.taskGroupId))
                       : isSelectedProcessArea
                       ? allPlanTasks.filter((t: any) => taskMatchesProcessArea(project.id, t, selectedItem.area, parentCycleId || undefined))
@@ -8218,7 +8253,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                       ? (selectedItem.area || '')
                       : (selectedExecutionProcessArea || '');
                     const normalizedProcessAreaFilter = rawProcessAreaFilter.trim().toLowerCase();
-                    const showProjectSummaryOnly = isDeliverableSelection ? false : !normalizedProcessAreaFilter;
+                    const showProjectSummaryOnly = isObjectInventorySummaryDeliverable
+                      ? true
+                      : isDeliverableSelection
+                        ? false
+                        : !normalizedProcessAreaFilter;
                     const getObjectProcessArea = (objectId: string) => {
                       const inventoryObject = projectInventoryItems.find(obj => obj.id === objectId);
                       return (inventoryObject?.processArea || 'Unassigned Process Area').trim() || 'Unassigned Process Area';
@@ -8239,10 +8278,12 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                     // Tasks load asynchronously and appear under the objects as they arrive.
                     // Using inventory as the source of truth prevents the "flash then disappear"
                     // caused by racing between inventory and task loads.
-                    const sortedObjectIds = (showProjectSummaryOnly || isDeliverableSelection) ? [] : projectInventoryItems
+                    const hideObjectsForDeliverable = isDeliverableSelection && !isObjectInventoryAreaSelection;
+                    const sortedObjectIds = (showProjectSummaryOnly || hideObjectsForDeliverable) ? [] : projectInventoryItems
                       .filter((item: any) => !item.parentProjectObjectId)
                       .filter((item: any) => (item.processArea || '').trim().toLowerCase() === normalizedProcessAreaFilter)
                       .filter((item: any) => {
+                        if (isObjectInventoryAreaSelection) return true;
                         // Only show objects that have been explicitly added to this cycle's plan
                         // (i.e., have at least one task, or have a sub-object with a task)
                         const subObjs = getSubObjectsForParent(item.id);
@@ -8258,7 +8299,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                         return (aObj?.objectId || '').localeCompare(bObj?.objectId || '');
                       });
                     const getTaskGroupProcessArea = (group: any) => (group?.processArea || '').trim();
-                    const effectiveGroupIds = isDeliverableSelection
+                    const effectiveGroupIds = isObjectInventoryAreaSelection
+                      ? []
+                      : isDeliverableSelection
                       ? filteredGroupIds
                       : (showProjectSummaryOnly ? [] : allGroupIds).filter((id: string) => {
                           const group = projectTaskGroups.find(g => g.id === id);
@@ -8313,8 +8356,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                       .map(id => projectTaskGroups.find(g => g.id === id))
                       .filter(Boolean) as any[];
                     const canReorderPlan = orderedPlanRowKeys.length > 1;
-                    const canAddDataObjectHere = !isDeliverableSelection && !showProjectSummaryOnly && !!activeProjectId;
-                    const activePlanGroup = selectedItem?.type === 'processArea' ? selectedItem.area : '';
+                    const canAddDataObjectHere = (isObjectInventoryAreaSelection || (!isDeliverableSelection && !showProjectSummaryOnly)) && !!activeProjectId;
+                    const activePlanGroup = (selectedItem?.type === 'processArea' || isObjectInventoryAreaSelection) ? selectedItem.area : '';
                     const taskFieldSx = {
                       width: '100%',
                       minWidth: 0,
@@ -10122,78 +10165,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
           {/* Inventory Tab Content - Always Shows */}
           {canAccessInventory && tabValue === 1 && (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, p: 2 }}>
-              {(() => {
-                const inventoryDeliverableSelected =
-                  (selectedItem?.type === 'deliverable' || selectedItem?.type === 'deliverableProcessArea')
-                  && selectedItem.deliverableId === 'objectInventory';
-                if (!inventoryDeliverableSelected) return null;
-
-                const inventoryProjectId = selectedItem.projectId;
-                const inventoryCycleId = selectedItem.cycleId;
-                const summaryKey = inventoryCycleId ? `${inventoryProjectId}_${inventoryCycleId}` : inventoryProjectId;
-                const assignedAreas = getProcessAreasForProjectCycle(inventoryProjectId, inventoryCycleId);
-                const selectedAreaOnly = selectedItem.type === 'deliverableProcessArea'
-                  ? (selectedItem.area || '').trim().toLowerCase()
-                  : '';
-
-                const rows = assignedAreas
-                  .map((area) => {
-                    const areaNorm = area.trim().toLowerCase();
-                    const topLevelObjectCount = projectInventoryItems.filter((item: any) => (
-                      !item.parentProjectObjectId
-                      && item.projectId === inventoryProjectId
-                      && String(item.processArea || '').trim().toLowerCase() === areaNorm
-                    )).length;
-                    const summary = projectHierarchySummaries[summaryKey]?.processAreas?.[area];
-                    return {
-                      area,
-                      topLevelObjectCount,
-                      taskGroupCount: summary?.taskGroupCount ?? 0,
-                      taskCount: summary?.taskCount ?? 0,
-                      progressPct: summary?.progressPct ?? 0,
-                    };
-                  })
-                  .filter((row) => !selectedAreaOnly || row.area.trim().toLowerCase() === selectedAreaOnly);
-
-                const totalObjects = rows.reduce((sum, row) => sum + row.topLevelObjectCount, 0);
-                const totalTaskGroups = rows.reduce((sum, row) => sum + row.taskGroupCount, 0);
-                const totalTasks = rows.reduce((sum, row) => sum + row.taskCount, 0);
-                const avgProgress = rows.length > 0
-                  ? Math.round(rows.reduce((sum, row) => sum + row.progressPct, 0) / rows.length)
-                  : 0;
-
-                return (
-                  <Paper sx={{ p: 1.5, border: '1px solid rgba(38,166,154,0.35)', backgroundColor: 'rgba(38,166,154,0.08)' }}>
-                    <Typography variant="subtitle2" sx={{ color: '#7DE3D9', fontWeight: 700, mb: 1 }}>
-                      Object Inventory Summary
-                    </Typography>
-                    <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', mb: 1.25 }}>
-                      <Chip size="small" label={`Process Areas: ${rows.length}`} sx={{ backgroundColor: 'rgba(125,227,217,0.18)', color: '#B7F5EF' }} />
-                      <Chip size="small" label={`Objects: ${totalObjects}`} sx={{ backgroundColor: 'rgba(125,227,217,0.18)', color: '#B7F5EF' }} />
-                      <Chip size="small" label={`Task Groups: ${totalTaskGroups}`} sx={{ backgroundColor: 'rgba(125,227,217,0.18)', color: '#B7F5EF' }} />
-                      <Chip size="small" label={`Tasks: ${totalTasks}`} sx={{ backgroundColor: 'rgba(125,227,217,0.18)', color: '#B7F5EF' }} />
-                      <Chip size="small" label={`Avg Progress: ${avgProgress}%`} sx={{ backgroundColor: 'rgba(125,227,217,0.18)', color: '#B7F5EF' }} />
-                    </Box>
-                    <Box sx={{ display: 'grid', gap: 0.45 }}>
-                      {rows.length === 0 ? (
-                        <Typography variant="caption" sx={{ color: 'rgba(220,240,255,0.78)' }}>
-                          No assigned process areas found for this project.
-                        </Typography>
-                      ) : rows.map((row) => (
-                        <Box key={`inv-summary-${row.area}`} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, border: '1px solid rgba(125,227,217,0.25)', borderRadius: 1, px: 1, py: 0.6, backgroundColor: 'rgba(255,255,255,0.04)' }}>
-                          <Typography variant="caption" sx={{ color: '#D6F3EF', fontWeight: 700 }}>
-                            {getProcessAreaDisplayName(inventoryProjectId, row.area, inventoryCycleId || undefined)}
-                          </Typography>
-                          <Typography variant="caption" sx={{ color: 'rgba(220,240,255,0.82)' }}>
-                            {row.topLevelObjectCount} objects | {row.taskGroupCount} groups | {row.taskCount} tasks | {row.progressPct}%
-                          </Typography>
-                        </Box>
-                      ))}
-                    </Box>
-                  </Paper>
-                );
-              })()}
-
               {/* Inventory Sub-Tabs */}
               <Box sx={{ display: 'flex', gap: 1, overflow: 'visible' }}>
                 <Button
@@ -10437,16 +10408,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                         startIcon={<AddIcon />}
                         onClick={() => {
                           setEditingInventoryItemId(null);
-                          const selectedInventoryArea = (
-                            selectedItem?.type === 'deliverableProcessArea' && selectedItem.deliverableId === 'objectInventory'
-                          )
-                            ? (selectedItem.area || '')
-                            : '';
-                          setInventoryDialogProcessAreaFilter(selectedInventoryArea);
-                          setProjectInventoryItem({
-                            ...getEmptyProjectInventoryItem(),
-                            processArea: selectedInventoryArea,
-                          });
+                          setInventoryDialogProcessAreaFilter('');
+                          setProjectInventoryItem(getEmptyProjectInventoryItem());
                           setProjectInventoryDialogOpen(true);
                         }}
                         disabled={!selectedProjectForInventory}
