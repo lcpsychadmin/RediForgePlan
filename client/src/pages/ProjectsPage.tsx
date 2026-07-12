@@ -12458,14 +12458,26 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
               size="small"
               helperText={inventoryDialogProcessAreaFilter ? `Filtered to process area: ${getProcessAreaDisplayName(selectedProjectForInventory || '', inventoryDialogProcessAreaFilter)}` : undefined}
             >
-              {(inventoryDialogProcessAreaFilter
-                ? inventoryObjects.filter((obj) => (obj.processArea || '').trim().toLowerCase() === inventoryDialogProcessAreaFilter.trim().toLowerCase())
-                : inventoryObjects
-              ).map((obj) => (
+              {(() => {
+                const assignedObjectIds = new Set(
+                  projectInventoryItems
+                    .filter((item: any) => !item.parentProjectObjectId)
+                    .filter((item: any) => !selectedProjectForInventory || item.projectId === selectedProjectForInventory)
+                    .map((item: any) => String(item.dataObjectId || item.objectId || '').trim())
+                    .filter(Boolean)
+                );
+
+                const options = (inventoryDialogProcessAreaFilter
+                  ? inventoryObjects.filter((obj) => (obj.processArea || '').trim().toLowerCase() === inventoryDialogProcessAreaFilter.trim().toLowerCase())
+                  : inventoryObjects
+                ).filter((obj) => !assignedObjectIds.has(String(obj.objectId || '').trim()));
+
+                return options.map((obj) => (
                 <MenuItem key={obj.id} value={obj.objectId}>
                   {obj.objectId}
                 </MenuItem>
-              ))}
+                ));
+              })()}
             </TextField>
 
             <TextField
