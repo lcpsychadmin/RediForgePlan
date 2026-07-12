@@ -2517,6 +2517,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   const getProcessAreasForProjectCycle = (projectId: string, cycleId?: string) => {
     const key = cycleId || projectId;
     const areas = new Set<string>();
+    const structureAssignedAreaNorms = new Set<string>();
     const additionalGroupSet = new Set(
       getVisiblePlanningAdditionalGroups(projectId, cycleId)
         .map((name) => (name || '').trim().toLowerCase())
@@ -2540,11 +2541,20 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
     const structureAssignedAreas = projectAssignedProcessAreas[projectId] || [];
     structureAssignedAreas.forEach((areaName) => {
       const label = (areaName || '').trim();
-      if (label && !additionalGroupSet.has(label.toLowerCase())) areas.add(label);
+      if (label && !additionalGroupSet.has(label.toLowerCase())) {
+        areas.add(label);
+        structureAssignedAreaNorms.add(label.toLowerCase());
+      }
     });
 
     const hiddenAreaSet = new Set((hiddenProcessAreas[key] || []).map((area) => (area || '').trim().toLowerCase()));
-    const allAreas = Array.from(areas).filter((area) => !hiddenAreaSet.has((area || '').trim().toLowerCase()));
+    const allAreas = Array.from(areas).filter((area) => {
+      const normalized = (area || '').trim().toLowerCase();
+      if (!normalized) return false;
+      // Assigned process areas from Structure must remain visible in every cycle.
+      if (structureAssignedAreaNorms.has(normalized)) return true;
+      return !hiddenAreaSet.has(normalized);
+    });
     const ordered = mergeOrder(attached, allAreas);
     return ordered;
   };
