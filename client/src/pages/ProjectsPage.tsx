@@ -2513,20 +2513,20 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   const getProcessAreasForProjectCycle = (projectId: string, cycleId?: string) => {
     const key = cycleId || projectId;
     const areas = new Set<string>();
+    const additionalGroupSet = new Set(
+      getVisiblePlanningAdditionalGroups(projectId, cycleId)
+        .map((name) => (name || '').trim().toLowerCase())
+        .filter(Boolean)
+    );
     const attached = treeOrder.processAreas[key] || [];
     attached.forEach((area) => {
       const label = (area || '').trim();
-      if (label) areas.add(label);
-    });
-    const additional = getVisiblePlanningAdditionalGroups(projectId, cycleId);
-    additional.forEach((groupName) => {
-      const label = (groupName || '').trim();
-      if (label) areas.add(label);
+      if (label && !additionalGroupSet.has(label.toLowerCase())) areas.add(label);
     });
     const additionalProcessAreaNodes = planningAdditionalProcessAreas[key] || [];
     additionalProcessAreaNodes.forEach((areaName) => {
       const label = (areaName || '').trim();
-      if (label) areas.add(label);
+      if (label && !additionalGroupSet.has(label.toLowerCase())) areas.add(label);
     });
 
     const hiddenAreaSet = new Set((hiddenProcessAreas[key] || []).map((area) => (area || '').trim().toLowerCase()));
@@ -3389,16 +3389,12 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
               const label = (item.processArea || '').trim();
               if (label) areaLabels.add(label);
             });
-          getVisiblePlanningAdditionalGroups(project.id, cycleId).forEach((groupName) => {
-            const label = (groupName || '').trim();
-            if (label) areaLabels.add(label);
-          });
           nextProcessAreas[project.id] = mergeOrder(prev.processAreas[project.id] || [], Array.from(areaLabels));
         });
       }
       return { programs: nextPrograms, cycles: nextCycles, projects: nextProjects, projectGroups: nextProjectGroups, processAreas: nextProcessAreas };
     });
-  }, [programs, mockCycles, projectsByMockCycle, projectsByProgram, projectHierarchySummaries, projectInventoryItems, getVisiblePlanningAdditionalGroups]);
+  }, [programs, mockCycles, projectsByMockCycle, projectsByProgram, projectHierarchySummaries, projectInventoryItems]);
 
   // Persist tree ordering.
   // Also ensure all project groups for expanded programs are auto-expanded so
