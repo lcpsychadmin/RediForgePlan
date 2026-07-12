@@ -40,6 +40,8 @@ interface ProcessAreaRoleAssignmentPanelProps {
   people: Array<{ id: string; name?: string; email?: string }>;
   projects: Array<{ id: string; name: string; programId?: string }>;
   programs: Array<{ id: string; name: string }>;
+  fixedProjectId?: string;
+  fixedProcessArea?: string;
 }
 
 const getPersonLabel = (person: { name?: string; email?: string }) => {
@@ -66,6 +68,8 @@ const ProcessAreaRoleAssignmentPanel: React.FC<ProcessAreaRoleAssignmentPanelPro
   people,
   projects,
   programs,
+  fixedProjectId,
+  fixedProcessArea,
 }) => {
   const [globalAssignments, setGlobalAssignments] = React.useState<AssignmentMap>({});
 
@@ -137,6 +141,13 @@ const ProcessAreaRoleAssignmentPanel: React.FC<ProcessAreaRoleAssignmentPanelPro
   }, []);
 
   React.useEffect(() => {
+    if (fixedProjectId) {
+      if (selectedProjectId !== fixedProjectId) {
+        setSelectedProjectId(fixedProjectId);
+      }
+      return;
+    }
+
     if (selectableProjects.length === 0) {
       if (selectedProjectId) setSelectedProjectId('');
       return;
@@ -146,7 +157,7 @@ const ProcessAreaRoleAssignmentPanel: React.FC<ProcessAreaRoleAssignmentPanelPro
     if (!selectedProjectId || !exists) {
       setSelectedProjectId(selectableProjects[0].id);
     }
-  }, [selectableProjects, selectedProjectId]);
+  }, [selectableProjects, selectedProjectId, fixedProjectId]);
 
   React.useEffect(() => {
     loadProjectAssignments(selectedProjectId).catch(() => {});
@@ -155,12 +166,21 @@ const ProcessAreaRoleAssignmentPanel: React.FC<ProcessAreaRoleAssignmentPanelPro
   React.useEffect(() => {
     setExpandedProcessAreas((prev) => {
       const next = new Set<string>();
-      projectProcessAreas.forEach((area) => {
+      const candidateAreas = fixedProcessArea ? [fixedProcessArea] : projectProcessAreas;
+      candidateAreas.forEach((area) => {
         if (prev.has(area)) next.add(area);
       });
+      if (fixedProcessArea) {
+        next.add(fixedProcessArea);
+      }
       return next;
     });
-  }, [projectProcessAreas]);
+  }, [projectProcessAreas, fixedProcessArea]);
+
+  const displayedProcessAreas = React.useMemo(() => {
+    if (!fixedProcessArea) return projectProcessAreas;
+    return projectProcessAreas.includes(fixedProcessArea) ? [fixedProcessArea] : [];
+  }, [projectProcessAreas, fixedProcessArea]);
 
   const persistProjectState = React.useCallback(async (
     nextAssignments: AssignmentMap,
@@ -288,41 +308,47 @@ const ProcessAreaRoleAssignmentPanel: React.FC<ProcessAreaRoleAssignmentPanelPro
             Set project-specific assignees. Project values override global only for project workflows.
           </Typography>
           <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-            <TextField
-              select
-              size="small"
-              label="Project"
-              value={selectedProjectId}
-              onChange={(event) => setSelectedProjectId(event.target.value)}
-              sx={{ minWidth: 260 }}
-            >
-              {selectableProjects.map((project) => (
-                <MenuItem key={`project-${project.id}`} value={project.id}>
-                  {(programById[project.programId || ''] ? `${programById[project.programId || '']} / ` : '') + project.name}
-                </MenuItem>
-              ))}
-            </TextField>
-            <Button variant="outlined" startIcon={<AddIcon />} onClick={() => setAddProcessAreaDialogOpen(true)} disabled={!selectedProjectId || isSavingProject} sx={{ textTransform: 'none' }}>
-              Process Area
-            </Button>
+            {!fixedProjectId && (
+              <TextField
+                select
+                size="small"
+                label="Project"
+                value={selectedProjectId}
+                onChange={(event) => setSelectedProjectId(event.target.value)}
+                sx={{ minWidth: 260 }}
+              >
+                {selectableProjects.map((project) => (
+                  <MenuItem key={`project-${project.id}`} value={project.id}>
+                    {(programById[project.programId || ''] ? `${programById[project.programId || '']} / ` : '') + project.name}
+                  </MenuItem>
+                ))}
+              </TextField>
+            )}
+            {!fixedProcessArea && (
+              <Button variant="outlined" startIcon={<AddIcon />} onClick={() => setAddProcessAreaDialogOpen(true)} disabled={!selectedProjectId || isSavingProject} sx={{ textTransform: 'none' }}>
+                Process Area
+              </Button>
+            )}
             <Button variant="contained" onClick={handleSaveProject} disabled={isSavingProject || isLoadingProject || !selectedProjectId} sx={{ textTransform: 'none' }}>
               {isSavingProject ? 'Saving...' : 'Save'}
             </Button>
           </Box>
         </Box>
 
-        {projectProcessAreas.length === 0 ? (
+        {displayedProcessAreas.length === 0 ? (
           <Alert severity="info" sx={{ borderRadius: 1.5 }}>
-            No process areas were found for the selected project yet.
+            {fixedProcessArea
+              ? `Process area "${fixedProcessArea}" is not currently assigned to this project.`
+              : 'No process areas were found for the selected project yet.'}
           </Alert>
         ) : (
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-            {projectProcessAreas.map((processArea) => (
+            {displayedProcessAreas.map((processArea) => (
               <Box key={`project-${processArea}`} sx={{ border: '1px solid rgba(255,255,255,0.12)', borderRadius: 1.5, overflow: 'hidden' }}>
                 <Box sx={{ px: 1.25, py: 0.9, backgroundColor: 'rgba(255,255,255,0.06)', borderBottom: expandedProcessAreas.has(processArea) ? '1px solid rgba(255,255,255,0.1)' : 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <Typography sx={{ fontWeight: 700, color: '#E2EBFF', fontSize: '0.9rem' }}>{processArea}</Typography>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
-                    {manualProcessAreas.some((area) => area.toLowerCase() === processArea.toLowerCase()) && (
+                    {!fixedProcessArea && manualProcessAreas.some((area) => area.toLowerCase() === processArea.toLowerCase()) && (
                       <IconButton size="small" onClick={() => handleRemoveProcessArea(processArea)} title="Remove process area" disabled={isSavingProject}>
                         <DeleteOutlineIcon sx={{ fontSize: '1rem' }} />
                       </IconButton>

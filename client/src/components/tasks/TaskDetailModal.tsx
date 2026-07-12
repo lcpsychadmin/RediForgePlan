@@ -67,6 +67,7 @@ interface TaskDetailModalProps {
   people?: any[];
   accentColor?: string;
   onSaved?: (updatedTask: any) => void;
+  initialTab?: number;
 }
 
 // ── comment thread (inline) ───────────────────────────────────────────────────

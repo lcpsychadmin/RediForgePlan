@@ -242,7 +242,7 @@ const ProjectDefectsPage: React.FC<ProjectDefectsPageProps> = ({ projectId: proj
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             sx={{ width: 320, ...filterFieldSx }}
-            slotProps={{ input: { startAdornment: <SearchIcon sx={{ fontSize: '1rem', mr: 0.5, color: 'text.secondary' }} /> } }}
+            InputProps={{ startAdornment: <SearchIcon sx={{ fontSize: '1rem', mr: 0.5, color: 'text.secondary' }} /> }}
           />
           <TextField
             size="small"

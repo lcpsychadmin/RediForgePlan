@@ -277,7 +277,7 @@ const PLAN_DELIVERABLE_NODES: Array<{
   { id: 'projectStructure', label: 'Project Structure', targetView: 'plan', accentColor: '#4FC3F7', icon: 'fa-diagram-project' },
   { id: 'projectSettings', parentId: 'projectStructure', label: 'Project Settings', targetView: 'plan', accentColor: '#64B5F6', icon: 'settings' },
   { id: 'projectMockCycles', parentId: 'projectStructure', label: 'Mock Cycles', targetView: 'plan', accentColor: '#FFB74D', icon: 'sync' },
-  { id: 'processAreasRoles', label: 'Process Areas and Assigned Roles', targetView: 'structure', accentColor: '#7E57C2', icon: 'accountTree' },
+  { id: 'processAreasRoles', label: 'Process Areas', targetView: 'plan', accentColor: '#7E57C2', icon: 'accountTree' },
   { id: 'objectInventory', label: 'Object Inventory by Process Area', targetView: 'inventory', accentColor: '#26A69A', icon: 'storage' },
   { id: 'migrationStrategy', label: 'Data Migration Strategy', targetView: 'strategy', accentColor: '#EC407A', icon: 'fa-file-lines' },
   { id: 'projectRoadmap', label: 'Project Roadmap', targetView: 'roadmap', accentColor: '#FFB74D', icon: 'fa-chart-gantt' },
@@ -2107,7 +2107,15 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
         ? { type: 'processArea', projectId: selectedItem.projectId, cycleId: selectedItem.cycleId, area: selectedItem.area }
       : selectedItem.type === 'cycle'
         ? { type: 'cycle', cycleId: selectedItem.id, programId: selectedItem.programId, projectId: selectedItem.projectId || null }
-        : { type: 'program', programId: selectedItem.id };
+        : selectedItem.type === 'program'
+          ? { type: 'program', programId: selectedItem.id }
+          : {
+              type: 'deliverableProcessArea',
+              projectId: selectedItem.projectId,
+              cycleId: selectedItem.cycleId,
+              deliverableId: selectedItem.deliverableId,
+              area: selectedItem.area,
+            };
 
     localStorage.setItem(HIERARCHY_SELECTION_STORAGE_KEY, JSON.stringify(payload));
   }, [selectedItem]);
@@ -3461,11 +3469,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
         if (cancelled) return;
         const nextMap: Record<string, string[]> = {};
         responses.forEach(([projectId, areas]) => {
-          nextMap[projectId] = Array.from(new Set(
-            areas
-              .map((entry: any) => String(entry || '').trim())
-              .filter(Boolean)
-          )).sort((a, b) => a.localeCompare(b));
+          const normalizedAreas: string[] = areas
+            .map((entry: any) => String(entry || '').trim())
+            .filter((entry: string) => !!entry);
+          nextMap[projectId] = Array.from(new Set(normalizedAreas)).sort((a, b) => a.localeCompare(b));
         });
 
         // Some cycles may reference the same project by different IDs.
@@ -3921,6 +3928,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
       try {
         setIsLoadingCycleOverview(true);
         const perProject = await Promise.all(projects.map(async (project: Project) => {
+          const cycleId = project.mockCycleId;
+          if (!cycleId) {
+            return { tasks: [], objects: [], groups: [] };
+          }
           const [tasksRes, objectsRes, groupsRes] = await Promise.all([
             apiClient.get(`/api/tasks/cycle/${cycleId}`),
             apiClient.get(`/api/project-objects/cycle/${cycleId}`),
@@ -4011,6 +4022,15 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
       try {
         setIsLoadingProgramOverview(true);
         const perProject = await Promise.all(projects.map(async (project: Project) => {
+          const cycleId = project.mockCycleId;
+          if (!cycleId) {
+            return {
+              tasks: [],
+              objects: [],
+              groups: [],
+            };
+          }
+
           const [tasksRes, objectsRes, groupsRes] = await Promise.all([
             apiClient.get(`/api/tasks/cycle/${cycleId}`),
             apiClient.get(`/api/project-objects/cycle/${cycleId}`),
@@ -4586,7 +4606,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
       // Clear selection if it now points to a deleted hierarchy node or its deleted parent.
       const shouldClearSelection = (() => {
         if (!selectedItem) return false;
-        if (selectedItem.id === deletedItemId) return true;
+        if ('id' in selectedItem && selectedItem.id === deletedItemId) return true;
 
         if (deletedItemType === 'program') {
           return (
@@ -4932,6 +4952,20 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   };
 
   const handleCatalogProcessAreaChange = async (objectId: string, processArea: string) => {
+    try {
+      await apiClient.patch(`/api/global-objects/${objectId}`, {
+        processArea,
+      });
+      setInventoryObjects((prev: any[]) => prev.map((obj: any) => (
+        obj.id === objectId
+          ? { ...obj, processArea }
+          : obj
+      )));
+    } catch (error) {
+      console.error('Failed to update catalog process area:', error);
+      alert('Failed to update process area. Please try again.');
+    }
+  };
 
   const handleOpenAddToInv = async (obj: any) => {
     setAddToInvObj(obj);
@@ -5033,15 +5067,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
       alert(e?.response?.data?.message || 'Failed to add to inventory');
     } finally {
       setIsAddingToInv(false);
-    }
-  };    try {
-      await apiClient.patch(`/api/global-objects/${objectId}`, {
-        processArea,
-      });
-      setInventoryObjects(prev => prev.map(obj => obj.id === objectId ? { ...obj, processArea } : obj));
-    } catch (error) {
-      console.error('Failed to update process area:', error);
-      alert('Failed to update process area. Please try again.');
     }
   };
 
@@ -5398,7 +5423,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   }, [
     sectionMode,
     selectedItem?.type,
-    selectedItem?.deliverableId,
+    selectedItem?.type === 'deliverable' || selectedItem?.type === 'deliverableProcessArea' ? selectedItem.deliverableId : undefined,
     activeProjectId,
     activeCycleId,
     projectInventoryItems,
@@ -6592,6 +6617,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                         const nodeAccent = node.isFuture ? 'rgba(255,255,255,0.7)' : node.accentColor;
                                         const childNodes = PLAN_DELIVERABLE_NODES.filter((candidate) => candidate.parentId === node.id);
                                         const isEstimationNode = node.id === 'designBuildEstimation';
+                                        const isProcessAreasNode = node.id === 'processAreasRoles';
                                         const deliverableNodeKey = `${firstCycleProject.id}::${firstCycle?.id || ''}::${node.id}`;
                                         const summaryKey = firstCycle ? `${firstCycleProject.id}_${firstCycle.id}` : firstCycleProject.id;
                                         const cachedAreaKeys = Object.keys(projectHierarchySummaries[summaryKey]?.processAreas || {});
@@ -6605,7 +6631,15 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                         const estimationProcessAreas = isEstimationNode
                                           ? Array.from(new Set([...assignedProcessAreas, ...cachedAreaKeys, ...activeInventoryAreas])).sort((a, b) => a.localeCompare(b))
                                           : [];
-                                        const hasExpandableChildren = (isEstimationNode && estimationProcessAreas.length > 0) || childNodes.length > 0;
+                                        const processAreaRoleNodes = isProcessAreasNode
+                                          ? Array.from(new Set([
+                                              ...(projectAssignedProcessAreas[firstCycleProject.id] || []),
+                                              ...(projectManualProcessAreas[firstCycleProject.id] || []),
+                                            ]
+                                              .map((area) => String(area || '').trim())
+                                              .filter(Boolean))).sort((a, b) => a.localeCompare(b))
+                                          : [];
+                                        const hasExpandableChildren = (isEstimationNode && estimationProcessAreas.length > 0) || (isProcessAreasNode && processAreaRoleNodes.length > 0) || childNodes.length > 0;
                                         const isNodeExpanded = (selectedItem?.type === 'deliverableProcessArea'
                                           && selectedItem?.projectId === firstCycleProject.id
                                           && selectedItem?.deliverableId === node.id)
@@ -6798,6 +6832,66 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                                   return (
                                                     <Box
                                                       key={`${projectGroupKey}-${node.id}-${area}`}
+                                                      onClick={() => {
+                                                        handleHierarchySelection({
+                                                          type: 'deliverableProcessArea',
+                                                          projectId: firstCycleProject.id,
+                                                          cycleId: firstCycle?.id,
+                                                          deliverableId: node.id,
+                                                          area,
+                                                        });
+                                                        navigate('/planning/plan');
+                                                      }}
+                                                      sx={{
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        minWidth: 0,
+                                                        width: '100%',
+                                                        maxWidth: '100%',
+                                                        overflow: 'hidden',
+                                                        py: 0.35,
+                                                        pl: 1.35,
+                                                        pr: 0.45,
+                                                        cursor: 'pointer',
+                                                        position: 'relative',
+                                                        borderRadius: 0.75,
+                                                        backgroundColor: areaSelected ? 'rgba(91, 103, 202, 0.22)' : 'transparent',
+                                                        '&::before': areaSelected ? {
+                                                          content: '""',
+                                                          position: 'absolute',
+                                                          left: 0,
+                                                          top: '3px',
+                                                          bottom: '3px',
+                                                          width: '3px',
+                                                          backgroundColor: areaAccent,
+                                                          borderRadius: '2px',
+                                                        } : {},
+                                                        '&:hover': { backgroundColor: areaSelected ? 'rgba(91, 103, 202, 0.25)' : 'rgba(255,255,255,0.06)' },
+                                                      }}
+                                                    >
+                                                      <Box sx={{ mr: 0.45, display: 'inline-flex', alignItems: 'center' }}>
+                                                        {renderHierarchyIcon('processArea', areaAccent, '0.7rem')}
+                                                      </Box>
+                                                      <Typography variant="caption" sx={{ fontWeight: areaSelected ? 700 : 500, color: areaSelected ? areaAccent : 'text.secondary', flex: '1 1 auto', minWidth: 0, maxWidth: '100%', width: 0, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                        {getProcessAreaDisplayName(firstCycleProject.id, area, firstCycle?.id)}
+                                                      </Typography>
+                                                    </Box>
+                                                  );
+                                                })}
+                                              </Box>
+                                            )}
+
+                                            {isProcessAreasNode && processAreaRoleNodes.length > 0 && isNodeExpanded && (
+                                              <Box sx={{ ml: 2.2, mt: 0.2, display: 'grid', gap: 0.35 }}>
+                                                {processAreaRoleNodes.map((area) => {
+                                                  const areaSelected = selectedItem?.type === 'deliverableProcessArea'
+                                                    && selectedItem.projectId === firstCycleProject.id
+                                                    && selectedItem.deliverableId === node.id
+                                                    && selectedItem.area === area;
+                                                  const areaAccent = getProcessAreaAccent(firstCycleProject.id, area, nodeAccent, firstCycle?.id);
+                                                  return (
+                                                    <Box
+                                                      key={`${projectGroupKey}-${node.id}-role-${area}`}
                                                       onClick={() => {
                                                         handleHierarchySelection({
                                                           type: 'deliverableProcessArea',
@@ -7316,6 +7410,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                     const isProjectStructureSummaryDeliverable = isDeliverableSelection && selectedItem.deliverableId === 'projectStructure';
                     const isProjectSettingsDeliverable = isDeliverableSelection && selectedItem.deliverableId === 'projectSettings';
                     const isProjectMockCyclesDeliverable = isDeliverableSelection && selectedItem.deliverableId === 'projectMockCycles';
+                    const isProcessAreasSummaryDeliverable = isDeliverableSelection && selectedItem.deliverableId === 'processAreasRoles' && selectedItem.type === 'deliverable';
+                    const isProcessAreasAreaSelection = selectedItem.type === 'deliverableProcessArea' && selectedItem.deliverableId === 'processAreasRoles';
                     const isEstimationProcessAreaSelection = selectedItem.type === 'deliverableProcessArea';
                     const estimationAccent = isEstimationProcessAreaSelection ? selectedAreaAccent : deliverableAccent;
                     const estimationSelectedArea = selectedItem.type === 'deliverableProcessArea'
@@ -7571,6 +7667,72 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                               ))
                             )}
                           </Paper>
+                        </Box>
+                      );
+                    }
+                    if (isProcessAreasSummaryDeliverable) {
+                      const processAreas = Array.from(new Set([
+                        ...(projectAssignedProcessAreas[project.id] || []),
+                        ...(projectManualProcessAreas[project.id] || []),
+                      ]
+                        .map((area) => String(area || '').trim())
+                        .filter(Boolean))).sort((a, b) => a.localeCompare(b));
+
+                      return (
+                        <Box>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1.5 }}>
+                            {parentProgramName && <><Typography variant="caption" color="text.disabled">{parentProgramName}</Typography><Typography variant="caption" color="text.disabled">›</Typography></>}
+                            {parentCycleName && <><Typography variant="caption" color="text.disabled">{parentCycleName}</Typography><Typography variant="caption" color="text.disabled">›</Typography></>}
+                            <Typography variant="caption" sx={{ color: accentColor, fontWeight: 600 }}>{project.name}</Typography>
+                            <Typography variant="caption" color="text.disabled">›</Typography>
+                            <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>Process Areas</Typography>
+                          </Box>
+
+                          <Typography variant="h4" sx={{ fontWeight: 700, color: deliverableAccent, mb: 0.75, fontSize: { xs: '1.55rem', sm: '2.125rem' } }}>
+                            Process Areas
+                          </Typography>
+
+                          <Paper sx={{ p: 1.25, border: `1px solid ${deliverableAccent}44`, backgroundColor: 'rgba(255,255,255,0.04)', mb: 1.5 }}>
+                            <Typography variant="body2" color="text.secondary">
+                              {processAreas.length} process area(s) assigned to this project.
+                            </Typography>
+                          </Paper>
+
+                          <ProcessAreaRoleAssignmentPanel
+                            processAreaOptions={processAreaOptions}
+                            people={people}
+                            projects={allMaintainProjects}
+                            programs={programs}
+                            fixedProjectId={project.id}
+                          />
+                        </Box>
+                      );
+                    }
+                    if (isProcessAreasAreaSelection) {
+                      return (
+                        <Box>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1.5 }}>
+                            {parentProgramName && <><Typography variant="caption" color="text.disabled">{parentProgramName}</Typography><Typography variant="caption" color="text.disabled">›</Typography></>}
+                            {parentCycleName && <><Typography variant="caption" color="text.disabled">{parentCycleName}</Typography><Typography variant="caption" color="text.disabled">›</Typography></>}
+                            <Typography variant="caption" sx={{ color: accentColor, fontWeight: 600 }}>{project.name}</Typography>
+                            <Typography variant="caption" color="text.disabled">›</Typography>
+                            <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>Process Areas</Typography>
+                            <Typography variant="caption" color="text.disabled">›</Typography>
+                            <Typography variant="caption" sx={{ color: selectedAreaAccent, fontWeight: 700 }}>{selectedAreaLabel}</Typography>
+                          </Box>
+
+                          <Typography variant="h4" sx={{ fontWeight: 700, color: selectedAreaAccent, mb: 0.75, fontSize: { xs: '1.55rem', sm: '2.125rem' } }}>
+                            {selectedAreaLabel}
+                          </Typography>
+
+                          <ProcessAreaRoleAssignmentPanel
+                            processAreaOptions={processAreaOptions}
+                            people={people}
+                            projects={allMaintainProjects}
+                            programs={programs}
+                            fixedProjectId={project.id}
+                            fixedProcessArea={selectedItem.area}
+                          />
                         </Box>
                       );
                     }
@@ -7945,9 +8107,13 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                       }
                       return true;
                     });
+                    const selectedDeliverableId = selectedItem.type === 'deliverable' || selectedItem.type === 'deliverableProcessArea'
+                      ? selectedItem.deliverableId
+                      : undefined;
+                    const isSelectedProcessArea = 'area' in selectedItem;
                     const scopedPlanTasks = isDeliverableSelection
                       ? allPlanTasks.filter((t: any) => !!t.taskGroupId && filteredGroupIds.includes(t.taskGroupId))
-                      : (selectedItem.type === 'processArea' || selectedItem.type === 'deliverableProcessArea')
+                      : isSelectedProcessArea
                       ? allPlanTasks.filter((t: any) => taskMatchesProcessArea(project.id, t, selectedItem.area, parentCycleId || undefined))
                       : allPlanTasks;
                     const progressPct = scopedPlanTasks.length > 0
@@ -7956,7 +8122,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                     // Filter by the raw area code, not the display label, so it correctly
                     // matches global_objects.process_area values on first click (before the
                     // selectedExecutionProcessArea state has been set by the useEffect).
-                    const rawProcessAreaFilter = (selectedItem.type === 'processArea' || selectedItem.type === 'deliverableProcessArea')
+                    const rawProcessAreaFilter = isSelectedProcessArea
                       ? (selectedItem.area || '')
                       : (selectedExecutionProcessArea || '');
                     const normalizedProcessAreaFilter = rawProcessAreaFilter.trim().toLowerCase();
@@ -8161,9 +8327,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                             inventoryItems={projectInventoryItems}
                             workflowUsers={workflowUsers}
                             currentUserId={user?.id}
-                            selectedDeliverableId={selectedItem.type === 'deliverable' ? selectedItem.deliverableId : undefined}
-                            selectedDeliverableLabel={selectedItem.type === 'deliverable' ? deliverableLabel : undefined}
-                            selectedDeliverableAccent={selectedItem.type === 'deliverable' ? deliverableAccent : undefined}
+                            selectedDeliverableId={selectedDeliverableId}
+                            selectedDeliverableLabel={selectedDeliverableId ? deliverableLabel : undefined}
+                            selectedDeliverableAccent={selectedDeliverableId ? deliverableAccent : undefined}
                           />
                         )}
 
@@ -8195,7 +8361,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                         <Box sx={{ display: 'flex', gap: 1.5, mb: 3, alignItems: 'center', flexWrap: 'wrap' }}>
                           <TextField placeholder="Search by name or ID..." size="small" value={planSearchTerm} onChange={(e) => setPlanSearchTerm(e.target.value)}
                             sx={{ width: { xs: '100%', sm: 240 }, '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': { borderColor: planAccentColor }, '& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: planAccentColor } }}
-                            slotProps={{ input: { startAdornment: <SearchIcon sx={{ mr: 0.5, fontSize: '1rem', color: 'text.secondary' }} /> } }} />
+                            InputProps={{ startAdornment: <SearchIcon sx={{ mr: 0.5, fontSize: '1rem', color: 'text.secondary' }} /> }} />
                           <TextField select size="small" label="Status" value={planStatusFilter} onChange={(e) => setPlanStatusFilter(e.target.value)}
                             sx={{ width: { xs: 'calc(50% - 6px)', sm: 150 }, minWidth: { xs: 140, sm: 150 }, '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': { borderColor: planAccentColor }, '& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: planAccentColor }, '& .MuiInputLabel-root.Mui-focused': { color: planAccentColor } }}>
                             <MenuItem value="">All Statuses</MenuItem>
@@ -8529,7 +8695,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                                               const val = Math.min(100, Math.max(0, parseInt(e.target.value) || 0));
                                                               updateTaskInline(task.id, 'progressPercentage', String(val));
                                                             }}
-                                                            slotProps={{ htmlInput: { min: 0, max: 100 } }}
+                                                            inputProps={{ min: 0, max: 100 }}
                                                             sx={{ ...taskFieldSx, '& input': { textAlign: 'center', px: 0.5 } }} />
                                                           <TextField select size="small" value={task.assignedTo || ''}
                                                             onChange={e => updateTaskInline(task.id, 'assignedTo', e.target.value)}
@@ -8565,7 +8731,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                                                 cascadeAllDates(snap, taskDepsRef.current);
                                                                 apiClient.patch(`/api/tasks/${task.id}`, patch).catch(() => {});
                                                               }}
-                                                              slotProps={{ htmlInput: { min: 0, step: 1 } }}
+                                                              inputProps={{ min: 0, step: 1 }}
                                                               sx={{ ...taskFieldSx, '& input': { textAlign: 'center', px: 0.25, width: 32 } }} />
                                                           </Box>
                                                           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', pl: 0 }}>
@@ -8623,7 +8789,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                                                     .catch(() => {});
                                                                   e.target.blur();
                                                                 }}
-                                                                slotProps={{ htmlInput: { style: { width: '100%', minWidth: 0, boxSizing: 'border-box' } } }}
+                                                                inputProps={{ style: { width: '100%', minWidth: 0, boxSizing: 'border-box' } }}
                                                                 sx={{ ...taskFieldSx, overflow: 'hidden', ...(!task.startDate ? { '& input': { color: 'transparent' }, '& input:focus': { color: 'inherit' }, '& input::-webkit-calendar-picker-indicator': { opacity: 0 }, '& input:focus::-webkit-calendar-picker-indicator': { opacity: 1 } } : {}) }} />
                                                               {!task.startDate && <Box className="date-empty" sx={{ position: 'absolute', inset: 0, pl: 1.5, display: 'flex', alignItems: 'center', pointerEvents: 'none', fontSize: '0.72rem', color: 'text.disabled' }}>—</Box>}
                                                             </Box>
@@ -8925,7 +9091,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                                 const val = Math.min(100, Math.max(0, parseInt(e.target.value) || 0));
                                                 updateTaskInline(task.id, 'progressPercentage', String(val));
                                               }}
-                                              slotProps={{ htmlInput: { min: 0, max: 100 } }}
+                                              inputProps={{ min: 0, max: 100 }}
                                               sx={{ ...taskFieldSx, '& input': { textAlign: 'center', px: 0.5 } }} />
                                             {/* Assigned To */}
                                             <TextField select size="small" value={task.assignedTo || ''}
@@ -8963,7 +9129,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                                   cascadeAllDates(snap2, taskDepsRef.current);
                                                   apiClient.patch(`/api/tasks/${task.id}`, patch).catch(() => {});
                                                 }}
-                                                slotProps={{ htmlInput: { min: 0, step: 1 } }}
+                                                inputProps={{ min: 0, step: 1 }}
                                                 sx={{ ...taskFieldSx, '& input': { textAlign: 'center', px: 0.25, width: 32 } }} />
                                             </Box>
                                             {/* Include weekends override */}
@@ -9023,7 +9189,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                                       .catch(() => {});
                                                     e.target.blur();
                                                   }}
-                                                  slotProps={{ htmlInput: { style: { width: '100%', minWidth: 0, boxSizing: 'border-box' } } }}
+                                                  inputProps={{ style: { width: '100%', minWidth: 0, boxSizing: 'border-box' } }}
                                                   sx={{ ...taskFieldSx, overflow: 'hidden', ...(!task.startDate ? { '& input': { color: 'transparent' }, '& input:focus': { color: 'inherit' }, '& input::-webkit-calendar-picker-indicator': { opacity: 0 }, '& input:focus::-webkit-calendar-picker-indicator': { opacity: 1 } } : {}) }} />
                                                 {!task.startDate && <Box className="date-empty" sx={{ position: 'absolute', inset: 0, pl: 1.5, display: 'flex', alignItems: 'center', pointerEvents: 'none', fontSize: '0.72rem', color: 'text.disabled' }}>—</Box>}
                                               </Box>
@@ -9044,7 +9210,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                                   type="date"
                                                   value={task.endDate || ''}
                                                   onChange={e => { updateTaskInline(task.id, 'endDate', e.target.value); e.target.blur(); }}
-                                                  slotProps={{ htmlInput: { style: { width: '100%', minWidth: 0, boxSizing: 'border-box' } } }}
+                                                  inputProps={{ style: { width: '100%', minWidth: 0, boxSizing: 'border-box' } }}
                                                   sx={{ ...taskFieldSx, overflow: 'hidden', '& input': { color: 'transparent' }, '& input:focus': { color: 'inherit' }, '& input::-webkit-calendar-picker-indicator': { opacity: 0 }, '& input:focus::-webkit-calendar-picker-indicator': { opacity: 1 } }} />
                                                 <Box className="date-empty-end" sx={{ position: 'absolute', inset: 0, pl: 1.5, display: 'flex', alignItems: 'center', pointerEvents: 'none', fontSize: '0.72rem', color: 'text.disabled' }}>—</Box>
                                               </Box>
@@ -9556,7 +9722,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                                 const val = Math.min(100, Math.max(0, parseInt(e.target.value) || 0));
                                                 updateTaskInline(task.id, 'progressPercentage', String(val));
                                               }}
-                                              slotProps={{ htmlInput: { min: 0, max: 100 } }}
+                                              inputProps={{ min: 0, max: 100 }}
                                               sx={{ ...taskFieldSx, '& input': { textAlign: 'center', px: 0.5 } }} />
                                             <TextField select size="small" value={task.assignedTo || ''} onChange={e => updateTaskInline(task.id, 'assignedTo', e.target.value)}
                                               sx={taskFieldSx}>
@@ -9592,7 +9758,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                                   cascadeAllDates(snap2, taskDepsRef.current);
                                                   apiClient.patch(`/api/tasks/${task.id}`, patch).catch(() => {});
                                                 }}
-                                                slotProps={{ htmlInput: { min: 0, step: 1 } }}
+                                                inputProps={{ min: 0, step: 1 }}
                                                 sx={{ ...taskFieldSx, '& input': { textAlign: 'center', px: 0.25, width: 32 } }} />
                                             </Box>
                                             {/* Include weekends override */}
@@ -9956,7 +10122,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                           borderColor: 'rgba(255,255,255,0.3)',
                         },
                       }}
-                      slotProps={{ input: { startAdornment: <SearchIcon sx={{ mr: 0.75, color: 'rgba(255,255,255,0.4)', fontSize: '1rem' }} /> } }}
+                      InputProps={{ startAdornment: <SearchIcon sx={{ mr: 0.75, color: 'rgba(255,255,255,0.4)', fontSize: '1rem' }} /> }}
                     />
 
                     <Box sx={{ overflowX: 'auto' }}>
@@ -11338,7 +11504,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
               alert('No project found for this mock cycle.');
               return;
             }
-            handleAddAdditionalGroup(cycle.id);
+            handleAddAdditionalGroup(menuItemId);
             setMenuAnchorEl(null);
           }}
           sx={{ display: menuType === 'cycle' ? 'flex' : 'none' }}
@@ -12294,7 +12460,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
             fullWidth size="small" placeholder="Search tasks..."
             value={depSearchTerm}
             sx={{ mb: 1.5 }}
-            slotProps={{ input: { startAdornment: <SearchIcon sx={{ mr: 0.5, fontSize: '1rem', color: 'text.secondary' }} /> } }}
+            InputProps={{ startAdornment: <SearchIcon sx={{ mr: 0.5, fontSize: '1rem', color: 'text.secondary' }} /> }}
             onChange={e => setDepSearchTerm(e.target.value.toLowerCase())}
           />
           <Box sx={{ maxHeight: 400, overflowY: 'auto' }}>
@@ -13757,7 +13923,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
 
                     const toggleCollapse = (id: string) => setCollapsedSubObjs(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
 
-                    const TH = ({ children }: { children: React.ReactNode }) => (
+                    const TH: React.FC<React.PropsWithChildren> = ({ children }) => (
                       <Box component="th" sx={{ px: 1, py: 0.6, textAlign: 'left', fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.07em', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', backgroundColor: 'rgba(255,255,255,0.04)', whiteSpace: 'nowrap', borderBottom: '1px solid rgba(255,255,255,0.09)', position: 'sticky', top: 0, zIndex: 1 }}>{children}</Box>
                     );
 
