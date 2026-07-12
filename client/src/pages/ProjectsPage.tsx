@@ -4513,7 +4513,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
       } else if (deleteItemType === 'cycle') {
         await apiClient.delete(`/api/mock-cycles/${deleteItemId}`);
       } else if (deleteItemType === 'project') {
-        await apiClient.delete(`/api/projects/${deleteItemId}`);
+        await apiClient.delete(`/api/projects/${deleteItemId}?cascade=true`);
       } else if (deleteItemType === 'task') {
         // Remove object from plan: delete its tasks (and sub-object tasks) for this cycle.
         // The inventory item itself is kept so the object can be re-added to the plan later.
@@ -11175,6 +11175,16 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                 <>
                   <Typography variant="body2" sx={{ mb: 0.5 }}>
                     • The mock cycle, its project, and all descendants will be permanently deleted
+                  </Typography>
+                  <Typography variant="body2">
+                    • This cannot be undone
+                  </Typography>
+                </>
+              )}
+              {deleteItemType === 'project' && (
+                <>
+                  <Typography variant="body2" sx={{ mb: 0.5 }}>
+                    • All linked Mock Cycle(s) and their tasks, task groups, and schedule data will be permanently deleted
                   </Typography>
                   <Typography variant="body2">
                     • This cannot be undone

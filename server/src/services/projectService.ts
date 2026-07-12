@@ -267,13 +267,15 @@ export class ProjectService {
     return this.getProjectById(projectId);
   }
 
-  async deleteProject(projectId: string) {
+  async deleteProject(projectId: string, options?: { cascade?: boolean }) {
+    const cascade = !!options?.cascade;
+
     const cycleCount = await db.query(
       'SELECT COUNT(*) FROM mock_cycles WHERE project_id = $1',
       [projectId]
     );
 
-    if (parseInt(cycleCount.rows[0].count, 10) > 0) {
+    if (!cascade && parseInt(cycleCount.rows[0].count, 10) > 0) {
       throw new Error('Cannot delete project with existing mock cycles');
     }
 
@@ -282,7 +284,7 @@ export class ProjectService {
       [projectId]
     );
 
-    if (parseInt(objectCount.rows[0].count, 10) > 0) {
+    if (!cascade && parseInt(objectCount.rows[0].count, 10) > 0) {
       throw new Error('Cannot delete project with existing project objects');
     }
 
@@ -291,7 +293,7 @@ export class ProjectService {
       [projectId]
     );
 
-    if (parseInt(groupCount.rows[0].count, 10) > 0) {
+    if (!cascade && parseInt(groupCount.rows[0].count, 10) > 0) {
       throw new Error('Cannot delete project with existing task groups');
     }
 
@@ -300,7 +302,7 @@ export class ProjectService {
       [projectId]
     );
 
-    if (parseInt(taskCount.rows[0].count, 10) > 0) {
+    if (!cascade && parseInt(taskCount.rows[0].count, 10) > 0) {
       throw new Error('Cannot delete project with existing tasks');
     }
 

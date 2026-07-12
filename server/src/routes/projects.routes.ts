@@ -469,7 +469,8 @@ router.delete(
   requireRole('admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      await projectService.deleteProject(req.params.projectId);
+      const cascade = String(req.query?.cascade || '').toLowerCase() === 'true';
+      await projectService.deleteProject(req.params.projectId, { cascade });
       res.json({ success: true });
     } catch (error) {
       next(error);
