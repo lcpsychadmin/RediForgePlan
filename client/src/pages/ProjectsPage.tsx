@@ -273,9 +273,9 @@ const PLAN_DELIVERABLE_NODES: Array<{
   accentColor: string;
   icon: HierarchyIconChoice;
 }> = [
-  { id: 'projectStructure', label: 'Project Structure', targetView: 'structure', accentColor: '#4FC3F7', icon: 'fa-diagram-project' },
-  { id: 'projectSettings', parentId: 'projectStructure', label: 'Project Settings', targetView: 'structure', accentColor: '#64B5F6', icon: 'settings' },
-  { id: 'projectMockCycles', parentId: 'projectStructure', label: 'Mock Cycles', targetView: 'structure', accentColor: '#FFB74D', icon: 'sync' },
+  { id: 'projectStructure', label: 'Project Structure', targetView: 'plan', accentColor: '#4FC3F7', icon: 'fa-diagram-project' },
+  { id: 'projectSettings', parentId: 'projectStructure', label: 'Project Settings', targetView: 'plan', accentColor: '#64B5F6', icon: 'settings' },
+  { id: 'projectMockCycles', parentId: 'projectStructure', label: 'Mock Cycles', targetView: 'plan', accentColor: '#FFB74D', icon: 'sync' },
   { id: 'processAreasRoles', label: 'Process Areas and Assigned Roles', targetView: 'structure', accentColor: '#7E57C2', icon: 'accountTree' },
   { id: 'objectInventory', label: 'Object Inventory by Process Area', targetView: 'inventory', accentColor: '#26A69A', icon: 'storage' },
   { id: 'migrationStrategy', label: 'Data Migration Strategy', targetView: 'strategy', accentColor: '#EC407A', icon: 'fa-file-lines' },
@@ -6630,10 +6630,14 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                                     deliverableId: node.id,
                                                   });
                                                 }
-                                                if (node.targetView === 'structure') {
+                                                if (node.targetView === 'structure' || node.id === 'projectSettings' || node.id === 'projectMockCycles' || node.id === 'projectStructure') {
                                                   applyStructureSubview(node.id);
                                                 }
-                                                navigate(node.targetView ? `/planning/${node.targetView}` : '/planning/plan');
+                                                if (node.id === 'projectSettings' || node.id === 'projectMockCycles' || node.id === 'projectStructure') {
+                                                  navigate('/planning/plan');
+                                                } else {
+                                                  navigate(node.targetView ? `/planning/${node.targetView}` : '/planning/plan');
+                                                }
                                               }}
                                               sx={{
                                                 display: 'flex',
@@ -6717,7 +6721,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                                         if (childNode.id === 'projectMockCycles') setMaintainFormView('cycle');
                                                         else setMaintainFormView('project');
 
-                                                        navigate(childNode.targetView ? `/planning/${childNode.targetView}` : '/planning/plan');
+                                                        if (childNode.id === 'projectSettings' || childNode.id === 'projectMockCycles') {
+                                                          navigate('/planning/plan');
+                                                        } else {
+                                                          navigate(childNode.targetView ? `/planning/${childNode.targetView}` : '/planning/plan');
+                                                        }
                                                       }}
                                                       sx={{
                                                         display: 'flex',
@@ -7284,11 +7292,161 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                       .map((cycle: MockCycle) => (projectsByMockCycle[cycle.id] || []).find((p: Project) => (p.name || '').trim().toLowerCase() === normalizedProjectName))
                       .filter(Boolean) as Project[];
                     const isDesignBuildEstimationDeliverable = isDeliverableSelection && selectedItem.deliverableId === 'designBuildEstimation';
+                    const isProjectSettingsDeliverable = isDeliverableSelection && (selectedItem.deliverableId === 'projectSettings' || selectedItem.deliverableId === 'projectStructure');
+                    const isProjectMockCyclesDeliverable = isDeliverableSelection && selectedItem.deliverableId === 'projectMockCycles';
                     const isEstimationProcessAreaSelection = selectedItem.type === 'deliverableProcessArea';
                     const estimationAccent = isEstimationProcessAreaSelection ? selectedAreaAccent : deliverableAccent;
                     const estimationSelectedArea = selectedItem.type === 'deliverableProcessArea'
                       ? (selectedItem.area || '').trim()
                       : '';
+                    if (isProjectSettingsDeliverable) {
+                      const cycleRows = allMaintainCycles
+                        .filter((cycle) => cycle.projectId === project.id)
+                        .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+
+                      return (
+                        <Box>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1.5 }}>
+                            {parentProgramName && <><Typography variant="caption" color="text.disabled">{parentProgramName}</Typography><Typography variant="caption" color="text.disabled">›</Typography></>}
+                            {parentCycleName && <><Typography variant="caption" color="text.disabled">{parentCycleName}</Typography><Typography variant="caption" color="text.disabled">›</Typography></>}
+                            <Typography variant="caption" sx={{ color: accentColor, fontWeight: 600 }}>{project.name}</Typography>
+                            <Typography variant="caption" color="text.disabled">›</Typography>
+                            <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>Project Settings</Typography>
+                          </Box>
+
+                          <Typography variant="h4" sx={{ fontWeight: 700, color: deliverableAccent, mb: 1.5, fontSize: { xs: '1.55rem', sm: '2.125rem' } }}>
+                            Project Settings
+                          </Typography>
+
+                          <Paper sx={{ p: 1.5, border: `1px solid ${deliverableAccent}44`, backgroundColor: 'rgba(255,255,255,0.04)', mb: 1.5 }}>
+                            <Typography variant="subtitle2" sx={{ color: deliverableAccent, fontWeight: 700, mb: 1 }}>Workflow Roles</Typography>
+                            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr auto' }, gap: 1, alignItems: 'center' }}>
+                              <TextField
+                                select
+                                label="Lead"
+                                value={projectLeadUserIdDraft}
+                                onChange={(e) => setProjectLeadUserIdDraft(e.target.value)}
+                                size="small"
+                                fullWidth
+                              >
+                                <MenuItem value=""><em>None</em></MenuItem>
+                                {workflowUsers.map((appUser) => (
+                                  <MenuItem key={appUser.id} value={appUser.id}>{appUser.email}</MenuItem>
+                                ))}
+                              </TextField>
+                              <TextField
+                                select
+                                label="Project Manager"
+                                value={projectManagerUserIdDraft}
+                                onChange={(e) => setProjectManagerUserIdDraft(e.target.value)}
+                                size="small"
+                                fullWidth
+                              >
+                                <MenuItem value=""><em>None</em></MenuItem>
+                                {workflowUsers.map((appUser) => (
+                                  <MenuItem key={appUser.id} value={appUser.id}>{appUser.email}</MenuItem>
+                                ))}
+                              </TextField>
+                              <Button
+                                variant="contained"
+                                onClick={() => handleSaveProjectWorkflowRoles(project.id, parentCycleId || undefined)}
+                                disabled={isSavingProjectWorkflowRoles}
+                                sx={{ textTransform: 'none', minWidth: 140 }}
+                              >
+                                {isSavingProjectWorkflowRoles ? 'Saving...' : 'Save Roles'}
+                              </Button>
+                            </Box>
+                          </Paper>
+
+                          <Paper sx={{ p: 1.5, border: `1px solid ${deliverableAccent}44`, backgroundColor: 'rgba(255,255,255,0.04)', mb: 1.5 }}>
+                            <Typography variant="subtitle2" sx={{ color: deliverableAccent, fontWeight: 700, mb: 1 }}>Project Configuration</Typography>
+                            <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.25 }}>
+                              Maintain icon, accent color, parent program, and other project settings.
+                            </Typography>
+                            <Button
+                              variant="outlined"
+                              onClick={() => openEditDialog('project', project.id)}
+                              sx={{ textTransform: 'none' }}
+                            >
+                              Open Project Settings
+                            </Button>
+                          </Paper>
+
+                          <Paper sx={{ p: 1.5, border: `1px solid ${deliverableAccent}33`, backgroundColor: 'rgba(255,255,255,0.03)' }}>
+                            <Typography variant="subtitle2" sx={{ color: deliverableAccent, fontWeight: 700, mb: 1 }}>Linked Mock Cycles</Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              {cycleRows.length} mock cycle(s) linked to this project.
+                            </Typography>
+                          </Paper>
+                        </Box>
+                      );
+                    }
+                    if (isProjectMockCyclesDeliverable) {
+                      const projectProgramId = maintainProjectProgramMap.get(project.id) || project.programId || '';
+                      const cycleRows = allMaintainCycles
+                        .filter((cycle) => cycle.projectId === project.id)
+                        .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+
+                      return (
+                        <Box>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1.5 }}>
+                            {parentProgramName && <><Typography variant="caption" color="text.disabled">{parentProgramName}</Typography><Typography variant="caption" color="text.disabled">›</Typography></>}
+                            {parentCycleName && <><Typography variant="caption" color="text.disabled">{parentCycleName}</Typography><Typography variant="caption" color="text.disabled">›</Typography></>}
+                            <Typography variant="caption" sx={{ color: accentColor, fontWeight: 600 }}>{project.name}</Typography>
+                            <Typography variant="caption" color="text.disabled">›</Typography>
+                            <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>Mock Cycles</Typography>
+                          </Box>
+
+                          <Typography variant="h4" sx={{ fontWeight: 700, color: deliverableAccent, mb: 1.5, fontSize: { xs: '1.55rem', sm: '2.125rem' } }}>
+                            Mock Cycles
+                          </Typography>
+
+                          <Box sx={{ display: 'flex', gap: 1, mb: 1.5 }}>
+                            <Button
+                              variant="contained"
+                              startIcon={<AddIcon />}
+                              onClick={() => {
+                                setMaintainCycleParentProjectId(project.id);
+                                setMaintainCycleParentProgramId(projectProgramId);
+                                setMaintainPendingCycleProjectId(project.id);
+                                openCreateDialog('cycle', projectProgramId);
+                              }}
+                              sx={{ textTransform: 'none' }}
+                            >
+                              Add Mock Cycle
+                            </Button>
+                          </Box>
+
+                          <Paper sx={{ border: `1px solid ${deliverableAccent}44`, backgroundColor: 'rgba(255,255,255,0.03)' }}>
+                            <Box sx={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 0.8fr 0.5fr', px: 1, py: 0.75, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                              <Typography variant="caption" sx={{ fontWeight: 700, color: deliverableAccent }}>Mock Cycle</Typography>
+                              <Typography variant="caption" sx={{ fontWeight: 700, color: deliverableAccent }}>Date Range</Typography>
+                              <Typography variant="caption" sx={{ fontWeight: 700, color: deliverableAccent }}>Mode</Typography>
+                              <Typography variant="caption" sx={{ fontWeight: 700, color: deliverableAccent, textAlign: 'right' }}>Actions</Typography>
+                            </Box>
+                            {cycleRows.length === 0 ? (
+                              <Typography variant="body2" color="text.secondary" sx={{ p: 1.25 }}>No mock cycles found for this project.</Typography>
+                            ) : (
+                              cycleRows.map((cycle, idx) => (
+                                <Box key={cycle.id} sx={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 0.8fr 0.5fr', px: 1, py: 0.75, borderBottom: idx === cycleRows.length - 1 ? 'none' : '1px solid rgba(255,255,255,0.06)', backgroundColor: idx % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent', alignItems: 'center' }}>
+                                  <Typography variant="body2" sx={{ fontWeight: 600 }}>{cycle.name}</Typography>
+                                  <Typography variant="body2" color="text.secondary">{toDateInputValue(cycle.startDate) || '—'} → {toDateInputValue(cycle.endDate) || '—'}</Typography>
+                                  <Typography variant="body2" color="text.secondary">{cycle.scheduleMode === 'working_days' ? 'Working Days' : 'All Days'}</Typography>
+                                  <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.25 }}>
+                                    <IconButton size="small" onClick={() => openEditDialog('cycle', cycle.id)} sx={{ color: 'rgba(255,255,255,0.6)', '&:hover': { color: 'white' } }}>
+                                      <EditIcon sx={{ fontSize: '1rem' }} />
+                                    </IconButton>
+                                    <IconButton size="small" onClick={() => openDeleteDialog('cycle', cycle.id, cycle.name)} sx={{ color: 'rgba(255,255,255,0.45)', '&:hover': { color: '#ef5350' } }}>
+                                      <DeleteIcon sx={{ fontSize: '1rem' }} />
+                                    </IconButton>
+                                  </Box>
+                                </Box>
+                              ))
+                            )}
+                          </Paper>
+                        </Box>
+                      );
+                    }
                     if (isDesignBuildEstimationDeliverable) {
                       const topLevelObjects = projectInventoryItems.filter((item: any) => !item.parentProjectObjectId);
                       const hasRequiredFields = (item: any) => !!item.buildType && !!item.factorType && !!item.complexity;
