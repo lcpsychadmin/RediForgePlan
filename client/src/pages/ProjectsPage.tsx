@@ -1139,6 +1139,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   const [newProjectParentProgramId, setNewProjectParentProgramId] = useState('');
   const [selectedExistingProjectOptionId, setSelectedExistingProjectOptionId] = useState('');
   const [isCreating, setIsCreating] = useState(false);
+  const [inlineProjectProgramId, setInlineProjectProgramId] = useState<string | null>(null);
+  const [inlineProjectName, setInlineProjectName] = useState('');
+  const [isCreatingInlineProject, setIsCreatingInlineProject] = useState(false);
   const [newCycleScheduleMode, setNewCycleScheduleMode] = useState<CalendarMode>('all_days');
   const [contextProgramId, setContextProgramId] = useState<string | null>(null);
   const [contextCycleId, setContextCycleId] = useState<string | null>(null);
@@ -4309,6 +4312,34 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
     }).catch(() => {});
   };
 
+  const handleCreateInlineProject = async (programId: string) => {
+    const name = inlineProjectName.trim();
+    if (!name) {
+      alert('Project name is required.');
+      return;
+    }
+
+    try {
+      setIsCreatingInlineProject(true);
+      await apiClient.post(`/api/projects/by-program/${programId}`, {
+        name,
+        // Keep defaults internal for now; users only define the project name here.
+        startDate: new Date().toISOString().split('T')[0],
+        endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      });
+      setInlineProjectProgramId(null);
+      setInlineProjectName('');
+      queryClient.invalidateQueries({ queryKey: ['projectsByProgram'] });
+      queryClient.invalidateQueries({ queryKey: ['projectsByMockCycle'] });
+      setExpandedPrograms((prev) => new Set(prev).add(programId));
+    } catch (error) {
+      console.error('Failed to create inline project:', error);
+      alert('Failed to create project. Please try again.');
+    } finally {
+      setIsCreatingInlineProject(false);
+    }
+  };
+
   const toggleCycleExpanded = (cycleId: string) => {
     const newSet = new Set(expandedCycles);
     if (newSet.has(cycleId)) {
@@ -6956,6 +6987,83 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                               </Box>
                             );
                           })}
+
+                          {canManageHierarchy && isPlanningPlanHierarchy && (
+                            <Box sx={{ ml: 0.95, mr: 0.5, mt: 0.4 }}>
+                              {inlineProjectProgramId === program.id ? (
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, width: '100%', maxWidth: '100%', overflow: 'hidden' }}>
+                                  <Box sx={{ width: 8, flexShrink: 0 }} />
+                                  <Box sx={{ mx: 0.5, display: 'inline-flex', alignItems: 'center', flexShrink: 0 }}>
+                                    {renderHierarchyIcon('project', '#90caf9', '0.9rem')}
+                                  </Box>
+                                  <TextField
+                                    size="small"
+                                    value={inlineProjectName}
+                                    autoFocus
+                                    placeholder="Project name"
+                                    onChange={(e) => setInlineProjectName(e.target.value)}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') {
+                                        e.preventDefault();
+                                        handleCreateInlineProject(program.id);
+                                      }
+                                      if (e.key === 'Escape') {
+                                        e.preventDefault();
+                                        setInlineProjectProgramId(null);
+                                        setInlineProjectName('');
+                                      }
+                                    }}
+                                    sx={{
+                                      flex: '1 1 auto',
+                                      minWidth: 0,
+                                      '& .MuiInputBase-root': { height: 28, fontSize: '0.76rem' },
+                                    }}
+                                  />
+                                  <Button
+                                    size="small"
+                                    onClick={() => handleCreateInlineProject(program.id)}
+                                    disabled={isCreatingInlineProject}
+                                    sx={{ minWidth: 'auto', px: 0.8, textTransform: 'none', fontSize: '0.68rem' }}
+                                  >
+                                    {isCreatingInlineProject ? '...' : 'Add'}
+                                  </Button>
+                                  <Button
+                                    size="small"
+                                    onClick={() => {
+                                      setInlineProjectProgramId(null);
+                                      setInlineProjectName('');
+                                    }}
+                                    disabled={isCreatingInlineProject}
+                                    sx={{ minWidth: 'auto', px: 0.8, textTransform: 'none', fontSize: '0.68rem', color: 'text.secondary' }}
+                                  >
+                                    Cancel
+                                  </Button>
+                                </Box>
+                              ) : (
+                                <Button
+                                  size="small"
+                                  variant="text"
+                                  startIcon={<AddIcon sx={{ fontSize: '0.82rem !important' }} />}
+                                  onClick={() => {
+                                    setInlineProjectProgramId(program.id);
+                                    setInlineProjectName('');
+                                  }}
+                                  sx={{
+                                    width: '100%',
+                                    justifyContent: 'flex-start',
+                                    textTransform: 'none',
+                                    color: '#7C83D0',
+                                    fontSize: '0.74rem',
+                                    py: 0.3,
+                                    pl: 1.2,
+                                    '&:hover': { color: '#90CAF9' },
+                                  }}
+                                >
+                                  Add Project
+                                </Button>
+                              )}
+                            </Box>
+                          )}
 
                           {visibleProgramCycles.length === 0 && !isPlanningPlanHierarchy && (
                             <Button
