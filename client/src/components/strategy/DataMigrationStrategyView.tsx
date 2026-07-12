@@ -542,7 +542,7 @@ const DataMigrationStrategyView: React.FC<Props> = ({
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <Paper sx={{ p: 1.25, position: 'sticky', top: 72, zIndex: 1, ...NAV_SURFACE }}>
+      <Paper sx={{ p: 1.25, ...NAV_SURFACE }}>
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.75, fontWeight: 700, letterSpacing: '0.25px', color: SPECIAL_ACCENT }}>
           Section Navigator
         </Typography>
