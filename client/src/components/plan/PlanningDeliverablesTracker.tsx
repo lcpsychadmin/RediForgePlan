@@ -301,7 +301,7 @@ const PlanningDeliverablesTracker: React.FC<PlanningDeliverablesTrackerProps> = 
       },
       {
         id: 'objectInventory',
-        title: 'Project Object Inventory by Process Area',
+        title: 'Object Inventory',
         description: 'Maintain inventory coverage by process area for planning deliverables.',
         status: inventoryStatus,
         note: `Inventory objects: ${inventoryItems.length} | Process areas represented: ${processAreasInInventory.size}`,

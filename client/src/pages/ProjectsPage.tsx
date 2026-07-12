@@ -278,7 +278,7 @@ const PLAN_DELIVERABLE_NODES: Array<{
   { id: 'projectSettings', parentId: 'projectStructure', label: 'Project Settings', targetView: 'plan', accentColor: '#64B5F6', icon: 'settings' },
   { id: 'projectMockCycles', parentId: 'projectStructure', label: 'Mock Cycles', targetView: 'plan', accentColor: '#FFB74D', icon: 'sync' },
   { id: 'processAreasRoles', label: 'Process Areas', targetView: 'plan', accentColor: '#7E57C2', icon: 'accountTree' },
-  { id: 'objectInventory', label: 'Object Inventory by Process Area', targetView: 'inventory', accentColor: '#26A69A', icon: 'storage' },
+  { id: 'objectInventory', label: 'Object Inventory', targetView: 'inventory', accentColor: '#26A69A', icon: 'storage' },
   { id: 'migrationStrategy', label: 'Data Migration Strategy', targetView: 'strategy', accentColor: '#EC407A', icon: 'fa-file-lines' },
   { id: 'projectRoadmap', label: 'Project Roadmap', targetView: 'roadmap', accentColor: '#FFB74D', icon: 'fa-chart-gantt' },
   { id: 'mockCriteria', label: 'Mock Entry and Exit Criteria', targetView: 'plan', accentColor: '#66BB6A', icon: 'fa-list-check' },
@@ -5119,6 +5119,20 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
       return byId.get(item.parentProjectObjectId) || projectInventoryItems.find((entry: any) => entry.id === item.parentProjectObjectId) || item;
     };
 
+    const scopedInventoryProcessArea = (
+      selectedItem?.type === 'deliverableProcessArea' && selectedItem.deliverableId === 'objectInventory'
+    )
+      ? (selectedItem.area || '').trim().toLowerCase()
+      : '';
+
+    if (scopedInventoryProcessArea) {
+      filtered = filtered.filter((item: any) => {
+        const root = getRootItem(item);
+        const area = String(root?.processArea || item.processArea || '').trim().toLowerCase();
+        return area === scopedInventoryProcessArea;
+      });
+    }
+
     filtered.sort((a, b) => {
       const rootA = getRootItem(a);
       const rootB = getRootItem(b);
@@ -6618,6 +6632,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                         const childNodes = PLAN_DELIVERABLE_NODES.filter((candidate) => candidate.parentId === node.id);
                                         const isEstimationNode = node.id === 'designBuildEstimation';
                                         const isProcessAreasNode = node.id === 'processAreasRoles';
+                                        const isObjectInventoryNode = node.id === 'objectInventory';
                                         const deliverableNodeKey = `${firstCycleProject.id}::${firstCycle?.id || ''}::${node.id}`;
                                         const summaryKey = firstCycle ? `${firstCycleProject.id}_${firstCycle.id}` : firstCycleProject.id;
                                         const cachedAreaKeys = Object.keys(projectHierarchySummaries[summaryKey]?.processAreas || {});
@@ -6639,7 +6654,14 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                               .map((area) => String(area || '').trim())
                                               .filter(Boolean))).sort((a, b) => a.localeCompare(b))
                                           : [];
-                                        const hasExpandableChildren = (isEstimationNode && estimationProcessAreas.length > 0) || (isProcessAreasNode && processAreaRoleNodes.length > 0) || childNodes.length > 0;
+                                        const objectInventoryProcessAreas = isObjectInventoryNode
+                                          ? getProcessAreasForProjectCycle(firstCycleProject.id, firstCycle?.id)
+                                          : [];
+                                        const hasExpandableChildren =
+                                          (isEstimationNode && estimationProcessAreas.length > 0)
+                                          || (isProcessAreasNode && processAreaRoleNodes.length > 0)
+                                          || (isObjectInventoryNode && objectInventoryProcessAreas.length > 0)
+                                          || childNodes.length > 0;
                                         const isNodeExpanded = (selectedItem?.type === 'deliverableProcessArea'
                                           && selectedItem?.projectId === firstCycleProject.id
                                           && selectedItem?.deliverableId === node.id)
@@ -6684,6 +6706,12 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                                     projectId: project.id,
                                                     deliverableId: node.id,
                                                   });
+                                                }
+                                                if (node.id === 'objectInventory') {
+                                                  setSelectedInventoryProgramId(program.id);
+                                                  setSelectedProjectForInventory(firstCycleProject.id);
+                                                  setInventorySubTab(1);
+                                                  setInventoryDialogProcessAreaFilter('');
                                                 }
                                                 if (node.targetView === 'structure' || node.id === 'projectSettings' || node.id === 'projectMockCycles' || node.id === 'projectStructure') {
                                                   applyStructureSubview(node.id);
@@ -6901,6 +6929,70 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                                           area,
                                                         });
                                                         navigate('/planning/plan');
+                                                      }}
+                                                      sx={{
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        minWidth: 0,
+                                                        width: '100%',
+                                                        maxWidth: '100%',
+                                                        overflow: 'hidden',
+                                                        py: 0.35,
+                                                        pl: 1.35,
+                                                        pr: 0.45,
+                                                        cursor: 'pointer',
+                                                        position: 'relative',
+                                                        borderRadius: 0.75,
+                                                        backgroundColor: areaSelected ? 'rgba(91, 103, 202, 0.22)' : 'transparent',
+                                                        '&::before': areaSelected ? {
+                                                          content: '""',
+                                                          position: 'absolute',
+                                                          left: 0,
+                                                          top: '3px',
+                                                          bottom: '3px',
+                                                          width: '3px',
+                                                          backgroundColor: areaAccent,
+                                                          borderRadius: '2px',
+                                                        } : {},
+                                                        '&:hover': { backgroundColor: areaSelected ? 'rgba(91, 103, 202, 0.25)' : 'rgba(255,255,255,0.06)' },
+                                                      }}
+                                                    >
+                                                      <Box sx={{ mr: 0.45, display: 'inline-flex', alignItems: 'center' }}>
+                                                        {renderHierarchyIcon('processArea', areaAccent, '0.7rem')}
+                                                      </Box>
+                                                      <Typography variant="caption" sx={{ fontWeight: areaSelected ? 700 : 500, color: areaSelected ? areaAccent : 'text.secondary', flex: '1 1 auto', minWidth: 0, maxWidth: '100%', width: 0, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                        {getProcessAreaDisplayName(firstCycleProject.id, area, firstCycle?.id)}
+                                                      </Typography>
+                                                    </Box>
+                                                  );
+                                                })}
+                                              </Box>
+                                            )}
+
+                                            {isObjectInventoryNode && objectInventoryProcessAreas.length > 0 && isNodeExpanded && (
+                                              <Box sx={{ ml: 2.2, mt: 0.2, display: 'grid', gap: 0.35 }}>
+                                                {objectInventoryProcessAreas.map((area) => {
+                                                  const areaSelected = selectedItem?.type === 'deliverableProcessArea'
+                                                    && selectedItem.projectId === firstCycleProject.id
+                                                    && selectedItem.deliverableId === node.id
+                                                    && selectedItem.area === area;
+                                                  const areaAccent = getProcessAreaAccent(firstCycleProject.id, area, nodeAccent, firstCycle?.id);
+                                                  return (
+                                                    <Box
+                                                      key={`${projectGroupKey}-${node.id}-inventory-${area}`}
+                                                      onClick={() => {
+                                                        handleHierarchySelection({
+                                                          type: 'deliverableProcessArea',
+                                                          projectId: firstCycleProject.id,
+                                                          cycleId: firstCycle?.id,
+                                                          deliverableId: node.id,
+                                                          area,
+                                                        });
+                                                        setSelectedInventoryProgramId(program.id);
+                                                        setSelectedProjectForInventory(firstCycleProject.id);
+                                                        setInventorySubTab(1);
+                                                        setInventoryDialogProcessAreaFilter(area);
+                                                        navigate('/planning/inventory');
                                                       }}
                                                       sx={{
                                                         display: 'flex',
@@ -10030,6 +10122,78 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
           {/* Inventory Tab Content - Always Shows */}
           {canAccessInventory && tabValue === 1 && (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, p: 2 }}>
+              {(() => {
+                const inventoryDeliverableSelected =
+                  (selectedItem?.type === 'deliverable' || selectedItem?.type === 'deliverableProcessArea')
+                  && selectedItem.deliverableId === 'objectInventory';
+                if (!inventoryDeliverableSelected) return null;
+
+                const inventoryProjectId = selectedItem.projectId;
+                const inventoryCycleId = selectedItem.cycleId;
+                const summaryKey = inventoryCycleId ? `${inventoryProjectId}_${inventoryCycleId}` : inventoryProjectId;
+                const assignedAreas = getProcessAreasForProjectCycle(inventoryProjectId, inventoryCycleId);
+                const selectedAreaOnly = selectedItem.type === 'deliverableProcessArea'
+                  ? (selectedItem.area || '').trim().toLowerCase()
+                  : '';
+
+                const rows = assignedAreas
+                  .map((area) => {
+                    const areaNorm = area.trim().toLowerCase();
+                    const topLevelObjectCount = projectInventoryItems.filter((item: any) => (
+                      !item.parentProjectObjectId
+                      && item.projectId === inventoryProjectId
+                      && String(item.processArea || '').trim().toLowerCase() === areaNorm
+                    )).length;
+                    const summary = projectHierarchySummaries[summaryKey]?.processAreas?.[area];
+                    return {
+                      area,
+                      topLevelObjectCount,
+                      taskGroupCount: summary?.taskGroupCount ?? 0,
+                      taskCount: summary?.taskCount ?? 0,
+                      progressPct: summary?.progressPct ?? 0,
+                    };
+                  })
+                  .filter((row) => !selectedAreaOnly || row.area.trim().toLowerCase() === selectedAreaOnly);
+
+                const totalObjects = rows.reduce((sum, row) => sum + row.topLevelObjectCount, 0);
+                const totalTaskGroups = rows.reduce((sum, row) => sum + row.taskGroupCount, 0);
+                const totalTasks = rows.reduce((sum, row) => sum + row.taskCount, 0);
+                const avgProgress = rows.length > 0
+                  ? Math.round(rows.reduce((sum, row) => sum + row.progressPct, 0) / rows.length)
+                  : 0;
+
+                return (
+                  <Paper sx={{ p: 1.5, border: '1px solid rgba(38,166,154,0.35)', backgroundColor: 'rgba(38,166,154,0.08)' }}>
+                    <Typography variant="subtitle2" sx={{ color: '#7DE3D9', fontWeight: 700, mb: 1 }}>
+                      Object Inventory Summary
+                    </Typography>
+                    <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', mb: 1.25 }}>
+                      <Chip size="small" label={`Process Areas: ${rows.length}`} sx={{ backgroundColor: 'rgba(125,227,217,0.18)', color: '#B7F5EF' }} />
+                      <Chip size="small" label={`Objects: ${totalObjects}`} sx={{ backgroundColor: 'rgba(125,227,217,0.18)', color: '#B7F5EF' }} />
+                      <Chip size="small" label={`Task Groups: ${totalTaskGroups}`} sx={{ backgroundColor: 'rgba(125,227,217,0.18)', color: '#B7F5EF' }} />
+                      <Chip size="small" label={`Tasks: ${totalTasks}`} sx={{ backgroundColor: 'rgba(125,227,217,0.18)', color: '#B7F5EF' }} />
+                      <Chip size="small" label={`Avg Progress: ${avgProgress}%`} sx={{ backgroundColor: 'rgba(125,227,217,0.18)', color: '#B7F5EF' }} />
+                    </Box>
+                    <Box sx={{ display: 'grid', gap: 0.45 }}>
+                      {rows.length === 0 ? (
+                        <Typography variant="caption" sx={{ color: 'rgba(220,240,255,0.78)' }}>
+                          No assigned process areas found for this project.
+                        </Typography>
+                      ) : rows.map((row) => (
+                        <Box key={`inv-summary-${row.area}`} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, border: '1px solid rgba(125,227,217,0.25)', borderRadius: 1, px: 1, py: 0.6, backgroundColor: 'rgba(255,255,255,0.04)' }}>
+                          <Typography variant="caption" sx={{ color: '#D6F3EF', fontWeight: 700 }}>
+                            {getProcessAreaDisplayName(inventoryProjectId, row.area, inventoryCycleId || undefined)}
+                          </Typography>
+                          <Typography variant="caption" sx={{ color: 'rgba(220,240,255,0.82)' }}>
+                            {row.topLevelObjectCount} objects | {row.taskGroupCount} groups | {row.taskCount} tasks | {row.progressPct}%
+                          </Typography>
+                        </Box>
+                      ))}
+                    </Box>
+                  </Paper>
+                );
+              })()}
+
               {/* Inventory Sub-Tabs */}
               <Box sx={{ display: 'flex', gap: 1, overflow: 'visible' }}>
                 <Button
@@ -10273,8 +10437,16 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                         startIcon={<AddIcon />}
                         onClick={() => {
                           setEditingInventoryItemId(null);
-                          setInventoryDialogProcessAreaFilter('');
-                          setProjectInventoryItem(getEmptyProjectInventoryItem());
+                          const selectedInventoryArea = (
+                            selectedItem?.type === 'deliverableProcessArea' && selectedItem.deliverableId === 'objectInventory'
+                          )
+                            ? (selectedItem.area || '')
+                            : '';
+                          setInventoryDialogProcessAreaFilter(selectedInventoryArea);
+                          setProjectInventoryItem({
+                            ...getEmptyProjectInventoryItem(),
+                            processArea: selectedInventoryArea,
+                          });
                           setProjectInventoryDialogOpen(true);
                         }}
                         disabled={!selectedProjectForInventory}
