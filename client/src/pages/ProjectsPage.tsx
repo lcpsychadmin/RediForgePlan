@@ -7292,13 +7292,121 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                       .map((cycle: MockCycle) => (projectsByMockCycle[cycle.id] || []).find((p: Project) => (p.name || '').trim().toLowerCase() === normalizedProjectName))
                       .filter(Boolean) as Project[];
                     const isDesignBuildEstimationDeliverable = isDeliverableSelection && selectedItem.deliverableId === 'designBuildEstimation';
-                    const isProjectSettingsDeliverable = isDeliverableSelection && (selectedItem.deliverableId === 'projectSettings' || selectedItem.deliverableId === 'projectStructure');
+                    const isProjectStructureSummaryDeliverable = isDeliverableSelection && selectedItem.deliverableId === 'projectStructure';
+                    const isProjectSettingsDeliverable = isDeliverableSelection && selectedItem.deliverableId === 'projectSettings';
                     const isProjectMockCyclesDeliverable = isDeliverableSelection && selectedItem.deliverableId === 'projectMockCycles';
                     const isEstimationProcessAreaSelection = selectedItem.type === 'deliverableProcessArea';
                     const estimationAccent = isEstimationProcessAreaSelection ? selectedAreaAccent : deliverableAccent;
                     const estimationSelectedArea = selectedItem.type === 'deliverableProcessArea'
                       ? (selectedItem.area || '').trim()
                       : '';
+                    if (isProjectStructureSummaryDeliverable) {
+                      const cycleRows = allMaintainCycles
+                        .filter((cycle) => cycle.projectId === project.id)
+                        .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+                      const hasLead = !!projectLeadUserIdDraft;
+                      const hasProjectManager = !!projectManagerUserIdDraft;
+                      const projectSettingsCompletionPct = Math.round(((hasLead ? 1 : 0) + (hasProjectManager ? 1 : 0)) / 2 * 100);
+                      const mockCyclesCompletionPct = cycleRows.length > 0 ? 100 : 0;
+                      const projectStructureCompletionPct = Math.round((projectSettingsCompletionPct + mockCyclesCompletionPct) / 2);
+
+                      const selectStructureChild = (deliverableId: string) => {
+                        if (parentCycleId) {
+                          handleHierarchySelection({
+                            type: 'deliverable',
+                            projectId: project.id,
+                            cycleId: parentCycleId,
+                            deliverableId,
+                          });
+                        } else {
+                          handleHierarchySelection({
+                            type: 'deliverable',
+                            projectId: project.id,
+                            deliverableId,
+                          });
+                        }
+                        navigate('/planning/plan');
+                      };
+
+                      return (
+                        <Box>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1.5 }}>
+                            {parentProgramName && <><Typography variant="caption" color="text.disabled">{parentProgramName}</Typography><Typography variant="caption" color="text.disabled">›</Typography></>}
+                            {parentCycleName && <><Typography variant="caption" color="text.disabled">{parentCycleName}</Typography><Typography variant="caption" color="text.disabled">›</Typography></>}
+                            <Typography variant="caption" sx={{ color: accentColor, fontWeight: 600 }}>{project.name}</Typography>
+                            <Typography variant="caption" color="text.disabled">›</Typography>
+                            <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>Project Structure</Typography>
+                          </Box>
+
+                          <Typography variant="h4" sx={{ fontWeight: 700, color: deliverableAccent, mb: 0.75, fontSize: { xs: '1.55rem', sm: '2.125rem' } }}>
+                            Project Structure
+                          </Typography>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2 }}>
+                            <LinearProgress
+                              variant="determinate"
+                              value={projectStructureCompletionPct}
+                              sx={{ width: 220, height: 7, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.2)', '& .MuiLinearProgress-bar': { backgroundColor: deliverableAccent, borderRadius: 3 } }}
+                            />
+                            <Typography variant="body2" sx={{ color: deliverableAccent, fontWeight: 700 }}>
+                              {projectStructureCompletionPct}% complete
+                            </Typography>
+                          </Box>
+
+                          <Paper sx={{ p: 1.25, border: `1px solid ${deliverableAccent}44`, backgroundColor: 'rgba(255,255,255,0.04)' }}>
+                            <Typography variant="subtitle2" sx={{ color: deliverableAccent, fontWeight: 700, mb: 1 }}>Node Summary</Typography>
+
+                            <Box
+                              onClick={() => selectStructureChild('projectSettings')}
+                              sx={{
+                                display: 'grid',
+                                gridTemplateColumns: '1fr auto',
+                                alignItems: 'center',
+                                gap: 1,
+                                px: 1,
+                                py: 0.7,
+                                borderRadius: 0.8,
+                                cursor: 'pointer',
+                                border: '1px solid rgba(255,255,255,0.08)',
+                                mb: 0.75,
+                                '&:hover': { backgroundColor: 'rgba(255,255,255,0.05)' },
+                              }}
+                            >
+                              <Box>
+                                <Typography variant="body2" sx={{ fontWeight: 700 }}>Project Settings</Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                  Roles assigned: {hasLead ? 'Lead' : 'Missing Lead'} · {hasProjectManager ? 'Project Manager' : 'Missing Project Manager'}
+                                </Typography>
+                              </Box>
+                              <Typography variant="body2" sx={{ color: deliverableAccent, fontWeight: 700 }}>{projectSettingsCompletionPct}%</Typography>
+                            </Box>
+
+                            <Box
+                              onClick={() => selectStructureChild('projectMockCycles')}
+                              sx={{
+                                display: 'grid',
+                                gridTemplateColumns: '1fr auto',
+                                alignItems: 'center',
+                                gap: 1,
+                                px: 1,
+                                py: 0.7,
+                                borderRadius: 0.8,
+                                cursor: 'pointer',
+                                border: '1px solid rgba(255,255,255,0.08)',
+                                '&:hover': { backgroundColor: 'rgba(255,255,255,0.05)' },
+                              }}
+                            >
+                              <Box>
+                                <Typography variant="body2" sx={{ fontWeight: 700 }}>Mock Cycles</Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                  {cycleRows.length} cycle(s) maintained for this project
+                                </Typography>
+                              </Box>
+                              <Typography variant="body2" sx={{ color: deliverableAccent, fontWeight: 700 }}>{mockCyclesCompletionPct}%</Typography>
+                            </Box>
+                          </Paper>
+                        </Box>
+                      );
+                    }
                     if (isProjectSettingsDeliverable) {
                       const cycleRows = allMaintainCycles
                         .filter((cycle) => cycle.projectId === project.id)
