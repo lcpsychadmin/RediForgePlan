@@ -6535,7 +6535,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                           && selectedItem?.deliverableId === node.id)
                                           || expandedEstimationDeliverables.has(deliverableNodeKey);
                                         const isNodeSelected =
-                                          (selectedItem?.type === 'deliverable' || selectedItem?.type === 'deliverableProcessArea') &&
+                                          selectedItem?.type === 'deliverable' &&
                                           selectedItem?.projectId === firstCycleProject.id &&
                                           selectedItem?.deliverableId === node.id;
 
@@ -6646,8 +6646,19 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                                         pl: 1.35,
                                                         pr: 0.45,
                                                         cursor: 'pointer',
+                                                        position: 'relative',
                                                         borderRadius: 0.75,
                                                         backgroundColor: areaSelected ? 'rgba(91, 103, 202, 0.22)' : 'transparent',
+                                                        '&::before': areaSelected ? {
+                                                          content: '""',
+                                                          position: 'absolute',
+                                                          left: 0,
+                                                          top: '3px',
+                                                          bottom: '3px',
+                                                          width: '3px',
+                                                          backgroundColor: areaAccent,
+                                                          borderRadius: '2px',
+                                                        } : {},
                                                         '&:hover': { backgroundColor: areaSelected ? 'rgba(91, 103, 202, 0.25)' : 'rgba(255,255,255,0.06)' },
                                                       }}
                                                     >
