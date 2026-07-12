@@ -82,7 +82,14 @@ import ProjectDefectsPage from './ProjectDefectsPage';
 import DataMigrationStrategyView from '../components/strategy/DataMigrationStrategyView';
 import PlanningDeliverablesTracker from '../components/plan/PlanningDeliverablesTracker';
 import { useAuth } from '../contexts/AuthContext';
-import { DEFAULT_DESIGN_BUILD_ESTIMATION_ROWS, type DesignBuildEstimationRow } from '../constants/designBuildEstimationDefaults';
+import {
+  DEFAULT_DESIGN_BUILD_ESTIMATION_ROWS,
+  DEFAULT_DESIGN_BUILD_ESTIMATION_TASKS,
+  DESIGN_BUILD_TASK_ID_BY_NAME,
+  type DesignBuildEstimationRow,
+  type DesignBuildEstimationTaskOption,
+  type DesignBuildTaskType,
+} from '../constants/designBuildEstimationDefaults';
 
 interface Program {
   id: string;
@@ -998,6 +1005,46 @@ const planningViewToTab: Record<string, number> = {
   roadmap: 7,
 };
 
+const normalizeDesignBuildTaskType = (value: unknown): DesignBuildTaskType => {
+  return String(value || '').toLowerCase() === 'design' ? 'Design' : 'Build';
+};
+
+const normalizeTaskOptions = (rawTasks: any): DesignBuildEstimationTaskOption[] => {
+  if (!Array.isArray(rawTasks)) return DEFAULT_DESIGN_BUILD_ESTIMATION_TASKS;
+  const mapped = rawTasks.map((task: any, index: number) => ({
+    id: String(task?.id || '').trim() || `task-${Date.now()}-${index}`,
+    label: String(task?.label || task?.taskName || '').trim(),
+    taskType: normalizeDesignBuildTaskType(task?.taskType),
+  })).filter((task) => task.label.length > 0);
+  return mapped.length > 0 ? mapped : DEFAULT_DESIGN_BUILD_ESTIMATION_TASKS;
+};
+
+const normalizeEstimationRows = (rawRows: any, taskOptions: DesignBuildEstimationTaskOption[]): DesignBuildEstimationRow[] => {
+  if (!Array.isArray(rawRows)) return DEFAULT_DESIGN_BUILD_ESTIMATION_ROWS;
+  const taskIds = new Set(taskOptions.map((task) => task.id));
+  const mapped = rawRows.map((row: any, index: number) => {
+    const legacyTaskName = String(row?.taskName || '').trim();
+    const inferredTaskId = DESIGN_BUILD_TASK_ID_BY_NAME[legacyTaskName.toLowerCase()] || '';
+    const rawTaskId = String(row?.taskId || '').trim();
+    const resolvedTaskId = taskIds.has(rawTaskId)
+      ? rawTaskId
+      : taskIds.has(inferredTaskId)
+        ? inferredTaskId
+        : taskOptions[0]?.id || '';
+    const resolvedTaskName = taskOptions.find((task) => task.id === resolvedTaskId)?.label || legacyTaskName || '';
+    return {
+      id: row?.id || `${Date.now()}-${index}`,
+      buildType: String(row?.buildType || ''),
+      factorType: String(row?.factorType || ''),
+      complexity: String(row?.complexity || ''),
+      taskId: resolvedTaskId,
+      taskName: resolvedTaskName,
+      hours: Number(row?.hours) || 0,
+    };
+  });
+  return mapped.length > 0 ? mapped : DEFAULT_DESIGN_BUILD_ESTIMATION_ROWS;
+};
+
 // Helper component: renders the date-range + On Target/Behind summary for a sub-object row
 const SubObjectTimeline: React.FC<{ tasks: any[]; status?: string }> = ({ tasks, status }) => {
   if (!tasks || tasks.length === 0) return null;
@@ -1055,6 +1102,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   const [isSavingCycleCriteria, setIsSavingCycleCriteria] = useState(false);
   const [planningAdditionalGroups, setPlanningAdditionalGroups] = useState<Record<string, string[]>>({});
   const [deliverableTaskGroupAssignments, setDeliverableTaskGroupAssignments] = useState<Record<string, Record<string, string>>>({});
+  const [designBuildEstimationTasks, setDesignBuildEstimationTasks] = useState<DesignBuildEstimationTaskOption[]>(DEFAULT_DESIGN_BUILD_ESTIMATION_TASKS);
   const [designBuildEstimationRows, setDesignBuildEstimationRows] = useState<DesignBuildEstimationRow[]>(DEFAULT_DESIGN_BUILD_ESTIMATION_ROWS);
   const [planningAdditionalProcessAreas, setPlanningAdditionalProcessAreas] = useState<Record<string, string[]>>({});
   const [hiddenProcessAreas, setHiddenProcessAreas] = useState<Record<string, string[]>>({});
@@ -3171,17 +3219,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
           if (parsed?.deliverableTaskGroupAssignments && typeof parsed.deliverableTaskGroupAssignments === 'object') {
             setDeliverableTaskGroupAssignments(parsed.deliverableTaskGroupAssignments);
           }
-          if (Array.isArray(parsed?.designBuildEstimationRows)) {
-            const mappedRows = parsed.designBuildEstimationRows.map((row: any, index: number) => ({
-              id: row?.id || `${Date.now()}-${index}`,
-              buildType: String(row?.buildType || ''),
-              factorType: String(row?.factorType || ''),
-              complexity: String(row?.complexity || ''),
-              taskName: String(row?.taskName || ''),
-              hours: Number(row?.hours) || 0,
-            }));
-            setDesignBuildEstimationRows(mappedRows.length > 0 ? mappedRows : DEFAULT_DESIGN_BUILD_ESTIMATION_ROWS);
-          }
+          const resolvedTaskOptions = normalizeTaskOptions(parsed?.designBuildEstimationTasks);
+          setDesignBuildEstimationTasks(resolvedTaskOptions);
+          setDesignBuildEstimationRows(normalizeEstimationRows(parsed?.designBuildEstimationRows, resolvedTaskOptions));
           if (parsed?.planningAdditionalProcessAreas && typeof parsed.planningAdditionalProcessAreas === 'object') setPlanningAdditionalProcessAreas(parsed.planningAdditionalProcessAreas);
           if (parsed?.hiddenProcessAreas && typeof parsed.hiddenProcessAreas === 'object') setHiddenProcessAreas(parsed.hiddenProcessAreas);
           if (parsed?.processAreaAccentOverrides && typeof parsed.processAreaAccentOverrides === 'object') setProcessAreaAccentOverrides(parsed.processAreaAccentOverrides);
@@ -3260,17 +3300,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
           if (typeof parsed.deliverableTaskGroupAssignments === 'object') {
             setDeliverableTaskGroupAssignments(parsed.deliverableTaskGroupAssignments || {});
           }
-          if (Array.isArray(parsed.designBuildEstimationRows)) {
-            const mappedRows = parsed.designBuildEstimationRows.map((row: any, index: number) => ({
-              id: row?.id || `${Date.now()}-${index}`,
-              buildType: String(row?.buildType || ''),
-              factorType: String(row?.factorType || ''),
-              complexity: String(row?.complexity || ''),
-              taskName: String(row?.taskName || ''),
-              hours: Number(row?.hours) || 0,
-            }));
-            setDesignBuildEstimationRows(mappedRows.length > 0 ? mappedRows : DEFAULT_DESIGN_BUILD_ESTIMATION_ROWS);
-          }
+          const resolvedTaskOptions = normalizeTaskOptions(parsed.designBuildEstimationTasks);
+          setDesignBuildEstimationTasks(resolvedTaskOptions);
+          setDesignBuildEstimationRows(normalizeEstimationRows(parsed.designBuildEstimationRows, resolvedTaskOptions));
         }).catch(() => {});
       }
     };
@@ -6786,8 +6818,12 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                     if (isDesignBuildEstimationDeliverable) {
                       const topLevelObjects = projectInventoryItems.filter((item: any) => !item.parentProjectObjectId);
                       const hasRequiredFields = (item: any) => !!item.buildType && !!item.factorType && !!item.complexity;
+                      const taskLabelById = designBuildEstimationTasks.reduce<Record<string, string>>((acc, task) => {
+                        acc[task.id] = task.label;
+                        return acc;
+                      }, {});
                       const matrixRows = designBuildEstimationRows.filter((row) => (
-                        !!row.taskName && Number(row.hours) > 0
+                        !!row.taskId && Number(row.hours) > 0
                       ));
                       const objectRows = topLevelObjects.map((item: any) => {
                         const matches = hasRequiredFields(item)
@@ -6819,7 +6855,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
 
                       const taskTotals = objectRows.reduce((acc, row) => {
                         row.matches.forEach((match: any) => {
-                          acc[match.taskName] = (acc[match.taskName] || 0) + (Number(match.hours) || 0);
+                          const taskLabel = taskLabelById[match.taskId] || match.taskName || match.taskId || 'Task';
+                          acc[taskLabel] = (acc[taskLabel] || 0) + (Number(match.hours) || 0);
                         });
                         return acc;
                       }, {} as Record<string, number>);

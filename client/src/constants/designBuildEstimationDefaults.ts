@@ -1,8 +1,17 @@
+export type DesignBuildTaskType = 'Design' | 'Build';
+
+export interface DesignBuildEstimationTaskOption {
+  id: string;
+  label: string;
+  taskType: DesignBuildTaskType;
+}
+
 export interface DesignBuildEstimationRow {
   id: string;
   buildType: string;
   factorType: string;
   complexity: string;
+  taskId: string;
   taskName: string;
   hours: number;
 }
@@ -19,16 +28,35 @@ type ScenarioSeed = {
   designTdHours: number;
 };
 
-const TASK_HOUR_FIELDS: Array<{ taskName: string; key: keyof ScenarioSeed }> = [
-  { taskName: 'Build Documentation', key: 'buildDocumentationHours' },
-  { taskName: 'Build', key: 'buildHours' },
-  { taskName: 'Build Testing', key: 'buildTestingHours' },
-  { taskName: 'Design FD', key: 'designFdHours' },
-  { taskName: 'Design FMD', key: 'designFmdHours' },
-  { taskName: 'Design TD', key: 'designTdHours' },
+const TASK_HOUR_FIELDS: Array<{ taskId: string; key: keyof ScenarioSeed }> = [
+  { taskId: 'build-documentation', key: 'buildDocumentationHours' },
+  { taskId: 'build', key: 'buildHours' },
+  { taskId: 'build-testing', key: 'buildTestingHours' },
+  { taskId: 'design-fd', key: 'designFdHours' },
+  { taskId: 'design-fmd', key: 'designFmdHours' },
+  { taskId: 'design-td', key: 'designTdHours' },
 ];
 
 const slug = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+
+export const DEFAULT_DESIGN_BUILD_ESTIMATION_TASKS: DesignBuildEstimationTaskOption[] = [
+  { id: 'build-documentation', label: 'Build Documentation', taskType: 'Build' },
+  { id: 'build', label: 'Build', taskType: 'Build' },
+  { id: 'build-testing', label: 'Build Testing', taskType: 'Build' },
+  { id: 'design-fd', label: 'Design FD', taskType: 'Design' },
+  { id: 'design-fmd', label: 'Design FMD', taskType: 'Design' },
+  { id: 'design-td', label: 'Design TD', taskType: 'Design' },
+];
+
+const TASK_LABEL_BY_ID = DEFAULT_DESIGN_BUILD_ESTIMATION_TASKS.reduce<Record<string, string>>((acc, task) => {
+  acc[task.id] = task.label;
+  return acc;
+}, {});
+
+export const DESIGN_BUILD_TASK_ID_BY_NAME = DEFAULT_DESIGN_BUILD_ESTIMATION_TASKS.reduce<Record<string, string>>((acc, task) => {
+  acc[task.label.toLowerCase()] = task.id;
+  return acc;
+}, {});
 
 const SCENARIO_SEEDS: ScenarioSeed[] = [
   { buildType: 'New', factorType: 'Conversion - Extract, Transform & Load', complexity: '1-Complex', buildDocumentationHours: 40, buildHours: 128, buildTestingHours: 56, designFdHours: 31, designFmdHours: 26, designTdHours: 16 },
@@ -69,11 +97,12 @@ const SCENARIO_SEEDS: ScenarioSeed[] = [
 
 export const DEFAULT_DESIGN_BUILD_ESTIMATION_ROWS: DesignBuildEstimationRow[] = SCENARIO_SEEDS.flatMap((seed) => {
   return TASK_HOUR_FIELDS.map((task) => ({
-    id: `${slug(seed.buildType)}__${slug(seed.factorType)}__${slug(seed.complexity)}__${slug(task.taskName)}`,
+    id: `${slug(seed.buildType)}__${slug(seed.factorType)}__${slug(seed.complexity)}__${slug(task.taskId)}`,
     buildType: seed.buildType,
     factorType: seed.factorType,
     complexity: seed.complexity,
-    taskName: task.taskName,
+    taskId: task.taskId,
+    taskName: TASK_LABEL_BY_ID[task.taskId] || task.taskId,
     hours: Number(seed[task.key]) || 0,
   }));
 });

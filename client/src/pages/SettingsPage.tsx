@@ -46,7 +46,14 @@ import { faDatabase, faServer, faCloud, faCode, faGears, faDiagramProject, faLis
 import Layout from '../components/Layout';
 import apiClient from '../api/client';
 import { UNIFIED_ROLE_MODEL, type UnifiedRoleKey } from '../constants/unifiedRoleModel';
-import { DEFAULT_DESIGN_BUILD_ESTIMATION_ROWS, type DesignBuildEstimationRow } from '../constants/designBuildEstimationDefaults';
+import {
+  DEFAULT_DESIGN_BUILD_ESTIMATION_ROWS,
+  DEFAULT_DESIGN_BUILD_ESTIMATION_TASKS,
+  DESIGN_BUILD_TASK_ID_BY_NAME,
+  type DesignBuildEstimationRow,
+  type DesignBuildEstimationTaskOption,
+  type DesignBuildTaskType,
+} from '../constants/designBuildEstimationDefaults';
 
 interface Picklist {
   name: string;
@@ -108,6 +115,46 @@ const renderIconPreview = (choice: HierarchyIconChoice, color: string) => {
     case 'barChart': return <BarChartIcon sx={sx} />;
     default: return <CorporateFareIcon sx={sx} />;
   }
+};
+
+const normalizeDesignBuildTaskType = (value: unknown): DesignBuildTaskType => {
+  return String(value || '').toLowerCase() === 'design' ? 'Design' : 'Build';
+};
+
+const normalizeTaskOptions = (rawTasks: any): DesignBuildEstimationTaskOption[] => {
+  if (!Array.isArray(rawTasks)) return DEFAULT_DESIGN_BUILD_ESTIMATION_TASKS;
+  const mapped = rawTasks.map((task: any, index: number) => ({
+    id: String(task?.id || '').trim() || `task-${Date.now()}-${index}`,
+    label: String(task?.label || task?.taskName || '').trim(),
+    taskType: normalizeDesignBuildTaskType(task?.taskType),
+  })).filter((task) => task.label.length > 0);
+  return mapped.length > 0 ? mapped : DEFAULT_DESIGN_BUILD_ESTIMATION_TASKS;
+};
+
+const normalizeEstimationRows = (rawRows: any, taskOptions: DesignBuildEstimationTaskOption[]): DesignBuildEstimationRow[] => {
+  if (!Array.isArray(rawRows)) return DEFAULT_DESIGN_BUILD_ESTIMATION_ROWS;
+  const taskIds = new Set(taskOptions.map((task) => task.id));
+  const mapped = rawRows.map((row: any, index: number) => {
+    const legacyTaskName = String(row?.taskName || '').trim();
+    const inferredTaskId = DESIGN_BUILD_TASK_ID_BY_NAME[legacyTaskName.toLowerCase()] || '';
+    const rawTaskId = String(row?.taskId || '').trim();
+    const resolvedTaskId = taskIds.has(rawTaskId)
+      ? rawTaskId
+      : taskIds.has(inferredTaskId)
+        ? inferredTaskId
+        : taskOptions[0]?.id || '';
+    const resolvedTaskName = taskOptions.find((task) => task.id === resolvedTaskId)?.label || legacyTaskName || '';
+    return {
+      id: row?.id || `${Date.now()}-${index}`,
+      buildType: String(row?.buildType || ''),
+      factorType: String(row?.factorType || ''),
+      complexity: String(row?.complexity || ''),
+      taskId: resolvedTaskId,
+      taskName: resolvedTaskName,
+      hours: Number(row?.hours) || 0,
+    };
+  });
+  return mapped.length > 0 ? mapped : DEFAULT_DESIGN_BUILD_ESTIMATION_ROWS;
 };
 
 const SettingsPage: React.FC = () => {
@@ -190,6 +237,7 @@ const SettingsPage: React.FC = () => {
   const [newRoleName, setNewRoleName] = useState('');
   const [addRoleOpen, setAddRoleOpen] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [designBuildEstimationTasks, setDesignBuildEstimationTasks] = useState<DesignBuildEstimationTaskOption[]>(DEFAULT_DESIGN_BUILD_ESTIMATION_TASKS);
   const [designBuildEstimationRows, setDesignBuildEstimationRows] = useState<DesignBuildEstimationRow[]>(DEFAULT_DESIGN_BUILD_ESTIMATION_ROWS);
 
   // Applications state
@@ -251,17 +299,9 @@ const SettingsPage: React.FC = () => {
           return merged;
         });
       }
-      if (Array.isArray(parsed.designBuildEstimationRows)) {
-        const mappedRows = parsed.designBuildEstimationRows.map((row: any, index: number) => ({
-          id: row?.id || `${Date.now()}-${index}`,
-          buildType: String(row?.buildType || ''),
-          factorType: String(row?.factorType || ''),
-          complexity: String(row?.complexity || ''),
-          taskName: String(row?.taskName || ''),
-          hours: Number(row?.hours) || 0,
-        }));
-        setDesignBuildEstimationRows(mappedRows.length > 0 ? mappedRows : DEFAULT_DESIGN_BUILD_ESTIMATION_ROWS);
-      }
+      const resolvedTaskOptions = normalizeTaskOptions(parsed.designBuildEstimationTasks);
+      setDesignBuildEstimationTasks(resolvedTaskOptions);
+      setDesignBuildEstimationRows(normalizeEstimationRows(parsed.designBuildEstimationRows, resolvedTaskOptions));
     }).catch(() => {
       // fall back to localStorage
       try {
@@ -384,12 +424,18 @@ const SettingsPage: React.FC = () => {
         picklistValues: Object.fromEntries(
           Object.entries(picklists).map(([key, pl]) => [key, pl.values])
         ),
+        designBuildEstimationTasks: designBuildEstimationTasks.map((task) => ({
+          id: task.id,
+          label: task.label.trim(),
+          taskType: task.taskType,
+        })).filter((task) => task.label.length > 0),
         designBuildEstimationRows: designBuildEstimationRows.map((row) => ({
           id: row.id,
           buildType: row.buildType,
           factorType: row.factorType,
           complexity: row.complexity,
-          taskName: row.taskName,
+          taskId: row.taskId,
+          taskName: (designBuildEstimationTasks.find((task) => task.id === row.taskId)?.label || row.taskName || '').trim(),
           hours: Number(row.hours) || 0,
         })),
       });
@@ -713,6 +759,7 @@ const SettingsPage: React.FC = () => {
                       const defaultBuildType = picklists.buildType.values[0] || '';
                       const defaultFactorType = picklists.factorType.values[0] || '';
                       const defaultComplexity = picklists.complexity.values[0] || '';
+                      const defaultTaskId = designBuildEstimationTasks[0]?.id || '';
                       setDesignBuildEstimationRows((prev) => ([
                         ...prev,
                         {
@@ -720,7 +767,8 @@ const SettingsPage: React.FC = () => {
                           buildType: defaultBuildType,
                           factorType: defaultFactorType,
                           complexity: defaultComplexity,
-                          taskName: '',
+                          taskId: defaultTaskId,
+                          taskName: designBuildEstimationTasks.find((task) => task.id === defaultTaskId)?.label || '',
                           hours: 0,
                         },
                       ]));
@@ -739,6 +787,68 @@ const SettingsPage: React.FC = () => {
                   <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.05em' }}>HOURS</Typography>
                   <span />
                 </Box>
+
+                <Paper sx={{ p: 1.25, border: '1px solid rgba(255,255,255,0.08)', backgroundColor: 'rgba(255,255,255,0.02)', mb: 1.5 }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Standardized Tasks</Typography>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      startIcon={<AddIcon />}
+                      onClick={() => {
+                        const nextId = `task-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+                        setDesignBuildEstimationTasks((prev) => [...prev, { id: nextId, label: '', taskType: 'Build' }]);
+                      }}
+                      sx={{ textTransform: 'none' }}
+                    >
+                      Add Task
+                    </Button>
+                  </Box>
+                  <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 150px 36px', gap: 1, alignItems: 'center', mb: 0.5 }}>
+                    <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.05em' }}>TASK DESCRIPTION</Typography>
+                    <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.05em' }}>TYPE</Typography>
+                    <span />
+                  </Box>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
+                    {designBuildEstimationTasks.map((task) => (
+                      <Box key={task.id} sx={{ display: 'grid', gridTemplateColumns: '1fr 150px 36px', gap: 1, alignItems: 'center' }}>
+                        <TextField
+                          size="small"
+                          value={task.label}
+                          placeholder="Task description"
+                          onChange={(e) => {
+                            const nextLabel = e.target.value;
+                            setDesignBuildEstimationTasks((prev) => prev.map((entry) => entry.id === task.id ? { ...entry, label: nextLabel } : entry));
+                            setDesignBuildEstimationRows((prev) => prev.map((row) => row.taskId === task.id ? { ...row, taskName: nextLabel } : row));
+                          }}
+                        />
+                        <TextField
+                          select
+                          size="small"
+                          value={task.taskType}
+                          onChange={(e) => setDesignBuildEstimationTasks((prev) => prev.map((entry) => entry.id === task.id ? { ...entry, taskType: normalizeDesignBuildTaskType(e.target.value) } : entry))}
+                        >
+                          <MenuItem value="Build">Build</MenuItem>
+                          <MenuItem value="Design">Design</MenuItem>
+                        </TextField>
+                        <IconButton
+                          size="small"
+                          disabled={designBuildEstimationTasks.length <= 1}
+                          onClick={() => {
+                            const remaining = designBuildEstimationTasks.filter((entry) => entry.id !== task.id);
+                            if (remaining.length === 0) return;
+                            const fallbackTaskId = remaining[0].id;
+                            const fallbackTaskName = remaining[0].label;
+                            setDesignBuildEstimationTasks(remaining);
+                            setDesignBuildEstimationRows((prev) => prev.map((row) => row.taskId === task.id ? { ...row, taskId: fallbackTaskId, taskName: fallbackTaskName } : row));
+                          }}
+                        >
+                          <DeleteIcon sx={{ fontSize: '1rem' }} />
+                        </IconButton>
+                      </Box>
+                    ))}
+                  </Box>
+                </Paper>
 
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
                   {designBuildEstimationRows.map((row) => (
@@ -774,11 +884,21 @@ const SettingsPage: React.FC = () => {
                         ))}
                       </TextField>
                       <TextField
+                        select
                         size="small"
-                        value={row.taskName}
-                        placeholder="Task name"
-                        onChange={(e) => setDesignBuildEstimationRows((prev) => prev.map((r) => r.id === row.id ? { ...r, taskName: e.target.value } : r))}
-                      />
+                        value={row.taskId}
+                        onChange={(e) => {
+                          const nextTaskId = e.target.value;
+                          const selectedTask = designBuildEstimationTasks.find((task) => task.id === nextTaskId);
+                          setDesignBuildEstimationRows((prev) => prev.map((r) => r.id === row.id ? { ...r, taskId: nextTaskId, taskName: selectedTask?.label || r.taskName } : r));
+                        }}
+                      >
+                        {designBuildEstimationTasks.map((task) => (
+                          <MenuItem key={task.id} value={task.id}>
+                            {task.label || '(Unnamed Task)'} {task.taskType ? `(${task.taskType})` : ''}
+                          </MenuItem>
+                        ))}
+                      </TextField>
                       <TextField
                         size="small"
                         type="number"

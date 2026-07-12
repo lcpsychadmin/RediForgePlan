@@ -74,7 +74,8 @@ router.put('/state', requireAuth, async (req: Request, res: Response, next: Next
              'roadmapLaneAssign',           COALESCE(${preferenceTable}.hierarchy_state->'roadmapLaneAssign', '{}'::jsonb),
              'roadmapRowOrder',             COALESCE(${preferenceTable}.hierarchy_state->'roadmapRowOrder', '{}'::jsonb),
              'deliverableWorkflows',        COALESCE(${preferenceTable}.hierarchy_state->'deliverableWorkflows', '{}'::jsonb),
-             'designBuildEstimationRows',   COALESCE(${preferenceTable}.hierarchy_state->'designBuildEstimationRows', '[]'::jsonb)
+             'designBuildEstimationRows',   COALESCE(${preferenceTable}.hierarchy_state->'designBuildEstimationRows', '[]'::jsonb),
+             'designBuildEstimationTasks',  COALESCE(${preferenceTable}.hierarchy_state->'designBuildEstimationTasks', '[]'::jsonb)
            ) || EXCLUDED.hierarchy_state
          ),
          updated_at = CURRENT_TIMESTAMP`,
@@ -121,6 +122,7 @@ router.put('/global-process-areas', requireAuth, async (req: Request, res: Respo
       roadmapLaneAssign = undefined,
       deliverableWorkflows = undefined,
       designBuildEstimationRows = undefined,
+      designBuildEstimationTasks = undefined,
     } = req.body || {};
 
     // Build the merge object dynamically so roadmapItems is only included when provided
@@ -154,6 +156,10 @@ router.put('/global-process-areas', requireAuth, async (req: Request, res: Respo
       mergeKeys.push('designBuildEstimationRows');
       mergeValues.push(JSON.stringify(designBuildEstimationRows));
     }
+    if (designBuildEstimationTasks !== undefined) {
+      mergeKeys.push('designBuildEstimationTasks');
+      mergeValues.push(JSON.stringify(designBuildEstimationTasks));
+    }
     if (globalProcessAreaRoleAssignments !== undefined) {
       mergeKeys.push('globalProcessAreaRoleAssignments');
       mergeValues.push(JSON.stringify(globalProcessAreaRoleAssignments));
@@ -181,6 +187,7 @@ router.put('/global-process-areas', requireAuth, async (req: Request, res: Respo
       ...(roadmapItems !== undefined ? { roadmapItems } : {}),
       ...(deliverableWorkflows !== undefined ? { deliverableWorkflows } : {}),
       ...(designBuildEstimationRows !== undefined ? { designBuildEstimationRows } : {}),
+      ...(designBuildEstimationTasks !== undefined ? { designBuildEstimationTasks } : {}),
     }));
   } catch (error) {
     next(error);
