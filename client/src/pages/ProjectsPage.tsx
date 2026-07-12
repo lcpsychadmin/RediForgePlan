@@ -279,7 +279,9 @@ const PLAN_DELIVERABLE_NODES: Array<{
   { id: 'projectMockCycles', parentId: 'projectStructure', label: 'Mock Cycles', targetView: 'plan', accentColor: '#FFB74D', icon: 'sync' },
   { id: 'processAreasRoles', label: 'Process Areas', targetView: 'plan', accentColor: '#7E57C2', icon: 'accountTree' },
   { id: 'objectInventory', label: 'Object Inventory', targetView: 'inventory', accentColor: '#26A69A', icon: 'storage' },
-  { id: 'migrationStrategy', label: 'Data Migration Strategy', targetView: 'strategy', accentColor: '#EC407A', icon: 'fa-file-lines' },
+  { id: 'migrationStrategy', label: 'Data Migration Strategy', targetView: 'plan', accentColor: '#EC407A', icon: 'fa-file-lines' },
+  { id: 'migrationStrategyStrategy', parentId: 'migrationStrategy', label: 'Strategy', targetView: 'plan', accentColor: '#F06292', icon: 'fa-file-lines' },
+  { id: 'migrationStrategyApprovals', parentId: 'migrationStrategy', label: 'Approvals', targetView: 'plan', accentColor: '#FF8A65', icon: 'fa-list-check' },
   { id: 'projectRoadmap', label: 'Project Roadmap', targetView: 'roadmap', accentColor: '#FFB74D', icon: 'fa-chart-gantt' },
   { id: 'mockCriteria', label: 'Mock Entry and Exit Criteria', targetView: 'plan', accentColor: '#66BB6A', icon: 'fa-list-check' },
   { id: 'designBuildEstimation', label: 'Design and Build Estimation', targetView: 'plan', accentColor: '#B0BEC5', icon: 'fa-triangle-exclamation' },
@@ -1170,6 +1172,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   const [globalProcessAreaIcons, setGlobalProcessAreaIcons] = useState<Record<string, HierarchyIconChoice>>({});
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [editingTaskGroupId, setEditingTaskGroupId] = useState<string | null>(null);
+  const [newStrategyApprovalTitle, setNewStrategyApprovalTitle] = useState('');
+  const [newStrategyApprovalAssignee, setNewStrategyApprovalAssignee] = useState('');
+  const [isCreatingStrategyApproval, setIsCreatingStrategyApproval] = useState(false);
 
   // Plan group object picker state
   const [groupObjectPickerGroupId, setGroupObjectPickerGroupId] = useState<string | null>(null);
@@ -7489,6 +7494,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                     const isEstimationProcessAreaSelection = selectedItem.type === 'deliverableProcessArea';
                     const isObjectInventorySummaryDeliverable = selectedItem.type === 'deliverable' && selectedItem.deliverableId === 'objectInventory';
                     const isObjectInventoryAreaSelection = selectedItem.type === 'deliverableProcessArea' && selectedItem.deliverableId === 'objectInventory';
+                    const isMigrationStrategySummaryDeliverable = selectedItem.type === 'deliverable' && selectedItem.deliverableId === 'migrationStrategy';
+                    const isMigrationStrategyNode = selectedItem.type === 'deliverable' && selectedItem.deliverableId === 'migrationStrategyStrategy';
+                    const isMigrationApprovalsNode = selectedItem.type === 'deliverable' && selectedItem.deliverableId === 'migrationStrategyApprovals';
                     const estimationAccent = isEstimationProcessAreaSelection ? selectedAreaAccent : deliverableAccent;
                     const estimationSelectedArea = selectedItem.type === 'deliverableProcessArea'
                       ? (selectedItem.area || '').trim()
@@ -8429,6 +8437,263 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                 })}
                               </Box>
                             </Box>
+                          </Paper>
+                        </Box>
+                      );
+                    }
+                    if (isMigrationStrategySummaryDeliverable) {
+                      const selectMigrationChild = (deliverableId: string) => {
+                        if (parentCycleId) {
+                          handleHierarchySelection({
+                            type: 'deliverable',
+                            projectId: project.id,
+                            cycleId: parentCycleId,
+                            deliverableId,
+                          });
+                        } else {
+                          handleHierarchySelection({
+                            type: 'deliverable',
+                            projectId: project.id,
+                            deliverableId,
+                          });
+                        }
+                        navigate('/planning/plan');
+                      };
+
+                      return (
+                        <Box>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1.5 }}>
+                            {parentProgramName && <><Typography variant="caption" color="text.disabled">{parentProgramName}</Typography><Typography variant="caption" color="text.disabled">›</Typography></>}
+                            {parentCycleName && <><Typography variant="caption" color="text.disabled">{parentCycleName}</Typography><Typography variant="caption" color="text.disabled">›</Typography></>}
+                            <Typography variant="caption" sx={{ color: accentColor, fontWeight: 600 }}>{project.name}</Typography>
+                            <Typography variant="caption" color="text.disabled">›</Typography>
+                            <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>Data Migration Strategy</Typography>
+                          </Box>
+
+                          <Typography variant="h4" sx={{ fontWeight: 700, color: deliverableAccent, mb: 0.75, fontSize: { xs: '1.55rem', sm: '2.125rem' } }}>
+                            Data Migration Strategy
+                          </Typography>
+
+                          <Paper sx={{ p: 1.25, border: `1px solid ${deliverableAccent}44`, backgroundColor: 'rgba(255,255,255,0.04)' }}>
+                            <Typography variant="subtitle2" sx={{ color: deliverableAccent, fontWeight: 700, mb: 1 }}>Node Summary</Typography>
+                            <Box
+                              onClick={() => selectMigrationChild('migrationStrategyStrategy')}
+                              sx={{ display: 'grid', gridTemplateColumns: '1fr auto', alignItems: 'center', gap: 1, px: 1, py: 0.7, borderRadius: 0.8, cursor: 'pointer', border: '1px solid rgba(255,255,255,0.08)', mb: 0.75, '&:hover': { backgroundColor: 'rgba(255,255,255,0.05)' } }}
+                            >
+                              <Box>
+                                <Typography variant="body2" sx={{ fontWeight: 700 }}>Strategy</Typography>
+                                <Typography variant="caption" color="text.secondary">Maintain strategy content inline in this node.</Typography>
+                              </Box>
+                              <Typography variant="body2" sx={{ color: deliverableAccent, fontWeight: 700 }}>Open</Typography>
+                            </Box>
+                            <Box
+                              onClick={() => selectMigrationChild('migrationStrategyApprovals')}
+                              sx={{ display: 'grid', gridTemplateColumns: '1fr auto', alignItems: 'center', gap: 1, px: 1, py: 0.7, borderRadius: 0.8, cursor: 'pointer', border: '1px solid rgba(255,255,255,0.08)', '&:hover': { backgroundColor: 'rgba(255,255,255,0.05)' } }}
+                            >
+                              <Box>
+                                <Typography variant="body2" sx={{ fontWeight: 700 }}>Approvals</Typography>
+                                <Typography variant="caption" color="text.secondary">Track approvers and discussion threads with @mentions.</Typography>
+                              </Box>
+                              <Typography variant="body2" sx={{ color: deliverableAccent, fontWeight: 700 }}>Open</Typography>
+                            </Box>
+                          </Paper>
+                        </Box>
+                      );
+                    }
+                    if (isMigrationStrategyNode) {
+                      return (
+                        <Box>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1.5 }}>
+                            {parentProgramName && <><Typography variant="caption" color="text.disabled">{parentProgramName}</Typography><Typography variant="caption" color="text.disabled">›</Typography></>}
+                            {parentCycleName && <><Typography variant="caption" color="text.disabled">{parentCycleName}</Typography><Typography variant="caption" color="text.disabled">›</Typography></>}
+                            <Typography variant="caption" sx={{ color: accentColor, fontWeight: 600 }}>{project.name}</Typography>
+                            <Typography variant="caption" color="text.disabled">›</Typography>
+                            <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>Data Migration Strategy</Typography>
+                            <Typography variant="caption" color="text.disabled">›</Typography>
+                            <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>Strategy</Typography>
+                          </Box>
+
+                          <DataMigrationStrategyView
+                            projectId={project.id}
+                            projectName={project.name}
+                            userId={user?.id}
+                            userRole={user?.role}
+                            onEditProject={() => openEditDialog('project', project.id)}
+                            onEditCycle={(cycleId) => openEditDialog('cycle', cycleId)}
+                          />
+                        </Box>
+                      );
+                    }
+                    if (isMigrationApprovalsNode) {
+                      const strategyApprovalsGroupName = 'Strategy Approvals';
+                      const strategyApprovalsGroup = projectTaskGroups.find((group: any) => (
+                        group.projectId === project.id
+                        && String(group.name || '').trim().toLowerCase() === strategyApprovalsGroupName.toLowerCase()
+                      ));
+                      const approvalEntries = strategyApprovalsGroup
+                        ? projectTasks
+                          .filter((task: any) => task.taskGroupId === strategyApprovalsGroup.id)
+                          .sort((a: any, b: any) => String(a.name || '').localeCompare(String(b.name || '')))
+                        : [];
+
+                      const ensureStrategyApprovalsGroup = async () => {
+                        if (!activeCycleId) {
+                          throw new Error('Mock cycle context missing. Select a project under a mock cycle to manage approvals.');
+                        }
+
+                        if (strategyApprovalsGroup) return strategyApprovalsGroup;
+
+                        const response = await apiClient.post(`/api/tasks/groups/cycle/${activeCycleId}`, {
+                          name: strategyApprovalsGroupName,
+                          processArea: null,
+                        });
+                        const createdGroup = response.data?.data;
+                        if (!createdGroup) throw new Error('Failed to create Strategy Approvals group.');
+
+                        setProjectTaskGroups((prev) => prev.some((group: any) => group.id === createdGroup.id) ? prev : [...prev, createdGroup]);
+                        setDeliverableTaskGroupAssignments((prev) => ({
+                          ...prev,
+                          [project.id]: {
+                            ...(prev[project.id] || {}),
+                            [createdGroup.id]: 'migrationStrategyApprovals',
+                          },
+                        }));
+
+                        return createdGroup;
+                      };
+
+                      const createApprovalEntry = async () => {
+                        if (!newStrategyApprovalTitle.trim()) return;
+                        if (!activeCycleId) {
+                          alert('Mock cycle context missing. Select a project under a mock cycle to manage approvals.');
+                          return;
+                        }
+
+                        try {
+                          setIsCreatingStrategyApproval(true);
+                          const group = await ensureStrategyApprovalsGroup();
+                          const response = await apiClient.post(`/api/tasks/cycle/${activeCycleId}`, {
+                            taskType: 'custom',
+                            taskGroupId: group.id,
+                            name: newStrategyApprovalTitle.trim(),
+                            assignedTo: newStrategyApprovalAssignee || null,
+                            durationUnit: 'days',
+                          });
+                          const createdTask = normalizeTaskDateFields(response.data?.data || response.data || {});
+                          if (createdTask?.id) {
+                            setProjectTasks((prev) => prev.some((task: any) => task.id === createdTask.id) ? prev : [...prev, createdTask]);
+                            setTaskCommentCounts((prev) => ({ ...prev, [createdTask.id]: 0 }));
+                          }
+                          setNewStrategyApprovalTitle('');
+                          setNewStrategyApprovalAssignee('');
+                        } catch (error: any) {
+                          console.error('Failed to create approval entry:', error);
+                          alert(error?.message || 'Failed to create approval entry.');
+                        } finally {
+                          setIsCreatingStrategyApproval(false);
+                        }
+                      };
+
+                      const statusChipColor = (status: string) => {
+                        if (status === 'complete') return 'success';
+                        if (status === 'blocked') return 'error';
+                        if (status === 'in_progress') return 'info';
+                        return 'default';
+                      };
+
+                      return (
+                        <Box>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1.5 }}>
+                            {parentProgramName && <><Typography variant="caption" color="text.disabled">{parentProgramName}</Typography><Typography variant="caption" color="text.disabled">›</Typography></>}
+                            {parentCycleName && <><Typography variant="caption" color="text.disabled">{parentCycleName}</Typography><Typography variant="caption" color="text.disabled">›</Typography></>}
+                            <Typography variant="caption" sx={{ color: accentColor, fontWeight: 600 }}>{project.name}</Typography>
+                            <Typography variant="caption" color="text.disabled">›</Typography>
+                            <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>Data Migration Strategy</Typography>
+                            <Typography variant="caption" color="text.disabled">›</Typography>
+                            <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>Approvals</Typography>
+                          </Box>
+
+                          <Typography variant="h4" sx={{ fontWeight: 700, color: deliverableAccent, mb: 1, fontSize: { xs: '1.55rem', sm: '2.125rem' } }}>
+                            Strategy Approvals
+                          </Typography>
+
+                          <Paper sx={{ p: 1.25, border: `1px solid ${deliverableAccent}44`, backgroundColor: 'rgba(255,255,255,0.04)', mb: 1.25 }}>
+                            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1.2fr 1fr auto' }, gap: 1, alignItems: 'center' }}>
+                              <TextField
+                                size="small"
+                                label="Approval Entry"
+                                placeholder="e.g., Migration strategy sign-off"
+                                value={newStrategyApprovalTitle}
+                                onChange={(e) => setNewStrategyApprovalTitle(e.target.value)}
+                              />
+                              <TextField
+                                select
+                                size="small"
+                                label="Approver"
+                                value={newStrategyApprovalAssignee}
+                                onChange={(e) => setNewStrategyApprovalAssignee(e.target.value)}
+                              >
+                                <MenuItem value=""><em>Unassigned</em></MenuItem>
+                                {people.map((person: any) => (
+                                  <MenuItem key={person.id} value={person.id}>{person.name || person.email}</MenuItem>
+                                ))}
+                              </TextField>
+                              <Button
+                                variant="contained"
+                                startIcon={<AddIcon />}
+                                onClick={createApprovalEntry}
+                                disabled={isCreatingStrategyApproval || !newStrategyApprovalTitle.trim()}
+                                sx={{ textTransform: 'none' }}
+                              >
+                                {isCreatingStrategyApproval ? 'Adding...' : 'Add Entry'}
+                              </Button>
+                            </Box>
+                          </Paper>
+
+                          <Paper sx={{ p: 1.25, border: `1px solid ${deliverableAccent}44`, backgroundColor: 'rgba(255,255,255,0.03)' }}>
+                            <Box sx={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr 0.8fr 0.8fr 0.9fr', gap: 1, pb: 0.6, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                              <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>Entry</Typography>
+                              <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>Approver</Typography>
+                              <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>Status</Typography>
+                              <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>Discussion</Typography>
+                              <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700, textAlign: 'right' }}>Actions</Typography>
+                            </Box>
+
+                            {approvalEntries.length === 0 ? (
+                              <Typography variant="body2" color="text.secondary" sx={{ py: 1.25 }}>
+                                No approval entries yet. Add entries above and use Discussion to @mention approvers.
+                              </Typography>
+                            ) : (
+                              <Box sx={{ display: 'grid', gap: 0.4, mt: 0.5 }}>
+                                {approvalEntries.map((entry: any) => {
+                                  const approver = people.find((person: any) => person.id === entry.assignedTo);
+                                  const discussionCount = taskCommentCounts[entry.id] || 0;
+                                  return (
+                                    <Box key={entry.id} sx={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr 0.8fr 0.8fr 0.9fr', gap: 1, alignItems: 'center', py: 0.45, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                      <Typography variant="body2" sx={{ fontWeight: 600 }}>{entry.name || 'Approval Entry'}</Typography>
+                                      <Typography variant="body2" color="text.secondary">{approver?.name || approver?.email || 'Unassigned'}</Typography>
+                                      <Chip size="small" label={(entry.status || 'not_started').replace('_', ' ')} color={statusChipColor(entry.status || 'not_started') as any} variant="outlined" />
+                                      <Button
+                                        size="small"
+                                        variant="text"
+                                        onClick={() => setCommentModalTask({ id: entry.id, name: entry.name || 'Approval Entry' })}
+                                        sx={{ textTransform: 'none', justifyContent: 'flex-start' }}
+                                      >
+                                        {discussionCount} comment{discussionCount === 1 ? '' : 's'}
+                                      </Button>
+                                      <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.25 }}>
+                                        <IconButton size="small" title="Open entry" onClick={() => { setEditingTask(entry); setEditingTaskInitialTab(0); }} sx={{ color: 'rgba(255,255,255,0.65)', '&:hover': { color: 'white' } }}>
+                                          <EditIcon sx={{ fontSize: '0.95rem' }} />
+                                        </IconButton>
+                                        <IconButton size="small" title="Delete entry" onClick={() => openDeleteDialog('task', entry.id, entry.name || 'Approval Entry')} sx={{ color: 'rgba(255,255,255,0.5)', '&:hover': { color: '#ef5350' } }}>
+                                          <DeleteIcon sx={{ fontSize: '0.95rem' }} />
+                                        </IconButton>
+                                      </Box>
+                                    </Box>
+                                  );
+                                })}
+                              </Box>
+                            )}
                           </Paper>
                         </Box>
                       );
