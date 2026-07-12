@@ -1102,6 +1102,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   const [isSavingCycleCriteria, setIsSavingCycleCriteria] = useState(false);
   const [planningAdditionalGroups, setPlanningAdditionalGroups] = useState<Record<string, string[]>>({});
   const [deliverableTaskGroupAssignments, setDeliverableTaskGroupAssignments] = useState<Record<string, Record<string, string>>>({});
+  const estimationAutoGroupInFlightRef = React.useRef<Set<string>>(new Set());
   const [designBuildEstimationTasks, setDesignBuildEstimationTasks] = useState<DesignBuildEstimationTaskOption[]>(DEFAULT_DESIGN_BUILD_ESTIMATION_TASKS);
   const [designBuildEstimationRows, setDesignBuildEstimationRows] = useState<DesignBuildEstimationRow[]>(DEFAULT_DESIGN_BUILD_ESTIMATION_ROWS);
   const [planningAdditionalProcessAreas, setPlanningAdditionalProcessAreas] = useState<Record<string, string[]>>({});
@@ -5155,6 +5156,83 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
 
   useEffect(() => {
     if (sectionMode !== 'planning') return;
+    if (!activeProjectId || !activeCycleId) return;
+    if (!(selectedItem?.type === 'deliverable' && selectedItem.deliverableId === 'designBuildEstimation')) return;
+
+    const topLevelObjects = projectInventoryItems.filter((item: any) => !item.parentProjectObjectId);
+    const processAreas = Array.from(new Set(
+      topLevelObjects
+        .map((item: any) => String(item.processArea || '').trim())
+        .filter(Boolean)
+    ));
+    if (processAreas.length === 0) return;
+
+    const assignedMap = deliverableTaskGroupAssignments[activeProjectId] || {};
+    const assignedGroupIds = new Set(
+      Object.keys(assignedMap).filter((groupId) => assignedMap[groupId] === 'designBuildEstimation')
+    );
+    const existingAreaKeys = new Set(
+      projectTaskGroups
+        .filter((group: any) => assignedGroupIds.has(group.id))
+        .map((group: any) => String(group.processArea || '').trim().toLowerCase())
+        .filter(Boolean)
+    );
+
+    const missingAreas = processAreas.filter((area) => !existingAreaKeys.has(area.toLowerCase()));
+    if (missingAreas.length === 0) return;
+
+    let cancelled = false;
+
+    const syncGroups = async () => {
+      for (const area of missingAreas) {
+        const dedupeKey = `${activeProjectId}:${activeCycleId}:${area.toLowerCase()}`;
+        if (estimationAutoGroupInFlightRef.current.has(dedupeKey)) continue;
+        estimationAutoGroupInFlightRef.current.add(dedupeKey);
+
+        try {
+          const response = await apiClient.post(`/api/tasks/groups/cycle/${activeCycleId}`, {
+            name: `Design/Build Estimation - ${area}`,
+            processArea: area,
+          });
+          const createdGroup = response.data?.data;
+          if (!createdGroup || cancelled) continue;
+
+          setProjectTaskGroups((prev) => (
+            prev.some((group: any) => group.id === createdGroup.id) ? prev : [...prev, createdGroup]
+          ));
+          setDeliverableTaskGroupAssignments((prev) => ({
+            ...prev,
+            [activeProjectId]: {
+              ...(prev[activeProjectId] || {}),
+              [createdGroup.id]: 'designBuildEstimation',
+            },
+          }));
+        } catch (error) {
+          console.error('Failed to auto-create design/build estimation task group', error);
+        } finally {
+          estimationAutoGroupInFlightRef.current.delete(dedupeKey);
+        }
+      }
+    };
+
+    syncGroups();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    sectionMode,
+    selectedItem?.type,
+    selectedItem?.deliverableId,
+    activeProjectId,
+    activeCycleId,
+    projectInventoryItems,
+    projectTaskGroups,
+    deliverableTaskGroupAssignments,
+  ]);
+
+  useEffect(() => {
+    if (sectionMode !== 'planning') return;
 
     const normalizeCriteriaDraft = (
       source: any,
@@ -6822,6 +6900,18 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                         acc[task.id] = task.label;
                         return acc;
                       }, {});
+                      const taskTypeById = designBuildEstimationTasks.reduce<Record<string, string>>((acc, task) => {
+                        acc[task.id] = task.taskType;
+                        return acc;
+                      }, {});
+                      const assignedDeliverableGroups = deliverableTaskGroupAssignments[project.id] || {};
+                      const estimationGroups = projectTaskGroups.filter((group: any) => assignedDeliverableGroups[group.id] === 'designBuildEstimation');
+                      const estimationGroupCountByArea = estimationGroups.reduce<Record<string, number>>((acc, group: any) => {
+                        const area = String(group.processArea || '').trim();
+                        if (!area) return acc;
+                        acc[area] = (acc[area] || 0) + 1;
+                        return acc;
+                      }, {});
                       const matrixRows = designBuildEstimationRows.filter((row) => (
                         !!row.taskId && Number(row.hours) > 0
                       ));
@@ -6833,21 +6923,52 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                               && row.complexity === item.complexity
                             ))
                           : [];
-                        const hours = matches.reduce((sum, row) => sum + (Number(row.hours) || 0), 0);
+                        const designHours = matches.reduce((sum, row: any) => (
+                          taskTypeById[row.taskId] === 'Design' ? sum + (Number(row.hours) || 0) : sum
+                        ), 0);
+                        const buildHours = matches.reduce((sum, row: any) => (
+                          taskTypeById[row.taskId] === 'Build' ? sum + (Number(row.hours) || 0) : sum
+                        ), 0);
+                        const hours = designHours + buildHours;
+                        const processArea = String(item.processArea || '').trim() || 'Unassigned Process Area';
                         return {
                           id: item.id,
                           objectId: item.objectId || item.dataObjectId || item.name || 'Object',
+                          processArea,
                           buildType: item.buildType || '',
                           factorType: item.factorType || '',
                           complexity: item.complexity || '',
                           hasRequired: hasRequiredFields(item),
                           matches,
+                          designHours,
+                          buildHours,
                           hours,
                         };
                       });
+                      const processAreaRows = Array.from(new Set(objectRows.map((row) => row.processArea)))
+                        .sort((a, b) => a.localeCompare(b))
+                        .map((area) => {
+                          const rows = objectRows.filter((row) => row.processArea === area);
+                          const designHours = rows.reduce((sum, row) => sum + row.designHours, 0);
+                          const buildHours = rows.reduce((sum, row) => sum + row.buildHours, 0);
+                          const hours = designHours + buildHours;
+                          return {
+                            area,
+                            rows,
+                            objectCount: rows.length,
+                            configuredCount: rows.filter((row) => row.hasRequired && row.matches.length > 0).length,
+                            missingRequiredCount: rows.filter((row) => !row.hasRequired).length,
+                            designHours,
+                            buildHours,
+                            hours,
+                            taskGroupCount: estimationGroupCountByArea[area] || 0,
+                          };
+                        });
                       const missingRequiredCount = objectRows.filter((row) => !row.hasRequired).length;
                       const unconfiguredCount = objectRows.filter((row) => row.hasRequired && row.matches.length === 0).length;
-                      const totalHours = objectRows.reduce((sum, row) => sum + row.hours, 0);
+                      const totalDesignHours = objectRows.reduce((sum, row) => sum + row.designHours, 0);
+                      const totalBuildHours = objectRows.reduce((sum, row) => sum + row.buildHours, 0);
+                      const totalHours = totalDesignHours + totalBuildHours;
                       const configuredCount = objectRows.filter((row) => row.hasRequired && row.matches.length > 0).length;
                       const completionPct = objectRows.length > 0
                         ? Math.round((configuredCount / objectRows.length) * 100)
@@ -6880,10 +7001,18 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                             <Typography variant="body2" sx={{ color: deliverableAccent, fontWeight: 600 }}>{completionPct}% configured</Typography>
                           </Box>
 
-                          <Box sx={{ display: 'grid', gap: 1, gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(160px, 1fr))', lg: 'repeat(4, minmax(160px, 1fr))' }, mb: 2 }}>
+                          <Box sx={{ display: 'grid', gap: 1, gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(160px, 1fr))', lg: 'repeat(6, minmax(140px, 1fr))' }, mb: 2 }}>
                             <Paper sx={{ p: 1.25, border: '1px solid rgba(255,255,255,0.08)', backgroundColor: 'rgba(255,255,255,0.03)' }}>
                               <Typography variant="caption" sx={{ color: 'text.secondary' }}>Inventory Objects</Typography>
                               <Typography variant="h6" sx={{ mt: 0.25, fontWeight: 700 }}>{objectRows.length}</Typography>
+                            </Paper>
+                            <Paper sx={{ p: 1.25, border: '1px solid rgba(255,255,255,0.08)', backgroundColor: 'rgba(255,255,255,0.03)' }}>
+                              <Typography variant="caption" sx={{ color: 'text.secondary' }}>Process Areas</Typography>
+                              <Typography variant="h6" sx={{ mt: 0.25, fontWeight: 700 }}>{processAreaRows.length}</Typography>
+                            </Paper>
+                            <Paper sx={{ p: 1.25, border: '1px solid rgba(255,255,255,0.08)', backgroundColor: 'rgba(255,255,255,0.03)' }}>
+                              <Typography variant="caption" sx={{ color: 'text.secondary' }}>Auto Task Groups</Typography>
+                              <Typography variant="h6" sx={{ mt: 0.25, fontWeight: 700 }}>{estimationGroups.length}</Typography>
                             </Paper>
                             <Paper sx={{ p: 1.25, border: '1px solid rgba(255,255,255,0.08)', backgroundColor: 'rgba(255,255,255,0.03)' }}>
                               <Typography variant="caption" sx={{ color: 'text.secondary' }}>Configured Objects</Typography>
@@ -6894,8 +7023,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                               <Typography variant="h6" sx={{ mt: 0.25, fontWeight: 700 }}>{missingRequiredCount}</Typography>
                             </Paper>
                             <Paper sx={{ p: 1.25, border: `1px solid ${deliverableAccent}55`, backgroundColor: 'rgba(255,255,255,0.03)' }}>
-                              <Typography variant="caption" sx={{ color: 'text.secondary' }}>Total Estimated Hours</Typography>
-                              <Typography variant="h6" sx={{ mt: 0.25, fontWeight: 700, color: deliverableAccent }}>{totalHours.toFixed(2)}</Typography>
+                              <Typography variant="caption" sx={{ color: 'text.secondary' }}>Design / Build / Total Hours</Typography>
+                              <Typography variant="body2" sx={{ mt: 0.25, fontWeight: 700, color: deliverableAccent }}>
+                                {totalDesignHours.toFixed(2)} / {totalBuildHours.toFixed(2)} / {totalHours.toFixed(2)}
+                              </Typography>
                             </Paper>
                           </Box>
 
@@ -6911,31 +7042,101 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                           )}
 
                           <Paper sx={{ p: 1.5, border: '1px solid rgba(255,255,255,0.08)', backgroundColor: 'rgba(255,255,255,0.02)', mb: 2 }}>
-                            <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>Object Estimation</Typography>
-                            <Box sx={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr 1.5fr 0.8fr 0.6fr', gap: 1, pb: 0.5, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-                              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>Object</Typography>
-                              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>Build Type</Typography>
-                              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>Factor Type</Typography>
-                              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>Complexity</Typography>
-                              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700, textAlign: 'right' }}>Hours</Typography>
+                            <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>Process Area Effort Summary</Typography>
+                            <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 90px 90px 90px 80px 90px', gap: 1, pb: 0.5, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>Process Area</Typography>
+                              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700, textAlign: 'right' }}>Objects</Typography>
+                              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700, textAlign: 'right' }}>Task Groups</Typography>
+                              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700, textAlign: 'right' }}>Design Hrs</Typography>
+                              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700, textAlign: 'right' }}>Build Hrs</Typography>
+                              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700, textAlign: 'right' }}>Total Hrs</Typography>
                             </Box>
-                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, mt: 0.5 }}>
-                              {objectRows.map((row) => (
-                                <Box key={row.id} sx={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr 1.5fr 0.8fr 0.6fr', gap: 1, py: 0.4, borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                                  <Typography variant="body2" sx={{ fontWeight: 600 }}>{row.objectId}</Typography>
-                                  <Typography variant="body2" color="text.secondary">{row.buildType || '—'}</Typography>
-                                  <Typography variant="body2" color="text.secondary">{row.factorType || '—'}</Typography>
-                                  <Typography variant="body2" color="text.secondary">{row.complexity || '—'}</Typography>
-                                  <Typography variant="body2" sx={{ textAlign: 'right', color: row.hours > 0 ? deliverableAccent : 'text.secondary', fontWeight: 700 }}>
-                                    {row.hours > 0 ? row.hours.toFixed(2) : '—'}
-                                  </Typography>
+                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.35, mt: 0.5 }}>
+                              {processAreaRows.map((areaRow) => (
+                                <Box key={areaRow.area} sx={{ display: 'grid', gridTemplateColumns: '1fr 90px 90px 90px 80px 90px', gap: 1, py: 0.35, borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                                  <Typography variant="body2" sx={{ fontWeight: 600 }}>{getProcessAreaDisplayName(project.id, areaRow.area)}</Typography>
+                                  <Typography variant="body2" sx={{ textAlign: 'right' }}>{areaRow.objectCount}</Typography>
+                                  <Typography variant="body2" sx={{ textAlign: 'right' }}>{areaRow.taskGroupCount}</Typography>
+                                  <Typography variant="body2" sx={{ textAlign: 'right' }}>{areaRow.designHours.toFixed(2)}</Typography>
+                                  <Typography variant="body2" sx={{ textAlign: 'right' }}>{areaRow.buildHours.toFixed(2)}</Typography>
+                                  <Typography variant="body2" sx={{ textAlign: 'right', fontWeight: 700, color: deliverableAccent }}>{areaRow.hours.toFixed(2)}</Typography>
                                 </Box>
                               ))}
-                              {objectRows.length === 0 && (
-                                <Typography variant="body2" color="text.secondary">No inventory objects found for this project.</Typography>
+                              {processAreaRows.length === 0 && (
+                                <Typography variant="body2" color="text.secondary">No process areas with assigned objects yet.</Typography>
                               )}
                             </Box>
                           </Paper>
+
+                          {processAreaRows.map((areaRow) => (
+                            <Paper key={`area-objects-${areaRow.area}`} sx={{ p: 1.5, border: '1px solid rgba(255,255,255,0.08)', backgroundColor: 'rgba(255,255,255,0.02)', mb: 2 }}>
+                              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                                <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                                  {getProcessAreaDisplayName(project.id, areaRow.area)}
+                                </Typography>
+                                <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                                  Design {areaRow.designHours.toFixed(2)}h · Build {areaRow.buildHours.toFixed(2)}h · Total {areaRow.hours.toFixed(2)}h
+                                </Typography>
+                              </Box>
+                              <Box sx={{ display: 'grid', gridTemplateColumns: '1.1fr 0.7fr 1.3fr 0.7fr 0.6fr 0.6fr 0.6fr', gap: 1, pb: 0.5, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                                <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>Object</Typography>
+                                <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>Build Type</Typography>
+                                <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>Factor Type</Typography>
+                                <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>Complexity</Typography>
+                                <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700, textAlign: 'right' }}>Design</Typography>
+                                <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700, textAlign: 'right' }}>Build</Typography>
+                                <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700, textAlign: 'right' }}>Total</Typography>
+                              </Box>
+                              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.45, mt: 0.5 }}>
+                                {areaRow.rows.map((row) => (
+                                  <Box key={row.id} sx={{ display: 'grid', gridTemplateColumns: '1.1fr 0.7fr 1.3fr 0.7fr 0.6fr 0.6fr 0.6fr', gap: 1, py: 0.35, borderBottom: '1px solid rgba(255,255,255,0.04)', alignItems: 'center' }}>
+                                    <Typography variant="body2" sx={{ fontWeight: 600 }}>{row.objectId}</Typography>
+                                    <TextField
+                                      select
+                                      size="small"
+                                      value={row.buildType}
+                                      onChange={(e) => handleProjectInventoryInlineChange(row.id, 'buildType', e.target.value)}
+                                      sx={{ '& .MuiInputBase-root': { height: 30, fontSize: '0.78rem' } }}
+                                    >
+                                      <MenuItem value="">—</MenuItem>
+                                      {buildTypeOptions.map((option) => (
+                                        <MenuItem key={option} value={option}>{option}</MenuItem>
+                                      ))}
+                                    </TextField>
+                                    <TextField
+                                      select
+                                      size="small"
+                                      value={row.factorType}
+                                      onChange={(e) => handleProjectInventoryInlineChange(row.id, 'factorType', e.target.value)}
+                                      sx={{ '& .MuiInputBase-root': { height: 30, fontSize: '0.78rem' } }}
+                                    >
+                                      <MenuItem value="">—</MenuItem>
+                                      {factorTypeOptions.map((option) => (
+                                        <MenuItem key={option} value={option}>{option}</MenuItem>
+                                      ))}
+                                    </TextField>
+                                    <TextField
+                                      select
+                                      size="small"
+                                      value={row.complexity}
+                                      onChange={(e) => handleProjectInventoryInlineChange(row.id, 'complexity', e.target.value)}
+                                      sx={{ '& .MuiInputBase-root': { height: 30, fontSize: '0.78rem' } }}
+                                    >
+                                      <MenuItem value="">—</MenuItem>
+                                      {complexityOptions.map((option) => (
+                                        <MenuItem key={option} value={option}>{option}</MenuItem>
+                                      ))}
+                                    </TextField>
+                                    <Typography variant="body2" sx={{ textAlign: 'right' }}>{row.designHours.toFixed(2)}</Typography>
+                                    <Typography variant="body2" sx={{ textAlign: 'right' }}>{row.buildHours.toFixed(2)}</Typography>
+                                    <Typography variant="body2" sx={{ textAlign: 'right', fontWeight: 700, color: row.hours > 0 ? deliverableAccent : 'text.secondary' }}>
+                                      {row.hours > 0 ? row.hours.toFixed(2) : '—'}
+                                    </Typography>
+                                  </Box>
+                                ))}
+                              </Box>
+                            </Paper>
+                          ))}
 
                           <Paper sx={{ p: 1.5, border: '1px solid rgba(255,255,255,0.08)', backgroundColor: 'rgba(255,255,255,0.02)' }}>
                             <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>Task Hour Totals</Typography>
