@@ -1334,6 +1334,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   const [invDialogAppOptions, setInvDialogAppOptions] = useState<{id: string; name: string; applicationId: string}[]>([]);
   const [invDialogSubObjects, setInvDialogSubObjects] = useState<{name: string; description: string}[]>([]);
   const [invDialogSubLoading, setInvDialogSubLoading] = useState(false);
+  const [inventoryDialogProcessAreaFilter, setInventoryDialogProcessAreaFilter] = useState('');
   const [expandedInventoryParents, setExpandedInventoryParents] = useState<Set<string>>(new Set());
 
   // Project Inventory item dialog states
@@ -5005,6 +5006,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
 
   // Handle edit inventory item
   const handleEditInventoryItem = (item: any) => {
+    setInventoryDialogProcessAreaFilter('');
     const baseCatalogObject = inventoryObjects.find(obj => obj.id === item.globalObjectId) || null;
     const baseObjectId = baseCatalogObject?.objectId || item.parentObjectId || item.dataObjectId || item.objectId || '';
 
@@ -5103,6 +5105,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   };
 
   const startSubObjectCreateFromParent = (parentItem: any) => {
+    setInventoryDialogProcessAreaFilter('');
     setEditingInventoryItemId(null);
     setProjectInventoryItem({
       ...getEmptyProjectInventoryItem(),
@@ -7126,6 +7129,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                       const openInventoryCreateForArea = (area: string) => {
                         setSelectedProjectForInventory(project.id);
                         if (parentProgramId) setSelectedInventoryProgramId(parentProgramId);
+                        setInventoryDialogProcessAreaFilter(area);
                         setEditingInventoryItemId(null);
                         setProjectInventoryItem({
                           ...getEmptyProjectInventoryItem(),
@@ -9541,6 +9545,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                         startIcon={<AddIcon />}
                         onClick={() => {
                           setEditingInventoryItemId(null);
+                          setInventoryDialogProcessAreaFilter('');
                           setProjectInventoryItem(getEmptyProjectInventoryItem());
                           setProjectInventoryDialogOpen(true);
                         }}
@@ -12399,6 +12404,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
       <Dialog open={projectInventoryDialogOpen} onClose={() => {
         setProjectInventoryDialogOpen(false);
         setEditingInventoryItemId(null);
+        setInventoryDialogProcessAreaFilter('');
         setProjectInventoryItem(getEmptyProjectInventoryItem());
         setInvDialogAppId('');
         setInvDialogSourceAppId('');
@@ -12450,8 +12456,12 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
               disabled={editingInventoryItemId !== null}
               variant="outlined"
               size="small"
+              helperText={inventoryDialogProcessAreaFilter ? `Filtered to process area: ${getProcessAreaDisplayName(selectedProjectForInventory || '', inventoryDialogProcessAreaFilter)}` : undefined}
             >
-              {inventoryObjects.map((obj) => (
+              {(inventoryDialogProcessAreaFilter
+                ? inventoryObjects.filter((obj) => (obj.processArea || '').trim().toLowerCase() === inventoryDialogProcessAreaFilter.trim().toLowerCase())
+                : inventoryObjects
+              ).map((obj) => (
                 <MenuItem key={obj.id} value={obj.objectId}>
                   {obj.objectId}
                 </MenuItem>
