@@ -7123,6 +7123,16 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                         boxShadow: '0 10px 28px rgba(0,0,0,0.14)',
                       };
                       const accentHeaderSx = { color: estimationAccent, fontWeight: 700 };
+                      const openInventoryCreateForArea = (area: string) => {
+                        setSelectedProjectForInventory(project.id);
+                        if (parentProgramId) setSelectedInventoryProgramId(parentProgramId);
+                        setEditingInventoryItemId(null);
+                        setProjectInventoryItem({
+                          ...getEmptyProjectInventoryItem(),
+                          processArea: area,
+                        });
+                        setProjectInventoryDialogOpen(true);
+                      };
 
                       return (
                         <Box>
@@ -7143,37 +7153,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                           <Typography variant="h4" sx={{ fontWeight: 700, color: estimationAccent, mb: 0.75, fontSize: { xs: '1.55rem', sm: '2.125rem' } }}>
                             {isEstimationProcessAreaSelection ? `${deliverableLabel} · ${selectedAreaLabel}` : deliverableLabel}
                           </Typography>
-
-                          {isEstimationProcessAreaSelection && (
-                            <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1.5 }}>
-                              <Button
-                                variant="contained"
-                                size="small"
-                                startIcon={<AddIcon />}
-                                sx={{
-                                  textTransform: 'none',
-                                  fontWeight: 700,
-                                  background: `linear-gradient(135deg, ${estimationAccent}CC 0%, ${estimationAccent}99 100%)`,
-                                  color: '#041025',
-                                  '&:hover': {
-                                    background: `linear-gradient(135deg, ${estimationAccent}EE 0%, ${estimationAccent}BB 100%)`,
-                                  },
-                                }}
-                                onClick={() => {
-                                  setSelectedProjectForInventory(project.id);
-                                  if (parentProgramId) setSelectedInventoryProgramId(parentProgramId);
-                                  setEditingInventoryItemId(null);
-                                  setProjectInventoryItem({
-                                    ...getEmptyProjectInventoryItem(),
-                                    processArea: estimationSelectedArea,
-                                  });
-                                  setProjectInventoryDialogOpen(true);
-                                }}
-                              >
-                                Add Object to Process Area
-                              </Button>
-                            </Box>
-                          )}
 
                           {!isEstimationProcessAreaSelection && (
                             <>
@@ -7338,6 +7317,27 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                   <Typography variant="body2" color="text.secondary" sx={{ py: 0.5 }}>
                                     No objects assigned yet.
                                   </Typography>
+                                )}
+                                {isEstimationProcessAreaSelection && (
+                                  <Box sx={{ display: 'flex', justifyContent: 'flex-end', pt: 0.8 }}>
+                                    <Button
+                                      variant="contained"
+                                      size="small"
+                                      startIcon={<AddIcon />}
+                                      sx={{
+                                        textTransform: 'none',
+                                        fontWeight: 700,
+                                        background: `linear-gradient(135deg, ${estimationAccent}CC 0%, ${estimationAccent}99 100%)`,
+                                        color: '#041025',
+                                        '&:hover': {
+                                          background: `linear-gradient(135deg, ${estimationAccent}EE 0%, ${estimationAccent}BB 100%)`,
+                                        },
+                                      }}
+                                      onClick={() => openInventoryCreateForArea(areaRow.area)}
+                                    >
+                                      Add Object to Process Area
+                                    </Button>
+                                  </Box>
                                 )}
                               </Box>
                                 </>
