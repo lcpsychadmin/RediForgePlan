@@ -1108,6 +1108,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   const [designBuildEstimationRows, setDesignBuildEstimationRows] = useState<DesignBuildEstimationRow[]>(DEFAULT_DESIGN_BUILD_ESTIMATION_ROWS);
   const [planningAdditionalProcessAreas, setPlanningAdditionalProcessAreas] = useState<Record<string, string[]>>({});
   const [hiddenProcessAreas, setHiddenProcessAreas] = useState<Record<string, string[]>>({});
+  const [projectManualProcessAreas, setProjectManualProcessAreas] = useState<Record<string, string[]>>({});
   const [selectedExecutionProcessArea, setSelectedExecutionProcessArea] = useState('');
   
   // State for expanded nodes in tree
@@ -2528,6 +2529,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
       const label = (areaName || '').trim();
       if (label && !additionalGroupSet.has(label.toLowerCase())) areas.add(label);
     });
+    const manualAssignedAreas = projectManualProcessAreas[projectId] || [];
+    manualAssignedAreas.forEach((areaName) => {
+      const label = (areaName || '').trim();
+      if (label && !additionalGroupSet.has(label.toLowerCase())) areas.add(label);
+    });
 
     const hiddenAreaSet = new Set((hiddenProcessAreas[key] || []).map((area) => (area || '').trim().toLowerCase()));
     const allAreas = Array.from(areas).filter((area) => !hiddenAreaSet.has((area || '').trim().toLowerCase()));
@@ -3238,6 +3244,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
           setDesignBuildEstimationRows(normalizeEstimationRows(parsed?.designBuildEstimationRows, resolvedTaskOptions));
           if (parsed?.planningAdditionalProcessAreas && typeof parsed.planningAdditionalProcessAreas === 'object') setPlanningAdditionalProcessAreas(parsed.planningAdditionalProcessAreas);
           if (parsed?.hiddenProcessAreas && typeof parsed.hiddenProcessAreas === 'object') setHiddenProcessAreas(parsed.hiddenProcessAreas);
+          if (parsed?.projectManualProcessAreas && typeof parsed.projectManualProcessAreas === 'object') setProjectManualProcessAreas(parsed.projectManualProcessAreas);
           if (parsed?.processAreaAccentOverrides && typeof parsed.processAreaAccentOverrides === 'object') setProcessAreaAccentOverrides(parsed.processAreaAccentOverrides);
           if (parsed?.processAreaIconOverrides && typeof parsed.processAreaIconOverrides === 'object') setProcessAreaIconOverrides(parsed.processAreaIconOverrides);
           if (parsed?.processAreaDescriptions && typeof parsed.processAreaDescriptions === 'object') setProcessAreaDescriptions(parsed.processAreaDescriptions);
@@ -3313,6 +3320,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
           }
           if (typeof parsed.deliverableTaskGroupAssignments === 'object') {
             setDeliverableTaskGroupAssignments(parsed.deliverableTaskGroupAssignments || {});
+          }
+          if (typeof parsed.projectManualProcessAreas === 'object') {
+            setProjectManualProcessAreas(parsed.projectManualProcessAreas || {});
           }
           const resolvedTaskOptions = normalizeTaskOptions(parsed.designBuildEstimationTasks);
           setDesignBuildEstimationTasks(resolvedTaskOptions);
