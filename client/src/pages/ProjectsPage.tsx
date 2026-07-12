@@ -1114,6 +1114,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   const [expandedPrograms, setExpandedPrograms] = useState<Set<string>>(new Set());
   const [expandedCycles, setExpandedCycles] = useState<Set<string>>(new Set());
   const [expandedProjectGroups, setExpandedProjectGroups] = useState<Set<string>>(new Set());
+  const [expandedDeliverableProcessAreas, setExpandedDeliverableProcessAreas] = useState<Set<string>>(new Set());
   const [expandedObjects, setExpandedObjects] = useState<Set<string>>(new Set());
   
   // State for selected item
@@ -6489,42 +6490,78 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                             {isEstimationNode && estimationProcessAreas.length > 0 && (
                                               <Box sx={{ ml: 2.2, mt: 0.2, display: 'grid', gap: 0.35 }}>
                                                 {estimationProcessAreas.map((area) => {
+                                                  const areaNodeKey = `${firstCycleProject.id}::${firstCycle?.id || ''}::${node.id}::${area}`;
                                                   const areaSelected = selectedItem?.type === 'deliverableProcessArea'
                                                     && selectedItem.projectId === firstCycleProject.id
                                                     && selectedItem.deliverableId === node.id
                                                     && selectedItem.area === area;
+                                                  const areaExpanded = areaSelected || expandedDeliverableProcessAreas.has(areaNodeKey);
                                                   const areaAccent = getProcessAreaAccent(firstCycleProject.id, area, nodeAccent, firstCycle?.id);
+                                                  const assignedGroups = deliverableTaskGroupAssignments[firstCycleProject.id] || {};
+                                                  const areaTaskGroupCount = projectTaskGroups.filter((group: any) => (
+                                                    assignedGroups[group.id] === 'designBuildEstimation'
+                                                    && String(group.processArea || '').trim() === area
+                                                  )).length;
+                                                  const areaObjectCount = projectInventoryItems.filter((item: any) => (
+                                                    item.projectId === firstCycleProject.id
+                                                    && !item.parentProjectObjectId
+                                                    && String(item.processArea || '').trim() === area
+                                                  )).length;
                                                   return (
-                                                    <Box
-                                                      key={`${projectGroupKey}-${node.id}-${area}`}
-                                                      onClick={() => {
-                                                        handleHierarchySelection({
-                                                          type: 'deliverableProcessArea',
-                                                          projectId: firstCycleProject.id,
-                                                          cycleId: firstCycle?.id,
-                                                          deliverableId: node.id,
-                                                          area,
-                                                        });
-                                                        navigate('/planning/plan');
-                                                      }}
-                                                      sx={{
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        py: 0.35,
-                                                        pl: 0.9,
-                                                        pr: 0.5,
-                                                        cursor: 'pointer',
-                                                        borderRadius: 0.75,
-                                                        backgroundColor: areaSelected ? 'rgba(91, 103, 202, 0.22)' : 'transparent',
-                                                        '&:hover': { backgroundColor: areaSelected ? 'rgba(91, 103, 202, 0.25)' : 'rgba(255,255,255,0.06)' },
-                                                      }}
-                                                    >
-                                                      <Box sx={{ mr: 0.5, display: 'inline-flex', alignItems: 'center' }}>
-                                                        {renderHierarchyIcon('processArea', areaAccent, '0.72rem')}
+                                                    <Box key={`${projectGroupKey}-${node.id}-${area}`}>
+                                                      <Box
+                                                        onClick={() => {
+                                                          handleHierarchySelection({
+                                                            type: 'deliverableProcessArea',
+                                                            projectId: firstCycleProject.id,
+                                                            cycleId: firstCycle?.id,
+                                                            deliverableId: node.id,
+                                                            area,
+                                                          });
+                                                          navigate('/planning/plan');
+                                                        }}
+                                                        sx={{
+                                                          display: 'flex',
+                                                          alignItems: 'center',
+                                                          py: 0.35,
+                                                          pl: 0.7,
+                                                          pr: 0.45,
+                                                          cursor: 'pointer',
+                                                          borderRadius: 0.75,
+                                                          backgroundColor: areaSelected ? 'rgba(91, 103, 202, 0.22)' : 'transparent',
+                                                          '&:hover': { backgroundColor: areaSelected ? 'rgba(91, 103, 202, 0.25)' : 'rgba(255,255,255,0.06)' },
+                                                        }}
+                                                      >
+                                                        <IconButton
+                                                          size="small"
+                                                          onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setExpandedDeliverableProcessAreas((prev) => {
+                                                              const next = new Set(prev);
+                                                              if (next.has(areaNodeKey)) next.delete(areaNodeKey);
+                                                              else next.add(areaNodeKey);
+                                                              return next;
+                                                            });
+                                                          }}
+                                                          sx={{ p: 0.15, mr: 0.25 }}
+                                                        >
+                                                          <ChevronRightIcon sx={{ fontSize: '0.82rem', color: 'text.secondary', transform: areaExpanded ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
+                                                        </IconButton>
+                                                        <Box sx={{ mr: 0.45, display: 'inline-flex', alignItems: 'center' }}>
+                                                          {renderHierarchyIcon('processArea', areaAccent, '0.7rem')}
+                                                        </Box>
+                                                        <Typography variant="caption" sx={{ fontWeight: areaSelected ? 700 : 500, color: areaSelected ? areaAccent : 'text.secondary', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                          {getProcessAreaDisplayName(firstCycleProject.id, area)}
+                                                        </Typography>
                                                       </Box>
-                                                      <Typography variant="caption" sx={{ fontWeight: areaSelected ? 700 : 500, color: areaSelected ? areaAccent : 'text.secondary', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                        {getProcessAreaDisplayName(firstCycleProject.id, area)}
-                                                      </Typography>
+
+                                                      {areaExpanded && (
+                                                        <Box sx={{ ml: 2.35, py: 0.2, px: 0.5 }}>
+                                                          <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.68rem' }}>
+                                                            {areaObjectCount} objects · {areaTaskGroupCount} task groups
+                                                          </Typography>
+                                                        </Box>
+                                                      )}
                                                     </Box>
                                                   );
                                                 })}
@@ -6974,6 +7011,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                       .map((cycle: MockCycle) => (projectsByMockCycle[cycle.id] || []).find((p: Project) => (p.name || '').trim().toLowerCase() === normalizedProjectName))
                       .filter(Boolean) as Project[];
                     const isDesignBuildEstimationDeliverable = isDeliverableSelection && selectedItem.deliverableId === 'designBuildEstimation';
+                    const isEstimationProcessAreaSelection = selectedItem.type === 'deliverableProcessArea';
                     const estimationSelectedArea = selectedItem.type === 'deliverableProcessArea'
                       ? (selectedItem.area || '').trim()
                       : '';
@@ -7083,39 +7121,43 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                             {deliverableLabel}
                           </Typography>
 
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
-                            <LinearProgress variant="determinate" value={completionPct} sx={{ width: 180, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.1)', '& .MuiLinearProgress-bar': { backgroundColor: deliverableAccent, borderRadius: 3 } }} />
-                            <Typography variant="body2" sx={{ color: deliverableAccent, fontWeight: 600 }}>{completionPct}% configured</Typography>
-                          </Box>
+                          {!isEstimationProcessAreaSelection && (
+                            <>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+                                <LinearProgress variant="determinate" value={completionPct} sx={{ width: 180, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.1)', '& .MuiLinearProgress-bar': { backgroundColor: deliverableAccent, borderRadius: 3 } }} />
+                                <Typography variant="body2" sx={{ color: deliverableAccent, fontWeight: 600 }}>{completionPct}% configured</Typography>
+                              </Box>
 
-                          <Box sx={{ display: 'grid', gap: 1, gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(160px, 1fr))', lg: 'repeat(6, minmax(140px, 1fr))' }, mb: 2 }}>
-                            <Paper sx={{ p: 1.25, border: '1px solid rgba(255,255,255,0.08)', backgroundColor: 'rgba(255,255,255,0.03)' }}>
-                              <Typography variant="caption" sx={{ color: 'text.secondary' }}>Inventory Objects</Typography>
-                              <Typography variant="h6" sx={{ mt: 0.25, fontWeight: 700 }}>{objectRows.length}</Typography>
-                            </Paper>
-                            <Paper sx={{ p: 1.25, border: '1px solid rgba(255,255,255,0.08)', backgroundColor: 'rgba(255,255,255,0.03)' }}>
-                              <Typography variant="caption" sx={{ color: 'text.secondary' }}>Process Areas</Typography>
-                              <Typography variant="h6" sx={{ mt: 0.25, fontWeight: 700 }}>{displayedProcessAreaRows.length}</Typography>
-                            </Paper>
-                            <Paper sx={{ p: 1.25, border: '1px solid rgba(255,255,255,0.08)', backgroundColor: 'rgba(255,255,255,0.03)' }}>
-                              <Typography variant="caption" sx={{ color: 'text.secondary' }}>Auto Task Groups</Typography>
-                              <Typography variant="h6" sx={{ mt: 0.25, fontWeight: 700 }}>{estimationGroups.length}</Typography>
-                            </Paper>
-                            <Paper sx={{ p: 1.25, border: '1px solid rgba(255,255,255,0.08)', backgroundColor: 'rgba(255,255,255,0.03)' }}>
-                              <Typography variant="caption" sx={{ color: 'text.secondary' }}>Configured Objects</Typography>
-                              <Typography variant="h6" sx={{ mt: 0.25, fontWeight: 700 }}>{configuredCount}</Typography>
-                            </Paper>
-                            <Paper sx={{ p: 1.25, border: '1px solid rgba(255,255,255,0.08)', backgroundColor: 'rgba(255,255,255,0.03)' }}>
-                              <Typography variant="caption" sx={{ color: 'text.secondary' }}>Missing Required Fields</Typography>
-                              <Typography variant="h6" sx={{ mt: 0.25, fontWeight: 700 }}>{missingRequiredCount}</Typography>
-                            </Paper>
-                            <Paper sx={{ p: 1.25, border: `1px solid ${deliverableAccent}55`, backgroundColor: 'rgba(255,255,255,0.03)' }}>
-                              <Typography variant="caption" sx={{ color: 'text.secondary' }}>Design / Build / Total Hours</Typography>
-                              <Typography variant="body2" sx={{ mt: 0.25, fontWeight: 700, color: deliverableAccent }}>
-                                {totalDesignHours.toFixed(2)} / {totalBuildHours.toFixed(2)} / {totalHours.toFixed(2)}
-                              </Typography>
-                            </Paper>
-                          </Box>
+                              <Box sx={{ display: 'grid', gap: 1, gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(160px, 1fr))', lg: 'repeat(6, minmax(140px, 1fr))' }, mb: 2 }}>
+                                <Paper sx={{ p: 1.25, border: '1px solid rgba(255,255,255,0.08)', backgroundColor: 'rgba(255,255,255,0.03)' }}>
+                                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>Inventory Objects</Typography>
+                                  <Typography variant="h6" sx={{ mt: 0.25, fontWeight: 700 }}>{objectRows.length}</Typography>
+                                </Paper>
+                                <Paper sx={{ p: 1.25, border: '1px solid rgba(255,255,255,0.08)', backgroundColor: 'rgba(255,255,255,0.03)' }}>
+                                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>Process Areas</Typography>
+                                  <Typography variant="h6" sx={{ mt: 0.25, fontWeight: 700 }}>{displayedProcessAreaRows.length}</Typography>
+                                </Paper>
+                                <Paper sx={{ p: 1.25, border: '1px solid rgba(255,255,255,0.08)', backgroundColor: 'rgba(255,255,255,0.03)' }}>
+                                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>Auto Task Groups</Typography>
+                                  <Typography variant="h6" sx={{ mt: 0.25, fontWeight: 700 }}>{estimationGroups.length}</Typography>
+                                </Paper>
+                                <Paper sx={{ p: 1.25, border: '1px solid rgba(255,255,255,0.08)', backgroundColor: 'rgba(255,255,255,0.03)' }}>
+                                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>Configured Objects</Typography>
+                                  <Typography variant="h6" sx={{ mt: 0.25, fontWeight: 700 }}>{configuredCount}</Typography>
+                                </Paper>
+                                <Paper sx={{ p: 1.25, border: '1px solid rgba(255,255,255,0.08)', backgroundColor: 'rgba(255,255,255,0.03)' }}>
+                                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>Missing Required Fields</Typography>
+                                  <Typography variant="h6" sx={{ mt: 0.25, fontWeight: 700 }}>{missingRequiredCount}</Typography>
+                                </Paper>
+                                <Paper sx={{ p: 1.25, border: `1px solid ${deliverableAccent}55`, backgroundColor: 'rgba(255,255,255,0.03)' }}>
+                                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>Design / Build / Total Hours</Typography>
+                                  <Typography variant="body2" sx={{ mt: 0.25, fontWeight: 700, color: deliverableAccent }}>
+                                    {totalDesignHours.toFixed(2)} / {totalBuildHours.toFixed(2)} / {totalHours.toFixed(2)}
+                                  </Typography>
+                                </Paper>
+                              </Box>
+                            </>
+                          )}
 
                           {missingRequiredCount > 0 && (
                             <Alert severity="warning" sx={{ mb: 1.25 }}>
