@@ -7144,6 +7144,37 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                             {isEstimationProcessAreaSelection ? `${deliverableLabel} · ${selectedAreaLabel}` : deliverableLabel}
                           </Typography>
 
+                          {isEstimationProcessAreaSelection && (
+                            <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1.5 }}>
+                              <Button
+                                variant="contained"
+                                size="small"
+                                startIcon={<AddIcon />}
+                                sx={{
+                                  textTransform: 'none',
+                                  fontWeight: 700,
+                                  background: `linear-gradient(135deg, ${estimationAccent}CC 0%, ${estimationAccent}99 100%)`,
+                                  color: '#041025',
+                                  '&:hover': {
+                                    background: `linear-gradient(135deg, ${estimationAccent}EE 0%, ${estimationAccent}BB 100%)`,
+                                  },
+                                }}
+                                onClick={() => {
+                                  setSelectedProjectForInventory(project.id);
+                                  if (parentProgramId) setSelectedInventoryProgramId(parentProgramId);
+                                  setEditingInventoryItemId(null);
+                                  setProjectInventoryItem({
+                                    ...getEmptyProjectInventoryItem(),
+                                    processArea: estimationSelectedArea,
+                                  });
+                                  setProjectInventoryDialogOpen(true);
+                                }}
+                              >
+                                Add Object to Process Area
+                              </Button>
+                            </Box>
+                          )}
+
                           {!isEstimationProcessAreaSelection && (
                             <>
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
