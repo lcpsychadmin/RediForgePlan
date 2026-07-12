@@ -152,6 +152,7 @@ type SelectableItem =
   | { type: 'cycle'; id: string; programId: string; projectId?: string }
   | { type: 'project'; id: string; cycleId?: string }
   | { type: 'deliverable'; projectId: string; cycleId?: string; deliverableId: string }
+  | { type: 'deliverableProcessArea'; projectId: string; cycleId?: string; deliverableId: string; area: string }
   | { type: 'processArea'; projectId: string; cycleId: string; area: string };
 const HIERARCHY_SELECTION_STORAGE_KEY = 'rf_selected_hierarchy_context';
 
@@ -1862,6 +1863,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
       ? selectedItem.id
       : selectedItem?.type === 'deliverable'
         ? selectedItem.projectId
+      : selectedItem?.type === 'deliverableProcessArea'
+        ? selectedItem.projectId
       : selectedItem?.type === 'processArea'
         ? selectedItem.projectId
         : selectedItem?.type === 'cycle'
@@ -1875,6 +1878,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   const activeCycleId = selectedItem?.type === 'project'
     ? (selectedItem.cycleId || null)
     : selectedItem?.type === 'deliverable'
+      ? (selectedItem.cycleId || null)
+    : selectedItem?.type === 'deliverableProcessArea'
       ? (selectedItem.cycleId || null)
     : selectedItem?.type === 'processArea'
       ? selectedItem.cycleId
@@ -5157,7 +5162,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   useEffect(() => {
     if (sectionMode !== 'planning') return;
     if (!activeProjectId || !activeCycleId) return;
-    if (!(selectedItem?.type === 'deliverable' && selectedItem.deliverableId === 'designBuildEstimation')) return;
+    const estimationNodeSelected = (
+      (selectedItem?.type === 'deliverable' || selectedItem?.type === 'deliverableProcessArea')
+      && selectedItem.deliverableId === 'designBuildEstimation'
+    );
+    if (!estimationNodeSelected) return;
 
     const topLevelObjects = projectInventoryItems.filter((item: any) => !item.parentProjectObjectId);
     const processAreas = Array.from(new Set(
@@ -5297,6 +5306,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
       setCycleWorkflowEvaluation(null);
       return;
     }
+    if (selectedItem?.type === 'deliverableProcessArea') {
+      loadProjectWorkflowRoles(selectedItem.projectId).catch(() => {});
+      setCycleWorkflowEvaluation(null);
+      return;
+    }
     setPlanningStrategyDraft('');
     setCycleEntryCriteriaDraft(MOCK_CYCLE_ENTRY_CRITERIA_DEFAULTS);
     setCycleExitCriteriaDraft(MOCK_CYCLE_EXIT_CRITERIA_DEFAULTS);
@@ -5331,6 +5345,15 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
         if (project) return project;
       }
     } else if (selectedItem.type === 'deliverable') {
+      for (const cycleId in projectsByMockCycle) {
+        const project = projectsByMockCycle[cycleId]?.find(p => p.id === selectedItem.projectId);
+        if (project) return project;
+      }
+      for (const programId in projectsByProgram) {
+        const project = projectsByProgram[programId]?.find((p: Project) => p.id === selectedItem.projectId);
+        if (project) return project;
+      }
+    } else if (selectedItem.type === 'deliverableProcessArea') {
       for (const cycleId in projectsByMockCycle) {
         const project = projectsByMockCycle[cycleId]?.find(p => p.id === selectedItem.projectId);
         if (project) return project;
@@ -6392,62 +6415,120 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                     <Box sx={{ display: 'grid', gap: 0.5, pb: 0.5 }}>
                                       {PLAN_DELIVERABLE_NODES.map((node) => {
                                         const nodeAccent = node.isFuture ? 'rgba(255,255,255,0.7)' : node.accentColor;
+                                        const isEstimationNode = node.id === 'designBuildEstimation';
+                                        const summaryKey = firstCycle ? `${firstCycleProject.id}_${firstCycle.id}` : firstCycleProject.id;
+                                        const cachedAreaKeys = Object.keys(projectHierarchySummaries[summaryKey]?.processAreas || {});
+                                        const activeInventoryAreas = Array.from(new Set(
+                                          projectInventoryItems
+                                            .filter((item: any) => item.projectId === firstCycleProject.id && !item.parentProjectObjectId)
+                                            .map((item: any) => String(item.processArea || '').trim())
+                                            .filter(Boolean)
+                                        ));
+                                        const estimationProcessAreas = isEstimationNode
+                                          ? Array.from(new Set([...cachedAreaKeys, ...activeInventoryAreas])).sort((a, b) => a.localeCompare(b))
+                                          : [];
                                         const isNodeSelected =
-                                          selectedItem?.type === 'deliverable' &&
+                                          (selectedItem?.type === 'deliverable' || selectedItem?.type === 'deliverableProcessArea') &&
                                           selectedItem?.projectId === firstCycleProject.id &&
                                           selectedItem?.deliverableId === node.id;
 
                                         return (
-                                          <Box
-                                            key={`${projectGroupKey}-${node.id}`}
-                                            onClick={() => {
-                                              if (firstCycle) {
-                                                handleHierarchySelection({
-                                                  type: 'deliverable',
-                                                  projectId: firstCycleProject.id,
-                                                  cycleId: firstCycle.id,
-                                                  deliverableId: node.id,
-                                                });
-                                              } else {
-                                                handleHierarchySelection({
-                                                  type: 'deliverable',
-                                                  projectId: project.id,
-                                                  deliverableId: node.id,
-                                                });
-                                              }
-                                              navigate('/planning/plan');
-                                            }}
-                                            sx={{
-                                              display: 'flex',
-                                              alignItems: 'center',
-                                              py: 0.42,
-                                              pl: 1.1,
-                                              pr: 0.6,
-                                              cursor: 'pointer',
-                                              position: 'relative',
-                                              borderRadius: 0.75,
-                                              backgroundColor: isNodeSelected ? 'rgba(91, 103, 202, 0.2)' : 'transparent',
-                                              '&::before': isNodeSelected ? {
-                                                content: '""',
-                                                position: 'absolute',
-                                                left: 0,
-                                                top: '3px',
-                                                bottom: '3px',
-                                                width: '3px',
-                                                backgroundColor: nodeAccent,
-                                                borderRadius: '2px',
-                                              } : {},
-                                              '&:hover': { backgroundColor: isNodeSelected ? 'rgba(91, 103, 202, 0.24)' : 'rgba(255,255,255,0.06)' },
-                                            }}
-                                          >
-                                            <Box sx={{ mr: 0.55, display: 'inline-flex', alignItems: 'center' }}>
-                                              {renderIconChoice(node.icon, nodeAccent, '0.78rem')}
+                                          <Box key={`${projectGroupKey}-${node.id}`}>
+                                            <Box
+                                              onClick={() => {
+                                                if (firstCycle) {
+                                                  handleHierarchySelection({
+                                                    type: 'deliverable',
+                                                    projectId: firstCycleProject.id,
+                                                    cycleId: firstCycle.id,
+                                                    deliverableId: node.id,
+                                                  });
+                                                } else {
+                                                  handleHierarchySelection({
+                                                    type: 'deliverable',
+                                                    projectId: project.id,
+                                                    deliverableId: node.id,
+                                                  });
+                                                }
+                                                navigate('/planning/plan');
+                                              }}
+                                              sx={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                py: 0.42,
+                                                pl: 1.1,
+                                                pr: 0.6,
+                                                cursor: 'pointer',
+                                                position: 'relative',
+                                                borderRadius: 0.75,
+                                                backgroundColor: isNodeSelected ? 'rgba(91, 103, 202, 0.2)' : 'transparent',
+                                                '&::before': isNodeSelected ? {
+                                                  content: '""',
+                                                  position: 'absolute',
+                                                  left: 0,
+                                                  top: '3px',
+                                                  bottom: '3px',
+                                                  width: '3px',
+                                                  backgroundColor: nodeAccent,
+                                                  borderRadius: '2px',
+                                                } : {},
+                                                '&:hover': { backgroundColor: isNodeSelected ? 'rgba(91, 103, 202, 0.24)' : 'rgba(255,255,255,0.06)' },
+                                              }}
+                                            >
+                                              <Box sx={{ mr: 0.55, display: 'inline-flex', alignItems: 'center' }}>
+                                                {renderIconChoice(node.icon, nodeAccent, '0.78rem')}
+                                              </Box>
+                                              <Typography variant="caption" sx={{ fontWeight: isNodeSelected ? 700 : 500, color: isNodeSelected ? nodeAccent : 'inherit', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                {node.label}
+                                              </Typography>
+                                              {node.isFuture && (
+                                                <Chip size="small" label="Future" sx={{ height: 18, fontSize: '0.62rem', ml: 0.4, backgroundColor: 'rgba(255,255,255,0.08)' }} />
+                                              )}
                                             </Box>
-                                            <Typography variant="caption" sx={{ fontWeight: isNodeSelected ? 700 : 500, color: isNodeSelected ? nodeAccent : 'inherit', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                              {node.label}
-                                            </Typography>
-                                            {node.isFuture && (
-                                              <Chip size="small" label="Future" sx={{ height: 18, fontSize: '0.62rem', ml: 0.4, backgroundColor: 'rgba(255,255,255,0.08)' }} />
+
+                                            {isEstimationNode && estimationProcessAreas.length > 0 && (
+                                              <Box sx={{ ml: 2.2, mt: 0.2, display: 'grid', gap: 0.35 }}>
+                                                {estimationProcessAreas.map((area) => {
+                                                  const areaSelected = selectedItem?.type === 'deliverableProcessArea'
+                                                    && selectedItem.projectId === firstCycleProject.id
+                                                    && selectedItem.deliverableId === node.id
+                                                    && selectedItem.area === area;
+                                                  const areaAccent = getProcessAreaAccent(firstCycleProject.id, area, nodeAccent, firstCycle?.id);
+                                                  return (
+                                                    <Box
+                                                      key={`${projectGroupKey}-${node.id}-${area}`}
+                                                      onClick={() => {
+                                                        handleHierarchySelection({
+                                                          type: 'deliverableProcessArea',
+                                                          projectId: firstCycleProject.id,
+                                                          cycleId: firstCycle?.id,
+                                                          deliverableId: node.id,
+                                                          area,
+                                                        });
+                                                        navigate('/planning/plan');
+                                                      }}
+                                                      sx={{
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        py: 0.35,
+                                                        pl: 0.9,
+                                                        pr: 0.5,
+                                                        cursor: 'pointer',
+                                                        borderRadius: 0.75,
+                                                        backgroundColor: areaSelected ? 'rgba(91, 103, 202, 0.22)' : 'transparent',
+                                                        '&:hover': { backgroundColor: areaSelected ? 'rgba(91, 103, 202, 0.25)' : 'rgba(255,255,255,0.06)' },
+                                                      }}
+                                                    >
+                                                      <Box sx={{ mr: 0.5, display: 'inline-flex', alignItems: 'center' }}>
+                                                        {renderHierarchyIcon('processArea', areaAccent, '0.72rem')}
+                                                      </Box>
+                                                      <Typography variant="caption" sx={{ fontWeight: areaSelected ? 700 : 500, color: areaSelected ? areaAccent : 'text.secondary', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                        {getProcessAreaDisplayName(firstCycleProject.id, area)}
+                                                      </Typography>
+                                                    </Box>
+                                                  );
+                                                })}
+                                              </Box>
                                             )}
                                           </Box>
                                         );
@@ -6846,22 +6927,22 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                 <Alert severity="info">Select an item from the list to view details</Alert>
               ) : selectedDetails ? (
                 <>
-                  {selectedItem.type === 'project' || selectedItem.type === 'processArea' || selectedItem.type === 'deliverable' ? (() => {
+                  {selectedItem.type === 'project' || selectedItem.type === 'processArea' || selectedItem.type === 'deliverable' || selectedItem.type === 'deliverableProcessArea' ? (() => {
                     const project = selectedDetails as Project;
                     const accentColor = project.accentColor || '#00BFA5';
-                    const isDeliverableSelection = selectedItem.type === 'deliverable';
+                    const isDeliverableSelection = selectedItem.type === 'deliverable' || selectedItem.type === 'deliverableProcessArea';
                     const parentCycleId = selectedItem.type === 'project' ? selectedItem.cycleId : selectedItem.cycleId;
-                    const deliverableConfig = selectedItem.type === 'deliverable'
+                    const deliverableConfig = isDeliverableSelection
                       ? PLAN_DELIVERABLE_NODES.find((node) => node.id === selectedItem.deliverableId)
                       : null;
                     const deliverableLabel = deliverableConfig?.label || 'Deliverable';
                     const deliverableAccent = deliverableConfig?.accentColor || accentColor;
-                    const selectedAreaLabel = selectedItem.type === 'processArea'
+                    const selectedAreaLabel = (selectedItem.type === 'processArea' || selectedItem.type === 'deliverableProcessArea')
                       ? getProcessAreaDisplayName(project.id, selectedItem.area)
                       : selectedItem.type === 'deliverable'
                         ? deliverableLabel
                       : '';
-                    const selectedAreaAccent = selectedItem.type === 'processArea'
+                    const selectedAreaAccent = (selectedItem.type === 'processArea' || selectedItem.type === 'deliverableProcessArea')
                       ? getProcessAreaAccent(project.id, selectedItem.area, accentColor, parentCycleId || undefined)
                       : selectedItem.type === 'deliverable'
                         ? deliverableAccent
@@ -6869,7 +6950,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                     // Use the raw area code (selectedItem.area) for accent lookup, not the display label.
                     // The display label may be a user-defined description (e.g. "Master Data Management")
                     // which won't match the processAreaAccentOverrides key (e.g. "MDM").
-                    const rawEffectiveArea = (selectedItem.type === 'processArea' ? selectedItem.area : selectedExecutionProcessArea || '').trim();
+                    const rawEffectiveArea = ((selectedItem.type === 'processArea' || selectedItem.type === 'deliverableProcessArea') ? selectedItem.area : selectedExecutionProcessArea || '').trim();
                     const planAccentColor = isDeliverableSelection
                       ? deliverableAccent
                       : rawEffectiveArea
@@ -6893,6 +6974,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                       .map((cycle: MockCycle) => (projectsByMockCycle[cycle.id] || []).find((p: Project) => (p.name || '').trim().toLowerCase() === normalizedProjectName))
                       .filter(Boolean) as Project[];
                     const isDesignBuildEstimationDeliverable = isDeliverableSelection && selectedItem.deliverableId === 'designBuildEstimation';
+                    const estimationSelectedArea = selectedItem.type === 'deliverableProcessArea'
+                      ? (selectedItem.area || '').trim()
+                      : '';
                     if (isDesignBuildEstimationDeliverable) {
                       const topLevelObjects = projectInventoryItems.filter((item: any) => !item.parentProjectObjectId);
                       const hasRequiredFields = (item: any) => !!item.buildType && !!item.factorType && !!item.complexity;
@@ -6964,6 +7048,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                             taskGroupCount: estimationGroupCountByArea[area] || 0,
                           };
                         });
+                      const displayedProcessAreaRows = estimationSelectedArea
+                        ? processAreaRows.filter((row) => row.area === estimationSelectedArea)
+                        : processAreaRows;
                       const missingRequiredCount = objectRows.filter((row) => !row.hasRequired).length;
                       const unconfiguredCount = objectRows.filter((row) => row.hasRequired && row.matches.length === 0).length;
                       const totalDesignHours = objectRows.reduce((sum, row) => sum + row.designHours, 0);
@@ -7008,7 +7095,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                             </Paper>
                             <Paper sx={{ p: 1.25, border: '1px solid rgba(255,255,255,0.08)', backgroundColor: 'rgba(255,255,255,0.03)' }}>
                               <Typography variant="caption" sx={{ color: 'text.secondary' }}>Process Areas</Typography>
-                              <Typography variant="h6" sx={{ mt: 0.25, fontWeight: 700 }}>{processAreaRows.length}</Typography>
+                              <Typography variant="h6" sx={{ mt: 0.25, fontWeight: 700 }}>{displayedProcessAreaRows.length}</Typography>
                             </Paper>
                             <Paper sx={{ p: 1.25, border: '1px solid rgba(255,255,255,0.08)', backgroundColor: 'rgba(255,255,255,0.03)' }}>
                               <Typography variant="caption" sx={{ color: 'text.secondary' }}>Auto Task Groups</Typography>
@@ -7052,7 +7139,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                               <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700, textAlign: 'right' }}>Total Hrs</Typography>
                             </Box>
                             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.35, mt: 0.5 }}>
-                              {processAreaRows.map((areaRow) => (
+                              {displayedProcessAreaRows.map((areaRow) => (
                                 <Box key={areaRow.area} sx={{ display: 'grid', gridTemplateColumns: '1fr 90px 90px 90px 80px 90px', gap: 1, py: 0.35, borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
                                   <Typography variant="body2" sx={{ fontWeight: 600 }}>{getProcessAreaDisplayName(project.id, areaRow.area)}</Typography>
                                   <Typography variant="body2" sx={{ textAlign: 'right' }}>{areaRow.objectCount}</Typography>
@@ -7062,13 +7149,13 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                   <Typography variant="body2" sx={{ textAlign: 'right', fontWeight: 700, color: deliverableAccent }}>{areaRow.hours.toFixed(2)}</Typography>
                                 </Box>
                               ))}
-                              {processAreaRows.length === 0 && (
+                              {displayedProcessAreaRows.length === 0 && (
                                 <Typography variant="body2" color="text.secondary">No process areas with assigned objects yet.</Typography>
                               )}
                             </Box>
                           </Paper>
 
-                          {processAreaRows.map((areaRow) => (
+                          {displayedProcessAreaRows.map((areaRow) => (
                             <Paper key={`area-objects-${areaRow.area}`} sx={{ p: 1.5, border: '1px solid rgba(255,255,255,0.08)', backgroundColor: 'rgba(255,255,255,0.02)', mb: 2 }}>
                               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
                                 <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
@@ -7173,7 +7260,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                     });
                     const scopedPlanTasks = isDeliverableSelection
                       ? allPlanTasks.filter((t: any) => !!t.taskGroupId && filteredGroupIds.includes(t.taskGroupId))
-                      : selectedItem.type === 'processArea'
+                      : (selectedItem.type === 'processArea' || selectedItem.type === 'deliverableProcessArea')
                       ? allPlanTasks.filter((t: any) => taskMatchesProcessArea(project.id, t, selectedItem.area, parentCycleId || undefined))
                       : allPlanTasks;
                     const progressPct = scopedPlanTasks.length > 0
@@ -7182,7 +7269,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                     // Filter by the raw area code, not the display label, so it correctly
                     // matches global_objects.process_area values on first click (before the
                     // selectedExecutionProcessArea state has been set by the useEffect).
-                    const rawProcessAreaFilter = selectedItem.type === 'processArea'
+                    const rawProcessAreaFilter = (selectedItem.type === 'processArea' || selectedItem.type === 'deliverableProcessArea')
                       ? (selectedItem.area || '')
                       : (selectedExecutionProcessArea || '');
                     const normalizedProcessAreaFilter = rawProcessAreaFilter.trim().toLowerCase();
