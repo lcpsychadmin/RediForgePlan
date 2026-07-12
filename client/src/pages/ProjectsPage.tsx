@@ -6320,6 +6320,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                         sx={{
                           display: 'flex',
                           alignItems: 'center',
+                          minWidth: 0,
                           py: 0.75,
                           pl: 0,
                           pr: 0.5,
@@ -6355,7 +6356,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                         <Box sx={{ mx: 0.75, display: 'inline-flex', alignItems: 'center' }}>
                           {renderHierarchyIcon('program', programColor, '1.1rem')}
                         </Box>
-                        <Typography variant="body2" sx={{ fontWeight: 600, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: isProgramSelected ? programColor : 'inherit' }}>
+                        <Typography variant="body2" sx={{ fontWeight: 600, flex: 1, minWidth: 0, maxWidth: '100%', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: isProgramSelected ? programColor : 'inherit' }}>
                           {program.name}
                         </Typography>
                         <Typography variant="caption" sx={{ color: isProgramSelected ? programColor : 'text.secondary', fontWeight: 700, fontSize: '0.68rem', mr: 0.5, minWidth: 34, textAlign: 'right' }}>
@@ -6455,6 +6456,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                   sx={{
                                     display: 'flex',
                                     alignItems: 'center',
+                                    minWidth: 0,
                                     py: 0.55,
                                     pl: 0,
                                     pr: 0.5,
@@ -6490,7 +6492,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                   <Box sx={{ mx: 0.5, display: 'inline-flex', alignItems: 'center' }}>
                                     {renderHierarchyIcon('project', projectAccent, '0.95rem')}
                                   </Box>
-                                  <Typography variant="body2" sx={{ fontWeight: 600, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  <Typography variant="body2" sx={{ fontWeight: 600, flex: 1, minWidth: 0, maxWidth: '100%', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                     {project.name}
                                   </Typography>
                                   <Typography variant="caption" sx={{ color: isProjectSelected ? projectAccent : 'text.secondary', fontWeight: 700, fontSize: '0.68rem', mr: 0.5, minWidth: 34, textAlign: 'right' }}>
@@ -6571,6 +6573,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                               sx={{
                                                 display: 'flex',
                                                 alignItems: 'center',
+                                                minWidth: 0,
                                                 py: 0.42,
                                                 pl: 1.1,
                                                 pr: 0.6,
@@ -6611,7 +6614,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                               <Box sx={{ mr: 0.55, display: 'inline-flex', alignItems: 'center' }}>
                                                 {renderIconChoice(node.icon, nodeAccent, '0.78rem')}
                                               </Box>
-                                              <Typography variant="caption" sx={{ fontWeight: isNodeSelected ? 700 : 500, color: isNodeSelected ? nodeAccent : 'inherit', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                              <Typography variant="caption" sx={{ fontWeight: isNodeSelected ? 700 : 500, color: isNodeSelected ? nodeAccent : 'inherit', flex: 1, minWidth: 0, maxWidth: '100%', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                                 {node.label}
                                               </Typography>
                                               {node.isFuture && (
@@ -6643,6 +6646,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                                       sx={{
                                                         display: 'flex',
                                                         alignItems: 'center',
+                                                        minWidth: 0,
                                                         py: 0.35,
                                                         pl: 1.35,
                                                         pr: 0.45,
@@ -6666,7 +6670,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                                       <Box sx={{ mr: 0.45, display: 'inline-flex', alignItems: 'center' }}>
                                                         {renderHierarchyIcon('processArea', areaAccent, '0.7rem')}
                                                       </Box>
-                                                      <Typography variant="caption" sx={{ fontWeight: areaSelected ? 700 : 500, color: areaSelected ? areaAccent : 'text.secondary', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                      <Typography variant="caption" sx={{ fontWeight: areaSelected ? 700 : 500, color: areaSelected ? areaAccent : 'text.secondary', flex: 1, minWidth: 0, maxWidth: '100%', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                                         {getProcessAreaDisplayName(firstCycleProject.id, area, firstCycle?.id)}
                                                       </Typography>
                                                     </Box>
