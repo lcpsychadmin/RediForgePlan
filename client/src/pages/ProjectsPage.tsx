@@ -1138,10 +1138,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   const [newItemAccentColor, setNewItemAccentColor] = useState('');
   const [newProjectParentProgramId, setNewProjectParentProgramId] = useState('');
   const [selectedExistingProjectOptionId, setSelectedExistingProjectOptionId] = useState('');
+  const [treeProjectCreateByNameMode, setTreeProjectCreateByNameMode] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
-  const [inlineProjectProgramId, setInlineProjectProgramId] = useState<string | null>(null);
-  const [inlineProjectName, setInlineProjectName] = useState('');
-  const [isCreatingInlineProject, setIsCreatingInlineProject] = useState(false);
   const [newCycleScheduleMode, setNewCycleScheduleMode] = useState<CalendarMode>('all_days');
   const [contextProgramId, setContextProgramId] = useState<string | null>(null);
   const [contextCycleId, setContextCycleId] = useState<string | null>(null);
@@ -2191,13 +2189,13 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   }, [allMaintainCycles, maintainProjectParentProgramId, maintainProjectParentCycleId]);
 
   useEffect(() => {
-    const isTreeProjectSelectionMode = dialogMode === 'project' && !isPlanningMaintainTab;
+    const isTreeProjectSelectionMode = dialogMode === 'project' && !isPlanningMaintainTab && !treeProjectCreateByNameMode;
     if (!createDialogOpen || !isTreeProjectSelectionMode) return;
     const currentStillValid = treeProjectOptionsForProgram.some((project) => project.id === selectedExistingProjectOptionId);
     if (!currentStillValid) {
       setSelectedExistingProjectOptionId(treeProjectOptionsForProgram[0]?.id || '');
     }
-  }, [createDialogOpen, dialogMode, isPlanningMaintainTab, treeProjectOptionsForProgram, selectedExistingProjectOptionId]);
+  }, [createDialogOpen, dialogMode, isPlanningMaintainTab, treeProjectCreateByNameMode, treeProjectOptionsForProgram, selectedExistingProjectOptionId]);
 
   useEffect(() => {
     if (maintainCycleFilterProgramId === 'all') return;
@@ -4167,7 +4165,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   }, [activeProjectId, projectTasks, location.search]);
 
   const handleCreateItem = async () => {
-    const isTreeProjectSelectionMode = dialogMode === 'project' && !isPlanningMaintainTab;
+    const isTreeProjectSelectionMode = dialogMode === 'project' && !isPlanningMaintainTab && !treeProjectCreateByNameMode;
 
     if (!isTreeProjectSelectionMode && !newItemName.trim()) {
       alert('Name is required');
@@ -4205,6 +4203,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
       setCreateDialogOpen(false);
       setContextProgramId(null);
       setContextCycleId(null);
+      setTreeProjectCreateByNameMode(false);
       setSelectedExistingProjectOptionId('');
       return;
     }
@@ -4275,6 +4274,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
       setCreateDialogOpen(false);
       setContextProgramId(null);
       setContextCycleId(null);
+      setTreeProjectCreateByNameMode(false);
       setNewProjectParentProgramId('');
       setSelectedExistingProjectOptionId('');
       setMaintainPendingCycleProjectId(null);
@@ -4283,6 +4283,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
       alert('Failed to create. Please try again.');
     } finally {
       setIsCreating(false);
+      setTreeProjectCreateByNameMode(false);
       setNewProjectParentProgramId('');
       setSelectedExistingProjectOptionId('');
       setMaintainPendingCycleProjectId(null);
@@ -4310,34 +4311,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
       processAreaDescriptions,
       hierarchyLevelIcons,
     }).catch(() => {});
-  };
-
-  const handleCreateInlineProject = async (programId: string) => {
-    const name = inlineProjectName.trim();
-    if (!name) {
-      alert('Project name is required.');
-      return;
-    }
-
-    try {
-      setIsCreatingInlineProject(true);
-      await apiClient.post(`/api/projects/by-program/${programId}`, {
-        name,
-        // Keep defaults internal for now; users only define the project name here.
-        startDate: new Date().toISOString().split('T')[0],
-        endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      });
-      setInlineProjectProgramId(null);
-      setInlineProjectName('');
-      queryClient.invalidateQueries({ queryKey: ['projectsByProgram'] });
-      queryClient.invalidateQueries({ queryKey: ['projectsByMockCycle'] });
-      setExpandedPrograms((prev) => new Set(prev).add(programId));
-    } catch (error) {
-      console.error('Failed to create inline project:', error);
-      alert('Failed to create project. Please try again.');
-    } finally {
-      setIsCreatingInlineProject(false);
-    }
   };
 
   const toggleCycleExpanded = (cycleId: string) => {
@@ -4387,6 +4360,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   };
 
   const openCreateDialog = (mode: 'program' | 'cycle' | 'project', programId?: string, cycleId?: string) => {
+    setTreeProjectCreateByNameMode(false);
     setDialogMode(mode);
     setContextProgramId(programId || null);
     setContextCycleId(cycleId || null);
@@ -4404,6 +4378,19 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
       const defaultParentProjectId = maintainCycleParentProjectId || maintainCycleParentProjectOptions[0]?.id || null;
       setMaintainPendingCycleProjectId(defaultParentProjectId);
     }
+    setCreateDialogOpen(true);
+  };
+
+  const openProjectNameCreateDialog = (programId: string) => {
+    setTreeProjectCreateByNameMode(true);
+    setDialogMode('project');
+    setContextProgramId(programId);
+    setContextCycleId(null);
+    setNewProjectParentProgramId(programId);
+    setSelectedExistingProjectOptionId('');
+    setNewItemName('');
+    setNewItemDesc('');
+    setNewItemAccentColor('');
     setCreateDialogOpen(true);
   };
 
@@ -7013,78 +7000,24 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
 
                           {canManageHierarchy && isPlanningPlanHierarchy && (
                             <Box sx={{ ml: 0.95, mr: 0.5, mt: 0.4 }}>
-                              {inlineProjectProgramId === program.id ? (
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, width: '100%', maxWidth: '100%', overflow: 'hidden' }}>
-                                  <Box sx={{ width: 8, flexShrink: 0 }} />
-                                  <Box sx={{ mx: 0.5, display: 'inline-flex', alignItems: 'center', flexShrink: 0 }}>
-                                    {renderHierarchyIcon('project', '#90caf9', '0.9rem')}
-                                  </Box>
-                                  <TextField
-                                    size="small"
-                                    value={inlineProjectName}
-                                    autoFocus
-                                    placeholder="Project name"
-                                    onChange={(e) => setInlineProjectName(e.target.value)}
-                                    onKeyDown={(e) => {
-                                      if (e.key === 'Enter') {
-                                        e.preventDefault();
-                                        handleCreateInlineProject(program.id);
-                                      }
-                                      if (e.key === 'Escape') {
-                                        e.preventDefault();
-                                        setInlineProjectProgramId(null);
-                                        setInlineProjectName('');
-                                      }
-                                    }}
-                                    sx={{
-                                      flex: '1 1 auto',
-                                      minWidth: 0,
-                                      '& .MuiInputBase-root': { height: 28, fontSize: '0.76rem' },
-                                    }}
-                                  />
-                                  <Button
-                                    size="small"
-                                    onClick={() => handleCreateInlineProject(program.id)}
-                                    disabled={isCreatingInlineProject}
-                                    sx={{ minWidth: 'auto', px: 0.8, textTransform: 'none', fontSize: '0.68rem' }}
-                                  >
-                                    {isCreatingInlineProject ? '...' : 'Add'}
-                                  </Button>
-                                  <Button
-                                    size="small"
-                                    onClick={() => {
-                                      setInlineProjectProgramId(null);
-                                      setInlineProjectName('');
-                                    }}
-                                    disabled={isCreatingInlineProject}
-                                    sx={{ minWidth: 'auto', px: 0.8, textTransform: 'none', fontSize: '0.68rem', color: 'text.secondary' }}
-                                  >
-                                    Cancel
-                                  </Button>
-                                </Box>
-                              ) : (
-                                <Button
-                                  size="small"
-                                  variant="text"
-                                  startIcon={<AddIcon sx={{ fontSize: '0.82rem !important' }} />}
-                                  onClick={() => {
-                                    setInlineProjectProgramId(program.id);
-                                    setInlineProjectName('');
-                                  }}
-                                  sx={{
-                                    width: '100%',
-                                    justifyContent: 'flex-start',
-                                    textTransform: 'none',
-                                    color: '#7C83D0',
-                                    fontSize: '0.74rem',
-                                    py: 0.3,
-                                    pl: 1.2,
-                                    '&:hover': { color: '#90CAF9' },
-                                  }}
-                                >
-                                  Add Project
-                                </Button>
-                              )}
+                              <Button
+                                size="small"
+                                variant="text"
+                                startIcon={<AddIcon sx={{ fontSize: '0.82rem !important' }} />}
+                                onClick={() => openProjectNameCreateDialog(program.id)}
+                                sx={{
+                                  width: '100%',
+                                  justifyContent: 'flex-start',
+                                  textTransform: 'none',
+                                  color: '#7C83D0',
+                                  fontSize: '0.74rem',
+                                  py: 0.3,
+                                  pl: 1.2,
+                                  '&:hover': { color: '#90CAF9' },
+                                }}
+                              >
+                                Add Project
+                              </Button>
                             </Box>
                           )}
 
@@ -10507,7 +10440,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
           {dialogMode === 'project' && 'Create New Project'}
         </DialogTitle>
         <DialogContent sx={{ pt: 2, maxHeight: '70vh', overflowY: 'auto', px: 3 }}>
-          {dialogMode === 'project' && !isPlanningMaintainTab ? (
+          {dialogMode === 'project' && !isPlanningMaintainTab && !treeProjectCreateByNameMode ? (
             <>
               <TextField
                 select
@@ -10664,7 +10597,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
             variant="contained"
             disabled={
               isCreating
-              || ((dialogMode === 'project' && !isPlanningMaintainTab) ? !selectedExistingProjectOptionId : !newItemName.trim())
+              || ((dialogMode === 'project' && !isPlanningMaintainTab && !treeProjectCreateByNameMode) ? !selectedExistingProjectOptionId : !newItemName.trim())
               || (dialogMode === 'cycle' && !maintainPendingCycleProjectId)
               || (dialogMode === 'project' && isPlanningMaintainTab && !newProjectParentProgramId)
             }
