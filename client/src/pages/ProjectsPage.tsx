@@ -7152,14 +7152,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                   <Typography variant="h6" sx={{ mt: 0.25, fontWeight: 700, color: estimationAccent }}>{displayedProcessAreaRows.length}</Typography>
                                 </Paper>
                                 <Paper sx={translucentMetricCardSx}>
-                                  <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.78)' }}>Auto Task Groups</Typography>
-                                  <Typography variant="h6" sx={{ mt: 0.25, fontWeight: 700, color: estimationAccent }}>{estimationGroups.length}</Typography>
-                                </Paper>
-                                <Paper sx={translucentMetricCardSx}>
-                                  <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.78)' }}>Configured Objects</Typography>
-                                  <Typography variant="h6" sx={{ mt: 0.25, fontWeight: 700, color: estimationAccent }}>{configuredCount}</Typography>
-                                </Paper>
-                                <Paper sx={translucentMetricCardSx}>
                                   <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.78)' }}>Missing Required Fields</Typography>
                                   <Typography variant="h6" sx={{ mt: 0.25, fontWeight: 700, color: estimationAccent }}>{missingRequiredCount}</Typography>
                                 </Paper>
@@ -7215,7 +7207,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                             <Paper key={`area-objects-${areaRow.area}`} sx={{ ...translucentPanelSx, mb: 2 }}>
                               {(() => {
                                 const sectionKey = `${project.id}_${parentCycleId || ''}_${areaRow.area}`;
-                                const isSectionCollapsed = collapsedEstimationProcessAreaSections.has(sectionKey);
+                                const isSectionCollapsed = !collapsedEstimationProcessAreaSections.has(sectionKey);
                                 return (
                                   <>
                               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
