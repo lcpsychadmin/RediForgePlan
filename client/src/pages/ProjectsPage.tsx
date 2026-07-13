@@ -6781,9 +6781,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                         <Typography variant="body2" sx={{ fontWeight: 600, flex: '1 1 auto', minWidth: 0, maxWidth: '100%', width: 0, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: isProgramSelected ? programColor : 'inherit' }}>
                           {program.name}
                         </Typography>
-                        <Typography variant="caption" sx={{ color: isProgramSelected ? programColor : 'text.secondary', fontWeight: 700, fontSize: '0.68rem', mr: 0.5, minWidth: 34, textAlign: 'right' }}>
-                          {programProgressPct}%
-                        </Typography>
                         <IconButton
                           size="small"
                           onClick={(e) => {
@@ -6919,9 +6916,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                   </Box>
                                   <Typography variant="body2" sx={{ fontWeight: 600, flex: '1 1 auto', minWidth: 0, maxWidth: '100%', width: 0, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                     {project.name}
-                                  </Typography>
-                                  <Typography variant="caption" sx={{ color: isProjectSelected ? projectAccent : 'text.secondary', fontWeight: 700, fontSize: '0.68rem', mr: 0.5, minWidth: 34, textAlign: 'right' }}>
-                                    {projectProgressPct}%
                                   </Typography>
                                   <IconButton
                                     size="small"
@@ -7773,7 +7767,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                 <Alert severity="info">Select an item from the list to view details</Alert>
               ) : selectedDetails ? (
                 <>
-                  {selectedItem.type === 'project' || selectedItem.type === 'processArea' || selectedItem.type === 'deliverable' || selectedItem.type === 'deliverableProcessArea' ? (() => {
+                  {selectedItem.type === 'processArea' || selectedItem.type === 'deliverable' || selectedItem.type === 'deliverableProcessArea' ? (() => {
                     const project = selectedDetails as Project;
                     const accentColor = project.accentColor || '#00BFA5';
                     const isDeliverableSelection = selectedItem.type === 'deliverable' || selectedItem.type === 'deliverableProcessArea';
@@ -11514,6 +11508,49 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                     <Box sx={{ p: 1 }}>
                       {selectedItem.type === 'program' ? (
                         <>
+                          {(() => {
+                            const rollupProjects = getProjectsByProgram(selectedItem.id).map((project: Project) => {
+                              const normalizedName = (project.name || '').trim().toLowerCase();
+                              const cyclesForProgram = mockCycles[selectedItem.id] || [];
+                              const instances = cyclesForProgram
+                                .map((cycle: MockCycle) => (projectsByMockCycle[cycle.id] || []).find((p: Project) => (p.name || '').trim().toLowerCase() === normalizedName))
+                                .filter(Boolean) as Project[];
+                              const avgProgress = getProgressAverage(instances.map((instance: Project) => Number(instance.progressPercentage || 0)));
+                              const starts = instances.map((instance: Project) => instance.startDate).filter(Boolean) as string[];
+                              const ends = instances.map((instance: Project) => instance.endDate).filter(Boolean) as string[];
+                              return {
+                                id: project.id,
+                                name: project.name,
+                                progress: avgProgress,
+                                cycleCount: instances.length,
+                                start: starts.length > 0 ? starts.sort()[0] : '',
+                                end: ends.length > 0 ? ends.sort()[ends.length - 1] : '',
+                              };
+                            });
+
+                            return (
+                              <Paper sx={{ p: 1.1, border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'rgba(255,255,255,0.03)', mb: 1.25 }}>
+                                <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.75 }}>
+                                  Project Rollup
+                                </Typography>
+                                {rollupProjects.length === 0 ? (
+                                  <Typography variant="body2" color="text.secondary">No projects found in this program.</Typography>
+                                ) : (
+                                  <Box sx={{ display: 'grid', gap: 0.45 }}>
+                                    {rollupProjects.map((row) => (
+                                      <Box key={`program-rollup-${row.id}`} sx={{ display: 'grid', gridTemplateColumns: '1.5fr 0.7fr 0.9fr 1.1fr', gap: 1, alignItems: 'center', px: 0.7, py: 0.5, borderRadius: 0.8, border: '1px solid rgba(255,255,255,0.06)', backgroundColor: 'rgba(255,255,255,0.02)' }}>
+                                        <Typography variant="body2" sx={{ fontWeight: 600 }}>{row.name}</Typography>
+                                        <Chip size="small" label={`${row.progress}%`} color={row.progress >= 100 ? 'success' : row.progress > 0 ? 'info' : 'default'} variant="outlined" />
+                                        <Typography variant="caption" color="text.secondary">Cycles: {row.cycleCount}</Typography>
+                                        <Typography variant="caption" color="text.secondary">{row.start || 'TBD'} → {row.end || 'TBD'}</Typography>
+                                      </Box>
+                                    ))}
+                                  </Box>
+                                )}
+                              </Paper>
+                            );
+                          })()}
+
                           <Typography variant="h6" sx={{ mb: 0.75 }}>{selectedDetails?.name}</Typography>
                           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
                             High-level program summary derived from cycles, projects, objects, and tasks.
@@ -11568,6 +11605,102 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                             <Typography variant="body2" color="text.secondary">Unable to load program overview.</Typography>
                           )}
                         </>
+                      ) : selectedItem.type === 'project' ? (
+                        (() => {
+                          const project = selectedDetails as Project;
+                          const projectAccent = project.accentColor || '#90caf9';
+                          const rootDeliverables = PLAN_DELIVERABLE_NODES.filter((node) => !node.parentId && !node.isFuture);
+                          const deliverableStatusRows = rootDeliverables.map((node) => {
+                            const assignedGroupIds = Object.entries(deliverableTaskGroupAssignments[project.id] || {})
+                              .filter(([, deliverableId]) => deliverableId === node.id)
+                              .map(([groupId]) => groupId);
+                            const groups = projectTaskGroups.filter((group: any) => assignedGroupIds.includes(group.id));
+                            const tasks = projectTasks.filter((task: any) => assignedGroupIds.includes(task.taskGroupId));
+                            const completed = tasks.filter((task: any) => String(task.status || '') === 'complete').length;
+                            const progress = tasks.length > 0
+                              ? getProgressAverage(tasks.map((task: any) => getEffectiveTaskProgress(task)))
+                              : 0;
+                            return {
+                              id: node.id,
+                              label: node.label,
+                              accent: node.accentColor,
+                              groupCount: groups.length,
+                              taskCount: tasks.length,
+                              completed,
+                              progress,
+                            };
+                          });
+                          const approvalRows = deliverableStatusRows.filter((row) => /approvals?/i.test(row.label) || /approvals?/i.test(row.id));
+                          const totalDeliverableTasks = deliverableStatusRows.reduce((sum, row) => sum + row.taskCount, 0);
+                          const totalDeliverableComplete = deliverableStatusRows.reduce((sum, row) => sum + row.completed, 0);
+                          const totalApprovalTasks = approvalRows.reduce((sum, row) => sum + row.taskCount, 0);
+                          const totalApprovalComplete = approvalRows.reduce((sum, row) => sum + row.completed, 0);
+                          const aggregateProgress = totalDeliverableTasks > 0
+                            ? Math.round((totalDeliverableComplete / totalDeliverableTasks) * 100)
+                            : 0;
+
+                          return (
+                            <Box sx={{ p: 1 }}>
+                              <Typography variant="h6" sx={{ mb: 0.4 }}>{project.name}</Typography>
+                              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.25 }}>
+                                Read-only project summary of planning deliverables and approval readiness.
+                              </Typography>
+
+                              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(4, minmax(120px, 1fr))' }, gap: 1, mb: 1.25 }}>
+                                {[
+                                  { label: 'Deliverables', value: deliverableStatusRows.length },
+                                  { label: 'Deliverable Tasks', value: totalDeliverableTasks },
+                                  { label: 'Approval Tasks', value: totalApprovalTasks },
+                                  { label: 'Overall Complete', value: `${aggregateProgress}%` },
+                                ].map((metric) => (
+                                  <Box key={metric.label} sx={{ p: 1, borderRadius: 1, border: '1px solid rgba(255,255,255,0.08)', backgroundColor: 'rgba(255,255,255,0.03)' }}>
+                                    <Typography variant="caption" color="text.secondary">{metric.label}</Typography>
+                                    <Typography variant="h6" sx={{ lineHeight: 1.2 }}>{metric.value}</Typography>
+                                  </Box>
+                                ))}
+                              </Box>
+
+                              <Paper sx={{ p: 1.1, border: `1px solid ${projectAccent}55`, backgroundColor: 'rgba(255,255,255,0.03)', mb: 1.1 }}>
+                                <Typography variant="subtitle2" sx={{ fontWeight: 700, color: projectAccent, mb: 0.7 }}>
+                                  Deliverable Summary
+                                </Typography>
+                                <Box sx={{ display: 'grid', gap: 0.45 }}>
+                                  {deliverableStatusRows.map((row) => (
+                                    <Box key={row.id} sx={{ display: 'grid', gridTemplateColumns: '1.5fr 0.8fr 0.8fr 0.9fr', gap: 1, alignItems: 'center', px: 0.7, py: 0.5, borderRadius: 0.8, border: '1px solid rgba(255,255,255,0.06)', backgroundColor: 'rgba(255,255,255,0.02)' }}>
+                                      <Typography variant="body2" sx={{ fontWeight: 600, color: row.accent || 'inherit' }}>{row.label}</Typography>
+                                      <Typography variant="caption" color="text.secondary">Groups: {row.groupCount}</Typography>
+                                      <Typography variant="caption" color="text.secondary">Tasks: {row.taskCount}</Typography>
+                                      <Chip size="small" label={`${row.progress}%`} color={row.progress >= 100 ? 'success' : row.progress > 0 ? 'info' : 'default'} variant="outlined" />
+                                    </Box>
+                                  ))}
+                                </Box>
+                              </Paper>
+
+                              <Paper sx={{ p: 1.1, border: `1px solid ${projectAccent}55`, backgroundColor: 'rgba(255,255,255,0.03)' }}>
+                                <Typography variant="subtitle2" sx={{ fontWeight: 700, color: projectAccent, mb: 0.7 }}>
+                                  Approval Summary
+                                </Typography>
+                                {approvalRows.length === 0 ? (
+                                  <Typography variant="body2" color="text.secondary">No approval deliverables found yet.</Typography>
+                                ) : (
+                                  <Box sx={{ display: 'grid', gap: 0.45 }}>
+                                    {approvalRows.map((row) => (
+                                      <Box key={`approval-${row.id}`} sx={{ display: 'grid', gridTemplateColumns: '1.5fr 0.8fr 0.8fr 0.9fr', gap: 1, alignItems: 'center', px: 0.7, py: 0.5, borderRadius: 0.8, border: '1px solid rgba(255,255,255,0.06)', backgroundColor: 'rgba(255,255,255,0.02)' }}>
+                                        <Typography variant="body2" sx={{ fontWeight: 600, color: row.accent || 'inherit' }}>{row.label}</Typography>
+                                        <Typography variant="caption" color="text.secondary">Entries: {row.taskCount}</Typography>
+                                        <Typography variant="caption" color="text.secondary">Complete: {row.completed}</Typography>
+                                        <Chip size="small" label={`${row.taskCount > 0 ? Math.round((row.completed / row.taskCount) * 100) : 0}%`} color={row.taskCount > 0 && row.completed === row.taskCount ? 'success' : 'default'} variant="outlined" />
+                                      </Box>
+                                    ))}
+                                  </Box>
+                                )}
+                                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.75 }}>
+                                  Approval completion: {totalApprovalComplete}/{totalApprovalTasks || 0}
+                                </Typography>
+                              </Paper>
+                            </Box>
+                          );
+                        })()
                       ) : selectedItem.type === 'cycle' ? (
                         <>
                           <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1 }}>
