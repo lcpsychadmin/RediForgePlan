@@ -4166,7 +4166,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
     };
 
     loadTasksAndGroups();
-  }, [activeProjectId, activeCycleId, getVisiblePlanningAdditionalGroups, isDeliverableAssignedGroup]);
+  // Intentionally keyed only by active cycle/project so background state updates
+  // (like task group state mutations) do not re-trigger full task/comments reload loops.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeProjectId, activeCycleId]);
 
   useEffect(() => {
     seededDefaultTaskObjectsRef.current = new Set();
