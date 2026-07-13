@@ -288,6 +288,7 @@ const PLAN_DELIVERABLE_NODES: Array<{
   { id: 'mockCriteria', label: 'Entry/Exit Criteria', targetView: 'plan', accentColor: '#66BB6A', icon: 'fa-list-check' },
   { id: 'mockCriteriaApprovals', parentId: 'mockCriteria', label: 'Approvals', targetView: 'plan', accentColor: '#FF8A65', icon: 'fa-list-check' },
   { id: 'designBuildEstimation', label: 'Design and Build Estimation', targetView: 'plan', accentColor: '#B0BEC5', icon: 'fa-triangle-exclamation' },
+  { id: 'designBuildDeveloperPool', parentId: 'designBuildEstimation', label: 'Developer Pool', targetView: 'plan', accentColor: '#90A4AE', icon: 'fa-code' },
   { id: 'designBuildCompletion', label: 'Design and Build Phase Plan Completion', targetView: 'plan', accentColor: '#5C6BC0', icon: 'fa-clipboard-list' },
 ];
 
@@ -1571,6 +1572,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
 
   // Plan tab states
   const [projectTasks, setProjectTasks] = useState<any[]>([]);
+  const [developerPoolSelections, setDeveloperPoolSelections] = useState<Record<string, string[]>>({});
+  const [isAssigningDeveloperPool, setIsAssigningDeveloperPool] = useState(false);
   const [projectTaskGroups, setProjectTaskGroups] = useState<any[]>([]);
   const [expandedTaskGroups, setExpandedTaskGroups] = useState<Set<string>>(new Set());
   const [editingTask, setEditingTask] = useState<any | null>(null);
@@ -7814,6 +7817,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                       .map((cycle: MockCycle) => (projectsByMockCycle[cycle.id] || []).find((p: Project) => (p.name || '').trim().toLowerCase() === normalizedProjectName))
                       .filter(Boolean) as Project[];
                     const isDesignBuildEstimationDeliverable = isDeliverableSelection && selectedItem.deliverableId === 'designBuildEstimation';
+                    const isDesignBuildDeveloperPoolNode = isDeliverableSelection && selectedItem.deliverableId === 'designBuildDeveloperPool';
                     const isProjectStructureSummaryDeliverable = isDeliverableSelection && selectedItem.deliverableId === 'projectStructure';
                     const isProjectSettingsDeliverable = isDeliverableSelection && selectedItem.deliverableId === 'projectSettings';
                     const isProjectMockCyclesDeliverable = isDeliverableSelection && selectedItem.deliverableId === 'projectMockCycles';
@@ -7835,6 +7839,244 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                     const estimationSelectedArea = selectedItem.type === 'deliverableProcessArea'
                       ? (selectedItem.area || '').trim()
                       : '';
+                    if (isDesignBuildDeveloperPoolNode) {
+                      const topLevelObjects = projectInventoryItems.filter((item: any) => !item.parentProjectObjectId);
+                      const scopedObjects = topLevelObjects.filter((item: any) => {
+                        const processArea = String(item.processArea || '').trim();
+                        return !processArea || getProcessAreasForProjectCycle(project.id, parentCycleId || undefined).includes(processArea);
+                      });
+                      const objectCount = scopedObjects.length;
+                      const recommendedMinDevelopers = objectCount > 0 ? Math.max(1, Math.ceil(objectCount / 7)) : 0;
+                      const recommendedMaxDevelopers = objectCount > 0 ? Math.max(1, Math.ceil(objectCount / 5)) : 0;
+                      const recommendedTargetDevelopers = objectCount > 0 ? Math.max(1, Math.ceil(objectCount / 6)) : 0;
+                      const normalizeValue = (value: any) => String(value || '').trim().toLowerCase();
+                      const resolvePersonId = (value: string) => {
+                        const normalized = normalizeValue(value);
+                        if (!normalized) return '';
+                        const match = people.find((person: any) => (
+                          normalizeValue(person.id) === normalized
+                          || normalizeValue(person.name) === normalized
+                          || normalizeValue(person.email) === normalized
+                        ));
+                        return match?.id || '';
+                      };
+                      const getPersonLabel = (personId: string) => {
+                        const person = people.find((entry: any) => entry.id === personId);
+                        return person?.name || person?.email || personId;
+                      };
+                      const inferredPool = Array.from(new Set(
+                        scopedObjects
+                          .map((item: any) => resolvePersonId(String(item.developer || '')))
+                          .filter(Boolean)
+                      ));
+                      const poolKey = `${project.id}::${parentCycleId || ''}`;
+                      const selectedPool = developerPoolSelections[poolKey] || inferredPool;
+                      const poolSize = selectedPool.length;
+                      const objectsPerDeveloper = poolSize > 0 ? Number((objectCount / poolSize).toFixed(1)) : 0;
+                      const poolCoverageState = poolSize === 0
+                        ? 'none'
+                        : objectsPerDeveloper > 7
+                          ? 'under'
+                          : objectsPerDeveloper < 5
+                            ? 'over'
+                            : 'balanced';
+
+                      const applyPoolAssignment = async () => {
+                        if (selectedPool.length === 0) {
+                          alert('Select at least one developer to create the pool.');
+                          return;
+                        }
+                        if (scopedObjects.length === 0) {
+                          alert('No in-scope objects are available to assign.');
+                          return;
+                        }
+
+                        try {
+                          setIsAssigningDeveloperPool(true);
+                          const sortedObjects = [...scopedObjects].sort((a: any, b: any) => String(a.objectId || a.dataObjectId || '').localeCompare(String(b.objectId || b.dataObjectId || '')));
+                          const assignments = sortedObjects.map((item: any, index: number) => ({
+                            itemId: item.id,
+                            developerId: selectedPool[index % selectedPool.length],
+                          }));
+
+                          await Promise.all(assignments.map((assignment) => (
+                            apiClient.patch(`/api/project-objects/${assignment.itemId}`, {
+                              developer: assignment.developerId,
+                            })
+                          )));
+
+                          setProjectInventoryItems((prev) => prev.map((item: any) => {
+                            const assignment = assignments.find((entry) => entry.itemId === item.id);
+                            if (!assignment) return item;
+                            return { ...item, developer: assignment.developerId };
+                          }));
+                        } catch (error) {
+                          console.error('Failed to assign developer pool:', error);
+                          alert('Failed to assign developer pool. Please try again.');
+                        } finally {
+                          setIsAssigningDeveloperPool(false);
+                        }
+                      };
+
+                      const assignedCountByDeveloper = scopedObjects.reduce<Record<string, number>>((acc, item: any) => {
+                        const resolved = resolvePersonId(String(item.developer || ''));
+                        if (!resolved) return acc;
+                        acc[resolved] = (acc[resolved] || 0) + 1;
+                        return acc;
+                      }, {});
+
+                      return (
+                        <Box>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1.5 }}>
+                            {parentProgramName && <><Typography variant="caption" color="text.disabled">{parentProgramName}</Typography><Typography variant="caption" color="text.disabled">›</Typography></>}
+                            {parentCycleName && <><Typography variant="caption" color="text.disabled">{parentCycleName}</Typography><Typography variant="caption" color="text.disabled">›</Typography></>}
+                            <Typography variant="caption" sx={{ color: accentColor, fontWeight: 600 }}>{project.name}</Typography>
+                            <Typography variant="caption" color="text.disabled">›</Typography>
+                            <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>Design and Build Estimation</Typography>
+                            <Typography variant="caption" color="text.disabled">›</Typography>
+                            <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>Developer Pool</Typography>
+                          </Box>
+
+                          <Typography variant="h4" sx={{ fontWeight: 700, color: deliverableAccent, mb: 0.75, fontSize: { xs: '1.55rem', sm: '2.125rem' } }}>
+                            Developer Pool
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary" sx={{ mb: 1.25 }}>
+                            Assign a shared developer pool for Design, Build, and Execution. Guidance: 5-7 in-scope objects per developer.
+                          </Typography>
+
+                          <Box sx={{ display: 'grid', gap: 1, gridTemplateColumns: { xs: '1fr', sm: 'repeat(4, minmax(140px, 1fr))' }, mb: 1.25 }}>
+                            <Paper sx={{ p: 1, border: `1px solid ${deliverableAccent}44`, backgroundColor: 'rgba(255,255,255,0.04)' }}>
+                              <Typography variant="caption" color="text.secondary">In-Scope Objects</Typography>
+                              <Typography variant="h6" sx={{ color: deliverableAccent }}>{objectCount}</Typography>
+                            </Paper>
+                            <Paper sx={{ p: 1, border: `1px solid ${deliverableAccent}44`, backgroundColor: 'rgba(255,255,255,0.04)' }}>
+                              <Typography variant="caption" color="text.secondary">Recommended Developers</Typography>
+                              <Typography variant="h6" sx={{ color: deliverableAccent }}>{recommendedTargetDevelopers || 0}</Typography>
+                              <Typography variant="caption" color="text.secondary">Range {recommendedMinDevelopers || 0} - {recommendedMaxDevelopers || 0}</Typography>
+                            </Paper>
+                            <Paper sx={{ p: 1, border: `1px solid ${deliverableAccent}44`, backgroundColor: 'rgba(255,255,255,0.04)' }}>
+                              <Typography variant="caption" color="text.secondary">Pool Size</Typography>
+                              <Typography variant="h6" sx={{ color: deliverableAccent }}>{poolSize}</Typography>
+                              <Typography variant="caption" color="text.secondary">{objectsPerDeveloper || 0} objects/developer</Typography>
+                            </Paper>
+                            <Paper sx={{ p: 1, border: `1px solid ${deliverableAccent}44`, backgroundColor: 'rgba(255,255,255,0.04)' }}>
+                              <Typography variant="caption" color="text.secondary">Coverage</Typography>
+                              <Chip
+                                size="small"
+                                label={poolCoverageState === 'balanced' ? 'Balanced' : poolCoverageState === 'under' ? 'Add Developers' : poolCoverageState === 'over' ? 'Pool Oversized' : 'Not Set'}
+                                color={poolCoverageState === 'balanced' ? 'success' : poolCoverageState === 'under' ? 'warning' : 'default'}
+                                variant="outlined"
+                                sx={{ mt: 0.6 }}
+                              />
+                            </Paper>
+                          </Box>
+
+                          {poolCoverageState === 'under' && (
+                            <Alert severity="warning" sx={{ mb: 1.25 }}>
+                              Current pool is below guidance. Add developers so each developer owns no more than 7 objects.
+                            </Alert>
+                          )}
+                          {poolCoverageState === 'over' && (
+                            <Alert severity="info" sx={{ mb: 1.25 }}>
+                              Current pool is larger than needed. Guidance is at least 5 objects per developer.
+                            </Alert>
+                          )}
+
+                          <Paper sx={{ p: 1.25, border: `1px solid ${deliverableAccent}44`, backgroundColor: 'rgba(255,255,255,0.04)', mb: 1.25 }}>
+                            <Typography variant="subtitle2" sx={{ color: deliverableAccent, fontWeight: 700, mb: 0.8 }}>Pool Selection</Typography>
+                            {people.length === 0 ? (
+                              <Typography variant="body2" color="text.secondary">No people found. Add people to create a developer pool.</Typography>
+                            ) : (
+                              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 0.35 }}>
+                                {people.map((person: any) => {
+                                  const selected = selectedPool.includes(person.id);
+                                  return (
+                                    <FormControlLabel
+                                      key={`dev-pool-${person.id}`}
+                                      control={
+                                        <Checkbox
+                                          size="small"
+                                          checked={selected}
+                                          onChange={(e) => {
+                                            setDeveloperPoolSelections((prev) => {
+                                              const existing = prev[poolKey] || inferredPool;
+                                              const next = e.target.checked
+                                                ? Array.from(new Set([...existing, person.id]))
+                                                : existing.filter((id) => id !== person.id);
+                                              return { ...prev, [poolKey]: next };
+                                            });
+                                          }}
+                                        />
+                                      }
+                                      label={<Typography variant="body2">{person.name || person.email}</Typography>}
+                                      sx={{ m: 0 }}
+                                    />
+                                  );
+                                })}
+                              </Box>
+                            )}
+
+                            <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}>
+                              <Button
+                                variant="contained"
+                                startIcon={<GroupIcon />}
+                                onClick={applyPoolAssignment}
+                                disabled={isAssigningDeveloperPool || selectedPool.length === 0 || scopedObjects.length === 0}
+                                sx={{ textTransform: 'none' }}
+                              >
+                                {isAssigningDeveloperPool ? 'Assigning...' : 'Assign Pool to Objects'}
+                              </Button>
+                            </Box>
+                          </Paper>
+
+                          <Paper sx={{ p: 1.25, border: `1px solid ${deliverableAccent}44`, backgroundColor: 'rgba(255,255,255,0.03)' }}>
+                            <Typography variant="subtitle2" sx={{ color: deliverableAccent, fontWeight: 700, mb: 0.8 }}>Object Assignments</Typography>
+                            <Box sx={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr', gap: 1, pb: 0.55, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                              <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>Object</Typography>
+                              <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>Process Area</Typography>
+                              <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>Developer</Typography>
+                            </Box>
+                            <Box sx={{ display: 'grid', gap: 0.4, mt: 0.4 }}>
+                              {scopedObjects.length === 0 ? (
+                                <Typography variant="body2" color="text.secondary" sx={{ py: 0.7 }}>No in-scope objects available.</Typography>
+                              ) : scopedObjects
+                                .sort((a: any, b: any) => String(a.objectId || a.dataObjectId || '').localeCompare(String(b.objectId || b.dataObjectId || '')))
+                                .map((item: any) => {
+                                  const currentDeveloperId = resolvePersonId(String(item.developer || ''));
+                                  return (
+                                    <Box key={`dev-assign-${item.id}`} sx={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr', gap: 1, alignItems: 'center', py: 0.35, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                      <Typography variant="body2" sx={{ fontWeight: 600 }}>{item.objectId || item.dataObjectId || item.name || 'Object'}</Typography>
+                                      <Typography variant="body2" color="text.secondary">{getProcessAreaDisplayName(project.id, String(item.processArea || ''), parentCycleId || undefined) || 'Unassigned'}</Typography>
+                                      <TextField
+                                        select
+                                        size="small"
+                                        value={currentDeveloperId}
+                                        onChange={(e) => handleProjectInventoryInlineChange(item.id, 'developer', e.target.value)}
+                                        sx={{ '& .MuiInputBase-root': { height: 30, fontSize: '0.8rem' } }}
+                                      >
+                                        <MenuItem value=""><em>Unassigned</em></MenuItem>
+                                        {people.map((person: any) => (
+                                          <MenuItem key={`dev-assign-person-${person.id}`} value={person.id}>{person.name || person.email}</MenuItem>
+                                        ))}
+                                      </TextField>
+                                    </Box>
+                                  );
+                                })}
+                            </Box>
+
+                            {Object.keys(assignedCountByDeveloper).length > 0 && (
+                              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.6, mt: 0.9 }}>
+                                {Object.entries(assignedCountByDeveloper)
+                                  .sort(([a], [b]) => getPersonLabel(a).localeCompare(getPersonLabel(b)))
+                                  .map(([personId, count]) => (
+                                    <Chip key={`dev-load-${personId}`} size="small" variant="outlined" label={`${getPersonLabel(personId)}: ${count} object${count === 1 ? '' : 's'}`} />
+                                  ))}
+                              </Box>
+                            )}
+                          </Paper>
+                        </Box>
+                      );
+                    }
                     if (isProjectStructureSummaryDeliverable) {
                       const cycleRows = allMaintainCycles
                         .filter((cycle) => cycle.projectId === project.id)
