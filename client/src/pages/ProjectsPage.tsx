@@ -52,6 +52,7 @@ import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 import SaveIcon from '@mui/icons-material/Save';
 import AltRouteIcon from '@mui/icons-material/AltRoute';
 import { TaskCommentsModal } from '../components/TaskCommentsModal';
+import TaskCommentsDrawer from '../components/TaskCommentsDrawer';
 import FolderOutlinedIcon from '@mui/icons-material/FolderOutlined';
 import CorporateFareIcon from '@mui/icons-material/CorporateFare';
 import SyncIcon from '@mui/icons-material/Sync';
@@ -1712,6 +1713,19 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
 
   // Comment modal state
   const [commentModalTask, setCommentModalTask] = useState<{ id: string; name: string } | null>(null);
+  const [designDiscussionSidebar, setDesignDiscussionSidebar] = useState<{
+    open: boolean;
+    loading: boolean;
+    taskId: string;
+    taskName: string;
+    accentColor: string;
+  }>({
+    open: false,
+    loading: false,
+    taskId: '',
+    taskName: '',
+    accentColor: '#00BFA5',
+  });
   const [priorityModalTask, setPriorityModalTask] = useState<any | null>(null);
   const [editingTaskInitialTab, setEditingTaskInitialTab] = useState(0);
   const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
@@ -1751,6 +1765,88 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   const [editPersonName, setEditPersonName] = useState('');
   const [editPersonRole, setEditPersonRole] = useState('');
   const [editPersonEmail, setEditPersonEmail] = useState('');
+
+  const openDesignDiscussionSidebar = async (params: {
+    nodeDeliverableId: string;
+    projectId: string;
+    objectLabel: string;
+    deliverableLabel: string;
+    childLabel: string;
+    accentColor: string;
+  }) => {
+    const { nodeDeliverableId, projectId, objectLabel, deliverableLabel, childLabel, accentColor } = params;
+    if (!activeCycleId) {
+      alert('Mock cycle context missing. Select a project under a mock cycle to open discussion.');
+      return;
+    }
+
+    const groupName = `${objectLabel} - ${deliverableLabel} Discussions`;
+    const taskName = `${childLabel} Discussion`;
+    const panelLabel = `${objectLabel} • ${deliverableLabel} • ${childLabel}`;
+
+    setDesignDiscussionSidebar({
+      open: true,
+      loading: true,
+      taskId: '',
+      taskName: panelLabel,
+      accentColor,
+    });
+
+    try {
+      let discussionGroup = projectTaskGroups.find((group: any) => (
+        group.projectId === projectId
+        && String(group.name || '').trim().toLowerCase() === groupName.toLowerCase()
+      ));
+
+      if (!discussionGroup) {
+        const groupResponse = await apiClient.post(`/api/tasks/groups/cycle/${activeCycleId}`, {
+          name: groupName,
+          processArea: null,
+        });
+        discussionGroup = groupResponse.data?.data;
+        if (!discussionGroup) throw new Error('Failed to create discussion group.');
+
+        setProjectTaskGroups((prev) => prev.some((group: any) => group.id === discussionGroup.id) ? prev : [...prev, discussionGroup]);
+        setDeliverableTaskGroupAssignments((prev) => ({
+          ...prev,
+          [projectId]: {
+            ...(prev[projectId] || {}),
+            [discussionGroup.id]: nodeDeliverableId,
+          },
+        }));
+      }
+
+      let discussionTask = projectTasks.find((task: any) => (
+        task.taskGroupId === discussionGroup.id
+        && String(task.name || '').trim().toLowerCase() === taskName.toLowerCase()
+      ));
+
+      if (!discussionTask) {
+        const taskResponse = await apiClient.post(`/api/tasks/cycle/${activeCycleId}`, {
+          taskType: 'custom',
+          taskGroupId: discussionGroup.id,
+          name: taskName,
+          durationUnit: 'days',
+        });
+        discussionTask = normalizeTaskDateFields(taskResponse.data?.data || taskResponse.data || {});
+        if (!discussionTask?.id) throw new Error('Failed to create discussion thread.');
+        setProjectTasks((prev) => prev.some((task: any) => task.id === discussionTask.id) ? prev : [...prev, discussionTask]);
+        setTaskCommentCounts((prev) => ({ ...prev, [discussionTask.id]: prev[discussionTask.id] || 0 }));
+      }
+
+      setDesignDiscussionSidebar({
+        open: true,
+        loading: false,
+        taskId: discussionTask.id,
+        taskName: panelLabel,
+        accentColor,
+      });
+    } catch (error: any) {
+      console.error('Failed to open design discussion sidebar:', error);
+      setDesignDiscussionSidebar((prev) => ({ ...prev, loading: false, open: false }));
+      alert(error?.message || 'Failed to open discussion sidebar.');
+    }
+  };
 
   const emptyTemplateFieldDraft = () => ({
     fieldName: '',
@@ -8718,6 +8814,24 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                 Plan node for {objectLabel} ({processAreaLabel})
                               </Typography>
 
+                              <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1.1 }}>
+                                <Button
+                                  size="small"
+                                  variant="outlined"
+                                  onClick={() => openDesignDiscussionSidebar({
+                                    nodeDeliverableId: selectedItem.deliverableId,
+                                    projectId: project.id,
+                                    objectLabel,
+                                    deliverableLabel: parsedDesignDeliverableChild.deliverableConfig.label,
+                                    childLabel: 'Plan',
+                                    accentColor: deliverableAccentColor,
+                                  })}
+                                  sx={{ textTransform: 'none' }}
+                                >
+                                  Discussion
+                                </Button>
+                              </Box>
+
                               <Box>
                                 <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, minmax(140px, 1fr))' }, gap: 1, mb: 1.1 }}>
                                   <Paper sx={{ p: 1, border: `1px solid ${deliverableAccentColor}44`, backgroundColor: 'rgba(255,255,255,0.04)' }}>
@@ -8801,6 +8915,24 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                               <Typography variant="body2" color="text.secondary" sx={{ mb: 1.2 }}>
                                 Maintenance node for {objectLabel} ({processAreaLabel})
                               </Typography>
+
+                              <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1.1 }}>
+                                <Button
+                                  size="small"
+                                  variant="outlined"
+                                  onClick={() => openDesignDiscussionSidebar({
+                                    nodeDeliverableId: selectedItem.deliverableId,
+                                    projectId: project.id,
+                                    objectLabel,
+                                    deliverableLabel: parsedDesignDeliverableChild.deliverableConfig.label,
+                                    childLabel: 'Maintain',
+                                    accentColor: deliverableAccentColor,
+                                  })}
+                                  sx={{ textTransform: 'none' }}
+                                >
+                                  Discussion
+                                </Button>
+                              </Box>
 
                               <Paper sx={{ p: 1.3, border: `1px dashed ${deliverableAccentColor}66`, backgroundColor: 'rgba(255,255,255,0.03)' }}>
                                 <Typography variant="subtitle2" sx={{ color: deliverableAccentColor, fontWeight: 700, mb: 0.5 }}>Maintain Deliverable</Typography>
@@ -8907,6 +9039,24 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                             <Typography variant="h4" sx={{ fontWeight: 700, color: deliverableAccentColor, mb: 1, fontSize: { xs: '1.55rem', sm: '2.125rem' } }}>
                               {parsedDesignDeliverableChild.deliverableConfig.label} Approvals
                             </Typography>
+
+                            <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1.1 }}>
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                onClick={() => openDesignDiscussionSidebar({
+                                  nodeDeliverableId: selectedItem.deliverableId,
+                                  projectId: project.id,
+                                  objectLabel,
+                                  deliverableLabel: parsedDesignDeliverableChild.deliverableConfig.label,
+                                  childLabel: 'Approvals',
+                                  accentColor: deliverableAccentColor,
+                                })}
+                                sx={{ textTransform: 'none' }}
+                              >
+                                Discussion
+                              </Button>
+                            </Box>
 
                             <Paper sx={{ p: 1.25, border: `1px solid ${deliverableAccentColor}44`, backgroundColor: 'rgba(255,255,255,0.04)', mb: 1.25 }}>
                               <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1.2fr 1fr auto' }, gap: 1, alignItems: 'center' }}>
@@ -15981,6 +16131,20 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
           onCommentsChange={(count) => setTaskCommentCounts(prev => ({ ...prev, [commentModalTask.id]: count }))}
         />
       )}
+
+      <TaskCommentsDrawer
+        open={designDiscussionSidebar.open}
+        onClose={() => setDesignDiscussionSidebar((prev) => ({ ...prev, open: false }))}
+        taskId={designDiscussionSidebar.taskId}
+        taskName={designDiscussionSidebar.taskName}
+        accentColor={designDiscussionSidebar.accentColor}
+        people={people}
+        loading={designDiscussionSidebar.loading}
+        onCommentsChange={(count) => {
+          if (!designDiscussionSidebar.taskId) return;
+          setTaskCommentCounts((prev) => ({ ...prev, [designDiscussionSidebar.taskId]: count }));
+        }}
+      />
 
       <Dialog open={!!editingApprovalEntry} onClose={() => setEditingApprovalEntry(null)} maxWidth="md" fullWidth>
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
