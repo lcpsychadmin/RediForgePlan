@@ -660,6 +660,18 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
     setAddDialog(item.type);
   };
 
+  const closeEditCycleDialog = React.useCallback((reason?: string) => {
+    if (reason === 'backdropClick') return;
+    setEditCycle(null);
+  }, []);
+
+  const closeRoadmapItemDialog = React.useCallback((reason?: string) => {
+    if (reason === 'backdropClick') return;
+    setAddDialog(null);
+    setEditingItem(null);
+    setForm({});
+  }, []);
+
   const saveItem = async () => {
     if (!form.projectKey || !form.name?.trim() || !form.type) return;
     if (form.type === 'test-cycle' && !String((form as any).linkedCycleId || '').trim()) return;
@@ -684,7 +696,7 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
         };
         persistItems([...roadmapItems, newItem]);
       }
-      setAddDialog(null); setEditingItem(null); setForm({});
+      closeRoadmapItemDialog();
     } finally { setSavingItem(false); }
   };
 
@@ -990,7 +1002,12 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
       </Box>
 
       {/* Edit mock cycle dates dialog */}
-      <Dialog open={!!editCycle} onClose={() => setEditCycle(null)} maxWidth="xs" fullWidth>
+      <Dialog
+        open={!!editCycle}
+        onClose={(_, reason) => closeEditCycleDialog(reason)}
+        maxWidth="xs"
+        fullWidth
+      >
         <DialogTitle sx={{ pb: 1 }}>
           Edit Mock Cycle Dates
           <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', mt: 0.25 }}>{editCycle?.name || ''}</Typography>
@@ -1011,7 +1028,7 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
           </Box>
         </DialogContent>
         <DialogActions>
-          <Button size="small" onClick={() => setEditCycle(null)} sx={{ textTransform: 'none' }}>Cancel</Button>
+          <Button size="small" onClick={() => closeEditCycleDialog()} sx={{ textTransform: 'none' }}>Cancel</Button>
           <Button
             size="small"
             variant="contained"
@@ -1036,7 +1053,7 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
       {/* Add/Edit phase, test-cycle, milestone dialog */}
       <Dialog
         open={!!addDialog}
-        onClose={() => { setAddDialog(null); setEditingItem(null); setForm({}); }}
+        onClose={(_, reason) => closeRoadmapItemDialog(reason)}
         maxWidth="sm"
         fullWidth
       >
@@ -1138,9 +1155,9 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
         </DialogContent>
         <DialogActions>
           {editingItem && (
-            <Button size="small" onClick={() => { deleteItem(editingItem.id); setAddDialog(null); setEditingItem(null); setForm({}); }} sx={{ textTransform: 'none', color: '#ef5350', mr: 'auto' }}>Delete</Button>
+            <Button size="small" onClick={() => { deleteItem(editingItem.id); closeRoadmapItemDialog(); }} sx={{ textTransform: 'none', color: '#ef5350', mr: 'auto' }}>Delete</Button>
           )}
-          <Button size="small" onClick={() => { setAddDialog(null); setEditingItem(null); setForm({}); }} sx={{ textTransform: 'none' }}>Cancel</Button>
+          <Button size="small" onClick={() => closeRoadmapItemDialog()} sx={{ textTransform: 'none' }}>Cancel</Button>
           <Button
             size="small"
             variant="contained"
