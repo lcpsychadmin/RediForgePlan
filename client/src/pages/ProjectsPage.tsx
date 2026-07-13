@@ -1344,6 +1344,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   const [hierarchyLevelIcons, setHierarchyLevelIcons] = useState<HierarchyLevelIcons>(DEFAULT_HIERARCHY_LEVEL_ICONS);
   const [globalProcessAreaAccents, setGlobalProcessAreaAccents] = useState<Record<string, string>>({});
   const [globalProcessAreaIcons, setGlobalProcessAreaIcons] = useState<Record<string, HierarchyIconChoice>>({});
+  const lastHierarchyPersistPayloadRef = useRef('');
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [editingTaskGroupId, setEditingTaskGroupId] = useState<string | null>(null);
   const [newStrategyApprovalTitle, setNewStrategyApprovalTitle] = useState('');
@@ -3847,27 +3848,33 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   useEffect(() => {
     if (!hierarchyStateHydrated) return;
 
+    const payload = {
+      treeOrder,
+      expandedPrograms: Array.from(expandedPrograms),
+      expandedCycles: Array.from(expandedCycles),
+      expandedProjectGroups: Array.from(expandedProjectGroups),
+      expandedObjects: Array.from(expandedObjects),
+      planningAdditionalGroups,
+      deliverableTaskGroupAssignments,
+      planningAdditionalProcessAreas,
+      hiddenProcessAreas,
+      processAreaAccentOverrides,
+      processAreaIconOverrides,
+      processAreaDescriptions,
+      hierarchyLevelIcons,
+      globalProcessAreaAccents,
+      globalProcessAreaIcons,
+    };
+
     const timeout = setTimeout(() => {
-      apiClient.put('/api/hierarchy-preferences/state', {
-        treeOrder,
-        expandedPrograms: Array.from(expandedPrograms),
-        expandedCycles: Array.from(expandedCycles),
-        expandedProjectGroups: Array.from(expandedProjectGroups),
-        expandedObjects: Array.from(expandedObjects),
-        planningAdditionalGroups,
-        deliverableTaskGroupAssignments,
-        planningAdditionalProcessAreas,
-        hiddenProcessAreas,
-        processAreaAccentOverrides,
-        processAreaIconOverrides,
-        processAreaDescriptions,
-        hierarchyLevelIcons,
-        globalProcessAreaAccents,
-        globalProcessAreaIcons,
-      }).catch(() => {
+      const serialized = JSON.stringify(payload);
+      if (serialized === lastHierarchyPersistPayloadRef.current) return;
+      lastHierarchyPersistPayloadRef.current = serialized;
+
+      apiClient.put('/api/hierarchy-preferences/state', payload).catch(() => {
         // No-op: hierarchy state is shared through the database.
       });
-    }, 350);
+    }, 450);
 
     return () => clearTimeout(timeout);
   }, [
