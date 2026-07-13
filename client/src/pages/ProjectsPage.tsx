@@ -7781,8 +7781,18 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                     const deliverableConfig = isDeliverableSelection
                       ? PLAN_DELIVERABLE_NODES.find((node) => node.id === selectedItem.deliverableId)
                       : null;
-                    const deliverableLabel = deliverableConfig?.label || 'Deliverable';
-                    const deliverableAccent = deliverableConfig?.accentColor || accentColor;
+                    const dynamicCriteriaCycleLabel = (
+                      isDeliverableSelection
+                      && selectedItem.deliverableId.startsWith(MOCK_CRITERIA_CYCLE_NODE_PREFIX)
+                    )
+                      ? (() => {
+                          const cycleId = selectedItem.deliverableId.slice(MOCK_CRITERIA_CYCLE_NODE_PREFIX.length);
+                          const cycle = allMaintainCycles.find((item) => item.id === cycleId);
+                          return cycle?.name || cycle?.description || cycle?.testPhase || 'Mock Cycle';
+                        })()
+                      : '';
+                    const deliverableLabel = dynamicCriteriaCycleLabel || deliverableConfig?.label || 'Deliverable';
+                    const deliverableAccent = (dynamicCriteriaCycleLabel ? '#81C784' : undefined) || deliverableConfig?.accentColor || accentColor;
                     const selectedAreaLabel = (selectedItem.type === 'processArea' || selectedItem.type === 'deliverableProcessArea')
                       ? getProcessAreaDisplayName(project.id, selectedItem.area, parentCycleId || undefined)
                       : selectedItem.type === 'deliverable'
@@ -9038,6 +9048,415 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                         </Box>
                       );
                     }
+                    if (isMockCriteriaSummaryDeliverable || isMockCriteriaCycleNode || isMockCriteriaApprovalsNode) {
+                    if (isMockCriteriaSummaryDeliverable) {
+                      const criteriaCycleMap = new Map<string, any>();
+                      const cycleRows = parentProgramId ? (mockCycles[parentProgramId] || []) : [];
+                      cycleRows.forEach((cycle: any) => {
+                        const belongsToProject = projectCycleInstances.some((instance: any) => instance.mockCycleId === cycle.id || instance.id === cycle.projectId);
+                        if (belongsToProject) criteriaCycleMap.set(cycle.id, cycle);
+                      });
+                      const criteriaCycles = Array.from(criteriaCycleMap.values()).sort((a: any, b: any) => {
+                        const aDate = String(a.startDate || '');
+                        const bDate = String(b.startDate || '');
+                        if (aDate && bDate) return aDate.localeCompare(bDate);
+                        return String(a.name || a.description || a.testPhase || '').localeCompare(String(b.name || b.description || b.testPhase || ''));
+                      });
+
+                      const selectCriteriaChild = (deliverableId: string) => {
+                        if (parentCycleId) {
+                          handleHierarchySelection({
+                            type: 'deliverable',
+                            projectId: project.id,
+                            cycleId: parentCycleId,
+                            deliverableId,
+                          });
+                        } else {
+                          handleHierarchySelection({
+                            type: 'deliverable',
+                            projectId: project.id,
+                            deliverableId,
+                          });
+                        }
+                        navigate('/planning/plan');
+                      };
+
+                      return (
+                        <Box>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1.5 }}>
+                            {parentProgramName && <><Typography variant="caption" color="text.disabled">{parentProgramName}</Typography><Typography variant="caption" color="text.disabled">›</Typography></>}
+                            {parentCycleName && <><Typography variant="caption" color="text.disabled">{parentCycleName}</Typography><Typography variant="caption" color="text.disabled">›</Typography></>}
+                            <Typography variant="caption" sx={{ color: accentColor, fontWeight: 600 }}>{project.name}</Typography>
+                            <Typography variant="caption" color="text.disabled">›</Typography>
+                            <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>Entry/Exit Criteria</Typography>
+                          </Box>
+
+                          <Typography variant="h4" sx={{ fontWeight: 700, color: deliverableAccent, mb: 0.75, fontSize: { xs: '1.55rem', sm: '2.125rem' } }}>
+                            Entry/Exit Criteria
+                          </Typography>
+
+                          <Paper sx={{ p: 1.25, border: `1px solid ${deliverableAccent}44`, backgroundColor: 'rgba(255,255,255,0.04)' }}>
+                            <Typography variant="subtitle2" sx={{ color: deliverableAccent, fontWeight: 700, mb: 1 }}>Node Summary</Typography>
+
+                            {criteriaCycles.map((cycle: any) => {
+                              const label = cycle.name || cycle.description || cycle.testPhase || 'Mock Cycle';
+                              return (
+                                <Box
+                                  key={cycle.id}
+                                  onClick={() => selectCriteriaChild(`${MOCK_CRITERIA_CYCLE_NODE_PREFIX}${cycle.id}`)}
+                                  sx={{ display: 'grid', gridTemplateColumns: '1fr auto', alignItems: 'center', gap: 1, px: 1, py: 0.7, borderRadius: 0.8, cursor: 'pointer', border: '1px solid rgba(255,255,255,0.08)', mb: 0.75, '&:hover': { backgroundColor: 'rgba(255,255,255,0.05)' } }}
+                                >
+                                  <Box>
+                                    <Typography variant="body2" sx={{ fontWeight: 700 }}>{label}</Typography>
+                                    <Typography variant="caption" color="text.secondary">Maintain entry/exit criteria for this mock cycle.</Typography>
+                                  </Box>
+                                  <Typography variant="body2" sx={{ color: deliverableAccent, fontWeight: 700 }}>Open</Typography>
+                                </Box>
+                              );
+                            })}
+
+                            {criteriaCycles.length === 0 && (
+                              <Typography variant="body2" color="text.secondary" sx={{ mb: 0.75 }}>
+                                No mock cycles found for this project yet.
+                              </Typography>
+                            )}
+
+                            <Box
+                              onClick={() => selectCriteriaChild('mockCriteriaApprovals')}
+                              sx={{ display: 'grid', gridTemplateColumns: '1fr auto', alignItems: 'center', gap: 1, px: 1, py: 0.7, borderRadius: 0.8, cursor: 'pointer', border: '1px solid rgba(255,255,255,0.08)', '&:hover': { backgroundColor: 'rgba(255,255,255,0.05)' } }}
+                            >
+                              <Box>
+                                <Typography variant="body2" sx={{ fontWeight: 700 }}>Approvals</Typography>
+                                <Typography variant="caption" color="text.secondary">Track Entry/Exit Criteria approvals with owners, status, discussion, and attachments.</Typography>
+                              </Box>
+                              <Typography variant="body2" sx={{ color: deliverableAccent, fontWeight: 700 }}>Open</Typography>
+                            </Box>
+                          </Paper>
+                        </Box>
+                      );
+                    }
+
+                    if (isMockCriteriaCycleNode) {
+                      const selectedCycleId = selectedItem.deliverableId.slice(MOCK_CRITERIA_CYCLE_NODE_PREFIX.length);
+                      const criteriaCycle = allMaintainCycles.find((cycle) => cycle.id === selectedCycleId) || null;
+
+                      const patchEntry = (key: string, patch: Partial<MockCycleCriterionDraft>) => {
+                        setCycleEntryCriteriaDraft(MOCK_CYCLE_ENTRY_CRITERIA_DEFAULTS.map((d) => {
+                          const cur = (Array.isArray(cycleEntryCriteriaDraft) ? cycleEntryCriteriaDraft.find((r) => r.key === d.key) : undefined) || d;
+                          return d.key === key ? { ...cur, ...patch } : cur;
+                        }));
+                      };
+
+                      const patchExit = (key: string, patch: Partial<MockCycleCriterionDraft>) => {
+                        setCycleExitCriteriaDraft(MOCK_CYCLE_EXIT_CRITERIA_DEFAULTS.map((d) => {
+                          const cur = (Array.isArray(cycleExitCriteriaDraft) ? cycleExitCriteriaDraft.find((r) => r.key === d.key) : undefined) || d;
+                          return d.key === key ? { ...cur, ...patch } : cur;
+                        }));
+                      };
+
+                      const renderCriterionRow = (
+                        defaultItem: MockCycleCriterionDraft,
+                        idx: number,
+                        totalLen: number,
+                        draft: MockCycleCriterionDraft[],
+                        patch: (key: string, p: Partial<MockCycleCriterionDraft>) => void,
+                        prefix: string,
+                      ) => {
+                        const live = Array.isArray(draft) ? draft.find((r) => r.key === defaultItem.key) : undefined;
+                        const criterion = live || defaultItem;
+                        const isLast = idx === totalLen - 1;
+                        return (
+                          <Box
+                            key={`${prefix}-${defaultItem.key}`}
+                            sx={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              gap: 2,
+                              px: 1.5,
+                              py: 1,
+                              borderBottom: isLast ? 'none' : '1px solid rgba(255,255,255,0.06)',
+                              backgroundColor: idx % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent',
+                            }}
+                          >
+                            <Typography variant="body2" sx={{ flex: 1 }}>{criterion.label}</Typography>
+                            {criterion.fieldType === 'checkbox' && (
+                              <Checkbox
+                                checked={criterion.checked}
+                                onChange={(e) => patch(defaultItem.key, { checked: e.target.checked })}
+                                size="small"
+                              />
+                            )}
+                            {criterion.fieldType === 'percent' && (
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                <TextField
+                                  type="number"
+                                  size="small"
+                                  inputProps={{ min: 0, max: 100, step: 1 }}
+                                  value={criterion.percentValue ?? ''}
+                                  onChange={(e) => {
+                                    const v = e.target.value === '' ? null : Math.min(100, Math.max(0, Number(e.target.value)));
+                                    patch(defaultItem.key, { percentValue: v });
+                                  }}
+                                  sx={{ width: 80 }}
+                                />
+                                <Typography variant="body2">%</Typography>
+                              </Box>
+                            )}
+                            {criterion.fieldType === 'severity_multiselect' && (
+                              <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                                {DEFECT_SEVERITY_OPTIONS.map((opt) => {
+                                  const selected = criterion.severities.includes(opt.value);
+                                  return (
+                                    <Chip
+                                      key={opt.value}
+                                      label={opt.label}
+                                      size="small"
+                                      onClick={() => {
+                                        const next = selected
+                                          ? criterion.severities.filter((s) => s !== opt.value)
+                                          : [...criterion.severities, opt.value];
+                                        patch(defaultItem.key, { severities: next });
+                                      }}
+                                      sx={{
+                                        cursor: 'pointer',
+                                        backgroundColor: selected ? opt.color : 'rgba(255,255,255,0.08)',
+                                        color: selected ? '#fff' : 'text.secondary',
+                                        fontWeight: selected ? 600 : 400,
+                                        '&:hover': { opacity: 0.85 },
+                                      }}
+                                    />
+                                  );
+                                })}
+                              </Box>
+                            )}
+                          </Box>
+                        );
+                      };
+
+                      if (!criteriaCycle) {
+                        return <Alert severity="warning">The selected mock cycle could not be found.</Alert>;
+                      }
+
+                      return (
+                        <Box>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1.5 }}>
+                            {parentProgramName && <><Typography variant="caption" color="text.disabled">{parentProgramName}</Typography><Typography variant="caption" color="text.disabled">›</Typography></>}
+                            {parentCycleName && <><Typography variant="caption" color="text.disabled">{parentCycleName}</Typography><Typography variant="caption" color="text.disabled">›</Typography></>}
+                            <Typography variant="caption" sx={{ color: accentColor, fontWeight: 600 }}>{project.name}</Typography>
+                            <Typography variant="caption" color="text.disabled">›</Typography>
+                            <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>Entry/Exit Criteria</Typography>
+                            <Typography variant="caption" color="text.disabled">›</Typography>
+                            <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>{criteriaCycle.name || criteriaCycle.description || criteriaCycle.testPhase}</Typography>
+                          </Box>
+
+                          <Typography variant="h4" sx={{ fontWeight: 700, color: deliverableAccent, mb: 1, fontSize: { xs: '1.55rem', sm: '2.125rem' } }}>
+                            {criteriaCycle.name || criteriaCycle.description || criteriaCycle.testPhase} Criteria
+                          </Typography>
+
+                          <Paper sx={{ p: 1.25, border: `1px solid ${deliverableAccent}44`, backgroundColor: 'rgba(255,255,255,0.04)', mb: 1 }}>
+                            <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.75 }}>Entry Criteria</Typography>
+                            <Box sx={{ border: '1px solid rgba(255,255,255,0.1)', borderRadius: 1.25 }}>
+                              {MOCK_CYCLE_ENTRY_CRITERIA_DEFAULTS.map((item, idx) => renderCriterionRow(item, idx, MOCK_CYCLE_ENTRY_CRITERIA_DEFAULTS.length, cycleEntryCriteriaDraft, patchEntry, 'entry'))}
+                            </Box>
+                          </Paper>
+
+                          <Paper sx={{ p: 1.25, border: `1px solid ${deliverableAccent}44`, backgroundColor: 'rgba(255,255,255,0.04)', mb: 1.25 }}>
+                            <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.75 }}>Exit Criteria</Typography>
+                            <Box sx={{ border: '1px solid rgba(255,255,255,0.1)', borderRadius: 1.25 }}>
+                              {MOCK_CYCLE_EXIT_CRITERIA_DEFAULTS.map((item, idx) => renderCriterionRow(item, idx, MOCK_CYCLE_EXIT_CRITERIA_DEFAULTS.length, cycleExitCriteriaDraft, patchExit, 'exit'))}
+                            </Box>
+                          </Paper>
+
+                          <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+                            <Button
+                              variant="contained"
+                              onClick={() => handleSaveCycleCriteria(criteriaCycle.id)}
+                              disabled={isSavingCycleCriteria}
+                              sx={{ textTransform: 'none' }}
+                            >
+                              {isSavingCycleCriteria ? 'Saving...' : 'Save Criteria'}
+                            </Button>
+                          </Box>
+                        </Box>
+                      );
+                    }
+
+                    if (isMockCriteriaApprovalsNode) {
+                      const criteriaApprovalsGroupName = 'Entry/Exit Criteria Approvals';
+                      const criteriaApprovalsGroup = projectTaskGroups.find((group: any) => (
+                        group.projectId === project.id
+                        && String(group.name || '').trim().toLowerCase() === criteriaApprovalsGroupName.toLowerCase()
+                      ));
+                      const approvalEntries = criteriaApprovalsGroup
+                        ? projectTasks
+                          .filter((task: any) => task.taskGroupId === criteriaApprovalsGroup.id)
+                          .sort((a: any, b: any) => String(a.name || '').localeCompare(String(b.name || '')))
+                        : [];
+
+                      const ensureCriteriaApprovalsGroup = async () => {
+                        if (!activeCycleId) {
+                          throw new Error('Mock cycle context missing. Select a project under a mock cycle to manage approvals.');
+                        }
+
+                        if (criteriaApprovalsGroup) return criteriaApprovalsGroup;
+
+                        const response = await apiClient.post(`/api/tasks/groups/cycle/${activeCycleId}`, {
+                          name: criteriaApprovalsGroupName,
+                          processArea: null,
+                        });
+                        const createdGroup = response.data?.data;
+                        if (!createdGroup) throw new Error('Failed to create Entry/Exit Criteria Approvals group.');
+
+                        setProjectTaskGroups((prev) => prev.some((group: any) => group.id === createdGroup.id) ? prev : [...prev, createdGroup]);
+                        setDeliverableTaskGroupAssignments((prev) => ({
+                          ...prev,
+                          [project.id]: {
+                            ...(prev[project.id] || {}),
+                            [createdGroup.id]: 'mockCriteriaApprovals',
+                          },
+                        }));
+
+                        return createdGroup;
+                      };
+
+                      const createApprovalEntry = async () => {
+                        if (!newCriteriaApprovalTitle.trim()) return;
+                        if (!activeCycleId) {
+                          alert('Mock cycle context missing. Select a project under a mock cycle to manage approvals.');
+                          return;
+                        }
+
+                        try {
+                          setIsCreatingCriteriaApproval(true);
+                          const group = await ensureCriteriaApprovalsGroup();
+                          const response = await apiClient.post(`/api/tasks/cycle/${activeCycleId}`, {
+                            taskType: 'custom',
+                            taskGroupId: group.id,
+                            name: newCriteriaApprovalTitle.trim(),
+                            assignedTo: newCriteriaApprovalAssignee || null,
+                            durationUnit: 'days',
+                          });
+                          const createdTask = normalizeTaskDateFields(response.data?.data || response.data || {});
+                          if (createdTask?.id) {
+                            setProjectTasks((prev) => prev.some((task: any) => task.id === createdTask.id) ? prev : [...prev, createdTask]);
+                            setTaskCommentCounts((prev) => ({ ...prev, [createdTask.id]: 0 }));
+                          }
+                          setNewCriteriaApprovalTitle('');
+                          setNewCriteriaApprovalAssignee('');
+                        } catch (error: any) {
+                          console.error('Failed to create criteria approval entry:', error);
+                          alert(error?.message || 'Failed to create criteria approval entry.');
+                        } finally {
+                          setIsCreatingCriteriaApproval(false);
+                        }
+                      };
+
+                      const statusChipColor = (status: string) => {
+                        if (status === 'complete') return 'success';
+                        if (status === 'blocked') return 'error';
+                        if (status === 'in_progress') return 'info';
+                        return 'default';
+                      };
+
+                      return (
+                        <Box>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1.5 }}>
+                            {parentProgramName && <><Typography variant="caption" color="text.disabled">{parentProgramName}</Typography><Typography variant="caption" color="text.disabled">›</Typography></>}
+                            {parentCycleName && <><Typography variant="caption" color="text.disabled">{parentCycleName}</Typography><Typography variant="caption" color="text.disabled">›</Typography></>}
+                            <Typography variant="caption" sx={{ color: accentColor, fontWeight: 600 }}>{project.name}</Typography>
+                            <Typography variant="caption" color="text.disabled">›</Typography>
+                            <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>Entry/Exit Criteria</Typography>
+                            <Typography variant="caption" color="text.disabled">›</Typography>
+                            <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>Approvals</Typography>
+                          </Box>
+
+                          <Typography variant="h4" sx={{ fontWeight: 700, color: deliverableAccent, mb: 1, fontSize: { xs: '1.55rem', sm: '2.125rem' } }}>
+                            Entry/Exit Criteria Approvals
+                          </Typography>
+
+                          <Paper sx={{ p: 1.25, border: `1px solid ${deliverableAccent}44`, backgroundColor: 'rgba(255,255,255,0.04)', mb: 1.25 }}>
+                            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1.2fr 1fr auto' }, gap: 1, alignItems: 'center' }}>
+                              <TextField
+                                size="small"
+                                label="Approval Entry"
+                                placeholder="e.g., Mock criteria sign-off"
+                                value={newCriteriaApprovalTitle}
+                                onChange={(e) => setNewCriteriaApprovalTitle(e.target.value)}
+                              />
+                              <TextField
+                                select
+                                size="small"
+                                label="Approver"
+                                value={newCriteriaApprovalAssignee}
+                                onChange={(e) => setNewCriteriaApprovalAssignee(e.target.value)}
+                              >
+                                <MenuItem value=""><em>Unassigned</em></MenuItem>
+                                {people.map((person: any) => (
+                                  <MenuItem key={person.id} value={person.id}>{person.name || person.email}</MenuItem>
+                                ))}
+                              </TextField>
+                              <Button
+                                variant="contained"
+                                startIcon={<AddIcon />}
+                                onClick={createApprovalEntry}
+                                disabled={isCreatingCriteriaApproval || !newCriteriaApprovalTitle.trim()}
+                                sx={{ textTransform: 'none' }}
+                              >
+                                {isCreatingCriteriaApproval ? 'Adding...' : 'Add Entry'}
+                              </Button>
+                            </Box>
+                          </Paper>
+
+                          <Paper sx={{ p: 1.25, border: `1px solid ${deliverableAccent}44`, backgroundColor: 'rgba(255,255,255,0.03)' }}>
+                            <Box sx={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr 0.8fr 0.8fr 0.9fr', gap: 1, pb: 0.6, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                              <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>Entry</Typography>
+                              <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>Approver</Typography>
+                              <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>Status</Typography>
+                              <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>Discussion</Typography>
+                              <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700, textAlign: 'right' }}>Actions</Typography>
+                            </Box>
+
+                            {approvalEntries.length === 0 ? (
+                              <Typography variant="body2" color="text.secondary" sx={{ py: 1.25 }}>
+                                No approval entries yet. Add entries above and use Discussion to @mention approvers.
+                              </Typography>
+                            ) : (
+                              <Box sx={{ display: 'grid', gap: 0.4, mt: 0.5 }}>
+                                {approvalEntries.map((entry: any) => {
+                                  const approver = people.find((person: any) => person.id === entry.assignedTo);
+                                  const discussionCount = taskCommentCounts[entry.id] || 0;
+                                  return (
+                                    <Box key={entry.id} sx={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr 0.8fr 0.8fr 0.9fr', gap: 1, alignItems: 'center', py: 0.45, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                      <Typography variant="body2" sx={{ fontWeight: 600 }}>{entry.name || 'Approval Entry'}</Typography>
+                                      <Typography variant="body2" color="text.secondary">{approver?.name || approver?.email || 'Unassigned'}</Typography>
+                                      <Chip size="small" label={(entry.status || 'not_started').replace('_', ' ')} color={statusChipColor(entry.status || 'not_started') as any} variant="outlined" />
+                                      <Button
+                                        size="small"
+                                        variant="text"
+                                        onClick={() => setCommentModalTask({ id: entry.id, name: entry.name || 'Approval Entry' })}
+                                        sx={{ textTransform: 'none', justifyContent: 'flex-start' }}
+                                      >
+                                        {discussionCount} comment{discussionCount === 1 ? '' : 's'}
+                                      </Button>
+                                      <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.25 }}>
+                                        <IconButton size="small" title="Open entry" onClick={() => openApprovalEntryEditor(entry)} sx={{ color: 'rgba(255,255,255,0.65)', '&:hover': { color: 'white' } }}>
+                                          <EditIcon sx={{ fontSize: '0.95rem' }} />
+                                        </IconButton>
+                                        <IconButton size="small" title="Delete entry" onClick={() => openDeleteDialog('task', entry.id, entry.name || 'Approval Entry')} sx={{ color: 'rgba(255,255,255,0.5)', '&:hover': { color: '#ef5350' } }}>
+                                          <DeleteIcon sx={{ fontSize: '0.95rem' }} />
+                                        </IconButton>
+                                      </Box>
+                                    </Box>
+                                  );
+                                })}
+                              </Box>
+                            )}
+                          </Paper>
+                        </Box>
+                      );
+                    }
+
                     if (isProjectRoadmapSummaryDeliverable) {
                       const selectRoadmapChild = (deliverableId: string) => {
                         if (parentCycleId) {
