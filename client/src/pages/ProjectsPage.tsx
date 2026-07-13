@@ -569,7 +569,10 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
     const w = Math.max(1.5, xE - xS);
     const HANDLE = 8;
     return (
-      <Box sx={{ position: 'absolute', left: `${xS}%`, width: `${w}%`, top: '50%', transform: 'translateY(-50%)', height: subtitle ? 34 : 26, borderRadius: 1.5, backgroundColor: `${color}28`, border: `1.5px ${dashed ? 'dashed' : 'solid'} ${color}88`, display: 'flex', alignItems: 'center', overflow: 'hidden', userSelect: 'none', zIndex: 4, pointerEvents: 'auto', '&:hover': { borderColor: color }, transition: 'border-color 0.12s' }}>
+      <Box
+        onClick={(e) => { e.stopPropagation(); onClick?.(); }}
+        sx={{ position: 'absolute', left: `${xS}%`, width: `${w}%`, top: '50%', transform: 'translateY(-50%)', height: subtitle ? 34 : 26, borderRadius: 1.5, backgroundColor: `${color}28`, border: `1.5px ${dashed ? 'dashed' : 'solid'} ${color}88`, display: 'flex', alignItems: 'center', overflow: 'hidden', userSelect: 'none', zIndex: 4, pointerEvents: 'auto', cursor: onClick ? 'pointer' : 'default', '&:hover': { borderColor: color }, transition: 'border-color 0.12s' }}
+      >
         {/* Left drag handle */}
         {onStartDrag && (
           <Box onMouseDown={e => { e.stopPropagation(); e.preventDefault(); onStartDrag(e); }}
@@ -578,8 +581,9 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
           </Box>
         )}
         {/* Label + optional subtitle — click opens modal */}
-        <Box onClick={e => { e.stopPropagation(); onClick?.(); }}
-          sx={{ flex: 1, px: onStartDrag ? `${HANDLE+4}px` : '8px', cursor: onClick ? 'pointer' : 'default', overflow: 'hidden', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 0 }}>
+        <Box
+          sx={{ flex: 1, px: onStartDrag ? `${HANDLE+4}px` : '8px', overflow: 'hidden', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 0 }}
+        >
           <Typography sx={{ fontWeight: 600, fontSize: '0.7rem', color, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.2 }}>{label}</Typography>
           {subtitle && <Typography sx={{ fontSize: '0.58rem', color: `${color}99`, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.1 }}>{subtitle}</Typography>}
         </Box>
@@ -925,10 +929,9 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
                       if (x === null) return null;
                       return (
                         <Box key={ms.id}
-                          onMouseDown={e => { e.stopPropagation(); e.preventDefault(); setDrag({ id: ms.id, entityType: 'roadmap', handle: 'date', currentDate: ms.date || '', indicatorX: getIndicatorX(e.clientX), origStart: ms.date || '', origEnd: ms.date || '' }); }}
-                          onClick={() => { if (!drag) openEditItem(ms); }}
+                          onClick={() => openEditItem(ms)}
                           title={ms.name}
-                          sx={{ position: 'absolute', left: `${x}%`, top: '50%', transform: 'translate(-50%, -50%)', cursor: 'ew-resize', display: 'flex', flexDirection: 'column', alignItems: 'center', userSelect: 'none', zIndex: 6, pointerEvents: 'auto' }}>
+                          sx={{ position: 'absolute', left: `${x}%`, top: '50%', transform: 'translate(-50%, -50%)', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', userSelect: 'none', zIndex: 6, pointerEvents: 'auto' }}>
                           <Typography sx={{ fontSize: '1.1rem', color: ms.color, lineHeight: 1, filter: 'drop-shadow(0 0 4px currentColor)', pointerEvents: 'none' }}>★</Typography>
                           <Typography sx={{ fontSize: '0.58rem', color: ms.color, whiteSpace: 'nowrap', fontWeight: 700, mt: -0.25, pointerEvents: 'none' }}>{ms.name}</Typography>
                         </Box>
