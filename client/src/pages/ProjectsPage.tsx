@@ -9460,6 +9460,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                         navigate('/planning/plan');
                       };
 
+                      if (!isProjectRoadmapSummaryDeliverable) {
+                        return selectRoadmapChild('__noop__') as any;
+                      }
+
                       return (
                         <Box>
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1.5 }}>
