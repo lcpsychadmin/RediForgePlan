@@ -102,11 +102,16 @@ const TopNav: React.FC<TopNavProps> = ({
     }).catch(() => {});
   }, []);
 
-  // Poll notifications every 30s
+  // Load once, then refresh only when the tab becomes visible again.
   React.useEffect(() => {
     loadNotifications();
-    const interval = setInterval(loadNotifications, 30000);
-    return () => clearInterval(interval);
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        loadNotifications();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
   }, [loadNotifications]);
 
   const handleMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
