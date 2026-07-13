@@ -572,14 +572,6 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
         sx={{ position: 'absolute', left: '4px', top: '50%', transform: 'translateY(-50%)', height: 26, px: 1.25, borderRadius: 1.5, border: `1px dashed rgba(255,255,255,0.2)`, cursor: 'pointer', display: 'flex', alignItems: 'center', zIndex: 5, pointerEvents: 'auto', '&:hover': { borderColor: color } }}
       >
         <Typography sx={{ fontSize: '0.7rem', color: 'text.disabled' }}>{label} — click to set dates</Typography>
-        <IconButton
-          size="small"
-          onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); }}
-          onClick={openEditFromTimeline}
-          sx={{ ml: 0.75, width: 20, height: 20, color: color, border: `1px solid ${color}66`, backgroundColor: 'rgba(20,30,53,0.75)', '&:hover': { backgroundColor: 'rgba(20,30,53,0.95)' } }}
-        >
-          <EditIcon sx={{ fontSize: '0.72rem' }} />
-        </IconButton>
       </Box>
     );
     const xS = hasS ? dateToX(new Date(startDate!)) : dateToX(new Date(endDate!)) - 2;
@@ -605,14 +597,6 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
           <Typography sx={{ fontWeight: 600, fontSize: '0.7rem', color, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.2 }}>{label}</Typography>
           {subtitle && <Typography sx={{ fontSize: '0.58rem', color: `${color}99`, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.1 }}>{subtitle}</Typography>}
         </Box>
-        <IconButton
-          size="small"
-          onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); }}
-          onClick={openEditFromTimeline}
-          sx={{ position: 'absolute', right: onEndDrag ? `${HANDLE + 2}px` : '2px', top: '50%', transform: 'translateY(-50%)', width: 18, height: 18, zIndex: 3, color, border: `1px solid ${color}66`, backgroundColor: 'rgba(20,30,53,0.82)', '&:hover': { backgroundColor: 'rgba(20,30,53,0.98)' } }}
-        >
-          <EditIcon sx={{ fontSize: '0.68rem' }} />
-        </IconButton>
         {/* Right drag handle */}
         {onEndDrag && (
           <Box onMouseDown={e => { e.stopPropagation(); e.preventDefault(); onEndDrag(e); }}
@@ -769,7 +753,7 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
       <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1.5 }}>
         <Box>
           <Typography variant="h5" sx={{ fontWeight: 700 }}>Roadmap</Typography>
-          <Typography variant="caption" color="text.secondary">High-level timeline. Click or double-click bars, or use the small edit icon on each item.</Typography>
+          <Typography variant="caption" color="text.secondary">High-level timeline. Click or double-click bars to edit dates.</Typography>
           {lastRoadmapInteraction && (
             <Typography variant="caption" sx={{ display: 'block', color: 'rgba(255,255,255,0.48)', mt: 0.25 }}>
               {lastRoadmapInteraction}
