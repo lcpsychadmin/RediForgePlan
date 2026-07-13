@@ -1344,7 +1344,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   const [hierarchyLevelIcons, setHierarchyLevelIcons] = useState<HierarchyLevelIcons>(DEFAULT_HIERARCHY_LEVEL_ICONS);
   const [globalProcessAreaAccents, setGlobalProcessAreaAccents] = useState<Record<string, string>>({});
   const [globalProcessAreaIcons, setGlobalProcessAreaIcons] = useState<Record<string, HierarchyIconChoice>>({});
-  const lastHierarchyPersistPayloadRef = useRef('');
+  const lastHierarchyPersistPayloadRef = React.useRef('');
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [editingTaskGroupId, setEditingTaskGroupId] = useState<string | null>(null);
   const [newStrategyApprovalTitle, setNewStrategyApprovalTitle] = useState('');
