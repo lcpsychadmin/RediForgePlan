@@ -560,7 +560,7 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
   }) => {
     const hasS = !!startDate, hasE = !!endDate;
     if (!hasS && !hasE) return (
-      <Box onClick={onClick} sx={{ position: 'absolute', left: '4px', top: '50%', transform: 'translateY(-50%)', height: 26, px: 1.25, borderRadius: 1.5, border: `1px dashed rgba(255,255,255,0.2)`, cursor: 'pointer', display: 'flex', alignItems: 'center', zIndex: 3, pointerEvents: 'auto', '&:hover': { borderColor: color } }}>
+      <Box onClick={onClick} sx={{ position: 'absolute', left: '4px', top: '50%', transform: 'translateY(-50%)', height: 26, px: 1.25, borderRadius: 1.5, border: `1px dashed rgba(255,255,255,0.2)`, cursor: 'pointer', display: 'flex', alignItems: 'center', zIndex: 5, pointerEvents: 'auto', '&:hover': { borderColor: color } }}>
         <Typography sx={{ fontSize: '0.7rem', color: 'text.disabled' }}>{label} — click to set dates</Typography>
       </Box>
     );
@@ -569,7 +569,7 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
     const w = Math.max(1.5, xE - xS);
     const HANDLE = 8;
     return (
-      <Box sx={{ position: 'absolute', left: `${xS}%`, width: `${w}%`, top: '50%', transform: 'translateY(-50%)', height: subtitle ? 34 : 26, borderRadius: 1.5, backgroundColor: `${color}28`, border: `1.5px ${dashed ? 'dashed' : 'solid'} ${color}88`, display: 'flex', alignItems: 'center', overflow: 'hidden', userSelect: 'none', '&:hover': { borderColor: color }, transition: 'border-color 0.12s' }}>
+      <Box sx={{ position: 'absolute', left: `${xS}%`, width: `${w}%`, top: '50%', transform: 'translateY(-50%)', height: subtitle ? 34 : 26, borderRadius: 1.5, backgroundColor: `${color}28`, border: `1.5px ${dashed ? 'dashed' : 'solid'} ${color}88`, display: 'flex', alignItems: 'center', overflow: 'hidden', userSelect: 'none', zIndex: 4, pointerEvents: 'auto', '&:hover': { borderColor: color }, transition: 'border-color 0.12s' }}>
         {/* Left drag handle */}
         {onStartDrag && (
           <Box onMouseDown={e => { e.stopPropagation(); e.preventDefault(); onStartDrag(e); }}
@@ -595,7 +595,7 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
   };
 
   const rowSx = { position: 'relative' as const, height: 38 };
-  const trackSx = { position: 'absolute' as const, left: 0, right: 0, top: '50%', transform: 'translateY(-50%)', height: '1px', backgroundColor: 'rgba(255,255,255,0.04)' };
+  const trackSx = { position: 'absolute' as const, left: 0, right: 0, top: '50%', transform: 'translateY(-50%)', height: '1px', backgroundColor: 'rgba(255,255,255,0.04)', pointerEvents: 'none' };
 
   const openAdd = (type: 'phase' | 'test-cycle' | 'milestone', projectKey?: string) => {
     const defaultColor = type === 'phase' ? PHASE_COLORS.planning : type === 'test-cycle' ? TEST_CYCLE_COLOR : MILESTONE_COLOR;
@@ -766,11 +766,11 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
             {months.map((m, i) => (
               <React.Fragment key={i}>
                 <Typography sx={{ position: 'absolute', left: `${m.left}%`, fontSize: '0.62rem', color: 'rgba(255,255,255,0.38)', fontWeight: 600, whiteSpace: 'nowrap' }}>{m.label}</Typography>
-                <Box sx={{ position: 'absolute', left: `${m.left}%`, top: 0, bottom: -9999, width: '1px', backgroundColor: 'rgba(255,255,255,0.05)', zIndex: 0 }} />
+                <Box sx={{ position: 'absolute', left: `${m.left}%`, top: 0, bottom: -9999, width: '1px', backgroundColor: 'rgba(255,255,255,0.05)', zIndex: 0, pointerEvents: 'none' }} />
               </React.Fragment>
             ))}
             {todayX >= 0 && todayX <= 100 && (
-              <Box sx={{ position: 'absolute', left: `${todayX}%`, top: 0, bottom: -9999, width: '2px', backgroundColor: 'rgba(102,126,234,0.55)', zIndex: 1 }}>
+              <Box sx={{ position: 'absolute', left: `${todayX}%`, top: 0, bottom: -9999, width: '2px', backgroundColor: 'rgba(102,126,234,0.55)', zIndex: 1, pointerEvents: 'none' }}>
                 <Box sx={{ position: 'absolute', top: 0, left: -10, fontSize: '0.6rem', color: '#667eea', fontWeight: 700, whiteSpace: 'nowrap', background: 'rgba(20,30,53,0.9)', px: 0.5, borderRadius: 0.5 }}>Today</Box>
               </Box>
             )}
@@ -928,7 +928,7 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
                           onMouseDown={e => { e.stopPropagation(); e.preventDefault(); setDrag({ id: ms.id, entityType: 'roadmap', handle: 'date', currentDate: ms.date || '', indicatorX: getIndicatorX(e.clientX), origStart: ms.date || '', origEnd: ms.date || '' }); }}
                           onClick={() => { if (!drag) openEditItem(ms); }}
                           title={ms.name}
-                          sx={{ position: 'absolute', left: `${x}%`, top: '50%', transform: 'translate(-50%, -50%)', cursor: 'ew-resize', display: 'flex', flexDirection: 'column', alignItems: 'center', userSelect: 'none' }}>
+                          sx={{ position: 'absolute', left: `${x}%`, top: '50%', transform: 'translate(-50%, -50%)', cursor: 'ew-resize', display: 'flex', flexDirection: 'column', alignItems: 'center', userSelect: 'none', zIndex: 6, pointerEvents: 'auto' }}>
                           <Typography sx={{ fontSize: '1.1rem', color: ms.color, lineHeight: 1, filter: 'drop-shadow(0 0 4px currentColor)', pointerEvents: 'none' }}>★</Typography>
                           <Typography sx={{ fontSize: '0.58rem', color: ms.color, whiteSpace: 'nowrap', fontWeight: 700, mt: -0.25, pointerEvents: 'none' }}>{ms.name}</Typography>
                         </Box>
