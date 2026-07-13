@@ -952,44 +952,61 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
       </Box>
 
       {/* Edit mock cycle dates dialog */}
-      {editCycle && (
-        <Box sx={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.55)', zIndex: 1400, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-          onClick={e => { if (e.target === e.currentTarget) setEditCycle(null); }}>
-          <Box sx={{ backgroundColor: '#141e35', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 2, width: 360 }}>
-            <Box sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', px: 3, py: 1.75, borderRadius: '8px 8px 0 0' }}>
-              <Typography sx={{ fontWeight: 700 }}>Edit Mock Cycle Dates</Typography>
-              <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.7)' }}>{editCycle.name}</Typography>
-            </Box>
-            <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2 }}>
-              {[['Start Date', editStart, setEditStart], ['End Date', editEnd, setEditEnd]].map(([label, val, setter]: any) => (
-                <Box key={label as string}>
-                  <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>{label as string}</Typography>
-                  <input type="date" value={val as string} onChange={e => setter(e.target.value)}
-                    style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.2)', backgroundColor: 'rgba(255,255,255,0.06)', color: '#DBE7FF', fontSize: '0.9rem', boxSizing: 'border-box' }} />
-                </Box>
-              ))}
-              <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
-                <Button size="small" onClick={() => setEditCycle(null)} sx={{ textTransform: 'none' }}>Cancel</Button>
-                <Button size="small" variant="contained" disabled={savingCycle}
-                  onClick={async () => { setSavingCycle(true); try { await onSaveCycleDates(editCycle.id, editStart, editEnd); setEditCycle(null); } finally { setSavingCycle(false); } }}
-                  sx={{ textTransform: 'none', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
-                  {savingCycle ? 'Saving…' : 'Save'}
-                </Button>
-              </Box>
-            </Box>
+      <Dialog open={!!editCycle} onClose={() => setEditCycle(null)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ pb: 1 }}>
+          Edit Mock Cycle Dates
+          <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', mt: 0.25 }}>{editCycle?.name || ''}</Typography>
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ pt: 0.5, display: 'flex', flexDirection: 'column', gap: 1.25 }}>
+            {[['Start Date', editStart, setEditStart], ['End Date', editEnd, setEditEnd]].map(([label, val, setter]: any) => (
+              <TextField
+                key={label as string}
+                size="small"
+                label={label as string}
+                type="date"
+                value={val as string}
+                onChange={(e) => setter(e.target.value)}
+                InputLabelProps={{ shrink: true }}
+              />
+            ))}
           </Box>
-        </Box>
-      )}
+        </DialogContent>
+        <DialogActions>
+          <Button size="small" onClick={() => setEditCycle(null)} sx={{ textTransform: 'none' }}>Cancel</Button>
+          <Button
+            size="small"
+            variant="contained"
+            disabled={savingCycle || !editCycle?.id}
+            onClick={async () => {
+              if (!editCycle?.id) return;
+              setSavingCycle(true);
+              try {
+                await onSaveCycleDates(editCycle.id, editStart, editEnd);
+                setEditCycle(null);
+              } finally {
+                setSavingCycle(false);
+              }
+            }}
+            sx={{ textTransform: 'none' }}
+          >
+            {savingCycle ? 'Saving…' : 'Save'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Add/Edit phase, test-cycle, milestone dialog */}
-      {addDialog && (
-        <Box sx={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.55)', zIndex: 1400, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-          onClick={e => { if (e.target === e.currentTarget) { setAddDialog(null); setEditingItem(null); setForm({}); } }}>
-          <Box sx={{ backgroundColor: '#141e35', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 2, width: 400 }}>
-            <Box sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', px: 3, py: 1.75, borderRadius: '8px 8px 0 0' }}>
-              <Typography sx={{ fontWeight: 700 }}>{editingItem ? 'Edit' : 'Add'} {addDialog === 'phase' ? 'Phase' : addDialog === 'test-cycle' ? 'Test Cycle' : 'Milestone'}</Typography>
-            </Box>
-            <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 1.75 }}>
+      <Dialog
+        open={!!addDialog}
+        onClose={() => { setAddDialog(null); setEditingItem(null); setForm({}); }}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          {editingItem ? 'Edit' : 'Add'} {addDialog === 'phase' ? 'Phase' : addDialog === 'test-cycle' ? 'Test Cycle' : 'Milestone'}
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ pt: 0.5, display: 'flex', flexDirection: 'column', gap: 1.75 }}>
               {/* Project */}
               <Box>
                 <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>Project</Typography>
@@ -1079,31 +1096,30 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
                   </Box>
                 </Box>
               )}
-              <Box sx={{ display: 'flex', gap: 1, justifyContent: 'space-between', pt: 0.5 }}>
-                {editingItem && (
-                  <Button size="small" onClick={() => { deleteItem(editingItem.id); setAddDialog(null); setEditingItem(null); setForm({}); }} sx={{ textTransform: 'none', color: '#ef5350' }}>Delete</Button>
-                )}
-                <Box sx={{ display: 'flex', gap: 1, ml: 'auto' }}>
-                  <Button size="small" onClick={() => { setAddDialog(null); setEditingItem(null); setForm({}); }} sx={{ textTransform: 'none' }}>Cancel</Button>
-                  <Button
-                    size="small"
-                    variant="contained"
-                    disabled={
-                      savingItem
-                      || !form.name?.trim()
-                      || !form.projectKey
-                      || (addDialog === 'test-cycle' && !String((form as any).linkedCycleId || '').trim())
-                      || (addDialog !== 'milestone' && (!String(form.startDate || '').trim() || !String(form.endDate || '').trim()))
-                    }
-                    onClick={saveItem} sx={{ textTransform: 'none', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
-                    {savingItem ? 'Saving…' : editingItem ? 'Update' : 'Add'}
-                  </Button>
-                </Box>
-              </Box>
-            </Box>
           </Box>
-        </Box>
-      )}
+        </DialogContent>
+        <DialogActions>
+          {editingItem && (
+            <Button size="small" onClick={() => { deleteItem(editingItem.id); setAddDialog(null); setEditingItem(null); setForm({}); }} sx={{ textTransform: 'none', color: '#ef5350', mr: 'auto' }}>Delete</Button>
+          )}
+          <Button size="small" onClick={() => { setAddDialog(null); setEditingItem(null); setForm({}); }} sx={{ textTransform: 'none' }}>Cancel</Button>
+          <Button
+            size="small"
+            variant="contained"
+            disabled={
+              savingItem
+              || !form.name?.trim()
+              || !form.projectKey
+              || (addDialog === 'test-cycle' && !String((form as any).linkedCycleId || '').trim())
+              || (addDialog !== 'milestone' && (!String(form.startDate || '').trim() || !String(form.endDate || '').trim()))
+            }
+            onClick={saveItem}
+            sx={{ textTransform: 'none' }}
+          >
+            {savingItem ? 'Saving…' : editingItem ? 'Update' : 'Add'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };
