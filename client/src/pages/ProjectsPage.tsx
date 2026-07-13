@@ -9745,6 +9745,23 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                             {selectedAreaLabel}
                           </Typography>
 
+                          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1.1 }}>
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              onClick={() => openPlanningDiscussionSidebar({
+                                nodeDeliverableId: `processAreasRoles:${selectedItem.area}`,
+                                projectId: project.id,
+                                groupLabel: `Process Area ${selectedAreaLabel}`,
+                                panelLabel: `${project.name} • Process Areas • ${selectedAreaLabel}`,
+                                accentColor: selectedAreaAccent,
+                              })}
+                              sx={{ textTransform: 'none' }}
+                            >
+                              Discussion
+                            </Button>
+                          </Box>
+
                           <ProcessAreaRoleAssignmentPanel
                             processAreaOptions={processAreaOptions}
                             people={people}
@@ -9905,6 +9922,25 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                           <Typography variant="h4" sx={{ fontWeight: 700, color: estimationAccent, mb: 0.75, fontSize: { xs: '1.55rem', sm: '2.125rem' } }}>
                             {isEstimationProcessAreaSelection ? `${deliverableLabel} · ${selectedAreaLabel}` : deliverableLabel}
                           </Typography>
+
+                          {isEstimationProcessAreaSelection && (
+                            <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1.1 }}>
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                onClick={() => openPlanningDiscussionSidebar({
+                                  nodeDeliverableId: `${selectedItem.deliverableId}:${selectedItem.area}`,
+                                  projectId: project.id,
+                                  groupLabel: `${deliverableLabel} ${selectedAreaLabel}`,
+                                  panelLabel: `${project.name} • ${deliverableLabel} • ${selectedAreaLabel}`,
+                                  accentColor: estimationAccent,
+                                })}
+                                sx={{ textTransform: 'none' }}
+                              >
+                                Discussion
+                              </Button>
+                            </Box>
+                          )}
 
                           {!isEstimationProcessAreaSelection && (
                             <>
@@ -10689,19 +10725,35 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                             <Typography variant="h4" sx={{ fontWeight: 700, color: selectedAreaAccent, fontSize: { xs: '1.55rem', sm: '2.125rem' } }}>
                               {selectedAreaLabel} Inventory
                             </Typography>
-                            <Button
-                              variant="contained"
-                              startIcon={<AddIcon />}
-                              onClick={openAreaInventoryDialog}
-                              sx={{
-                                background: `linear-gradient(135deg, ${selectedAreaAccent} 0%, ${selectedAreaAccent}99 100%)`,
-                                textTransform: 'none',
-                                fontWeight: 700,
-                                boxShadow: 'none',
-                              }}
-                            >
-                              Add to Inventory
-                            </Button>
+                            <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                onClick={() => openPlanningDiscussionSidebar({
+                                  nodeDeliverableId: `${selectedItem.deliverableId}:${selectedItem.area}`,
+                                  projectId: project.id,
+                                  groupLabel: `Object Inventory ${selectedAreaLabel}`,
+                                  panelLabel: `${project.name} • Object Inventory • ${selectedAreaLabel}`,
+                                  accentColor: selectedAreaAccent,
+                                })}
+                                sx={{ textTransform: 'none' }}
+                              >
+                                Discussion
+                              </Button>
+                              <Button
+                                variant="contained"
+                                startIcon={<AddIcon />}
+                                onClick={openAreaInventoryDialog}
+                                sx={{
+                                  background: `linear-gradient(135deg, ${selectedAreaAccent} 0%, ${selectedAreaAccent}99 100%)`,
+                                  textTransform: 'none',
+                                  fontWeight: 700,
+                                  boxShadow: 'none',
+                                }}
+                              >
+                                Add to Inventory
+                              </Button>
+                            </Box>
                           </Box>
 
                           <Paper sx={{ p: 1.25, border: `1px solid ${selectedAreaAccent}44`, backgroundColor: 'rgba(255,255,255,0.04)' }}>
