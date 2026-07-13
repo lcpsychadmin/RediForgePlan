@@ -6948,7 +6948,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                         const mockCriteriaCycleChildNodes = node.id === 'mockCriteria'
                                           ? projectCycles.map((cycle) => ({
                                               id: `${MOCK_CRITERIA_CYCLE_NODE_PREFIX}${cycle.id}`,
-                                              label: cycle.testPhase || cycle.description || cycle.name || 'Mock Cycle',
+                                              label: cycle.name || cycle.description || cycle.testPhase || 'Mock Cycle',
                                               targetView: 'plan' as const,
                                               accentColor: '#81C784',
                                               icon: 'sync' as HierarchyIconChoice,
@@ -9098,7 +9098,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                 <Typography variant="subtitle2" sx={{ color: deliverableAccent, fontWeight: 700, mb: 1 }}>Node Summary</Typography>
 
                                 {criteriaCycles.map((cycle: any) => {
-                                  const label = cycle.testPhase || cycle.description || cycle.name || 'Mock Cycle';
+                                  const label = cycle.name || cycle.description || cycle.testPhase || 'Mock Cycle';
                                   return (
                                     <Box
                                       key={cycle.id}
@@ -9243,11 +9243,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                 <Typography variant="caption" color="text.disabled">›</Typography>
                                 <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>Entry/Exit Criteria</Typography>
                                 <Typography variant="caption" color="text.disabled">›</Typography>
-                                <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>{criteriaCycle.testPhase || criteriaCycle.description || criteriaCycle.name}</Typography>
+                                <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>{criteriaCycle.name || criteriaCycle.description || criteriaCycle.testPhase}</Typography>
                               </Box>
 
                               <Typography variant="h4" sx={{ fontWeight: 700, color: deliverableAccent, mb: 1, fontSize: { xs: '1.55rem', sm: '2.125rem' } }}>
-                                {criteriaCycle.testPhase || criteriaCycle.description || criteriaCycle.name} Criteria
+                                {criteriaCycle.name || criteriaCycle.description || criteriaCycle.testPhase} Criteria
                               </Typography>
 
                               <Paper sx={{ p: 1.25, border: `1px solid ${deliverableAccent}44`, backgroundColor: 'rgba(255,255,255,0.04)', mb: 1 }}>
