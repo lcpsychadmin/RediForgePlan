@@ -1493,6 +1493,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   const [editingFieldRow, setEditingFieldRow] = useState<Record<string, any> | null>(null);
   const [addingFieldToSubObj, setAddingFieldToSubObj] = useState<string | 'root' | null>(null);
   const [newField, setNewField] = useState({ tableName: '', fieldName: '', fieldLabel: '', dataType: '', length: '', decimals: '', isKey: false, isRequired: false, businessProcessRequired: false, description: '' });
+  const [dataDefFieldModalOpen, setDataDefFieldModalOpen] = useState(false);
+  const [dataDefFieldModalMode, setDataDefFieldModalMode] = useState<'create' | 'edit'>('create');
+  const [dataDefFieldModalFieldId, setDataDefFieldModalFieldId] = useState<string | null>(null);
+  const [dataDefFieldModalSubObjectId, setDataDefFieldModalSubObjectId] = useState<string | null>(null);
+  const [dataDefFieldModalDraft, setDataDefFieldModalDraft] = useState<any>({});
   const [addingSubObj, setAddingSubObj] = useState(false);
   const [newSubObjName, setNewSubObjName] = useState('');
   const [collapsedSubObjs, setCollapsedSubObjs] = useState<Set<string>>(new Set());
@@ -1711,6 +1716,94 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
       return [];
     }
   };
+
+  const emptyDataDefFieldDraft = () => ({
+    table: '',
+    tableName: '',
+    fieldName: '',
+    fieldLabel: '',
+    fieldDescription: '',
+    applicationUsage: '',
+    businessDefinition: '',
+    enterpriseAttribute: '',
+    fieldType: '',
+    fieldLength: '',
+    decimalPlaces: '',
+    systemRequired: false,
+    businessProcessRequired: false,
+    suppressedField: false,
+    legalRegulatoryImplications: '',
+    securityClassification: '',
+    dataValidation: '',
+    referenceTable: '',
+    groupingTab: '',
+    inScopeForProject: false,
+    translationNeeded: false,
+    piiType: '',
+    securityControls: '',
+    isKey: false,
+  });
+
+  const mapFieldRowToModalDraft = (field: any) => {
+    const md = (field?.field_metadata && typeof field.field_metadata === 'object') ? field.field_metadata : {};
+    return {
+      table: String(md.table || ''),
+      tableName: String(field?.table_name || ''),
+      fieldName: String(field?.field_name || ''),
+      fieldLabel: String(field?.field_label || ''),
+      fieldDescription: String(field?.description || ''),
+      applicationUsage: String(md.applicationUsage || ''),
+      businessDefinition: String(md.businessDefinition || ''),
+      enterpriseAttribute: String(md.enterpriseAttribute || ''),
+      fieldType: String(field?.data_type || ''),
+      fieldLength: String(field?.length ?? ''),
+      decimalPlaces: String(field?.decimals ?? ''),
+      systemRequired: !!field?.is_required,
+      businessProcessRequired: !!field?.business_process_required,
+      suppressedField: !!md.suppressedField,
+      legalRegulatoryImplications: String(md.legalRegulatoryImplications || ''),
+      securityClassification: String(md.securityClassification || ''),
+      dataValidation: String(md.dataValidation || ''),
+      referenceTable: String(md.referenceTable || ''),
+      groupingTab: String(md.groupingTab || ''),
+      inScopeForProject: !!md.inScopeForProject,
+      translationNeeded: !!md.translationNeeded,
+      piiType: String(md.piiType || ''),
+      securityControls: String(md.securityControls || ''),
+      isKey: !!field?.is_key,
+    };
+  };
+
+  const buildFieldPayloadFromModalDraft = (draft: any, subObjectId: string | null, sortOrder: number) => ({
+    tableName: draft.tableName || null,
+    fieldName: draft.fieldName,
+    fieldLabel: draft.fieldLabel || null,
+    dataType: draft.fieldType || null,
+    length: draft.fieldLength === '' ? null : Number(draft.fieldLength),
+    decimals: draft.decimalPlaces === '' ? null : Number(draft.decimalPlaces),
+    isKey: !!draft.isKey,
+    isRequired: !!draft.systemRequired,
+    businessProcessRequired: !!draft.businessProcessRequired,
+    description: draft.fieldDescription || null,
+    subObjectId,
+    sortOrder,
+    fieldMetadata: {
+      table: draft.table || '',
+      applicationUsage: draft.applicationUsage || '',
+      businessDefinition: draft.businessDefinition || '',
+      enterpriseAttribute: draft.enterpriseAttribute || '',
+      suppressedField: !!draft.suppressedField,
+      legalRegulatoryImplications: draft.legalRegulatoryImplications || '',
+      securityClassification: draft.securityClassification || '',
+      dataValidation: draft.dataValidation || '',
+      referenceTable: draft.referenceTable || '',
+      groupingTab: draft.groupingTab || '',
+      inScopeForProject: !!draft.inScopeForProject,
+      translationNeeded: !!draft.translationNeeded,
+      piiType: draft.piiType || '',
+      securityControls: draft.securityControls || '',
+    },
+  });
 
   const buildNotesWithTemplateFields = (existingNotes: string | null | undefined, templateFields: any[]) => {
     const normalizedFields = templateFields.map((row: any) => ({
@@ -16651,40 +16744,18 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                       ? dataDefSubObjects.map((so: any) => ({ label: so.name, subObjId: so.id, fields: dataDefFields.filter((f: any) => f.sub_object_id === so.id) }))
                       : [{ label: null, subObjId: null, fields: dataDefFields }];
 
-                    const addFieldRow = (subObjId: string | null) => {
-                      const key = subObjId || 'root';
-                      if (addingFieldToSubObj === key) return (
-                        <Box component="tr" key="add-row" sx={{ backgroundColor: 'rgba(91,103,202,0.1)' }}>
-                          {['table_name', 'field_name', 'field_label', 'data_type', 'length', 'decimals'].map(col => (
-                            <Box component="td" key={col} sx={{ px: 0.75, py: 0.5 }}>
-                              <input value={(newField as any)[col === 'table_name' ? 'tableName' : col === 'field_name' ? 'fieldName' : col === 'field_label' ? 'fieldLabel' : col === 'data_type' ? 'dataType' : col] || ''}
-                                onChange={e => setNewField(p => ({ ...p, [col === 'table_name' ? 'tableName' : col === 'field_name' ? 'fieldName' : col === 'field_label' ? 'fieldLabel' : col === 'data_type' ? 'dataType' : col]: e.target.value }))}
-                                style={{ width: '100%', fontSize: '0.75rem', fontFamily: ['field_name', 'table_name'].includes(col) ? 'monospace' : 'inherit', padding: '2px 4px', borderRadius: 3, border: '1px solid rgba(255,255,255,0.2)', backgroundColor: 'rgba(0,0,0,0.3)', color: '#DBE7FF', boxSizing: 'border-box' }} />
-                            </Box>
-                          ))}
-                          <Box component="td" sx={{ px: 0.75, py: 0.5, textAlign: 'center' }}>
-                            <input type="checkbox" checked={newField.isKey} onChange={e => setNewField(p => ({ ...p, isKey: e.target.checked }))} style={{ cursor: 'pointer' }} />
-                          </Box>
-                          <Box component="td" sx={{ px: 0.75, py: 0.5, textAlign: 'center' }}>
-                            <input type="checkbox" checked={newField.isRequired} onChange={e => setNewField(p => ({ ...p, isRequired: e.target.checked }))} style={{ cursor: 'pointer' }} />
-                          </Box>
-                          <Box component="td" sx={{ px: 0.75, py: 0.5, textAlign: 'center' }}>
-                            <input type="checkbox" checked={newField.businessProcessRequired} onChange={e => setNewField(p => ({ ...p, businessProcessRequired: e.target.checked }))} style={{ cursor: 'pointer' }} />
-                          </Box>
-                          <Box component="td" sx={{ px: 0.75, py: 0.5 }}>
-                            <input value={newField.description} onChange={e => setNewField(p => ({ ...p, description: e.target.value }))}
-                              style={{ width: '100%', fontSize: '0.75rem', padding: '2px 4px', borderRadius: 3, border: '1px solid rgba(255,255,255,0.2)', backgroundColor: 'rgba(0,0,0,0.3)', color: '#DBE7FF', boxSizing: 'border-box' }} />
-                          </Box>
-                          <Box component="td" sx={{ px: 0.5, py: 0.5, whiteSpace: 'nowrap' }}>
-                            <IconButton size="small" disabled={!newField.fieldName.trim()} sx={{ p: 0.3, color: '#66bb6a' }} onClick={async () => {
-                              const res = await apiClient.post(`/api/applications/data-definitions/${selectedDataDefId}/fields`, { ...newField, length: newField.length ? parseInt(newField.length) : null, decimals: newField.decimals ? parseInt(newField.decimals) : null, subObjectId: subObjId, sortOrder: dataDefFields.filter((f: any) => f.sub_object_id === subObjId).length }).catch(() => null);
-                              if (res) { setDataDefFields(prev => [...prev, res.data.data]); setAddingFieldToSubObj(null); setNewField({ tableName: '', fieldName: '', fieldLabel: '', dataType: '', length: '', decimals: '', isKey: false, isRequired: false, businessProcessRequired: false, description: '' }); }
-                            }}><SaveIcon sx={{ fontSize: '0.9rem' }} /></IconButton>
-                            <IconButton size="small" sx={{ p: 0.3 }} onClick={() => setAddingFieldToSubObj(null)}><CloseIcon sx={{ fontSize: '0.9rem' }} /></IconButton>
-                          </Box>
-                        </Box>
-                      );
-                      return null;
+                    const openFieldModal = (mode: 'create' | 'edit', options: { field?: any; subObjectId?: string | null }) => {
+                      setDataDefFieldModalMode(mode);
+                      if (mode === 'edit' && options.field) {
+                        setDataDefFieldModalFieldId(options.field.id);
+                        setDataDefFieldModalSubObjectId(options.field.sub_object_id || null);
+                        setDataDefFieldModalDraft(mapFieldRowToModalDraft(options.field));
+                      } else {
+                        setDataDefFieldModalFieldId(null);
+                        setDataDefFieldModalSubObjectId(options.subObjectId || null);
+                        setDataDefFieldModalDraft(emptyDataDefFieldDraft());
+                      }
+                      setDataDefFieldModalOpen(true);
                     };
 
                     const toggleCollapse = (id: string) => setCollapsedSubObjs(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
@@ -16741,7 +16812,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                       )}
                                       {editingSubObjId !== subObjId && (
                                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, ml: 'auto' }}>
-                                          <Box component="button" onClick={() => { setAddingFieldToSubObj(subObjId || 'root'); setNewField({ tableName: '', fieldName: '', fieldLabel: '', dataType: '', length: '', decimals: '', isKey: false, isRequired: false, businessProcessRequired: false, description: '' }); }}
+                                          <Box component="button" onClick={() => openFieldModal('create', { subObjectId: subObjId || null })}
                                             sx={{ fontSize: '0.65rem', px: 0.6, py: 0.2, borderRadius: 1, border: '1px dashed rgba(255,255,255,0.2)', backgroundColor: 'transparent', color: 'rgba(255,255,255,0.45)', cursor: 'pointer', '&:hover': { borderColor: 'white', color: 'white' } }}>+ Add Field</Box>
                                           <IconButton size="small" sx={{ p: 0.3, opacity: 0.55, '&:hover': { opacity: 1, color: '#90caf9' } }} onClick={() => { setEditingSubObjId(subObjId!); setEditingSubObjName(label); }}>
                                             <EditIcon sx={{ fontSize: '0.8rem' }} />
@@ -16760,49 +16831,13 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                               {!label && (
                                 <Box component="tr">
                                   <Box component="td" colSpan={11} sx={{ px: 1, py: 0.4, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                                    <Box component="button" onClick={() => { setAddingFieldToSubObj('root'); setNewField({ tableName: '', fieldName: '', fieldLabel: '', dataType: '', length: '', decimals: '', isKey: false, isRequired: false, businessProcessRequired: false, description: '' }); }}
+                                    <Box component="button" onClick={() => openFieldModal('create', { subObjectId: null })}
                                       sx={{ fontSize: '0.7rem', px: 0.75, py: 0.2, borderRadius: 1, border: '1px dashed rgba(255,255,255,0.15)', backgroundColor: 'transparent', color: 'rgba(255,255,255,0.4)', cursor: 'pointer', '&:hover': { borderColor: 'white', color: 'white' } }}>+ Add Field</Box>
                                   </Box>
                                 </Box>
                               )}
-                              {!isCollapsed && addFieldRow(subObjId)}
                               {!isCollapsed && fields.map((f: any) => (
-                                editingFieldRow?.id === f.id ? (
-                                  <Box component="tr" key={f.id} sx={{ backgroundColor: 'rgba(91,103,202,0.08)' }}>
-                                    {['table_name', 'field_name', 'field_label', 'data_type', 'length', 'decimals'].map(col => {
-                                      const stateKey = col === 'table_name' ? 'table_name' : col;
-                                      return (
-                                        <Box component="td" key={col} sx={{ px: 0.75, py: 0.4 }}>
-                                          <input value={editingFieldRow[col] ?? ''}
-                                            onChange={e => setEditingFieldRow((p: any) => ({ ...p, [col]: e.target.value }))}
-                                            style={{ width: '100%', fontSize: '0.75rem', fontFamily: ['field_name', 'table_name'].includes(col) ? 'monospace' : 'inherit', padding: '2px 4px', borderRadius: 3, border: '1px solid rgba(91,103,202,0.4)', backgroundColor: 'rgba(0,0,0,0.3)', color: '#DBE7FF', boxSizing: 'border-box' }} />
-                                        </Box>
-                                      );
-                                    })}
-                                    <Box component="td" sx={{ px: 0.75, textAlign: 'center' }}>
-                                      <input type="checkbox" checked={!!editingFieldRow.is_key} onChange={e => setEditingFieldRow((p: any) => ({ ...p, is_key: e.target.checked }))} style={{ cursor: 'pointer' }} />
-                                    </Box>
-                                    <Box component="td" sx={{ px: 0.75, textAlign: 'center' }}>
-                                      <input type="checkbox" checked={!!editingFieldRow.is_required} onChange={e => setEditingFieldRow((p: any) => ({ ...p, is_required: e.target.checked }))} style={{ cursor: 'pointer' }} />
-                                    </Box>
-                                    <Box component="td" sx={{ px: 0.75, textAlign: 'center' }}>
-                                      <input type="checkbox" checked={!!editingFieldRow.business_process_required} onChange={e => setEditingFieldRow((p: any) => ({ ...p, business_process_required: e.target.checked }))} style={{ cursor: 'pointer' }} />
-                                    </Box>
-                                    <Box component="td" sx={{ px: 0.75 }}>
-                                      <input value={editingFieldRow.description ?? ''} onChange={e => setEditingFieldRow((p: any) => ({ ...p, description: e.target.value }))}
-                                        style={{ width: '100%', fontSize: '0.75rem', padding: '2px 4px', borderRadius: 3, border: '1px solid rgba(91,103,202,0.4)', backgroundColor: 'rgba(0,0,0,0.3)', color: '#DBE7FF', boxSizing: 'border-box' }} />
-                                    </Box>
-                                    <Box component="td" sx={{ px: 0.5, whiteSpace: 'nowrap' }}>
-                                      <IconButton size="small" sx={{ p: 0.3, color: '#66bb6a' }} onClick={async () => {
-                                        await apiClient.put(`/api/applications/data-definitions/fields/${f.id}`, { tableName: editingFieldRow.table_name, fieldName: editingFieldRow.field_name, fieldLabel: editingFieldRow.field_label, dataType: editingFieldRow.data_type, length: editingFieldRow.length, decimals: editingFieldRow.decimals, isKey: editingFieldRow.is_key, isRequired: editingFieldRow.is_required, businessProcessRequired: editingFieldRow.business_process_required, description: editingFieldRow.description, sortOrder: f.sort_order, subObjectId: f.sub_object_id });
-                                        setDataDefFields(prev => prev.map((ff: any) => ff.id === f.id ? { ...ff, ...editingFieldRow } : ff));
-                                        setEditingFieldRow(null);
-                                      }}><SaveIcon sx={{ fontSize: '0.9rem' }} /></IconButton>
-                                      <IconButton size="small" sx={{ p: 0.3 }} onClick={() => setEditingFieldRow(null)}><CloseIcon sx={{ fontSize: '0.9rem' }} /></IconButton>
-                                    </Box>
-                                  </Box>
-                                ) : (
-                                  <Box component="tr" key={f.id} onClick={() => setEditingFieldRow({ ...f })}
+                                  <Box component="tr" key={f.id}
                                     sx={{ borderBottom: '1px solid rgba(255,255,255,0.03)', cursor: 'pointer', '&:hover': { backgroundColor: 'rgba(255,255,255,0.04)' } }}>
                                     {[f.table_name, f.field_name, f.field_label, f.data_type, f.length, f.decimals].map((val: any, ci: number) => (
                                       <Box component="td" key={ci} sx={{ px: 1, py: 0.65, color: ci === 1 ? '#DBE7FF' : 'text.secondary', fontFamily: ci <= 1 ? 'monospace' : 'inherit', fontWeight: ci === 1 ? 600 : 400, whiteSpace: 'nowrap' }}>{val ?? '—'}</Box>
@@ -16812,10 +16847,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                     <Box component="td" sx={{ px: 1, py: 0.65, textAlign: 'center' }}>{f.business_process_required ? <Box component="span" sx={{ color: '#42a5f5', fontWeight: 700 }}>●</Box> : <Box component="span" sx={{ color: 'rgba(255,255,255,0.15)' }}>○</Box>}</Box>
                                     <Box component="td" sx={{ px: 1, py: 0.65, color: 'text.disabled', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.description || '—'}</Box>
                                     <Box component="td" sx={{ px: 0.5, py: 0.65, whiteSpace: 'nowrap' }} onClick={e => e.stopPropagation()}>
+                                      <IconButton size="small" onClick={() => openFieldModal('edit', { field: f })} sx={{ p: 0.25, opacity: 0.45, '&:hover': { opacity: 1, color: '#90caf9' } }}><EditIcon sx={{ fontSize: '0.8rem' }} /></IconButton>
                                       <IconButton size="small" onClick={async () => { await apiClient.delete(`/api/applications/data-definitions/fields/${f.id}`); setDataDefFields(prev => prev.filter((ff: any) => ff.id !== f.id)); }} sx={{ p: 0.25, opacity: 0.4, '&:hover': { opacity: 1, color: '#ef5350' } }}><DeleteIcon sx={{ fontSize: '0.8rem' }} /></IconButton>
                                     </Box>
                                   </Box>
-                                )
                               ))}
                             </React.Fragment>
                             );
@@ -17056,6 +17091,93 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
             )}
           </Box>
         </DialogContent>
+      </Dialog>
+
+      {/* Data Definition Field Modal */}
+      <Dialog
+        open={dataDefFieldModalOpen}
+        onClose={() => setDataDefFieldModalOpen(false)}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: 2, background: 'linear-gradient(160deg, #141e35 0%, #0c1527 100%)' } }}
+      >
+        <DialogTitle sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: '#fff' }}>
+          {dataDefFieldModalMode === 'create' ? 'Add Data Definition Field' : 'Edit Data Definition Field'}
+        </DialogTitle>
+        <DialogContent sx={{ pt: 2 }}>
+          <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, mt: 1 }}>
+            <TextField label="Table" size="small" value={dataDefFieldModalDraft.table || ''} onChange={(e) => setDataDefFieldModalDraft((prev: any) => ({ ...prev, table: e.target.value }))} />
+            <TextField label="Table Name" size="small" value={dataDefFieldModalDraft.tableName || ''} onChange={(e) => setDataDefFieldModalDraft((prev: any) => ({ ...prev, tableName: e.target.value }))} />
+            <TextField label="Field Name" size="small" value={dataDefFieldModalDraft.fieldName || ''} onChange={(e) => setDataDefFieldModalDraft((prev: any) => ({ ...prev, fieldName: e.target.value }))} />
+            <TextField label="Field Description" size="small" value={dataDefFieldModalDraft.fieldDescription || ''} onChange={(e) => setDataDefFieldModalDraft((prev: any) => ({ ...prev, fieldDescription: e.target.value }))} />
+            <TextField label="Application Usage" size="small" value={dataDefFieldModalDraft.applicationUsage || ''} onChange={(e) => setDataDefFieldModalDraft((prev: any) => ({ ...prev, applicationUsage: e.target.value }))} />
+            <TextField label="Business Definition" size="small" value={dataDefFieldModalDraft.businessDefinition || ''} onChange={(e) => setDataDefFieldModalDraft((prev: any) => ({ ...prev, businessDefinition: e.target.value }))} />
+            <TextField label="Enterprise Attribute" size="small" value={dataDefFieldModalDraft.enterpriseAttribute || ''} onChange={(e) => setDataDefFieldModalDraft((prev: any) => ({ ...prev, enterpriseAttribute: e.target.value }))} />
+            <TextField label="Field Type" size="small" value={dataDefFieldModalDraft.fieldType || ''} onChange={(e) => setDataDefFieldModalDraft((prev: any) => ({ ...prev, fieldType: e.target.value }))} />
+            <TextField label="Field Length" size="small" value={dataDefFieldModalDraft.fieldLength || ''} onChange={(e) => setDataDefFieldModalDraft((prev: any) => ({ ...prev, fieldLength: e.target.value.replace(/[^0-9]/g, '') }))} />
+            <TextField label="Decimal Places" size="small" value={dataDefFieldModalDraft.decimalPlaces || ''} onChange={(e) => setDataDefFieldModalDraft((prev: any) => ({ ...prev, decimalPlaces: e.target.value.replace(/[^0-9]/g, '') }))} />
+            <TextField label="Legal/Regulatory Implications" size="small" value={dataDefFieldModalDraft.legalRegulatoryImplications || ''} onChange={(e) => setDataDefFieldModalDraft((prev: any) => ({ ...prev, legalRegulatoryImplications: e.target.value }))} />
+            <TextField label="Security Classification" size="small" value={dataDefFieldModalDraft.securityClassification || ''} onChange={(e) => setDataDefFieldModalDraft((prev: any) => ({ ...prev, securityClassification: e.target.value }))} />
+            <TextField label="Data Validation" size="small" value={dataDefFieldModalDraft.dataValidation || ''} onChange={(e) => setDataDefFieldModalDraft((prev: any) => ({ ...prev, dataValidation: e.target.value }))} />
+            <TextField label="Reference Table" size="small" value={dataDefFieldModalDraft.referenceTable || ''} onChange={(e) => setDataDefFieldModalDraft((prev: any) => ({ ...prev, referenceTable: e.target.value }))} />
+            <TextField label="Grouping/Tab" size="small" value={dataDefFieldModalDraft.groupingTab || ''} onChange={(e) => setDataDefFieldModalDraft((prev: any) => ({ ...prev, groupingTab: e.target.value }))} />
+            <TextField label="PII Type" size="small" value={dataDefFieldModalDraft.piiType || ''} onChange={(e) => setDataDefFieldModalDraft((prev: any) => ({ ...prev, piiType: e.target.value }))} />
+            <TextField label="Security Controls" size="small" value={dataDefFieldModalDraft.securityControls || ''} onChange={(e) => setDataDefFieldModalDraft((prev: any) => ({ ...prev, securityControls: e.target.value }))} />
+            <TextField
+              select
+              label="Sub-object"
+              size="small"
+              value={dataDefFieldModalSubObjectId || ''}
+              onChange={(e) => setDataDefFieldModalSubObjectId(e.target.value || null)}
+            >
+              <MenuItem value=""><em>Root (no sub-object)</em></MenuItem>
+              {dataDefSubObjects.map((so: any) => (
+                <MenuItem key={`field-subobj-${so.id}`} value={so.id}>{so.name}</MenuItem>
+              ))}
+            </TextField>
+            <TextField label="Label" size="small" value={dataDefFieldModalDraft.fieldLabel || ''} onChange={(e) => setDataDefFieldModalDraft((prev: any) => ({ ...prev, fieldLabel: e.target.value }))} />
+          </Box>
+          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(140px, 1fr))', gap: 1, mt: 1.2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}><Checkbox checked={!!dataDefFieldModalDraft.systemRequired} onChange={(e) => setDataDefFieldModalDraft((prev: any) => ({ ...prev, systemRequired: e.target.checked }))} /><Typography variant="body2">System Required</Typography></Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}><Checkbox checked={!!dataDefFieldModalDraft.businessProcessRequired} onChange={(e) => setDataDefFieldModalDraft((prev: any) => ({ ...prev, businessProcessRequired: e.target.checked }))} /><Typography variant="body2">Business Process Required</Typography></Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}><Checkbox checked={!!dataDefFieldModalDraft.suppressedField} onChange={(e) => setDataDefFieldModalDraft((prev: any) => ({ ...prev, suppressedField: e.target.checked }))} /><Typography variant="body2">Suppressed Field</Typography></Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}><Checkbox checked={!!dataDefFieldModalDraft.inScopeForProject} onChange={(e) => setDataDefFieldModalDraft((prev: any) => ({ ...prev, inScopeForProject: e.target.checked }))} /><Typography variant="body2">In-Scope for Project</Typography></Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}><Checkbox checked={!!dataDefFieldModalDraft.translationNeeded} onChange={(e) => setDataDefFieldModalDraft((prev: any) => ({ ...prev, translationNeeded: e.target.checked }))} /><Typography variant="body2">Translation Needed</Typography></Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}><Checkbox checked={!!dataDefFieldModalDraft.isKey} onChange={(e) => setDataDefFieldModalDraft((prev: any) => ({ ...prev, isKey: e.target.checked }))} /><Typography variant="body2">Key Field</Typography></Box>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDataDefFieldModalOpen(false)}>Cancel</Button>
+          <Button
+            variant="contained"
+            disabled={!String(dataDefFieldModalDraft.fieldName || '').trim() || !selectedDataDefId}
+            onClick={async () => {
+              if (!selectedDataDefId) return;
+              const sortOrder = dataDefFields.filter((f: any) => f.sub_object_id === dataDefFieldModalSubObjectId).length;
+              const payload = buildFieldPayloadFromModalDraft(dataDefFieldModalDraft, dataDefFieldModalSubObjectId, sortOrder);
+              try {
+                if (dataDefFieldModalMode === 'create') {
+                  const res = await apiClient.post(`/api/applications/data-definitions/${selectedDataDefId}/fields`, payload);
+                  setDataDefFields((prev) => [...prev, res.data.data]);
+                } else if (dataDefFieldModalFieldId) {
+                  const existing = dataDefFields.find((f: any) => f.id === dataDefFieldModalFieldId);
+                  await apiClient.put(`/api/applications/data-definitions/fields/${dataDefFieldModalFieldId}`, {
+                    ...payload,
+                    sortOrder: existing?.sort_order || sortOrder,
+                  });
+                  const refresh = await apiClient.get(`/api/applications/data-definitions/${selectedDataDefId}/fields`);
+                  setDataDefFields(refresh.data.data || []);
+                }
+                setDataDefFieldModalOpen(false);
+              } catch (error) {
+                console.error('Failed to save data definition field:', error);
+                alert('Failed to save data definition field. Please try again.');
+              }
+            }}
+          >
+            {dataDefFieldModalMode === 'create' ? 'Add Field' : 'Save Changes'}
+          </Button>
+        </DialogActions>
       </Dialog>
     </Layout>
   );
