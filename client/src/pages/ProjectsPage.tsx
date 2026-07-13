@@ -261,14 +261,14 @@ const HIERARCHY_ICON_OPTIONS: { value: HierarchyIconChoice; label: string; group
 
 interface ProjectsPageProps {
   sectionMode?: 'planning' | 'execution';
-  planningView?: 'plan' | 'strategy' | 'inventory' | 'structure' | 'roadmap';
+  planningView?: 'plan' | 'design' | 'strategy' | 'inventory' | 'structure' | 'roadmap';
 }
 
 const PLAN_DELIVERABLE_NODES: Array<{
   id: string;
   label: string;
   parentId?: string;
-  targetView?: 'plan' | 'strategy' | 'inventory' | 'structure' | 'roadmap';
+  targetView?: 'plan' | 'design' | 'strategy' | 'inventory' | 'structure' | 'roadmap';
   isFuture?: boolean;
   accentColor: string;
   icon: HierarchyIconChoice;
@@ -294,6 +294,14 @@ const PLAN_DELIVERABLE_NODES: Array<{
 
 const MOCK_CRITERIA_CYCLE_NODE_PREFIX = 'mockCriteriaCycle:';
 const DEVELOPER_POOL_STORAGE_KEY = 'rediforge.developerPoolByProject.v1';
+const DESIGN_DELIVERABLE_NODE_PREFIX = 'designDeliverable:';
+const DESIGN_PHASE_DELIVERABLES: Array<{ key: string; label: string; accentColor: string; icon: HierarchyIconChoice }> = [
+  { key: 'dataDefinition', label: 'Data Definition (Source and Target)', accentColor: '#7E57C2', icon: 'fa-table-cells' },
+  { key: 'functionalDesign', label: 'Functional Design', accentColor: '#26A69A', icon: 'fa-file-lines' },
+  { key: 'fieldMapping', label: 'Field Mapping Document', accentColor: '#4FC3F7', icon: 'fa-network-wired' },
+  { key: 'technicalDesignInitial', label: 'Technical Design (Initial)', accentColor: '#FFA726', icon: 'fa-diagram-project' },
+  { key: 'validationScripts', label: 'Validation Scripts', accentColor: '#66BB6A', icon: 'fa-list-check' },
+];
 
 // ── Roadmap component ──────────────────────────────────────────────────────
 interface RoadmapItem {
@@ -1169,6 +1177,7 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
 };
 const planningViewToTab: Record<string, number> = {
   plan: 0,
+  design: 0,
   strategy: 8,
   inventory: 1,
   structure: 6,
@@ -1286,11 +1295,15 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   const [expandedCycles, setExpandedCycles] = useState<Set<string>>(new Set());
   const [expandedProjectGroups, setExpandedProjectGroups] = useState<Set<string>>(new Set());
   const [expandedEstimationDeliverables, setExpandedEstimationDeliverables] = useState<Set<string>>(new Set());
+  const [expandedDesignProcessAreas, setExpandedDesignProcessAreas] = useState<Set<string>>(new Set());
+  const [expandedDesignObjects, setExpandedDesignObjects] = useState<Set<string>>(new Set());
   const [collapsedEstimationProcessAreaSections, setCollapsedEstimationProcessAreaSections] = useState<Set<string>>(new Set());
   const [expandedDeveloperAssignmentAreas, setExpandedDeveloperAssignmentAreas] = useState<Set<string>>(new Set());
   const [editingDeveloperAssignmentObjectId, setEditingDeveloperAssignmentObjectId] = useState<string | null>(null);
   const [editingDeveloperAssignmentDeveloperId, setEditingDeveloperAssignmentDeveloperId] = useState('');
   const [savingDeveloperAssignmentObjectId, setSavingDeveloperAssignmentObjectId] = useState<string | null>(null);
+  const [designDeliverablePlanByNode, setDesignDeliverablePlanByNode] = useState<Record<string, Array<{ id: string; title: string; owner: string; status: string; startDate: string; endDate: string }>>>({});
+  const [designDeliverableTabByNode, setDesignDeliverableTabByNode] = useState<Record<string, 'plan' | 'maintain'>>({});
   const [expandedObjects, setExpandedObjects] = useState<Set<string>>(new Set());
   
   // State for selected item
@@ -1301,6 +1314,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   const setTabValue = (_v: number) => {}; // navigation-driven; kept for compat
   const isPlanningMaintainTab = sectionMode === 'planning' && planningView === 'structure';
   const isPlanningPlanHierarchy = sectionMode === 'planning' && planningView === 'plan';
+  const isPlanningDesignHierarchy = sectionMode === 'planning' && planningView === 'design';
   const hideProcessAreasInStrategyHierarchy = sectionMode === 'planning' && planningView === 'strategy';
   
   // Dialog states
@@ -1633,6 +1647,27 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
       // no-op when local storage is unavailable
     }
   }, [developerPoolByProject]);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('rf-design-deliverable-plan-by-node');
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') {
+        setDesignDeliverablePlanByNode(parsed);
+      }
+    } catch {
+      setDesignDeliverablePlanByNode({});
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('rf-design-deliverable-plan-by-node', JSON.stringify(designDeliverablePlanByNode));
+    } catch {
+      // no-op when local storage is unavailable
+    }
+  }, [designDeliverablePlanByNode]);
 
   // Refs for always-current values — avoids stale closures in cascade
   const projectTasksRef = React.useRef<any[]>([]);
@@ -7624,6 +7659,224 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                         );
                                       })}
                                     </Box>
+                                  ) : isPlanningDesignHierarchy ? (
+                                    <Box sx={{ display: 'grid', gap: 0.45, pb: 0.5 }}>
+                                      {(() => {
+                                        const assignedAreas = getProcessAreasForProjectCycle(firstCycleProject.id, firstCycle?.id);
+                                        const inventoryAreas = Array.from(new Set(
+                                          projectInventoryItems
+                                            .filter((item: any) => item.projectId === firstCycleProject.id && !item.parentProjectObjectId)
+                                            .map((item: any) => String(item.processArea || '').trim())
+                                            .filter(Boolean)
+                                        ));
+                                        const designAreas = Array.from(new Set([...assignedAreas, ...inventoryAreas])).sort((a, b) => a.localeCompare(b));
+
+                                        return designAreas.map((area) => {
+                                          const areaKey = `${firstCycleProject.id}:${firstCycle?.id || ''}:${area}`;
+                                          const areaExpanded = expandedDesignProcessAreas.has(areaKey);
+                                          const areaAccent = getProcessAreaAccent(firstCycleProject.id, area, projectAccent, firstCycle?.id);
+                                          const areaSelected = selectedItem?.type === 'deliverableProcessArea'
+                                            && selectedItem.projectId === firstCycleProject.id
+                                            && selectedItem.deliverableId === 'designPhase'
+                                            && selectedItem.area === area;
+
+                                          const areaObjects = projectInventoryItems
+                                            .filter((item: any) => item.projectId === firstCycleProject.id && !item.parentProjectObjectId && String(item.processArea || '').trim().toLowerCase() === area.trim().toLowerCase())
+                                            .sort((a: any, b: any) => String(a.objectId || a.dataObjectId || '').localeCompare(String(b.objectId || b.dataObjectId || '')));
+
+                                          return (
+                                            <Box key={`${projectGroupKey}-design-area-${area}`}>
+                                              <Box
+                                                onClick={() => {
+                                                  setExpandedDesignProcessAreas((prev) => {
+                                                    const next = new Set(prev);
+                                                    if (next.has(areaKey)) next.delete(areaKey);
+                                                    else next.add(areaKey);
+                                                    return next;
+                                                  });
+                                                  handleHierarchySelection({
+                                                    type: 'deliverableProcessArea',
+                                                    projectId: firstCycleProject.id,
+                                                    cycleId: firstCycle?.id,
+                                                    deliverableId: 'designPhase',
+                                                    area,
+                                                  });
+                                                  navigate('/planning/design');
+                                                }}
+                                                sx={{
+                                                  display: 'flex',
+                                                  alignItems: 'center',
+                                                  minWidth: 0,
+                                                  width: '100%',
+                                                  maxWidth: '100%',
+                                                  overflow: 'hidden',
+                                                  py: 0.35,
+                                                  pl: 1.1,
+                                                  pr: 0.5,
+                                                  cursor: 'pointer',
+                                                  position: 'relative',
+                                                  borderRadius: 0.75,
+                                                  backgroundColor: areaSelected ? 'rgba(91, 103, 202, 0.2)' : 'transparent',
+                                                  '&::before': areaSelected ? {
+                                                    content: '""',
+                                                    position: 'absolute',
+                                                    left: 0,
+                                                    top: '3px',
+                                                    bottom: '3px',
+                                                    width: '3px',
+                                                    backgroundColor: areaAccent,
+                                                    borderRadius: '2px',
+                                                  } : {},
+                                                  '&:hover': { backgroundColor: areaSelected ? 'rgba(91, 103, 202, 0.24)' : 'rgba(255,255,255,0.06)' },
+                                                }}
+                                              >
+                                                <IconButton size="small" sx={{ p: 0.15, mr: 0.2 }}>
+                                                  <ChevronRightIcon sx={{ fontSize: '0.8rem', color: 'text.secondary', transform: areaExpanded ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
+                                                </IconButton>
+                                                <Box sx={{ mr: 0.45, display: 'inline-flex', alignItems: 'center' }}>
+                                                  {renderHierarchyIcon('processArea', areaAccent, '0.72rem')}
+                                                </Box>
+                                                <Typography variant="caption" sx={{ fontWeight: areaSelected ? 700 : 500, color: areaSelected ? areaAccent : 'text.secondary', flex: '1 1 auto', minWidth: 0, maxWidth: '100%', width: 0, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                  {getProcessAreaDisplayName(firstCycleProject.id, area, firstCycle?.id)}
+                                                </Typography>
+                                              </Box>
+
+                                              {areaExpanded && (
+                                                <Box sx={{ ml: 2.1, mt: 0.15, display: 'grid', gap: 0.25 }}>
+                                                  {areaObjects.length === 0 ? (
+                                                    <Typography variant="caption" color="text.disabled" sx={{ pl: 1.25, py: 0.2 }}>No objects yet.</Typography>
+                                                  ) : areaObjects.map((obj: any) => {
+                                                    const objectLabel = obj.objectId || obj.dataObjectId || 'Object';
+                                                    const objectKey = `${firstCycleProject.id}:${firstCycle?.id || ''}:${obj.id}`;
+                                                    const objectExpanded = expandedDesignObjects.has(objectKey);
+                                                    const objectNodeId = `designObject:${obj.id}`;
+                                                    const objectSelected = selectedItem?.type === 'deliverable'
+                                                      && selectedItem.projectId === firstCycleProject.id
+                                                      && selectedItem.deliverableId === objectNodeId;
+
+                                                    return (
+                                                      <Box key={`${projectGroupKey}-design-object-${obj.id}`}>
+                                                        <Box
+                                                          onClick={() => {
+                                                            setExpandedDesignObjects((prev) => {
+                                                              const next = new Set(prev);
+                                                              if (next.has(objectKey)) next.delete(objectKey);
+                                                              else next.add(objectKey);
+                                                              return next;
+                                                            });
+                                                            handleHierarchySelection({
+                                                              type: 'deliverable',
+                                                              projectId: firstCycleProject.id,
+                                                              cycleId: firstCycle?.id,
+                                                              deliverableId: objectNodeId,
+                                                            });
+                                                            navigate('/planning/design');
+                                                          }}
+                                                          sx={{
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            minWidth: 0,
+                                                            width: '100%',
+                                                            maxWidth: '100%',
+                                                            overflow: 'hidden',
+                                                            py: 0.3,
+                                                            pl: 1.2,
+                                                            pr: 0.4,
+                                                            cursor: 'pointer',
+                                                            position: 'relative',
+                                                            borderRadius: 0.75,
+                                                            backgroundColor: objectSelected ? 'rgba(91, 103, 202, 0.2)' : 'transparent',
+                                                            '&::before': objectSelected ? {
+                                                              content: '""',
+                                                              position: 'absolute',
+                                                              left: 0,
+                                                              top: '3px',
+                                                              bottom: '3px',
+                                                              width: '3px',
+                                                              backgroundColor: areaAccent,
+                                                              borderRadius: '2px',
+                                                            } : {},
+                                                            '&:hover': { backgroundColor: objectSelected ? 'rgba(91, 103, 202, 0.24)' : 'rgba(255,255,255,0.06)' },
+                                                          }}
+                                                        >
+                                                          <IconButton size="small" sx={{ p: 0.15, mr: 0.2 }}>
+                                                            <ChevronRightIcon sx={{ fontSize: '0.78rem', color: 'text.secondary', transform: objectExpanded ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
+                                                          </IconButton>
+                                                          <Box sx={{ mr: 0.4, display: 'inline-flex', alignItems: 'center' }}>
+                                                            {renderIconChoice('storage', areaAccent, '0.66rem')}
+                                                          </Box>
+                                                          <Typography variant="caption" sx={{ fontWeight: objectSelected ? 700 : 500, color: objectSelected ? areaAccent : 'text.secondary', flex: '1 1 auto', minWidth: 0, maxWidth: '100%', width: 0, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                            {objectLabel}
+                                                          </Typography>
+                                                        </Box>
+
+                                                        {objectExpanded && (
+                                                          <Box sx={{ ml: 2.05, display: 'grid', gap: 0.2 }}>
+                                                            {DESIGN_PHASE_DELIVERABLES.map((deliverable) => {
+                                                              const nodeId = `${DESIGN_DELIVERABLE_NODE_PREFIX}${obj.id}:${deliverable.key}`;
+                                                              const deliverableSelected = selectedItem?.type === 'deliverable'
+                                                                && selectedItem.projectId === firstCycleProject.id
+                                                                && selectedItem.deliverableId === nodeId;
+                                                              return (
+                                                                <Box
+                                                                  key={`${projectGroupKey}-design-deliverable-${obj.id}-${deliverable.key}`}
+                                                                  onClick={() => {
+                                                                    handleHierarchySelection({
+                                                                      type: 'deliverable',
+                                                                      projectId: firstCycleProject.id,
+                                                                      cycleId: firstCycle?.id,
+                                                                      deliverableId: nodeId,
+                                                                    });
+                                                                    navigate('/planning/design');
+                                                                  }}
+                                                                  sx={{
+                                                                    display: 'flex',
+                                                                    alignItems: 'center',
+                                                                    minWidth: 0,
+                                                                    width: '100%',
+                                                                    maxWidth: '100%',
+                                                                    overflow: 'hidden',
+                                                                    py: 0.28,
+                                                                    pl: 1.35,
+                                                                    pr: 0.4,
+                                                                    cursor: 'pointer',
+                                                                    position: 'relative',
+                                                                    borderRadius: 0.75,
+                                                                    backgroundColor: deliverableSelected ? 'rgba(91, 103, 202, 0.22)' : 'transparent',
+                                                                    '&::before': deliverableSelected ? {
+                                                                      content: '""',
+                                                                      position: 'absolute',
+                                                                      left: 0,
+                                                                      top: '3px',
+                                                                      bottom: '3px',
+                                                                      width: '3px',
+                                                                      backgroundColor: deliverable.accentColor,
+                                                                      borderRadius: '2px',
+                                                                    } : {},
+                                                                    '&:hover': { backgroundColor: deliverableSelected ? 'rgba(91, 103, 202, 0.25)' : 'rgba(255,255,255,0.06)' },
+                                                                  }}
+                                                                >
+                                                                  <Box sx={{ mr: 0.45, display: 'inline-flex', alignItems: 'center' }}>
+                                                                    {renderIconChoice(deliverable.icon, deliverable.accentColor, '0.66rem')}
+                                                                  </Box>
+                                                                  <Typography variant="caption" sx={{ fontWeight: deliverableSelected ? 700 : 500, color: deliverableSelected ? deliverable.accentColor : 'text.secondary', flex: '1 1 auto', minWidth: 0, maxWidth: '100%', width: 0, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                                    {deliverable.label}
+                                                                  </Typography>
+                                                                </Box>
+                                                              );
+                                                            })}
+                                                          </Box>
+                                                        )}
+                                                      </Box>
+                                                    );
+                                                  })}
+                                                </Box>
+                                              )}
+                                            </Box>
+                                          );
+                                        });
+                                      })()}
+                                    </Box>
                                   ) : (
                                   <>
                                   {projectCycles.map((cycle: MockCycle) => {
@@ -7887,7 +8140,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                             );
                           })}
 
-                          {canManageHierarchy && isPlanningPlanHierarchy && (
+                          {canManageHierarchy && (isPlanningPlanHierarchy || isPlanningDesignHierarchy) && (
                             <Box sx={{ ml: 0.95, mr: 0.5, mt: 0.4 }}>
                               <Button
                                 size="small"
@@ -8034,7 +8287,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
           )}
 
           {/* Plan Tab Content */}
-          {tabValue === 0 && (sectionMode === 'execution' || (sectionMode === 'planning' && planningView === 'plan')) && (
+          {tabValue === 0 && (sectionMode === 'execution' || (sectionMode === 'planning' && (planningView === 'plan' || planningView === 'design'))) && (
             <>
               {!selectedItem ? (
                 <Alert severity="info">Select an item from the list to view details</Alert>
@@ -8107,10 +8360,179 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                     const isMockCriteriaSummaryDeliverable = selectedItem.type === 'deliverable' && selectedItem.deliverableId === 'mockCriteria';
                     const isMockCriteriaCycleNode = selectedItem.type === 'deliverable' && selectedItem.deliverableId.startsWith(MOCK_CRITERIA_CYCLE_NODE_PREFIX);
                     const isMockCriteriaApprovalsNode = selectedItem.type === 'deliverable' && selectedItem.deliverableId === 'mockCriteriaApprovals';
+                    const isDesignDeliverableNode = selectedItem.type === 'deliverable' && selectedItem.deliverableId.startsWith(DESIGN_DELIVERABLE_NODE_PREFIX);
+                    const parsedDesignDeliverable = isDesignDeliverableNode
+                      ? (() => {
+                        const trimmed = selectedItem.deliverableId.substring(DESIGN_DELIVERABLE_NODE_PREFIX.length);
+                        const [objectId, deliverableKey] = trimmed.split(':');
+                        const objectItem = projectInventoryItems.find((item: any) => String(item.id) === String(objectId));
+                        const deliverableConfig = DESIGN_PHASE_DELIVERABLES.find((item) => item.key === deliverableKey);
+                        return {
+                          objectId,
+                          deliverableKey,
+                          objectItem,
+                          deliverableConfig,
+                          nodeKey: `${project.id}:${objectId}:${deliverableKey}`,
+                        };
+                      })()
+                      : null;
                     const estimationAccent = isEstimationProcessAreaSelection ? selectedAreaAccent : deliverableAccent;
                     const estimationSelectedArea = selectedItem.type === 'deliverableProcessArea'
                       ? (selectedItem.area || '').trim()
                       : '';
+                    if (isPlanningDesignHierarchy && isDesignDeliverableNode && parsedDesignDeliverable?.deliverableConfig) {
+                      const objectLabel = parsedDesignDeliverable.objectItem?.objectId || parsedDesignDeliverable.objectItem?.dataObjectId || 'Object';
+                      const processAreaCode = String(parsedDesignDeliverable.objectItem?.processArea || '').trim();
+                      const processAreaLabel = processAreaCode
+                        ? getProcessAreaDisplayName(project.id, processAreaCode, parentCycleId || undefined)
+                        : 'Unassigned Process Area';
+                      const nodeKey = parsedDesignDeliverable.nodeKey;
+                      const deliverableAccentColor = parsedDesignDeliverable.deliverableConfig.accentColor;
+                      const selectedDesignTab = designDeliverableTabByNode[nodeKey] || 'plan';
+                      const planRows = designDeliverablePlanByNode[nodeKey] || [];
+
+                      const addPlanRow = () => {
+                        const newRow = {
+                          id: `row-${Date.now()}-${Math.round(Math.random() * 10000)}`,
+                          title: '',
+                          owner: '',
+                          status: 'not_started',
+                          startDate: '',
+                          endDate: '',
+                        };
+                        setDesignDeliverablePlanByNode((prev) => ({
+                          ...prev,
+                          [nodeKey]: [...(prev[nodeKey] || []), newRow],
+                        }));
+                      };
+
+                      const updatePlanRow = (rowId: string, field: string, value: string) => {
+                        setDesignDeliverablePlanByNode((prev) => ({
+                          ...prev,
+                          [nodeKey]: (prev[nodeKey] || []).map((row: any) => (
+                            row.id === rowId ? { ...row, [field]: value } : row
+                          )),
+                        }));
+                      };
+
+                      const removePlanRow = (rowId: string) => {
+                        setDesignDeliverablePlanByNode((prev) => ({
+                          ...prev,
+                          [nodeKey]: (prev[nodeKey] || []).filter((row: any) => row.id !== rowId),
+                        }));
+                      };
+
+                      const completedCount = planRows.filter((row: any) => row.status === 'complete').length;
+                      const progressPct = planRows.length > 0 ? Math.round((completedCount / planRows.length) * 100) : 0;
+
+                      return (
+                        <Box>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1.5 }}>
+                            {parentProgramName && <><Typography variant="caption" color="text.disabled">{parentProgramName}</Typography><Typography variant="caption" color="text.disabled">›</Typography></>}
+                            {parentCycleName && <><Typography variant="caption" color="text.disabled">{parentCycleName}</Typography><Typography variant="caption" color="text.disabled">›</Typography></>}
+                            <Typography variant="caption" sx={{ color: accentColor, fontWeight: 600 }}>{project.name}</Typography>
+                            <Typography variant="caption" color="text.disabled">›</Typography>
+                            <Typography variant="caption" sx={{ color: selectedAreaAccent, fontWeight: 700 }}>{processAreaLabel}</Typography>
+                            <Typography variant="caption" color="text.disabled">›</Typography>
+                            <Typography variant="caption" sx={{ color: deliverableAccentColor, fontWeight: 700 }}>{objectLabel}</Typography>
+                            <Typography variant="caption" color="text.disabled">›</Typography>
+                            <Typography variant="caption" sx={{ color: deliverableAccentColor, fontWeight: 700 }}>{parsedDesignDeliverable.deliverableConfig.label}</Typography>
+                          </Box>
+
+                          <Typography variant="h4" sx={{ fontWeight: 700, color: deliverableAccentColor, mb: 0.55, fontSize: { xs: '1.5rem', sm: '2.05rem' } }}>
+                            {parsedDesignDeliverable.deliverableConfig.label}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary" sx={{ mb: 1.2 }}>
+                            Design Deliverable for {objectLabel} ({processAreaLabel})
+                          </Typography>
+
+                          <Box sx={{ display: 'flex', gap: 0.7, mb: 1.1 }}>
+                            <Button
+                              size="small"
+                              variant={selectedDesignTab === 'plan' ? 'contained' : 'outlined'}
+                              onClick={() => setDesignDeliverableTabByNode((prev) => ({ ...prev, [nodeKey]: 'plan' }))}
+                              sx={{ textTransform: 'none' }}
+                            >
+                              Plan
+                            </Button>
+                            <Button
+                              size="small"
+                              variant={selectedDesignTab === 'maintain' ? 'contained' : 'outlined'}
+                              onClick={() => setDesignDeliverableTabByNode((prev) => ({ ...prev, [nodeKey]: 'maintain' }))}
+                              sx={{ textTransform: 'none' }}
+                            >
+                              Maintain Deliverable
+                            </Button>
+                          </Box>
+
+                          {selectedDesignTab === 'plan' ? (
+                            <Box>
+                              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, minmax(140px, 1fr))' }, gap: 1, mb: 1.1 }}>
+                                <Paper sx={{ p: 1, border: `1px solid ${deliverableAccentColor}44`, backgroundColor: 'rgba(255,255,255,0.04)' }}>
+                                  <Typography variant="caption" color="text.secondary">Plan Items</Typography>
+                                  <Typography variant="h6" sx={{ color: deliverableAccentColor }}>{planRows.length}</Typography>
+                                </Paper>
+                                <Paper sx={{ p: 1, border: `1px solid ${deliverableAccentColor}44`, backgroundColor: 'rgba(255,255,255,0.04)' }}>
+                                  <Typography variant="caption" color="text.secondary">Completed</Typography>
+                                  <Typography variant="h6" sx={{ color: deliverableAccentColor }}>{completedCount}</Typography>
+                                </Paper>
+                                <Paper sx={{ p: 1, border: `1px solid ${deliverableAccentColor}44`, backgroundColor: 'rgba(255,255,255,0.04)' }}>
+                                  <Typography variant="caption" color="text.secondary">Progress</Typography>
+                                  <Typography variant="h6" sx={{ color: deliverableAccentColor }}>{progressPct}%</Typography>
+                                </Paper>
+                              </Box>
+
+                              <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 0.8 }}>
+                                <Button size="small" variant="contained" startIcon={<AddIcon />} onClick={addPlanRow} sx={{ textTransform: 'none' }}>
+                                  Add Plan Item
+                                </Button>
+                              </Box>
+
+                              <Paper sx={{ p: 1.1, border: `1px solid ${deliverableAccentColor}44`, backgroundColor: 'rgba(255,255,255,0.03)' }}>
+                                <Box sx={{ display: 'grid', gridTemplateColumns: '1.4fr 0.9fr 0.9fr 0.8fr 0.8fr 0.35fr', gap: 0.8, pb: 0.5, borderBottom: '1px solid rgba(255,255,255,0.09)' }}>
+                                  <Typography variant="caption" sx={{ color: deliverableAccentColor, fontWeight: 700 }}>Task</Typography>
+                                  <Typography variant="caption" sx={{ color: deliverableAccentColor, fontWeight: 700 }}>Owner</Typography>
+                                  <Typography variant="caption" sx={{ color: deliverableAccentColor, fontWeight: 700 }}>Status</Typography>
+                                  <Typography variant="caption" sx={{ color: deliverableAccentColor, fontWeight: 700 }}>Start</Typography>
+                                  <Typography variant="caption" sx={{ color: deliverableAccentColor, fontWeight: 700 }}>End</Typography>
+                                  <Typography variant="caption" sx={{ color: deliverableAccentColor, fontWeight: 700, textAlign: 'right' }}>X</Typography>
+                                </Box>
+                                <Box sx={{ display: 'grid', gap: 0.35, mt: 0.45 }}>
+                                  {planRows.length === 0 ? (
+                                    <Typography variant="body2" color="text.secondary" sx={{ py: 0.75 }}>
+                                      No plan items yet. Add plan items to track this deliverable.
+                                    </Typography>
+                                  ) : planRows.map((row: any) => (
+                                    <Box key={`design-plan-row-${row.id}`} sx={{ display: 'grid', gridTemplateColumns: '1.4fr 0.9fr 0.9fr 0.8fr 0.8fr 0.35fr', gap: 0.8, alignItems: 'center', py: 0.35, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                      <TextField size="small" value={row.title} onChange={(e) => updatePlanRow(row.id, 'title', e.target.value)} placeholder="Task title" sx={{ '& .MuiInputBase-root': { height: 30, fontSize: '0.78rem' } }} />
+                                      <TextField size="small" value={row.owner} onChange={(e) => updatePlanRow(row.id, 'owner', e.target.value)} placeholder="Owner" sx={{ '& .MuiInputBase-root': { height: 30, fontSize: '0.78rem' } }} />
+                                      <TextField select size="small" value={row.status} onChange={(e) => updatePlanRow(row.id, 'status', e.target.value)} sx={{ '& .MuiInputBase-root': { height: 30, fontSize: '0.78rem' } }}>
+                                        <MenuItem value="not_started">Not Started</MenuItem>
+                                        <MenuItem value="in_progress">In Progress</MenuItem>
+                                        <MenuItem value="blocked">Blocked</MenuItem>
+                                        <MenuItem value="complete">Complete</MenuItem>
+                                      </TextField>
+                                      <TextField type="date" size="small" value={row.startDate} onChange={(e) => updatePlanRow(row.id, 'startDate', e.target.value)} sx={{ '& .MuiInputBase-root': { height: 30, fontSize: '0.78rem' } }} />
+                                      <TextField type="date" size="small" value={row.endDate} onChange={(e) => updatePlanRow(row.id, 'endDate', e.target.value)} sx={{ '& .MuiInputBase-root': { height: 30, fontSize: '0.78rem' } }} />
+                                      <IconButton size="small" onClick={() => removePlanRow(row.id)} sx={{ justifySelf: 'end', color: 'rgba(255,255,255,0.5)', '&:hover': { color: '#ef5350' } }}>
+                                        <DeleteIcon sx={{ fontSize: '0.9rem' }} />
+                                      </IconButton>
+                                    </Box>
+                                  ))}
+                                </Box>
+                              </Paper>
+                            </Box>
+                          ) : (
+                            <Paper sx={{ p: 1.3, border: `1px dashed ${deliverableAccentColor}66`, backgroundColor: 'rgba(255,255,255,0.03)' }}>
+                              <Typography variant="subtitle2" sx={{ color: deliverableAccentColor, fontWeight: 700, mb: 0.5 }}>Maintain Deliverable</Typography>
+                              <Typography variant="body2" color="text.secondary">
+                                Placeholder: deliverable maintenance UI will be implemented in this tab in the next step.
+                              </Typography>
+                            </Paper>
+                          )}
+                        </Box>
+                      );
+                    }
                     if (isDesignBuildDeveloperPoolNode) {
                       const topLevelObjects = projectInventoryItems.filter((item: any) => !item.parentProjectObjectId);
                       const scopedObjects = topLevelObjects.filter((item: any) => {
