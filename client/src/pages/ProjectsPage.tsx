@@ -296,7 +296,8 @@ const MOCK_CRITERIA_CYCLE_NODE_PREFIX = 'mockCriteriaCycle:';
 const DEVELOPER_POOL_STORAGE_KEY = 'rediforge.developerPoolByProject.v1';
 const DESIGN_DELIVERABLE_NODE_PREFIX = 'designDeliverable:';
 const DESIGN_PHASE_DELIVERABLES: Array<{ key: string; label: string; accentColor: string; icon: HierarchyIconChoice }> = [
-  { key: 'dataDefinition', label: 'Data Definition (Source and Target)', accentColor: '#7E57C2', icon: 'fa-table-cells' },
+  { key: 'dataDefinitionSource', label: 'Data Definition (Source)', accentColor: '#7E57C2', icon: 'fa-table-cells' },
+  { key: 'dataDefinitionTarget', label: 'Data Definition (Target)', accentColor: '#9575CD', icon: 'fa-table-cells' },
   { key: 'functionalDesign', label: 'Functional Design', accentColor: '#26A69A', icon: 'fa-file-lines' },
   { key: 'fieldMapping', label: 'Field Mapping Document', accentColor: '#4FC3F7', icon: 'fa-network-wired' },
   { key: 'technicalDesignInitial', label: 'Technical Design (Initial)', accentColor: '#FFA726', icon: 'fa-diagram-project' },
