@@ -288,7 +288,8 @@ const PLAN_DELIVERABLE_NODES: Array<{
   { id: 'mockCriteriaApprovals', parentId: 'mockCriteria', label: 'Approvals', targetView: 'plan', accentColor: '#FF8A65', icon: 'fa-list-check' },
   { id: 'designBuildEstimation', label: 'Design and Build Estimation', targetView: 'plan', accentColor: '#B0BEC5', icon: 'fa-triangle-exclamation' },
   { id: 'designBuildDeveloperPool', parentId: 'designBuildEstimation', label: 'Developer Pool', targetView: 'plan', accentColor: '#90A4AE', icon: 'fa-code' },
-  { id: 'designBuildCompletion', label: 'Design and Build Phase Plan Completion', targetView: 'plan', accentColor: '#5C6BC0', icon: 'fa-clipboard-list' },
+  { id: 'designBuildCompletion', label: 'Design/Build Phase Planning', targetView: 'plan', accentColor: '#5C6BC0', icon: 'fa-clipboard-list' },
+  { id: 'designBuildCompletionDeveloperAssignment', parentId: 'designBuildCompletion', label: 'Developer Assignment', targetView: 'plan', accentColor: '#7986CB', icon: 'fa-code' },
 ];
 
 const MOCK_CRITERIA_CYCLE_NODE_PREFIX = 'mockCriteriaCycle:';
@@ -7919,6 +7920,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                       .filter(Boolean) as Project[];
                     const isDesignBuildEstimationDeliverable = isDeliverableSelection && selectedItem.deliverableId === 'designBuildEstimation';
                     const isDesignBuildDeveloperPoolNode = isDeliverableSelection && selectedItem.deliverableId === 'designBuildDeveloperPool';
+                    const isDesignBuildCompletionSummaryDeliverable = isDeliverableSelection && selectedItem.deliverableId === 'designBuildCompletion';
+                    const isDesignBuildCompletionDeveloperAssignmentNode = isDeliverableSelection && selectedItem.deliverableId === 'designBuildCompletionDeveloperAssignment';
                     const isProjectStructureSummaryDeliverable = isDeliverableSelection && selectedItem.deliverableId === 'projectStructure';
                     const isProjectSettingsDeliverable = isDeliverableSelection && selectedItem.deliverableId === 'projectSettings';
                     const isProjectMockCyclesDeliverable = isDeliverableSelection && selectedItem.deliverableId === 'projectMockCycles';
@@ -8853,6 +8856,235 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                 ))}
                               </Box>
                             )}
+                          </Paper>
+                        </Box>
+                      );
+                    }
+                    if (isDesignBuildCompletionSummaryDeliverable) {
+                      const poolIds = developerPoolByProject[project.id] || [];
+                      const topLevelObjects = projectInventoryItems.filter((item: any) => !item.parentProjectObjectId);
+                      const assignedObjects = topLevelObjects.filter((item: any) => !!String(item.developer || '').trim());
+                      const assignmentCoveragePct = topLevelObjects.length > 0
+                        ? Math.round((assignedObjects.length / topLevelObjects.length) * 100)
+                        : 0;
+                      const goToChild = (deliverableId: string) => {
+                        if (parentCycleId) {
+                          handleHierarchySelection({
+                            type: 'deliverable',
+                            projectId: project.id,
+                            cycleId: parentCycleId,
+                            deliverableId,
+                          });
+                        } else {
+                          handleHierarchySelection({
+                            type: 'deliverable',
+                            projectId: project.id,
+                            deliverableId,
+                          });
+                        }
+                        navigate('/planning/plan');
+                      };
+
+                      return (
+                        <Box>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1.5 }}>
+                            {parentProgramName && <><Typography variant="caption" color="text.disabled">{parentProgramName}</Typography><Typography variant="caption" color="text.disabled">›</Typography></>}
+                            {parentCycleName && <><Typography variant="caption" color="text.disabled">{parentCycleName}</Typography><Typography variant="caption" color="text.disabled">›</Typography></>}
+                            <Typography variant="caption" sx={{ color: accentColor, fontWeight: 600 }}>{project.name}</Typography>
+                            <Typography variant="caption" color="text.disabled">›</Typography>
+                            <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>Design/Build Phase Planning</Typography>
+                          </Box>
+
+                          <Typography variant="h4" sx={{ fontWeight: 700, color: deliverableAccent, mb: 0.75, fontSize: { xs: '1.55rem', sm: '2.125rem' } }}>
+                            Design/Build Phase Planning
+                          </Typography>
+
+                          <Paper sx={{ p: 1.25, border: `1px solid ${deliverableAccent}44`, backgroundColor: 'rgba(255,255,255,0.04)' }}>
+                            <Typography variant="subtitle2" sx={{ color: deliverableAccent, fontWeight: 700, mb: 1 }}>Node Summary</Typography>
+                            <Box
+                              onClick={() => goToChild('designBuildCompletionDeveloperAssignment')}
+                              sx={{ display: 'grid', gridTemplateColumns: '1fr auto', alignItems: 'center', gap: 1, px: 1, py: 0.7, borderRadius: 0.8, cursor: 'pointer', border: '1px solid rgba(255,255,255,0.08)', '&:hover': { backgroundColor: 'rgba(255,255,255,0.05)' } }}
+                            >
+                              <Box>
+                                <Typography variant="body2" sx={{ fontWeight: 700 }}>Developer Assignment</Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                  Pool: {poolIds.length} developers · Assigned objects: {assignedObjects.length}/{topLevelObjects.length}
+                                </Typography>
+                              </Box>
+                              <Typography variant="body2" sx={{ color: deliverableAccent, fontWeight: 700 }}>{assignmentCoveragePct}%</Typography>
+                            </Box>
+                          </Paper>
+                        </Box>
+                      );
+                    }
+                    if (isDesignBuildCompletionDeveloperAssignmentNode) {
+                      const topLevelObjects = projectInventoryItems
+                        .filter((item: any) => !item.parentProjectObjectId)
+                        .map((item: any) => ({
+                          ...item,
+                          processArea: String(item.processArea || '').trim() || 'Unassigned Process Area',
+                          objectLabel: item.objectId || item.dataObjectId || item.name || 'Object',
+                        }))
+                        .sort((a: any, b: any) => String(a.objectLabel).localeCompare(String(b.objectLabel)));
+
+                      const poolIds = developerPoolByProject[project.id] || [];
+                      const poolPeople = poolIds
+                        .map((personId) => people.find((person: any) => person.id === personId))
+                        .filter(Boolean) as any[];
+                      const poolById = new Map(poolPeople.map((person: any) => [person.id, person]));
+
+                      const groupedByArea = topLevelObjects.reduce<Record<string, any[]>>((acc, item: any) => {
+                        const area = item.processArea;
+                        if (!acc[area]) acc[area] = [];
+                        acc[area].push(item);
+                        return acc;
+                      }, {});
+
+                      const areaKeys = Object.keys(groupedByArea).sort((a, b) => a.localeCompare(b));
+
+                      const buildSuggestedAssignments = () => {
+                        const suggested: Record<string, string> = {};
+                        if (poolIds.length === 0) return suggested;
+
+                        const loadByDeveloper: Record<string, number> = {};
+                        poolIds.forEach((id) => { loadByDeveloper[id] = 0; });
+
+                        const chooseDeveloper = (exclude: Set<string>) => {
+                          const candidates = poolIds.filter((id) => !exclude.has(id));
+                          const source = candidates.length > 0 ? candidates : poolIds;
+                          return source.reduce((best, candidate) => (
+                            loadByDeveloper[candidate] < loadByDeveloper[best] ? candidate : best
+                          ), source[0]);
+                        };
+
+                        areaKeys.forEach((area) => {
+                          const objects = groupedByArea[area];
+                          const requiredDevelopers = Math.max(1, Math.ceil(objects.length / 7));
+                          const areaDevelopers: string[] = [];
+
+                          const firstDeveloper = chooseDeveloper(new Set());
+                          if (firstDeveloper) areaDevelopers.push(firstDeveloper);
+
+                          while (areaDevelopers.length < requiredDevelopers && areaDevelopers.length < poolIds.length) {
+                            const nextDeveloper = chooseDeveloper(new Set(areaDevelopers));
+                            if (!nextDeveloper || areaDevelopers.includes(nextDeveloper)) break;
+                            areaDevelopers.push(nextDeveloper);
+                          }
+
+                          objects.forEach((item, index) => {
+                            const assignedDeveloper = areaDevelopers[index % areaDevelopers.length] || areaDevelopers[0];
+                            if (!assignedDeveloper) return;
+                            suggested[item.id] = assignedDeveloper;
+                            loadByDeveloper[assignedDeveloper] = (loadByDeveloper[assignedDeveloper] || 0) + 1;
+                          });
+                        });
+
+                        return suggested;
+                      };
+
+                      const suggestedAssignments = buildSuggestedAssignments();
+                      const applySuggestedAssignments = async () => {
+                        if (poolIds.length === 0) {
+                          alert('Set a developer pool first in the Developer Pool node.');
+                          return;
+                        }
+                        if (topLevelObjects.length === 0) {
+                          alert('No objects found for assignment.');
+                          return;
+                        }
+
+                        try {
+                          const updates = topLevelObjects
+                            .map((item: any) => ({ id: item.id, developerId: suggestedAssignments[item.id] }))
+                            .filter((entry) => !!entry.developerId);
+                          await Promise.all(updates.map((entry) => apiClient.patch(`/api/project-objects/${entry.id}`, { developer: entry.developerId })));
+
+                          const updateMap = new Map(updates.map((entry) => [entry.id, entry.developerId]));
+                          setProjectInventoryItems((prev) => prev.map((item: any) => {
+                            const developerId = updateMap.get(item.id);
+                            return developerId ? { ...item, developer: developerId } : item;
+                          }));
+                        } catch (error) {
+                          console.error('Failed to apply suggested developer assignments:', error);
+                          alert('Failed to apply default developer assignment. Please try again.');
+                        }
+                      };
+
+                      const assignedCount = topLevelObjects.filter((item: any) => !!String(item.developer || '').trim()).length;
+                      const coveragePct = topLevelObjects.length > 0 ? Math.round((assignedCount / topLevelObjects.length) * 100) : 0;
+
+                      return (
+                        <Box>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1.5 }}>
+                            {parentProgramName && <><Typography variant="caption" color="text.disabled">{parentProgramName}</Typography><Typography variant="caption" color="text.disabled">›</Typography></>}
+                            {parentCycleName && <><Typography variant="caption" color="text.disabled">{parentCycleName}</Typography><Typography variant="caption" color="text.disabled">›</Typography></>}
+                            <Typography variant="caption" sx={{ color: accentColor, fontWeight: 600 }}>{project.name}</Typography>
+                            <Typography variant="caption" color="text.disabled">›</Typography>
+                            <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>Design/Build Phase Planning</Typography>
+                            <Typography variant="caption" color="text.disabled">›</Typography>
+                            <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>Developer Assignment</Typography>
+                          </Box>
+
+                          <Typography variant="h4" sx={{ fontWeight: 700, color: deliverableAccent, mb: 0.75, fontSize: { xs: '1.55rem', sm: '2.125rem' } }}>
+                            Developer Assignment
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary" sx={{ mb: 1.25 }}>
+                            Default assignment favors one developer per process area. If an area exceeds 7 objects, additional developers are brought into that area.
+                          </Typography>
+
+                          <Box sx={{ display: 'grid', gap: 1, gridTemplateColumns: { xs: '1fr', sm: 'repeat(4, minmax(140px, 1fr))' }, mb: 1.25 }}>
+                            <Paper sx={{ p: 1, border: `1px solid ${deliverableAccent}44`, backgroundColor: 'rgba(255,255,255,0.04)' }}>
+                              <Typography variant="caption" color="text.secondary">Objects</Typography>
+                              <Typography variant="h6" sx={{ color: deliverableAccent }}>{topLevelObjects.length}</Typography>
+                            </Paper>
+                            <Paper sx={{ p: 1, border: `1px solid ${deliverableAccent}44`, backgroundColor: 'rgba(255,255,255,0.04)' }}>
+                              <Typography variant="caption" color="text.secondary">Developer Pool</Typography>
+                              <Typography variant="h6" sx={{ color: deliverableAccent }}>{poolIds.length}</Typography>
+                            </Paper>
+                            <Paper sx={{ p: 1, border: `1px solid ${deliverableAccent}44`, backgroundColor: 'rgba(255,255,255,0.04)' }}>
+                              <Typography variant="caption" color="text.secondary">Assigned Objects</Typography>
+                              <Typography variant="h6" sx={{ color: deliverableAccent }}>{assignedCount}</Typography>
+                            </Paper>
+                            <Paper sx={{ p: 1, border: `1px solid ${deliverableAccent}44`, backgroundColor: 'rgba(255,255,255,0.04)' }}>
+                              <Typography variant="caption" color="text.secondary">Coverage</Typography>
+                              <Typography variant="h6" sx={{ color: deliverableAccent }}>{coveragePct}%</Typography>
+                            </Paper>
+                          </Box>
+
+                          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1.25 }}>
+                            <Button
+                              variant="contained"
+                              onClick={applySuggestedAssignments}
+                              disabled={poolIds.length === 0 || topLevelObjects.length === 0}
+                              sx={{ textTransform: 'none' }}
+                            >
+                              Apply Default Assignment
+                            </Button>
+                          </Box>
+
+                          <Paper sx={{ p: 1.25, border: `1px solid ${deliverableAccent}44`, backgroundColor: 'rgba(255,255,255,0.03)' }}>
+                            <Box sx={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr 1fr', gap: 1, pb: 0.55, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                              <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>Object</Typography>
+                              <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>Process Area</Typography>
+                              <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>Current</Typography>
+                              <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>Suggested</Typography>
+                            </Box>
+                            <Box sx={{ display: 'grid', gap: 0.4, mt: 0.4 }}>
+                              {topLevelObjects.length === 0 ? (
+                                <Typography variant="body2" color="text.secondary" sx={{ py: 0.7 }}>No objects available for assignment.</Typography>
+                              ) : topLevelObjects.map((item: any) => {
+                                const currentDeveloper = poolById.get(String(item.developer || ''));
+                                const suggestedDeveloper = poolById.get(String(suggestedAssignments[item.id] || ''));
+                                return (
+                                  <Box key={`assign-preview-${item.id}`} sx={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr 1fr', gap: 1, alignItems: 'center', py: 0.35, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                    <Typography variant="body2" sx={{ fontWeight: 600 }}>{item.objectLabel}</Typography>
+                                    <Typography variant="body2" color="text.secondary">{getProcessAreaDisplayName(project.id, item.processArea, parentCycleId || undefined)}</Typography>
+                                    <Typography variant="body2" color="text.secondary">{currentDeveloper?.name || currentDeveloper?.email || 'Unassigned'}</Typography>
+                                    <Typography variant="body2" sx={{ color: deliverableAccent, fontWeight: 600 }}>{suggestedDeveloper?.name || suggestedDeveloper?.email || 'Unassigned'}</Typography>
+                                  </Box>
+                                );
+                              })}
+                            </Box>
                           </Paper>
                         </Box>
                       );
