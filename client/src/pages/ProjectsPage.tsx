@@ -27,7 +27,6 @@ import {
   Link,
   Badge,
   Checkbox,
-  FormControlLabel,
   Chip,
   Table,
   TableBody,
@@ -293,6 +292,7 @@ const PLAN_DELIVERABLE_NODES: Array<{
 ];
 
 const MOCK_CRITERIA_CYCLE_NODE_PREFIX = 'mockCriteriaCycle:';
+const DEVELOPER_POOL_STORAGE_KEY = 'rediforge.developerPoolByProject.v1';
 
 // ── Roadmap component ──────────────────────────────────────────────────────
 interface RoadmapItem {
@@ -1572,8 +1572,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
 
   // Plan tab states
   const [projectTasks, setProjectTasks] = useState<any[]>([]);
-  const [developerPoolSelections, setDeveloperPoolSelections] = useState<Record<string, string[]>>({});
-  const [isAssigningDeveloperPool, setIsAssigningDeveloperPool] = useState(false);
+  const [developerPoolByProject, setDeveloperPoolByProject] = useState<Record<string, string[]>>({});
+  const [developerPoolSearchTerm, setDeveloperPoolSearchTerm] = useState('');
+  const [editingDeveloperPoolIndex, setEditingDeveloperPoolIndex] = useState<number | null>(null);
   const [projectTaskGroups, setProjectTaskGroups] = useState<any[]>([]);
   const [expandedTaskGroups, setExpandedTaskGroups] = useState<Set<string>>(new Set());
   const [editingTask, setEditingTask] = useState<any | null>(null);
@@ -1597,6 +1598,27 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   const [depSearchTerm, setDepSearchTerm] = useState('');
   const [depTreeExpanded, setDepTreeExpanded] = useState<Record<string, boolean>>({});
   const [defaultTaskOrder, setDefaultTaskOrder] = useState<string[]>([]);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(DEVELOPER_POOL_STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') {
+        setDeveloperPoolByProject(parsed);
+      }
+    } catch {
+      setDeveloperPoolByProject({});
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(DEVELOPER_POOL_STORAGE_KEY, JSON.stringify(developerPoolByProject));
+    } catch {
+      // no-op when local storage is unavailable
+    }
+  }, [developerPoolByProject]);
 
   // Refs for always-current values — avoids stale closures in cascade
   const projectTasksRef = React.useRef<any[]>([]);
@@ -6953,6 +6975,12 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                           : [];
                                         const combinedChildNodes = [...mockCriteriaCycleChildNodes, ...childNodes];
                                         const isEstimationNode = node.id === 'designBuildEstimation';
+                                        const estimationBottomChildNodes = isEstimationNode
+                                          ? combinedChildNodes.filter((child) => child.id === 'designBuildDeveloperPool')
+                                          : [];
+                                        const combinedChildNodesTop = isEstimationNode
+                                          ? combinedChildNodes.filter((child) => child.id !== 'designBuildDeveloperPool')
+                                          : combinedChildNodes;
                                         const isProcessAreasNode = node.id === 'processAreasRoles';
                                         const isObjectInventoryNode = node.id === 'objectInventory';
                                         const deliverableNodeKey = `${firstCycleProject.id}::${firstCycle?.id || ''}::${node.id}`;
@@ -6983,7 +7011,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                           (isEstimationNode && estimationProcessAreas.length > 0)
                                           || (isProcessAreasNode && processAreaRoleNodes.length > 0)
                                           || (isObjectInventoryNode && objectInventoryProcessAreas.length > 0)
-                                          || combinedChildNodes.length > 0;
+                                          || combinedChildNodesTop.length > 0
+                                          || estimationBottomChildNodes.length > 0;
                                         const isNodeExpanded = (selectedItem?.type === 'deliverableProcessArea'
                                           && selectedItem?.projectId === firstCycleProject.id
                                           && selectedItem?.deliverableId === node.id)
@@ -7098,9 +7127,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                               )}
                                             </Box>
 
-                                            {combinedChildNodes.length > 0 && isNodeExpanded && (
+                                            {combinedChildNodesTop.length > 0 && isNodeExpanded && (
                                               <Box sx={{ ml: 2.2, mt: 0.2, display: 'grid', gap: 0.35 }}>
-                                                {combinedChildNodes.map((childNode) => {
+                                                {combinedChildNodesTop.map((childNode) => {
                                                   const childAccent = childNode.isFuture ? 'rgba(255,255,255,0.7)' : childNode.accentColor;
                                                   const childSelected = selectedChildNodeId === childNode.id;
                                                   return (
@@ -7223,6 +7252,78 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                                       </Box>
                                                       <Typography variant="caption" sx={{ fontWeight: areaSelected ? 700 : 500, color: areaSelected ? areaAccent : 'text.secondary', flex: '1 1 auto', minWidth: 0, maxWidth: '100%', width: 0, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                                         {getProcessAreaDisplayName(firstCycleProject.id, area, firstCycle?.id)}
+                                                      </Typography>
+                                                    </Box>
+                                                  );
+                                                })}
+                                              </Box>
+                                            )}
+
+                                            {isEstimationNode && estimationBottomChildNodes.length > 0 && isNodeExpanded && (
+                                              <Box sx={{ ml: 2.2, mt: 0.2, display: 'grid', gap: 0.35 }}>
+                                                {estimationBottomChildNodes.map((childNode) => {
+                                                  const childAccent = childNode.isFuture ? 'rgba(255,255,255,0.7)' : childNode.accentColor;
+                                                  const childSelected = selectedChildNodeId === childNode.id;
+                                                  return (
+                                                    <Box
+                                                      key={`${projectGroupKey}-${node.id}-bottom-${childNode.id}`}
+                                                      onClick={() => {
+                                                        if (firstCycle) {
+                                                          handleHierarchySelection({
+                                                            type: 'deliverable',
+                                                            projectId: firstCycleProject.id,
+                                                            cycleId: firstCycle.id,
+                                                            deliverableId: childNode.id,
+                                                          });
+                                                        } else {
+                                                          handleHierarchySelection({
+                                                            type: 'deliverable',
+                                                            projectId: project.id,
+                                                            deliverableId: childNode.id,
+                                                          });
+                                                        }
+
+                                                        if (childNode.id === 'projectMockCycles') setMaintainFormView('cycle');
+                                                        else setMaintainFormView('project');
+
+                                                        if (childNode.id === 'projectSettings' || childNode.id === 'projectMockCycles') {
+                                                          navigate('/planning/plan');
+                                                        } else {
+                                                          navigate(childNode.targetView ? `/planning/${childNode.targetView}` : '/planning/plan');
+                                                        }
+                                                      }}
+                                                      sx={{
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        minWidth: 0,
+                                                        width: '100%',
+                                                        maxWidth: '100%',
+                                                        overflow: 'hidden',
+                                                        py: 0.35,
+                                                        pl: 1.35,
+                                                        pr: 0.45,
+                                                        cursor: 'pointer',
+                                                        position: 'relative',
+                                                        borderRadius: 0.75,
+                                                        backgroundColor: childSelected ? 'rgba(91, 103, 202, 0.22)' : 'transparent',
+                                                        '&::before': childSelected ? {
+                                                          content: '""',
+                                                          position: 'absolute',
+                                                          left: 0,
+                                                          top: '3px',
+                                                          bottom: '3px',
+                                                          width: '3px',
+                                                          backgroundColor: childAccent,
+                                                          borderRadius: '2px',
+                                                        } : {},
+                                                        '&:hover': { backgroundColor: childSelected ? 'rgba(91, 103, 202, 0.25)' : 'rgba(255,255,255,0.06)' },
+                                                      }}
+                                                    >
+                                                      <Box sx={{ mr: 0.45, display: 'inline-flex', alignItems: 'center' }}>
+                                                        {renderIconChoice(childNode.icon, childAccent, '0.72rem')}
+                                                      </Box>
+                                                      <Typography variant="caption" sx={{ fontWeight: childSelected ? 700 : 500, color: childSelected ? childAccent : 'text.secondary', flex: '1 1 auto', minWidth: 0, maxWidth: '100%', width: 0, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                        {childNode.label}
                                                       </Typography>
                                                     </Box>
                                                   );
@@ -7849,28 +7950,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                       const recommendedMinDevelopers = objectCount > 0 ? Math.max(1, Math.ceil(objectCount / 7)) : 0;
                       const recommendedMaxDevelopers = objectCount > 0 ? Math.max(1, Math.ceil(objectCount / 5)) : 0;
                       const recommendedTargetDevelopers = objectCount > 0 ? Math.max(1, Math.ceil(objectCount / 6)) : 0;
-                      const normalizeValue = (value: any) => String(value || '').trim().toLowerCase();
-                      const resolvePersonId = (value: string) => {
-                        const normalized = normalizeValue(value);
-                        if (!normalized) return '';
-                        const match = people.find((person: any) => (
-                          normalizeValue(person.id) === normalized
-                          || normalizeValue(person.name) === normalized
-                          || normalizeValue(person.email) === normalized
-                        ));
-                        return match?.id || '';
-                      };
-                      const getPersonLabel = (personId: string) => {
-                        const person = people.find((entry: any) => entry.id === personId);
-                        return person?.name || person?.email || personId;
-                      };
-                      const inferredPool = Array.from(new Set(
-                        scopedObjects
-                          .map((item: any) => resolvePersonId(String(item.developer || '')))
-                          .filter(Boolean)
-                      ));
-                      const poolKey = `${project.id}::${parentCycleId || ''}`;
-                      const selectedPool = developerPoolSelections[poolKey] || inferredPool;
+                      const poolKey = project.id;
+                      const selectedPool = developerPoolByProject[poolKey] || [];
                       const poolSize = selectedPool.length;
                       const objectsPerDeveloper = poolSize > 0 ? Number((objectCount / poolSize).toFixed(1)) : 0;
                       const poolCoverageState = poolSize === 0
@@ -7880,50 +7961,18 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                           : objectsPerDeveloper < 5
                             ? 'over'
                             : 'balanced';
-
-                      const applyPoolAssignment = async () => {
-                        if (selectedPool.length === 0) {
-                          alert('Select at least one developer to create the pool.');
-                          return;
-                        }
-                        if (scopedObjects.length === 0) {
-                          alert('No in-scope objects are available to assign.');
-                          return;
-                        }
-
-                        try {
-                          setIsAssigningDeveloperPool(true);
-                          const sortedObjects = [...scopedObjects].sort((a: any, b: any) => String(a.objectId || a.dataObjectId || '').localeCompare(String(b.objectId || b.dataObjectId || '')));
-                          const assignments = sortedObjects.map((item: any, index: number) => ({
-                            itemId: item.id,
-                            developerId: selectedPool[index % selectedPool.length],
-                          }));
-
-                          await Promise.all(assignments.map((assignment) => (
-                            apiClient.patch(`/api/project-objects/${assignment.itemId}`, {
-                              developer: assignment.developerId,
-                            })
-                          )));
-
-                          setProjectInventoryItems((prev) => prev.map((item: any) => {
-                            const assignment = assignments.find((entry) => entry.itemId === item.id);
-                            if (!assignment) return item;
-                            return { ...item, developer: assignment.developerId };
-                          }));
-                        } catch (error) {
-                          console.error('Failed to assign developer pool:', error);
-                          alert('Failed to assign developer pool. Please try again.');
-                        } finally {
-                          setIsAssigningDeveloperPool(false);
-                        }
-                      };
-
-                      const assignedCountByDeveloper = scopedObjects.reduce<Record<string, number>>((acc, item: any) => {
-                        const resolved = resolvePersonId(String(item.developer || ''));
-                        if (!resolved) return acc;
-                        acc[resolved] = (acc[resolved] || 0) + 1;
-                        return acc;
-                      }, {});
+                      const searchLower = developerPoolSearchTerm.trim().toLowerCase();
+                      const availablePeople = people
+                        .filter((person: any) => !selectedPool.includes(person.id))
+                        .filter((person: any) => {
+                          if (!searchLower) return true;
+                          const haystack = `${String(person.name || '').toLowerCase()} ${String(person.email || '').toLowerCase()}`;
+                          return haystack.includes(searchLower);
+                        })
+                        .slice(0, 30);
+                      const selectedPoolPeople = selectedPool
+                        .map((personId) => people.find((person: any) => person.id === personId))
+                        .filter(Boolean);
 
                       return (
                         <Box>
@@ -7941,7 +7990,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                             Developer Pool
                           </Typography>
                           <Typography variant="body2" color="text.secondary" sx={{ mb: 1.25 }}>
-                            Assign a shared developer pool for Design, Build, and Execution. Guidance: 5-7 in-scope objects per developer.
+                            Identify the shared developers for this project. This roster will be used later when assigning objects at the start of design planning.
                           </Typography>
 
                           <Box sx={{ display: 'grid', gap: 1, gridTemplateColumns: { xs: '1fr', sm: 'repeat(4, minmax(140px, 1fr))' }, mb: 1.25 }}>
@@ -7973,7 +8022,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
 
                           {poolCoverageState === 'under' && (
                             <Alert severity="warning" sx={{ mb: 1.25 }}>
-                              Current pool is below guidance. Add developers so each developer owns no more than 7 objects.
+                              Current pool is below guidance. Add developers so each developer can stay at or below 7 objects.
                             </Alert>
                           )}
                           {poolCoverageState === 'over' && (
@@ -7983,96 +8032,122 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                           )}
 
                           <Paper sx={{ p: 1.25, border: `1px solid ${deliverableAccent}44`, backgroundColor: 'rgba(255,255,255,0.04)', mb: 1.25 }}>
-                            <Typography variant="subtitle2" sx={{ color: deliverableAccent, fontWeight: 700, mb: 0.8 }}>Pool Selection</Typography>
+                            <Typography variant="subtitle2" sx={{ color: deliverableAccent, fontWeight: 700, mb: 0.8 }}>Search and Add Developers</Typography>
                             {people.length === 0 ? (
                               <Typography variant="body2" color="text.secondary">No people found. Add people to create a developer pool.</Typography>
                             ) : (
-                              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 0.35 }}>
-                                {people.map((person: any) => {
-                                  const selected = selectedPool.includes(person.id);
-                                  return (
-                                    <FormControlLabel
-                                      key={`dev-pool-${person.id}`}
-                                      control={
-                                        <Checkbox
-                                          size="small"
-                                          checked={selected}
-                                          onChange={(e) => {
-                                            setDeveloperPoolSelections((prev) => {
-                                              const existing = prev[poolKey] || inferredPool;
-                                              const next = e.target.checked
-                                                ? Array.from(new Set([...existing, person.id]))
-                                                : existing.filter((id) => id !== person.id);
-                                              return { ...prev, [poolKey]: next };
-                                            });
-                                          }}
-                                        />
-                                      }
-                                      label={<Typography variant="body2">{person.name || person.email}</Typography>}
-                                      sx={{ m: 0 }}
-                                    />
-                                  );
-                                })}
-                              </Box>
+                              <>
+                                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1.2fr auto' }, gap: 1, alignItems: 'start' }}>
+                                  <TextField
+                                    size="small"
+                                    placeholder="Search users by name or email"
+                                    value={developerPoolSearchTerm}
+                                    onChange={(e) => setDeveloperPoolSearchTerm(e.target.value)}
+                                  />
+                                  <Typography variant="caption" color="text.secondary" sx={{ alignSelf: 'center' }}>
+                                    Showing up to 30 matches
+                                  </Typography>
+                                </Box>
+                                <Box sx={{ display: 'grid', gap: 0.35, mt: 1 }}>
+                                  {availablePeople.length === 0 ? (
+                                    <Typography variant="body2" color="text.secondary">No matching users available to add.</Typography>
+                                  ) : availablePeople.map((person: any) => (
+                                    <Box
+                                      key={`pool-search-${person.id}`}
+                                      sx={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 1, alignItems: 'center', px: 0.75, py: 0.55, borderRadius: 0.8, border: '1px solid rgba(255,255,255,0.08)', backgroundColor: 'rgba(255,255,255,0.02)' }}
+                                    >
+                                      <Box>
+                                        <Typography variant="body2" sx={{ fontWeight: 600 }}>{person.name || person.email}</Typography>
+                                        <Typography variant="caption" color="text.secondary">{person.email || 'No email'}</Typography>
+                                      </Box>
+                                      <Button
+                                        size="small"
+                                        variant="outlined"
+                                        startIcon={<AddIcon />}
+                                        onClick={() => {
+                                          setDeveloperPoolByProject((prev) => {
+                                            const existing = prev[poolKey] || [];
+                                            if (existing.includes(person.id)) return prev;
+                                            return { ...prev, [poolKey]: [...existing, person.id] };
+                                          });
+                                          setDeveloperPoolSearchTerm('');
+                                          setEditingDeveloperPoolIndex(null);
+                                        }}
+                                        sx={{ textTransform: 'none' }}
+                                      >
+                                        Add
+                                      </Button>
+                                    </Box>
+                                  ))}
+                                </Box>
+                              </>
                             )}
-
-                            <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}>
-                              <Button
-                                variant="contained"
-                                startIcon={<GroupIcon />}
-                                onClick={applyPoolAssignment}
-                                disabled={isAssigningDeveloperPool || selectedPool.length === 0 || scopedObjects.length === 0}
-                                sx={{ textTransform: 'none' }}
-                              >
-                                {isAssigningDeveloperPool ? 'Assigning...' : 'Assign Pool to Objects'}
-                              </Button>
-                            </Box>
                           </Paper>
 
                           <Paper sx={{ p: 1.25, border: `1px solid ${deliverableAccent}44`, backgroundColor: 'rgba(255,255,255,0.03)' }}>
-                            <Typography variant="subtitle2" sx={{ color: deliverableAccent, fontWeight: 700, mb: 0.8 }}>Object Assignments</Typography>
-                            <Box sx={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr', gap: 1, pb: 0.55, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-                              <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>Object</Typography>
-                              <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>Process Area</Typography>
-                              <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>Developer</Typography>
+                            <Typography variant="subtitle2" sx={{ color: deliverableAccent, fontWeight: 700, mb: 0.8 }}>Selected Developer Pool</Typography>
+                            <Box sx={{ display: 'grid', gridTemplateColumns: '1.1fr 1.1fr 0.9fr', gap: 1, pb: 0.55, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                              <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>Name</Typography>
+                              <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>Email</Typography>
+                              <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700, textAlign: 'right' }}>Actions</Typography>
                             </Box>
                             <Box sx={{ display: 'grid', gap: 0.4, mt: 0.4 }}>
-                              {scopedObjects.length === 0 ? (
-                                <Typography variant="body2" color="text.secondary" sx={{ py: 0.7 }}>No in-scope objects available.</Typography>
-                              ) : scopedObjects
-                                .sort((a: any, b: any) => String(a.objectId || a.dataObjectId || '').localeCompare(String(b.objectId || b.dataObjectId || '')))
-                                .map((item: any) => {
-                                  const currentDeveloperId = resolvePersonId(String(item.developer || ''));
-                                  return (
-                                    <Box key={`dev-assign-${item.id}`} sx={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr', gap: 1, alignItems: 'center', py: 0.35, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                                      <Typography variant="body2" sx={{ fontWeight: 600 }}>{item.objectId || item.dataObjectId || item.name || 'Object'}</Typography>
-                                      <Typography variant="body2" color="text.secondary">{getProcessAreaDisplayName(project.id, String(item.processArea || ''), parentCycleId || undefined) || 'Unassigned'}</Typography>
-                                      <TextField
-                                        select
-                                        size="small"
-                                        value={currentDeveloperId}
-                                        onChange={(e) => handleProjectInventoryInlineChange(item.id, 'developer', e.target.value)}
-                                        sx={{ '& .MuiInputBase-root': { height: 30, fontSize: '0.8rem' } }}
-                                      >
-                                        <MenuItem value=""><em>Unassigned</em></MenuItem>
-                                        {people.map((person: any) => (
-                                          <MenuItem key={`dev-assign-person-${person.id}`} value={person.id}>{person.name || person.email}</MenuItem>
-                                        ))}
-                                      </TextField>
-                                    </Box>
-                                  );
-                                })}
+                              {selectedPoolPeople.length === 0 ? (
+                                <Typography variant="body2" color="text.secondary" sx={{ py: 0.7 }}>No developers selected yet.</Typography>
+                              ) : selectedPoolPeople.map((person: any, index: number) => (
+                                <Box key={`pool-row-${person.id}-${index}`} sx={{ display: 'grid', gridTemplateColumns: '1.1fr 1.1fr 0.9fr', gap: 1, alignItems: 'center', py: 0.35, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                  {editingDeveloperPoolIndex === index ? (
+                                    <TextField
+                                      select
+                                      size="small"
+                                      value={selectedPool[index]}
+                                      onChange={(e) => {
+                                        const nextId = e.target.value;
+                                        setDeveloperPoolByProject((prev) => {
+                                          const existing = [...(prev[poolKey] || [])];
+                                          if (existing.includes(nextId) && existing[index] !== nextId) return prev;
+                                          existing[index] = nextId;
+                                          return { ...prev, [poolKey]: existing };
+                                        });
+                                        setEditingDeveloperPoolIndex(null);
+                                      }}
+                                      sx={{ '& .MuiInputBase-root': { height: 30, fontSize: '0.8rem' } }}
+                                    >
+                                      {people.map((candidate: any) => (
+                                        <MenuItem key={`pool-edit-${candidate.id}`} value={candidate.id}>{candidate.name || candidate.email}</MenuItem>
+                                      ))}
+                                    </TextField>
+                                  ) : (
+                                    <Typography variant="body2" sx={{ fontWeight: 600 }}>{person.name || person.email}</Typography>
+                                  )}
+                                  <Typography variant="body2" color="text.secondary">{person.email || 'No email'}</Typography>
+                                  <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.25 }}>
+                                    <IconButton
+                                      size="small"
+                                      title="Edit"
+                                      onClick={() => setEditingDeveloperPoolIndex(index)}
+                                      sx={{ color: 'rgba(255,255,255,0.6)', '&:hover': { color: 'white' } }}
+                                    >
+                                      <EditIcon sx={{ fontSize: '0.95rem' }} />
+                                    </IconButton>
+                                    <IconButton
+                                      size="small"
+                                      title="Delete"
+                                      onClick={() => {
+                                        setDeveloperPoolByProject((prev) => {
+                                          const existing = prev[poolKey] || [];
+                                          return { ...prev, [poolKey]: existing.filter((_, idx) => idx !== index) };
+                                        });
+                                        setEditingDeveloperPoolIndex((prev) => (prev === index ? null : prev));
+                                      }}
+                                      sx={{ color: 'rgba(255,255,255,0.45)', '&:hover': { color: '#ef5350' } }}
+                                    >
+                                      <DeleteIcon sx={{ fontSize: '0.95rem' }} />
+                                    </IconButton>
+                                  </Box>
+                                </Box>
+                              ))}
                             </Box>
-
-                            {Object.keys(assignedCountByDeveloper).length > 0 && (
-                              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.6, mt: 0.9 }}>
-                                {Object.entries(assignedCountByDeveloper)
-                                  .sort(([a], [b]) => getPersonLabel(a).localeCompare(getPersonLabel(b)))
-                                  .map(([personId, count]) => (
-                                    <Chip key={`dev-load-${personId}`} size="small" variant="outlined" label={`${getPersonLabel(personId)}: ${count} object${count === 1 ? '' : 's'}`} />
-                                  ))}
-                              </Box>
-                            )}
                           </Paper>
                         </Box>
                       );
