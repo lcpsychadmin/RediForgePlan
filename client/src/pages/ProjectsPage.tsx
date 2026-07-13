@@ -7767,7 +7767,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                 <Alert severity="info">Select an item from the list to view details</Alert>
               ) : selectedDetails ? (
                 <>
-                  {selectedItem.type === 'processArea' || selectedItem.type === 'deliverable' || selectedItem.type === 'deliverableProcessArea' ? (() => {
+                  {(selectedItem.type === 'project' && !isPlanningPlanHierarchy) || selectedItem.type === 'processArea' || selectedItem.type === 'deliverable' || selectedItem.type === 'deliverableProcessArea' ? (() => {
                     const project = selectedDetails as Project;
                     const accentColor = project.accentColor || '#00BFA5';
                     const isDeliverableSelection = selectedItem.type === 'deliverable' || selectedItem.type === 'deliverableProcessArea';
@@ -11508,7 +11508,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                     <Box sx={{ p: 1 }}>
                       {selectedItem.type === 'program' ? (
                         <>
-                          {(() => {
+                          {isPlanningPlanHierarchy && (() => {
                             const rollupProjects = getProjectsByProgram(selectedItem.id).map((project: Project) => {
                               const normalizedName = (project.name || '').trim().toLowerCase();
                               const cyclesForProgram = mockCycles[selectedItem.id] || [];
@@ -11605,7 +11605,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                             <Typography variant="body2" color="text.secondary">Unable to load program overview.</Typography>
                           )}
                         </>
-                      ) : selectedItem.type === 'project' ? (
+                      ) : selectedItem.type === 'project' && isPlanningPlanHierarchy ? (
                         (() => {
                           const project = selectedDetails as Project;
                           const projectAccent = project.accentColor || '#90caf9';
