@@ -329,6 +329,7 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
   const [editingItem, setEditingItem] = React.useState<RoadmapItem | null>(null);
   const [form, setForm] = React.useState<Partial<RoadmapItem & { subtype: string }>>({});
   const [savingItem, setSavingItem] = React.useState(false);
+  const [lastRoadmapInteraction, setLastRoadmapInteraction] = React.useState('');
   // Horizontal date drag
   const [drag, setDrag] = React.useState<{
     id: string; entityType: 'cycle' | 'roadmap'; handle: 'start' | 'end' | 'date';
@@ -559,18 +560,35 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
     onEndDrag?: (e: React.MouseEvent) => void;
   }) => {
     const hasS = !!startDate, hasE = !!endDate;
+    const HANDLE = 8;
+    const openEditFromTimeline = (e?: React.MouseEvent) => {
+      e?.stopPropagation();
+      onClick?.();
+    };
     if (!hasS && !hasE) return (
-      <Box onClick={onClick} sx={{ position: 'absolute', left: '4px', top: '50%', transform: 'translateY(-50%)', height: 26, px: 1.25, borderRadius: 1.5, border: `1px dashed rgba(255,255,255,0.2)`, cursor: 'pointer', display: 'flex', alignItems: 'center', zIndex: 5, pointerEvents: 'auto', '&:hover': { borderColor: color } }}>
+      <Box
+        onClick={openEditFromTimeline}
+        onDoubleClick={openEditFromTimeline}
+        sx={{ position: 'absolute', left: '4px', top: '50%', transform: 'translateY(-50%)', height: 26, px: 1.25, borderRadius: 1.5, border: `1px dashed rgba(255,255,255,0.2)`, cursor: 'pointer', display: 'flex', alignItems: 'center', zIndex: 5, pointerEvents: 'auto', '&:hover': { borderColor: color } }}
+      >
         <Typography sx={{ fontSize: '0.7rem', color: 'text.disabled' }}>{label} — click to set dates</Typography>
+        <IconButton
+          size="small"
+          onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); }}
+          onClick={openEditFromTimeline}
+          sx={{ ml: 0.75, width: 20, height: 20, color: color, border: `1px solid ${color}66`, backgroundColor: 'rgba(20,30,53,0.75)', '&:hover': { backgroundColor: 'rgba(20,30,53,0.95)' } }}
+        >
+          <EditIcon sx={{ fontSize: '0.72rem' }} />
+        </IconButton>
       </Box>
     );
     const xS = hasS ? dateToX(new Date(startDate!)) : dateToX(new Date(endDate!)) - 2;
     const xE = hasE ? dateToX(new Date(endDate!)) : dateToX(new Date(startDate!)) + 2;
     const w = Math.max(1.5, xE - xS);
-    const HANDLE = 8;
     return (
       <Box
-        onClick={(e) => { e.stopPropagation(); onClick?.(); }}
+        onClick={openEditFromTimeline}
+        onDoubleClick={openEditFromTimeline}
         sx={{ position: 'absolute', left: `${xS}%`, width: `${w}%`, top: '50%', transform: 'translateY(-50%)', height: subtitle ? 34 : 26, borderRadius: 1.5, backgroundColor: `${color}28`, border: `1.5px ${dashed ? 'dashed' : 'solid'} ${color}88`, display: 'flex', alignItems: 'center', overflow: 'hidden', userSelect: 'none', zIndex: 4, pointerEvents: 'auto', cursor: onClick ? 'pointer' : 'default', '&:hover': { borderColor: color }, transition: 'border-color 0.12s' }}
       >
         {/* Left drag handle */}
@@ -587,6 +605,14 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
           <Typography sx={{ fontWeight: 600, fontSize: '0.7rem', color, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.2 }}>{label}</Typography>
           {subtitle && <Typography sx={{ fontSize: '0.58rem', color: `${color}99`, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.1 }}>{subtitle}</Typography>}
         </Box>
+        <IconButton
+          size="small"
+          onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); }}
+          onClick={openEditFromTimeline}
+          sx={{ position: 'absolute', right: onEndDrag ? `${HANDLE + 2}px` : '2px', top: '50%', transform: 'translateY(-50%)', width: 18, height: 18, zIndex: 3, color, border: `1px solid ${color}66`, backgroundColor: 'rgba(20,30,53,0.82)', '&:hover': { backgroundColor: 'rgba(20,30,53,0.98)' } }}
+        >
+          <EditIcon sx={{ fontSize: '0.68rem' }} />
+        </IconButton>
         {/* Right drag handle */}
         {onEndDrag && (
           <Box onMouseDown={e => { e.stopPropagation(); e.preventDefault(); onEndDrag(e); }}
@@ -615,6 +641,7 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
   };
 
   const openEditItem = (item: RoadmapItem) => {
+    setLastRoadmapInteraction(`Edit requested: ${item.name || item.type}`);
     let inferredCycleId = item.linkedCycleId || '';
     if (item.type === 'test-cycle' && !inferredCycleId) {
       const project = uniqueProjects.find((p) => p.name === item.projectKey);
@@ -730,7 +757,12 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
       <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1.5 }}>
         <Box>
           <Typography variant="h5" sx={{ fontWeight: 700 }}>Roadmap</Typography>
-          <Typography variant="caption" color="text.secondary">High-level timeline. Click any bar to edit dates.</Typography>
+          <Typography variant="caption" color="text.secondary">High-level timeline. Click or double-click bars, or use the small edit icon on each item.</Typography>
+          {lastRoadmapInteraction && (
+            <Typography variant="caption" sx={{ display: 'block', color: 'rgba(255,255,255,0.48)', mt: 0.25 }}>
+              {lastRoadmapInteraction}
+            </Typography>
+          )}
         </Box>
         <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
           {(['phase', 'test-cycle', 'milestone'] as const).map(t => (
@@ -877,7 +909,12 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
                               <Box sx={{ opacity }}>
                                 <TimelineBar startDate={dispStart} endDate={dispEnd} color={accent} label={c.name}
                                   subtitle={`${proj.programName} · ${proj.name}`}
-                                  onClick={() => { setEditCycle(c); setEditStart(c.startDate?.substring(0, 10) || ''); setEditEnd(c.endDate?.substring(0, 10) || ''); }}
+                                  onClick={() => {
+                                    setLastRoadmapInteraction(`Edit requested: ${c.name}`);
+                                    setEditCycle(c);
+                                    setEditStart(c.startDate?.substring(0, 10) || '');
+                                    setEditEnd(c.endDate?.substring(0, 10) || '');
+                                  }}
                                   onStartDrag={e => setDrag({ id: c.id, entityType: 'cycle', handle: 'start', currentDate: c.startDate?.substring(0, 10) || '', indicatorX: getIndicatorX(e.clientX), origStart: c.startDate?.substring(0, 10) || '', origEnd: c.endDate?.substring(0, 10) || '' })}
                                   onEndDrag={e => setDrag({ id: c.id, entityType: 'cycle', handle: 'end', currentDate: c.endDate?.substring(0, 10) || '', indicatorX: getIndicatorX(e.clientX), origStart: c.startDate?.substring(0, 10) || '', origEnd: c.endDate?.substring(0, 10) || '' })}
                                 />
@@ -930,6 +967,7 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
                       return (
                         <Box key={ms.id}
                           onClick={() => openEditItem(ms)}
+                          onDoubleClick={() => openEditItem(ms)}
                           title={ms.name}
                           sx={{ position: 'absolute', left: `${x}%`, top: '50%', transform: 'translate(-50%, -50%)', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', userSelect: 'none', zIndex: 6, pointerEvents: 'auto' }}>
                           <Typography sx={{ fontSize: '1.1rem', color: ms.color, lineHeight: 1, filter: 'drop-shadow(0 0 4px currentColor)', pointerEvents: 'none' }}>★</Typography>
