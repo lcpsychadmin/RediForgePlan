@@ -8559,6 +8559,18 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                       const completionPct = objectRows.length > 0
                         ? Math.round((configuredCount / objectRows.length) * 100)
                         : 0;
+                      const selectedDeveloperPool = developerPoolByProject[project.id] || [];
+                      const developerPoolSize = selectedDeveloperPool.length;
+                      const developerPoolObjectsPerDeveloper = developerPoolSize > 0
+                        ? Number((objectRows.length / developerPoolSize).toFixed(1))
+                        : 0;
+                      const developerPoolCoverageLabel = developerPoolSize === 0
+                        ? 'Not Set'
+                        : developerPoolObjectsPerDeveloper > 7
+                          ? 'Add Developers'
+                          : developerPoolObjectsPerDeveloper < 5
+                            ? 'Pool Oversized'
+                            : 'Balanced';
 
                       const taskTotals = objectRows.reduce((acc, row) => {
                         row.matches.forEach((match: any) => {
@@ -8637,6 +8649,26 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                   <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.78)' }}>Design / Build / Total Hours</Typography>
                                   <Typography variant="body2" sx={{ mt: 0.25, fontWeight: 700, color: estimationAccent }}>
                                     {totalDesignHours.toFixed(2)} / {totalBuildHours.toFixed(2)} / {totalHours.toFixed(2)}
+                                  </Typography>
+                                </Paper>
+                                <Paper sx={translucentMetricCardSx}>
+                                  <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.78)' }}>Developer Pool</Typography>
+                                  <Typography variant="h6" sx={{ mt: 0.25, fontWeight: 700, color: estimationAccent }}>{developerPoolSize}</Typography>
+                                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                                    {developerPoolSize > 0 ? `${developerPoolObjectsPerDeveloper} objects/developer` : 'No developers selected'}
+                                  </Typography>
+                                </Paper>
+                                <Paper sx={translucentMetricCardSx}>
+                                  <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.78)' }}>Developer Coverage</Typography>
+                                  <Chip
+                                    size="small"
+                                    label={developerPoolCoverageLabel}
+                                    color={developerPoolCoverageLabel === 'Balanced' ? 'success' : developerPoolCoverageLabel === 'Add Developers' ? 'warning' : 'default'}
+                                    variant="outlined"
+                                    sx={{ mt: 0.5 }}
+                                  />
+                                  <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mt: 0.5 }}>
+                                    Target: 5-7 objects/developer
                                   </Typography>
                                 </Paper>
                               </Box>
