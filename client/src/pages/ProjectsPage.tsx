@@ -6950,7 +6950,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                               id: `${MOCK_CRITERIA_CYCLE_NODE_PREFIX}${cycle.id}`,
                                               label: cycle.name || cycle.description || cycle.testPhase || 'Mock Cycle',
                                               targetView: 'plan' as const,
-                                              accentColor: '#81C784',
+                                              accentColor: cycle.accentColor || node.accentColor || '#81C784',
                                               icon: 'sync' as HierarchyIconChoice,
                                             }))
                                           : [];
