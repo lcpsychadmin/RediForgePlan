@@ -7503,7 +7503,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                                   return (
                                                     <Box
                                                       key={`${projectGroupKey}-${node.id}-${childNode.id}`}
-                                                      onClick={() => {
+                                                      onClick={(e) => {
+                                                        e.stopPropagation();
                                                         if (firstCycle) {
                                                           handleHierarchySelection({
                                                             type: 'deliverable',
@@ -7578,7 +7579,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                                   return (
                                                     <Box
                                                       key={`${projectGroupKey}-${node.id}-${area}`}
-                                                      onClick={() => {
+                                                      onClick={(e) => {
+                                                        e.stopPropagation();
                                                         handleHierarchySelection({
                                                           type: 'deliverableProcessArea',
                                                           projectId: firstCycleProject.id,
@@ -7635,7 +7637,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                                   return (
                                                     <Box
                                                       key={`${projectGroupKey}-${node.id}-bottom-${childNode.id}`}
-                                                      onClick={() => {
+                                                      onClick={(e) => {
+                                                        e.stopPropagation();
                                                         if (firstCycle) {
                                                           handleHierarchySelection({
                                                             type: 'deliverable',
@@ -7710,7 +7713,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                                   return (
                                                     <Box
                                                       key={`${projectGroupKey}-${node.id}-role-${area}`}
-                                                      onClick={() => {
+                                                      onClick={(e) => {
+                                                        e.stopPropagation();
                                                         handleHierarchySelection({
                                                           type: 'deliverableProcessArea',
                                                           projectId: firstCycleProject.id,
@@ -7770,7 +7774,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                                   return (
                                                     <Box
                                                       key={`${projectGroupKey}-${node.id}-inventory-${area}`}
-                                                      onClick={() => {
+                                                      onClick={(e) => {
+                                                        e.stopPropagation();
                                                         handleHierarchySelection({
                                                           type: 'deliverableProcessArea',
                                                           projectId: firstCycleProject.id,
@@ -8060,7 +8065,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                                                         return (
                                                                           <Box
                                                                             key={`${projectGroupKey}-design-deliverable-${obj.id}-${deliverable.key}-${child.key}`}
-                                                                            onClick={() => {
+                                                                            onClick={(e) => {
+                                                                              e.stopPropagation();
                                                                               handleHierarchySelection({
                                                                                 type: 'deliverable',
                                                                                 projectId: firstCycleProject.id,
