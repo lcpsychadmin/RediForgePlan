@@ -7962,14 +7962,16 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                             ? 'over'
                             : 'balanced';
                       const searchLower = developerPoolSearchTerm.trim().toLowerCase();
-                      const availablePeople = people
-                        .filter((person: any) => !selectedPool.includes(person.id))
-                        .filter((person: any) => {
-                          if (!searchLower) return true;
-                          const haystack = `${String(person.name || '').toLowerCase()} ${String(person.email || '').toLowerCase()}`;
-                          return haystack.includes(searchLower);
-                        })
-                        .slice(0, 30);
+                      const hasDeveloperPoolSearch = searchLower.length > 0;
+                      const availablePeople = hasDeveloperPoolSearch
+                        ? people
+                          .filter((person: any) => !selectedPool.includes(person.id))
+                          .filter((person: any) => {
+                            const haystack = `${String(person.name || '').toLowerCase()} ${String(person.email || '').toLowerCase()}`;
+                            return haystack.includes(searchLower);
+                          })
+                          .slice(0, 30)
+                        : [];
                       const selectedPoolPeople = selectedPool
                         .map((personId) => people.find((person: any) => person.id === personId))
                         .filter(Boolean);
@@ -8049,7 +8051,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                   </Typography>
                                 </Box>
                                 <Box sx={{ display: 'grid', gap: 0.35, mt: 1 }}>
-                                  {availablePeople.length === 0 ? (
+                                  {!hasDeveloperPoolSearch ? (
+                                    <Typography variant="body2" color="text.secondary">Type to search users.</Typography>
+                                  ) : availablePeople.length === 0 ? (
                                     <Typography variant="body2" color="text.secondary">No matching users available to add.</Typography>
                                   ) : availablePeople.map((person: any) => (
                                     <Box
