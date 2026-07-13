@@ -49,11 +49,14 @@ const executionSubNavItems = [
 
 const planningSubNavItems = [
   { label: 'Plan', icon: <GridViewIcon sx={{ fontSize: '0.95rem' }} />, path: '/planning/plan' },
-  { label: 'Design', icon: <DesignServicesIcon sx={{ fontSize: '0.95rem' }} />, path: '/planning/design' },
   { label: 'Strategy', icon: <GridViewIcon sx={{ fontSize: '0.95rem' }} />, path: '/planning/strategy' },
   { label: 'Object Inventory', icon: <TableChartIcon sx={{ fontSize: '0.95rem' }} />, path: '/planning/inventory' },
   { label: 'Structure', icon: <AccountTreeIcon sx={{ fontSize: '0.95rem' }} />, path: '/planning/structure' },
   { label: 'Roadmap', icon: <TimelineIcon sx={{ fontSize: '0.95rem' }} />, path: '/planning/roadmap' },
+];
+
+const designSubNavItems = [
+  { label: 'Plan', icon: <GridViewIcon sx={{ fontSize: '0.95rem' }} />, path: '/design/plan' },
 ];
 
 const TopNav: React.FC<TopNavProps> = ({ 
@@ -83,16 +86,25 @@ const TopNav: React.FC<TopNavProps> = ({
   }, [notifications, unreadCount]);
   const isExecutionPage = location.pathname === '/projects';
   const isPlanningPage = location.pathname.startsWith('/planning');
+  const isDesignPage = location.pathname.startsWith('/design');
   const isDashboardPage = location.pathname === '/dashboard';
   const isSettingsPage = location.pathname.startsWith('/settings') || location.pathname.startsWith('/admin');
   // All pages that share the execution workspace header + sub-nav pills
   const executionRelatedPaths = ['/projects', '/priorities', '/schedule', '/defects', '/my-tasks'];
   const isExecutionRelated = executionRelatedPaths.includes(location.pathname);
-  const isWorkspacePage = isExecutionRelated || isPlanningPage || isDashboardPage || isSettingsPage;
-  const sectionTitle = isPlanningPage ? 'Planning Workspace' : isDashboardPage ? 'Dashboard' : isSettingsPage ? 'Settings' : 'Mock/Cutover Execution';
-  const activeSubNavItems = isPlanningPage ? planningSubNavItems : executionSubNavItems;
+  const isWorkspacePage = isExecutionRelated || isPlanningPage || isDesignPage || isDashboardPage || isSettingsPage;
+  const sectionTitle = isPlanningPage
+    ? 'Planning Workspace'
+    : isDesignPage
+      ? 'Design Workspace'
+      : isDashboardPage
+        ? 'Dashboard'
+        : isSettingsPage
+          ? 'Settings'
+          : 'Mock/Cutover Execution';
+  const activeSubNavItems = isPlanningPage ? planningSubNavItems : isDesignPage ? designSubNavItems : executionSubNavItems;
   // Sub-nav pills only shown on planning and execution pages (not dashboard/settings)
-  const showSubNav = isPlanningPage || isExecutionRelated;
+  const showSubNav = isPlanningPage || isDesignPage || isExecutionRelated;
   // Show progress bar only on plan page
   const showProgressBar = isExecutionPage;
 
@@ -230,7 +242,7 @@ const TopNav: React.FC<TopNavProps> = ({
                   {[
                     { label: 'Dashboard', icon: <DashboardIcon fontSize="small" />, path: '/dashboard' },
                     { label: 'Planning', icon: <ArchitectureIcon fontSize="small" />, path: '/planning/plan' },
-                    { label: 'Design', icon: <DesignServicesIcon fontSize="small" />, path: '/planning/design' },
+                    { label: 'Design', icon: <DesignServicesIcon fontSize="small" />, path: '/design/plan' },
                     { label: 'Build', icon: <ConstructionIcon fontSize="small" />, path: null },
                     { label: 'Execution', icon: <FolderOpenIcon fontSize="small" />, path: '/projects' },
                   ].map(item => (

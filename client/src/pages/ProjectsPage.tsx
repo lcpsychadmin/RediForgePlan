@@ -260,7 +260,7 @@ const HIERARCHY_ICON_OPTIONS: { value: HierarchyIconChoice; label: string; group
 ];
 
 interface ProjectsPageProps {
-  sectionMode?: 'planning' | 'execution';
+  sectionMode?: 'planning' | 'execution' | 'design';
   planningView?: 'plan' | 'design' | 'strategy' | 'inventory' | 'structure' | 'roadmap';
 }
 
@@ -1268,7 +1268,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   const { user } = useAuth();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  const canManageHierarchy = sectionMode === 'planning';
+  const canManageHierarchy = sectionMode === 'planning' || sectionMode === 'design';
   const canAccessInventory = sectionMode === 'planning';
   const [planningStrategyDraft, setPlanningStrategyDraft] = useState('');
   const [isSavingPlanningStrategy, setIsSavingPlanningStrategy] = useState(false);
@@ -1315,7 +1315,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   const setTabValue = (_v: number) => {}; // navigation-driven; kept for compat
   const isPlanningMaintainTab = sectionMode === 'planning' && planningView === 'structure';
   const isPlanningPlanHierarchy = sectionMode === 'planning' && planningView === 'plan';
-  const isPlanningDesignHierarchy = sectionMode === 'planning' && planningView === 'design';
+  const isPlanningDesignHierarchy = sectionMode === 'design' && planningView === 'design';
   const hideProcessAreasInStrategyHierarchy = sectionMode === 'planning' && planningView === 'strategy';
   
   // Dialog states
@@ -7702,7 +7702,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                                     deliverableId: 'designPhase',
                                                     area,
                                                   });
-                                                  navigate('/planning/design');
+                                                  navigate('/design/plan');
                                                 }}
                                                 sx={{
                                                   display: 'flex',
@@ -7771,7 +7771,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                                               cycleId: firstCycle?.id,
                                                               deliverableId: objectNodeId,
                                                             });
-                                                            navigate('/planning/design');
+                                                            navigate('/design/plan');
                                                           }}
                                                           sx={{
                                                             display: 'flex',
@@ -7828,7 +7828,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                                                       cycleId: firstCycle?.id,
                                                                       deliverableId: nodeId,
                                                                     });
-                                                                    navigate('/planning/design');
+                                                                    navigate('/design/plan');
                                                                   }}
                                                                   sx={{
                                                                     display: 'flex',
@@ -8288,7 +8288,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
           )}
 
           {/* Plan Tab Content */}
-          {tabValue === 0 && (sectionMode === 'execution' || (sectionMode === 'planning' && (planningView === 'plan' || planningView === 'design'))) && (
+          {tabValue === 0 && (sectionMode === 'execution' || (sectionMode === 'planning' && planningView === 'plan') || (sectionMode === 'design' && planningView === 'design')) && (
             <>
               {!selectedItem ? (
                 <Alert severity="info">Select an item from the list to view details</Alert>
