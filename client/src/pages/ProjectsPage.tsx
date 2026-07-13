@@ -9023,6 +9023,17 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                         }
                       };
 
+                      const applyAssignmentUpdates = async (updates: Array<{ id: string; developerId: string }>) => {
+                        if (updates.length === 0) return;
+                        await Promise.all(updates.map((entry) => apiClient.patch(`/api/project-objects/${entry.id}`, { developer: entry.developerId })));
+
+                        const updateMap = new Map(updates.map((entry) => [entry.id, entry.developerId]));
+                        setProjectInventoryItems((prev) => prev.map((item: any) => {
+                          const developerId = updateMap.get(item.id);
+                          return developerId ? { ...item, developer: developerId } : item;
+                        }));
+                      };
+
                       const applySuggestedAssignments = async () => {
                         if (poolIds.length === 0) {
                           alert('Set a developer pool first in the Developer Pool node.');
@@ -9037,17 +9048,34 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                           const updates = topLevelObjects
                             .map((item: any) => ({ id: item.id, developerId: suggestedAssignments[item.id] }))
                             .filter((entry) => !!entry.developerId);
-                          await Promise.all(updates.map((entry) => apiClient.patch(`/api/project-objects/${entry.id}`, { developer: entry.developerId })));
-
-                          const updateMap = new Map(updates.map((entry) => [entry.id, entry.developerId]));
-                          setProjectInventoryItems((prev) => prev.map((item: any) => {
-                            const developerId = updateMap.get(item.id);
-                            return developerId ? { ...item, developer: developerId } : item;
-                          }));
+                          await applyAssignmentUpdates(updates);
                           cancelEditAssignment();
                         } catch (error) {
                           console.error('Failed to apply suggested developer assignments:', error);
                           alert('Failed to apply default developer assignment. Please try again.');
+                        }
+                      };
+
+                      const applySuggestedAssignmentsForArea = async (area: string) => {
+                        if (poolIds.length === 0) {
+                          alert('Set a developer pool first in the Developer Pool node.');
+                          return;
+                        }
+                        const areaObjects = groupedByArea[area] || [];
+                        if (areaObjects.length === 0) {
+                          alert('No objects found in this process area.');
+                          return;
+                        }
+
+                        try {
+                          const updates = areaObjects
+                            .map((item: any) => ({ id: item.id, developerId: suggestedAssignments[item.id] }))
+                            .filter((entry) => !!entry.developerId);
+                          await applyAssignmentUpdates(updates);
+                          cancelEditAssignment();
+                        } catch (error) {
+                          console.error('Failed to apply suggested area assignments:', error);
+                          alert('Failed to apply suggested assignments for this area. Please try again.');
                         }
                       };
 
@@ -9092,7 +9120,31 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                             </Paper>
                           </Box>
 
-                          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1.25 }}>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1, mb: 1.25, flexWrap: 'wrap' }}>
+                            <Box sx={{ display: 'flex', gap: 0.6 }}>
+                              <Button
+                                variant="outlined"
+                                size="small"
+                                onClick={() => setExpandedDeveloperAssignmentAreas(new Set())}
+                                disabled={groupedRows.length === 0}
+                                sx={{ textTransform: 'none' }}
+                              >
+                                Collapse All
+                              </Button>
+                              <Button
+                                variant="outlined"
+                                size="small"
+                                onClick={() => {
+                                  setExpandedDeveloperAssignmentAreas(new Set(
+                                    groupedRows.map((group) => `${project.id}_${parentCycleId || ''}_${group.area}`)
+                                  ));
+                                }}
+                                disabled={groupedRows.length === 0}
+                                sx={{ textTransform: 'none' }}
+                              >
+                                Expand All
+                              </Button>
+                            </Box>
                             <Button
                               variant="contained"
                               onClick={applySuggestedAssignments}
@@ -9138,9 +9190,20 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                           {getProcessAreaDisplayName(project.id, group.area, parentCycleId || undefined)}
                                         </Typography>
                                       </Box>
-                                      <Typography variant="caption" color="text.secondary">
-                                        {group.assigned}/{group.total} assigned
-                                      </Typography>
+                                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8 }}>
+                                        <Typography variant="caption" color="text.secondary">
+                                          {group.assigned}/{group.total} assigned
+                                        </Typography>
+                                        <Button
+                                          size="small"
+                                          variant="outlined"
+                                          onClick={() => applySuggestedAssignmentsForArea(group.area)}
+                                          disabled={poolIds.length === 0 || group.total === 0}
+                                          sx={{ textTransform: 'none', minWidth: 0, px: 1, py: 0.15 }}
+                                        >
+                                          Assign Suggested for This Area
+                                        </Button>
+                                      </Box>
                                     </Box>
 
                                     {!isCollapsed && (
