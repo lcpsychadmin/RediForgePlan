@@ -294,7 +294,10 @@ const PLAN_DELIVERABLE_NODES: Array<{
 
 const MOCK_CRITERIA_CYCLE_NODE_PREFIX = 'mockCriteriaCycle:';
 const DEVELOPER_POOL_STORAGE_KEY = 'rediforge.developerPoolByProject.v1';
+const DESIGN_OBJECT_NODE_PREFIX = 'designObject:';
 const DESIGN_DELIVERABLE_NODE_PREFIX = 'designDeliverable:';
+const DESIGN_DELIVERABLE_CHILD_NODE_PREFIX = 'designDeliverableChild:';
+type DesignDeliverableChildKey = 'plan' | 'maintain' | 'approvals';
 const DESIGN_PHASE_DELIVERABLES: Array<{ key: string; label: string; accentColor: string; icon: HierarchyIconChoice }> = [
   { key: 'dataDefinitionSource', label: 'Data Definition (Source)', accentColor: '#7E57C2', icon: 'fa-table-cells' },
   { key: 'dataDefinitionTarget', label: 'Data Definition (Target)', accentColor: '#9575CD', icon: 'fa-table-cells' },
@@ -303,6 +306,31 @@ const DESIGN_PHASE_DELIVERABLES: Array<{ key: string; label: string; accentColor
   { key: 'technicalDesignInitial', label: 'Technical Design (Initial)', accentColor: '#FFA726', icon: 'fa-diagram-project' },
   { key: 'validationScripts', label: 'Validation Scripts', accentColor: '#66BB6A', icon: 'fa-list-check' },
 ];
+
+const buildDesignObjectNodeId = (objectId: string) => `${DESIGN_OBJECT_NODE_PREFIX}${objectId}`;
+const buildDesignDeliverableNodeId = (objectId: string, deliverableKey: string) => `${DESIGN_DELIVERABLE_NODE_PREFIX}${objectId}:${deliverableKey}`;
+const buildDesignDeliverableChildNodeId = (objectId: string, deliverableKey: string, childKey: DesignDeliverableChildKey) => `${DESIGN_DELIVERABLE_CHILD_NODE_PREFIX}${objectId}:${deliverableKey}:${childKey}`;
+
+const parseDesignObjectNodeId = (nodeId: string) => {
+  if (!nodeId.startsWith(DESIGN_OBJECT_NODE_PREFIX)) return null;
+  return { objectId: nodeId.substring(DESIGN_OBJECT_NODE_PREFIX.length) };
+};
+
+const parseDesignDeliverableNodeId = (nodeId: string) => {
+  if (!nodeId.startsWith(DESIGN_DELIVERABLE_NODE_PREFIX)) return null;
+  const trimmed = nodeId.substring(DESIGN_DELIVERABLE_NODE_PREFIX.length);
+  const [objectId, deliverableKey] = trimmed.split(':');
+  if (!objectId || !deliverableKey) return null;
+  return { objectId, deliverableKey };
+};
+
+const parseDesignDeliverableChildNodeId = (nodeId: string) => {
+  if (!nodeId.startsWith(DESIGN_DELIVERABLE_CHILD_NODE_PREFIX)) return null;
+  const trimmed = nodeId.substring(DESIGN_DELIVERABLE_CHILD_NODE_PREFIX.length);
+  const [objectId, deliverableKey, childKey] = trimmed.split(':');
+  if (!objectId || !deliverableKey || !childKey) return null;
+  return { objectId, deliverableKey, childKey: childKey as DesignDeliverableChildKey };
+};
 
 // ── Roadmap component ──────────────────────────────────────────────────────
 interface RoadmapItem {
@@ -1298,6 +1326,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   const [expandedEstimationDeliverables, setExpandedEstimationDeliverables] = useState<Set<string>>(new Set());
   const [expandedDesignProcessAreas, setExpandedDesignProcessAreas] = useState<Set<string>>(new Set());
   const [expandedDesignObjects, setExpandedDesignObjects] = useState<Set<string>>(new Set());
+  const [expandedDesignDeliverables, setExpandedDesignDeliverables] = useState<Set<string>>(new Set());
   const [collapsedEstimationProcessAreaSections, setCollapsedEstimationProcessAreaSections] = useState<Set<string>>(new Set());
   const [expandedDeveloperAssignmentAreas, setExpandedDeveloperAssignmentAreas] = useState<Set<string>>(new Set());
   const [editingDeveloperAssignmentObjectId, setEditingDeveloperAssignmentObjectId] = useState<string | null>(null);
@@ -1305,6 +1334,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   const [savingDeveloperAssignmentObjectId, setSavingDeveloperAssignmentObjectId] = useState<string | null>(null);
   const [designDeliverablePlanByNode, setDesignDeliverablePlanByNode] = useState<Record<string, Array<{ id: string; title: string; owner: string; status: string; startDate: string; endDate: string }>>>({});
   const [designDeliverableTabByNode, setDesignDeliverableTabByNode] = useState<Record<string, 'plan' | 'maintain'>>({});
+  const [designApprovalDraftByNode, setDesignApprovalDraftByNode] = useState<Record<string, { title: string; assignee: string }>>({});
+  const [creatingDesignApprovalNodeKey, setCreatingDesignApprovalNodeKey] = useState<string | null>(null);
   const [expandedObjects, setExpandedObjects] = useState<Set<string>>(new Set());
   
   // State for selected item
@@ -7750,10 +7781,14 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                                     const objectLabel = obj.objectId || obj.dataObjectId || 'Object';
                                                     const objectKey = `${firstCycleProject.id}:${firstCycle?.id || ''}:${obj.id}`;
                                                     const objectExpanded = expandedDesignObjects.has(objectKey);
-                                                    const objectNodeId = `designObject:${obj.id}`;
+                                                    const objectNodeId = buildDesignObjectNodeId(String(obj.id));
                                                     const objectSelected = selectedItem?.type === 'deliverable'
                                                       && selectedItem.projectId === firstCycleProject.id
-                                                      && selectedItem.deliverableId === objectNodeId;
+                                                      && (
+                                                        selectedItem.deliverableId === objectNodeId
+                                                        || selectedItem.deliverableId.startsWith(`${DESIGN_DELIVERABLE_NODE_PREFIX}${obj.id}:`)
+                                                        || selectedItem.deliverableId.startsWith(`${DESIGN_DELIVERABLE_CHILD_NODE_PREFIX}${obj.id}:`)
+                                                      );
 
                                                     return (
                                                       <Box key={`${projectGroupKey}-design-object-${obj.id}`}>
@@ -7814,55 +7849,132 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                                         {objectExpanded && (
                                                           <Box sx={{ ml: 2.05, display: 'grid', gap: 0.2 }}>
                                                             {DESIGN_PHASE_DELIVERABLES.map((deliverable) => {
-                                                              const nodeId = `${DESIGN_DELIVERABLE_NODE_PREFIX}${obj.id}:${deliverable.key}`;
+                                                              const nodeId = buildDesignDeliverableNodeId(String(obj.id), deliverable.key);
+                                                              const deliverableKey = `${obj.id}:${deliverable.key}`;
+                                                              const deliverableExpanded = expandedDesignDeliverables.has(deliverableKey);
                                                               const deliverableSelected = selectedItem?.type === 'deliverable'
                                                                 && selectedItem.projectId === firstCycleProject.id
-                                                                && selectedItem.deliverableId === nodeId;
+                                                                && (
+                                                                  selectedItem.deliverableId === nodeId
+                                                                  || selectedItem.deliverableId.startsWith(`${DESIGN_DELIVERABLE_CHILD_NODE_PREFIX}${obj.id}:${deliverable.key}:`)
+                                                                );
                                                               return (
-                                                                <Box
-                                                                  key={`${projectGroupKey}-design-deliverable-${obj.id}-${deliverable.key}`}
-                                                                  onClick={() => {
-                                                                    handleHierarchySelection({
-                                                                      type: 'deliverable',
-                                                                      projectId: firstCycleProject.id,
-                                                                      cycleId: firstCycle?.id,
-                                                                      deliverableId: nodeId,
-                                                                    });
-                                                                    navigate('/design/plan');
-                                                                  }}
-                                                                  sx={{
-                                                                    display: 'flex',
-                                                                    alignItems: 'center',
-                                                                    minWidth: 0,
-                                                                    width: '100%',
-                                                                    maxWidth: '100%',
-                                                                    overflow: 'hidden',
-                                                                    py: 0.28,
-                                                                    pl: 1.35,
-                                                                    pr: 0.4,
-                                                                    cursor: 'pointer',
-                                                                    position: 'relative',
-                                                                    borderRadius: 0.75,
-                                                                    backgroundColor: deliverableSelected ? 'rgba(91, 103, 202, 0.22)' : 'transparent',
-                                                                    '&::before': deliverableSelected ? {
-                                                                      content: '""',
-                                                                      position: 'absolute',
-                                                                      left: 0,
-                                                                      top: '3px',
-                                                                      bottom: '3px',
-                                                                      width: '3px',
-                                                                      backgroundColor: deliverable.accentColor,
-                                                                      borderRadius: '2px',
-                                                                    } : {},
-                                                                    '&:hover': { backgroundColor: deliverableSelected ? 'rgba(91, 103, 202, 0.25)' : 'rgba(255,255,255,0.06)' },
-                                                                  }}
-                                                                >
-                                                                  <Box sx={{ mr: 0.45, display: 'inline-flex', alignItems: 'center' }}>
-                                                                    {renderIconChoice(deliverable.icon, deliverable.accentColor, '0.66rem')}
+                                                                <Box key={`${projectGroupKey}-design-deliverable-${obj.id}-${deliverable.key}`}>
+                                                                  <Box
+                                                                    onClick={() => {
+                                                                      setExpandedDesignDeliverables((prev) => {
+                                                                        const next = new Set(prev);
+                                                                        if (next.has(deliverableKey)) next.delete(deliverableKey);
+                                                                        else next.add(deliverableKey);
+                                                                        return next;
+                                                                      });
+                                                                      handleHierarchySelection({
+                                                                        type: 'deliverable',
+                                                                        projectId: firstCycleProject.id,
+                                                                        cycleId: firstCycle?.id,
+                                                                        deliverableId: nodeId,
+                                                                      });
+                                                                      navigate('/design/plan');
+                                                                    }}
+                                                                    sx={{
+                                                                      display: 'flex',
+                                                                      alignItems: 'center',
+                                                                      minWidth: 0,
+                                                                      width: '100%',
+                                                                      maxWidth: '100%',
+                                                                      overflow: 'hidden',
+                                                                      py: 0.28,
+                                                                      pl: 1.1,
+                                                                      pr: 0.4,
+                                                                      cursor: 'pointer',
+                                                                      position: 'relative',
+                                                                      borderRadius: 0.75,
+                                                                      backgroundColor: deliverableSelected ? 'rgba(91, 103, 202, 0.22)' : 'transparent',
+                                                                      '&::before': deliverableSelected ? {
+                                                                        content: '""',
+                                                                        position: 'absolute',
+                                                                        left: 0,
+                                                                        top: '3px',
+                                                                        bottom: '3px',
+                                                                        width: '3px',
+                                                                        backgroundColor: deliverable.accentColor,
+                                                                        borderRadius: '2px',
+                                                                      } : {},
+                                                                      '&:hover': { backgroundColor: deliverableSelected ? 'rgba(91, 103, 202, 0.25)' : 'rgba(255,255,255,0.06)' },
+                                                                    }}
+                                                                  >
+                                                                    <IconButton size="small" sx={{ p: 0.15, mr: 0.2 }}>
+                                                                      <ChevronRightIcon sx={{ fontSize: '0.76rem', color: 'text.secondary', transform: deliverableExpanded ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
+                                                                    </IconButton>
+                                                                    <Box sx={{ mr: 0.45, display: 'inline-flex', alignItems: 'center' }}>
+                                                                      {renderIconChoice(deliverable.icon, deliverable.accentColor, '0.66rem')}
+                                                                    </Box>
+                                                                    <Typography variant="caption" sx={{ fontWeight: deliverableSelected ? 700 : 500, color: deliverableSelected ? deliverable.accentColor : 'text.secondary', flex: '1 1 auto', minWidth: 0, maxWidth: '100%', width: 0, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                                      {deliverable.label}
+                                                                    </Typography>
                                                                   </Box>
-                                                                  <Typography variant="caption" sx={{ fontWeight: deliverableSelected ? 700 : 500, color: deliverableSelected ? deliverable.accentColor : 'text.secondary', flex: '1 1 auto', minWidth: 0, maxWidth: '100%', width: 0, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                                    {deliverable.label}
-                                                                  </Typography>
+
+                                                                  {deliverableExpanded && (
+                                                                    <Box sx={{ ml: 2.15, display: 'grid', gap: 0.18 }}>
+                                                                      {([
+                                                                        { key: 'plan', label: 'Plan', accent: deliverable.accentColor, icon: 'fa-clipboard-list' as HierarchyIconChoice },
+                                                                        { key: 'maintain', label: 'Maintain', accent: '#90A4AE', icon: 'settings' as HierarchyIconChoice },
+                                                                        { key: 'approvals', label: 'Approvals', accent: '#FF8A65', icon: 'fa-list-check' as HierarchyIconChoice },
+                                                                      ] as Array<{ key: DesignDeliverableChildKey; label: string; accent: string; icon: HierarchyIconChoice }>).map((child) => {
+                                                                        const childNodeId = buildDesignDeliverableChildNodeId(String(obj.id), deliverable.key, child.key);
+                                                                        const childSelected = selectedItem?.type === 'deliverable'
+                                                                          && selectedItem.projectId === firstCycleProject.id
+                                                                          && selectedItem.deliverableId === childNodeId;
+                                                                        return (
+                                                                          <Box
+                                                                            key={`${projectGroupKey}-design-deliverable-${obj.id}-${deliverable.key}-${child.key}`}
+                                                                            onClick={() => {
+                                                                              handleHierarchySelection({
+                                                                                type: 'deliverable',
+                                                                                projectId: firstCycleProject.id,
+                                                                                cycleId: firstCycle?.id,
+                                                                                deliverableId: childNodeId,
+                                                                              });
+                                                                              navigate('/design/plan');
+                                                                            }}
+                                                                            sx={{
+                                                                              display: 'flex',
+                                                                              alignItems: 'center',
+                                                                              minWidth: 0,
+                                                                              width: '100%',
+                                                                              maxWidth: '100%',
+                                                                              overflow: 'hidden',
+                                                                              py: 0.24,
+                                                                              pl: 1.45,
+                                                                              pr: 0.4,
+                                                                              cursor: 'pointer',
+                                                                              position: 'relative',
+                                                                              borderRadius: 0.75,
+                                                                              backgroundColor: childSelected ? 'rgba(91, 103, 202, 0.22)' : 'transparent',
+                                                                              '&::before': childSelected ? {
+                                                                                content: '""',
+                                                                                position: 'absolute',
+                                                                                left: 0,
+                                                                                top: '3px',
+                                                                                bottom: '3px',
+                                                                                width: '3px',
+                                                                                backgroundColor: child.accent,
+                                                                                borderRadius: '2px',
+                                                                              } : {},
+                                                                              '&:hover': { backgroundColor: childSelected ? 'rgba(91, 103, 202, 0.25)' : 'rgba(255,255,255,0.06)' },
+                                                                            }}
+                                                                          >
+                                                                            <Box sx={{ mr: 0.45, display: 'inline-flex', alignItems: 'center' }}>
+                                                                              {renderIconChoice(child.icon, child.accent, '0.62rem')}
+                                                                            </Box>
+                                                                            <Typography variant="caption" sx={{ fontWeight: childSelected ? 700 : 500, color: childSelected ? child.accent : 'text.secondary', flex: '1 1 auto', minWidth: 0, maxWidth: '100%', width: 0, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                                              {child.label}
+                                                                            </Typography>
+                                                                          </Box>
+                                                                        );
+                                                                      })}
+                                                                    </Box>
+                                                                  )}
                                                                 </Box>
                                                               );
                                                             })}
@@ -8361,19 +8473,45 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                     const isMockCriteriaSummaryDeliverable = selectedItem.type === 'deliverable' && selectedItem.deliverableId === 'mockCriteria';
                     const isMockCriteriaCycleNode = selectedItem.type === 'deliverable' && selectedItem.deliverableId.startsWith(MOCK_CRITERIA_CYCLE_NODE_PREFIX);
                     const isMockCriteriaApprovalsNode = selectedItem.type === 'deliverable' && selectedItem.deliverableId === 'mockCriteriaApprovals';
-                    const isDesignDeliverableNode = selectedItem.type === 'deliverable' && selectedItem.deliverableId.startsWith(DESIGN_DELIVERABLE_NODE_PREFIX);
-                    const parsedDesignDeliverable = isDesignDeliverableNode
+                    const isDesignObjectNode = selectedItem.type === 'deliverable' && selectedItem.deliverableId.startsWith(DESIGN_OBJECT_NODE_PREFIX);
+                    const parsedDesignObject = isDesignObjectNode
                       ? (() => {
-                        const trimmed = selectedItem.deliverableId.substring(DESIGN_DELIVERABLE_NODE_PREFIX.length);
-                        const [objectId, deliverableKey] = trimmed.split(':');
-                        const objectItem = projectInventoryItems.find((item: any) => String(item.id) === String(objectId));
-                        const deliverableConfig = DESIGN_PHASE_DELIVERABLES.find((item) => item.key === deliverableKey);
+                        const parsed = parseDesignObjectNodeId(selectedItem.deliverableId);
+                        if (!parsed) return null;
+                        const objectItem = projectInventoryItems.find((item: any) => String(item.id) === String(parsed.objectId));
                         return {
-                          objectId,
-                          deliverableKey,
+                          ...parsed,
+                          objectItem,
+                        };
+                      })()
+                      : null;
+                    const isDesignDeliverableSummaryNode = selectedItem.type === 'deliverable' && selectedItem.deliverableId.startsWith(DESIGN_DELIVERABLE_NODE_PREFIX);
+                    const parsedDesignDeliverableSummary = isDesignDeliverableSummaryNode
+                      ? (() => {
+                        const parsed = parseDesignDeliverableNodeId(selectedItem.deliverableId);
+                        if (!parsed) return null;
+                        const objectItem = projectInventoryItems.find((item: any) => String(item.id) === String(parsed.objectId));
+                        const deliverableConfig = DESIGN_PHASE_DELIVERABLES.find((item) => item.key === parsed.deliverableKey);
+                        return {
+                          ...parsed,
                           objectItem,
                           deliverableConfig,
-                          nodeKey: `${project.id}:${objectId}:${deliverableKey}`,
+                          nodeKey: `${project.id}:${parsed.objectId}:${parsed.deliverableKey}`,
+                        };
+                      })()
+                      : null;
+                    const isDesignDeliverableChildNode = selectedItem.type === 'deliverable' && selectedItem.deliverableId.startsWith(DESIGN_DELIVERABLE_CHILD_NODE_PREFIX);
+                    const parsedDesignDeliverableChild = isDesignDeliverableChildNode
+                      ? (() => {
+                        const parsed = parseDesignDeliverableChildNodeId(selectedItem.deliverableId);
+                        if (!parsed) return null;
+                        const objectItem = projectInventoryItems.find((item: any) => String(item.id) === String(parsed.objectId));
+                        const deliverableConfig = DESIGN_PHASE_DELIVERABLES.find((item) => item.key === parsed.deliverableKey);
+                        return {
+                          ...parsed,
+                          objectItem,
+                          deliverableConfig,
+                          nodeKey: `${project.id}:${parsed.objectId}:${parsed.deliverableKey}`,
                         };
                       })()
                       : null;
@@ -8381,158 +8519,470 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                     const estimationSelectedArea = selectedItem.type === 'deliverableProcessArea'
                       ? (selectedItem.area || '').trim()
                       : '';
-                    if (isPlanningDesignHierarchy && isDesignDeliverableNode && parsedDesignDeliverable?.deliverableConfig) {
-                      const objectLabel = parsedDesignDeliverable.objectItem?.objectId || parsedDesignDeliverable.objectItem?.dataObjectId || 'Object';
-                      const processAreaCode = String(parsedDesignDeliverable.objectItem?.processArea || '').trim();
+                    if (isPlanningDesignHierarchy && (isDesignObjectNode || isDesignDeliverableSummaryNode || isDesignDeliverableChildNode)) {
+                      const activeDesignNode = parsedDesignDeliverableChild || parsedDesignDeliverableSummary || parsedDesignObject;
+                      const activeObjectItem = activeDesignNode?.objectItem || null;
+                      const objectLabel = activeObjectItem?.objectId || activeObjectItem?.dataObjectId || 'Object';
+                      const processAreaCode = String(activeObjectItem?.processArea || '').trim();
                       const processAreaLabel = processAreaCode
                         ? getProcessAreaDisplayName(project.id, processAreaCode, parentCycleId || undefined)
                         : 'Unassigned Process Area';
-                      const nodeKey = parsedDesignDeliverable.nodeKey;
-                      const deliverableAccentColor = parsedDesignDeliverable.deliverableConfig.accentColor;
-                      const selectedDesignTab = designDeliverableTabByNode[nodeKey] || 'plan';
-                      const planRows = designDeliverablePlanByNode[nodeKey] || [];
-
-                      const addPlanRow = () => {
-                        const newRow = {
-                          id: `row-${Date.now()}-${Math.round(Math.random() * 10000)}`,
-                          title: '',
-                          owner: '',
-                          status: 'not_started',
-                          startDate: '',
-                          endDate: '',
-                        };
-                        setDesignDeliverablePlanByNode((prev) => ({
-                          ...prev,
-                          [nodeKey]: [...(prev[nodeKey] || []), newRow],
-                        }));
+                      const openDesignNode = (deliverableId: string) => {
+                        if (parentCycleId) {
+                          handleHierarchySelection({
+                            type: 'deliverable',
+                            projectId: project.id,
+                            cycleId: parentCycleId,
+                            deliverableId,
+                          });
+                        } else {
+                          handleHierarchySelection({
+                            type: 'deliverable',
+                            projectId: project.id,
+                            deliverableId,
+                          });
+                        }
+                        navigate('/design/plan');
                       };
 
-                      const updatePlanRow = (rowId: string, field: string, value: string) => {
-                        setDesignDeliverablePlanByNode((prev) => ({
-                          ...prev,
-                          [nodeKey]: (prev[nodeKey] || []).map((row: any) => (
-                            row.id === rowId ? { ...row, [field]: value } : row
-                          )),
-                        }));
-                      };
+                      if (isDesignObjectNode && parsedDesignObject?.objectItem) {
+                        return (
+                          <Box>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1.5 }}>
+                              {parentProgramName && <><Typography variant="caption" color="text.disabled">{parentProgramName}</Typography><Typography variant="caption" color="text.disabled">›</Typography></>}
+                              {parentCycleName && <><Typography variant="caption" color="text.disabled">{parentCycleName}</Typography><Typography variant="caption" color="text.disabled">›</Typography></>}
+                              <Typography variant="caption" sx={{ color: accentColor, fontWeight: 600 }}>{project.name}</Typography>
+                              <Typography variant="caption" color="text.disabled">›</Typography>
+                              <Typography variant="caption" sx={{ color: selectedAreaAccent, fontWeight: 700 }}>{processAreaLabel}</Typography>
+                              <Typography variant="caption" color="text.disabled">›</Typography>
+                              <Typography variant="caption" sx={{ color: accentColor, fontWeight: 700 }}>{objectLabel}</Typography>
+                            </Box>
 
-                      const removePlanRow = (rowId: string) => {
-                        setDesignDeliverablePlanByNode((prev) => ({
-                          ...prev,
-                          [nodeKey]: (prev[nodeKey] || []).filter((row: any) => row.id !== rowId),
-                        }));
-                      };
+                            <Typography variant="h4" sx={{ fontWeight: 700, color: accentColor, mb: 0.55, fontSize: { xs: '1.5rem', sm: '2.05rem' } }}>
+                              {objectLabel}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary" sx={{ mb: 1.2 }}>
+                              Deliverable summary for {objectLabel} ({processAreaLabel})
+                            </Typography>
 
-                      const completedCount = planRows.filter((row: any) => row.status === 'complete').length;
-                      const progressPct = planRows.length > 0 ? Math.round((completedCount / planRows.length) * 100) : 0;
-
-                      return (
-                        <Box>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1.5 }}>
-                            {parentProgramName && <><Typography variant="caption" color="text.disabled">{parentProgramName}</Typography><Typography variant="caption" color="text.disabled">›</Typography></>}
-                            {parentCycleName && <><Typography variant="caption" color="text.disabled">{parentCycleName}</Typography><Typography variant="caption" color="text.disabled">›</Typography></>}
-                            <Typography variant="caption" sx={{ color: accentColor, fontWeight: 600 }}>{project.name}</Typography>
-                            <Typography variant="caption" color="text.disabled">›</Typography>
-                            <Typography variant="caption" sx={{ color: selectedAreaAccent, fontWeight: 700 }}>{processAreaLabel}</Typography>
-                            <Typography variant="caption" color="text.disabled">›</Typography>
-                            <Typography variant="caption" sx={{ color: deliverableAccentColor, fontWeight: 700 }}>{objectLabel}</Typography>
-                            <Typography variant="caption" color="text.disabled">›</Typography>
-                            <Typography variant="caption" sx={{ color: deliverableAccentColor, fontWeight: 700 }}>{parsedDesignDeliverable.deliverableConfig.label}</Typography>
-                          </Box>
-
-                          <Typography variant="h4" sx={{ fontWeight: 700, color: deliverableAccentColor, mb: 0.55, fontSize: { xs: '1.5rem', sm: '2.05rem' } }}>
-                            {parsedDesignDeliverable.deliverableConfig.label}
-                          </Typography>
-                          <Typography variant="body2" color="text.secondary" sx={{ mb: 1.2 }}>
-                            Design Deliverable for {objectLabel} ({processAreaLabel})
-                          </Typography>
-
-                          <Box sx={{ display: 'flex', gap: 0.7, mb: 1.1 }}>
-                            <Button
-                              size="small"
-                              variant={selectedDesignTab === 'plan' ? 'contained' : 'outlined'}
-                              onClick={() => setDesignDeliverableTabByNode((prev) => ({ ...prev, [nodeKey]: 'plan' }))}
-                              sx={{ textTransform: 'none' }}
-                            >
-                              Plan
-                            </Button>
-                            <Button
-                              size="small"
-                              variant={selectedDesignTab === 'maintain' ? 'contained' : 'outlined'}
-                              onClick={() => setDesignDeliverableTabByNode((prev) => ({ ...prev, [nodeKey]: 'maintain' }))}
-                              sx={{ textTransform: 'none' }}
-                            >
-                              Maintain Deliverable
-                            </Button>
-                          </Box>
-
-                          {selectedDesignTab === 'plan' ? (
-                            <Box>
-                              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, minmax(140px, 1fr))' }, gap: 1, mb: 1.1 }}>
-                                <Paper sx={{ p: 1, border: `1px solid ${deliverableAccentColor}44`, backgroundColor: 'rgba(255,255,255,0.04)' }}>
-                                  <Typography variant="caption" color="text.secondary">Plan Items</Typography>
-                                  <Typography variant="h6" sx={{ color: deliverableAccentColor }}>{planRows.length}</Typography>
-                                </Paper>
-                                <Paper sx={{ p: 1, border: `1px solid ${deliverableAccentColor}44`, backgroundColor: 'rgba(255,255,255,0.04)' }}>
-                                  <Typography variant="caption" color="text.secondary">Completed</Typography>
-                                  <Typography variant="h6" sx={{ color: deliverableAccentColor }}>{completedCount}</Typography>
-                                </Paper>
-                                <Paper sx={{ p: 1, border: `1px solid ${deliverableAccentColor}44`, backgroundColor: 'rgba(255,255,255,0.04)' }}>
-                                  <Typography variant="caption" color="text.secondary">Progress</Typography>
-                                  <Typography variant="h6" sx={{ color: deliverableAccentColor }}>{progressPct}%</Typography>
-                                </Paper>
+                            <Paper sx={{ p: 1.25, border: `1px solid ${accentColor}33`, backgroundColor: 'rgba(255,255,255,0.04)' }}>
+                              <Typography variant="subtitle2" sx={{ color: accentColor, fontWeight: 700, mb: 1 }}>Deliverables</Typography>
+                              <Box sx={{ display: 'grid', gap: 0.75 }}>
+                                {DESIGN_PHASE_DELIVERABLES.map((deliverable) => {
+                                  const nodeKey = `${project.id}:${parsedDesignObject.objectId}:${deliverable.key}`;
+                                  const planRows = designDeliverablePlanByNode[nodeKey] || [];
+                                  return (
+                                    <Paper key={`design-object-summary-${parsedDesignObject.objectId}-${deliverable.key}`} sx={{ p: 1, border: `1px solid ${deliverable.accentColor}33`, backgroundColor: 'rgba(255,255,255,0.025)' }}>
+                                      <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, alignItems: 'center', mb: 0.8 }}>
+                                        <Box>
+                                          <Typography variant="body2" sx={{ color: deliverable.accentColor, fontWeight: 700 }}>{deliverable.label}</Typography>
+                                          <Typography variant="caption" color="text.secondary">{planRows.length} plan item{planRows.length === 1 ? '' : 's'}</Typography>
+                                        </Box>
+                                        <Typography variant="caption" sx={{ color: deliverable.accentColor, fontWeight: 700 }}>3 child nodes</Typography>
+                                      </Box>
+                                      <Box sx={{ display: 'grid', gap: 0.45 }}>
+                                        {([
+                                          { key: 'plan', label: 'Plan', description: 'Track design plan items for this deliverable.', accent: deliverable.accentColor },
+                                          { key: 'maintain', label: 'Maintain', description: 'Maintain deliverable content and metadata.', accent: '#90A4AE' },
+                                          { key: 'approvals', label: 'Approvals', description: 'Track approvers, status, and discussion threads.', accent: '#FF8A65' },
+                                        ] as Array<{ key: DesignDeliverableChildKey; label: string; description: string; accent: string }>).map((child) => (
+                                          <Box
+                                            key={`design-object-summary-${parsedDesignObject.objectId}-${deliverable.key}-${child.key}`}
+                                            onClick={() => openDesignNode(buildDesignDeliverableChildNodeId(parsedDesignObject.objectId, deliverable.key, child.key))}
+                                            sx={{ display: 'grid', gridTemplateColumns: '1fr auto', alignItems: 'center', gap: 1, px: 1, py: 0.7, borderRadius: 0.8, cursor: 'pointer', border: '1px solid rgba(255,255,255,0.08)', '&:hover': { backgroundColor: 'rgba(255,255,255,0.05)' } }}
+                                          >
+                                            <Box>
+                                              <Typography variant="body2" sx={{ fontWeight: 700 }}>{child.label}</Typography>
+                                              <Typography variant="caption" color="text.secondary">{child.description}</Typography>
+                                            </Box>
+                                            <Typography variant="body2" sx={{ color: child.accent, fontWeight: 700 }}>Open</Typography>
+                                          </Box>
+                                        ))}
+                                      </Box>
+                                    </Paper>
+                                  );
+                                })}
                               </Box>
+                            </Paper>
+                          </Box>
+                        );
+                      }
 
-                              <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 0.8 }}>
-                                <Button size="small" variant="contained" startIcon={<AddIcon />} onClick={addPlanRow} sx={{ textTransform: 'none' }}>
-                                  Add Plan Item
-                                </Button>
-                              </Box>
+                      if (isDesignDeliverableSummaryNode && parsedDesignDeliverableSummary?.deliverableConfig) {
+                        const nodeKey = parsedDesignDeliverableSummary.nodeKey;
+                        const deliverableAccentColor = parsedDesignDeliverableSummary.deliverableConfig.accentColor;
+                        const planRows = designDeliverablePlanByNode[nodeKey] || [];
+                        return (
+                          <Box>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1.5 }}>
+                              {parentProgramName && <><Typography variant="caption" color="text.disabled">{parentProgramName}</Typography><Typography variant="caption" color="text.disabled">›</Typography></>}
+                              {parentCycleName && <><Typography variant="caption" color="text.disabled">{parentCycleName}</Typography><Typography variant="caption" color="text.disabled">›</Typography></>}
+                              <Typography variant="caption" sx={{ color: accentColor, fontWeight: 600 }}>{project.name}</Typography>
+                              <Typography variant="caption" color="text.disabled">›</Typography>
+                              <Typography variant="caption" sx={{ color: selectedAreaAccent, fontWeight: 700 }}>{processAreaLabel}</Typography>
+                              <Typography variant="caption" color="text.disabled">›</Typography>
+                              <Typography variant="caption" sx={{ color: deliverableAccentColor, fontWeight: 700 }}>{objectLabel}</Typography>
+                              <Typography variant="caption" color="text.disabled">›</Typography>
+                              <Typography variant="caption" sx={{ color: deliverableAccentColor, fontWeight: 700 }}>{parsedDesignDeliverableSummary.deliverableConfig.label}</Typography>
+                            </Box>
 
-                              <Paper sx={{ p: 1.1, border: `1px solid ${deliverableAccentColor}44`, backgroundColor: 'rgba(255,255,255,0.03)' }}>
-                                <Box sx={{ display: 'grid', gridTemplateColumns: '1.4fr 0.9fr 0.9fr 0.8fr 0.8fr 0.35fr', gap: 0.8, pb: 0.5, borderBottom: '1px solid rgba(255,255,255,0.09)' }}>
-                                  <Typography variant="caption" sx={{ color: deliverableAccentColor, fontWeight: 700 }}>Task</Typography>
-                                  <Typography variant="caption" sx={{ color: deliverableAccentColor, fontWeight: 700 }}>Owner</Typography>
-                                  <Typography variant="caption" sx={{ color: deliverableAccentColor, fontWeight: 700 }}>Status</Typography>
-                                  <Typography variant="caption" sx={{ color: deliverableAccentColor, fontWeight: 700 }}>Start</Typography>
-                                  <Typography variant="caption" sx={{ color: deliverableAccentColor, fontWeight: 700 }}>End</Typography>
-                                  <Typography variant="caption" sx={{ color: deliverableAccentColor, fontWeight: 700, textAlign: 'right' }}>X</Typography>
-                                </Box>
-                                <Box sx={{ display: 'grid', gap: 0.35, mt: 0.45 }}>
-                                  {planRows.length === 0 ? (
-                                    <Typography variant="body2" color="text.secondary" sx={{ py: 0.75 }}>
-                                      No plan items yet. Add plan items to track this deliverable.
-                                    </Typography>
-                                  ) : planRows.map((row: any) => (
-                                    <Box key={`design-plan-row-${row.id}`} sx={{ display: 'grid', gridTemplateColumns: '1.4fr 0.9fr 0.9fr 0.8fr 0.8fr 0.35fr', gap: 0.8, alignItems: 'center', py: 0.35, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                                      <TextField size="small" value={row.title} onChange={(e) => updatePlanRow(row.id, 'title', e.target.value)} placeholder="Task title" sx={{ '& .MuiInputBase-root': { height: 30, fontSize: '0.78rem' } }} />
-                                      <TextField size="small" value={row.owner} onChange={(e) => updatePlanRow(row.id, 'owner', e.target.value)} placeholder="Owner" sx={{ '& .MuiInputBase-root': { height: 30, fontSize: '0.78rem' } }} />
-                                      <TextField select size="small" value={row.status} onChange={(e) => updatePlanRow(row.id, 'status', e.target.value)} sx={{ '& .MuiInputBase-root': { height: 30, fontSize: '0.78rem' } }}>
-                                        <MenuItem value="not_started">Not Started</MenuItem>
-                                        <MenuItem value="in_progress">In Progress</MenuItem>
-                                        <MenuItem value="blocked">Blocked</MenuItem>
-                                        <MenuItem value="complete">Complete</MenuItem>
-                                      </TextField>
-                                      <TextField type="date" size="small" value={row.startDate} onChange={(e) => updatePlanRow(row.id, 'startDate', e.target.value)} sx={{ '& .MuiInputBase-root': { height: 30, fontSize: '0.78rem' } }} />
-                                      <TextField type="date" size="small" value={row.endDate} onChange={(e) => updatePlanRow(row.id, 'endDate', e.target.value)} sx={{ '& .MuiInputBase-root': { height: 30, fontSize: '0.78rem' } }} />
-                                      <IconButton size="small" onClick={() => removePlanRow(row.id)} sx={{ justifySelf: 'end', color: 'rgba(255,255,255,0.5)', '&:hover': { color: '#ef5350' } }}>
-                                        <DeleteIcon sx={{ fontSize: '0.9rem' }} />
-                                      </IconButton>
+                            <Typography variant="h4" sx={{ fontWeight: 700, color: deliverableAccentColor, mb: 0.55, fontSize: { xs: '1.5rem', sm: '2.05rem' } }}>
+                              {parsedDesignDeliverableSummary.deliverableConfig.label}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary" sx={{ mb: 1.2 }}>
+                              Deliverable summary for {objectLabel} ({processAreaLabel})
+                            </Typography>
+
+                            <Paper sx={{ p: 1.25, border: `1px solid ${deliverableAccentColor}44`, backgroundColor: 'rgba(255,255,255,0.04)' }}>
+                              <Typography variant="subtitle2" sx={{ color: deliverableAccentColor, fontWeight: 700, mb: 1 }}>Node Summary</Typography>
+                              <Box sx={{ display: 'grid', gap: 0.6 }}>
+                                {([
+                                  { key: 'plan', label: 'Plan', description: `${planRows.length} plan item${planRows.length === 1 ? '' : 's'} for this deliverable.`, accent: deliverableAccentColor },
+                                  { key: 'maintain', label: 'Maintain', description: 'Placeholder for deliverable maintenance.', accent: '#90A4AE' },
+                                  { key: 'approvals', label: 'Approvals', description: 'Track approvers, status, discussion, and attachments.', accent: '#FF8A65' },
+                                ] as Array<{ key: DesignDeliverableChildKey; label: string; description: string; accent: string }>).map((child) => (
+                                  <Box
+                                    key={`design-deliverable-summary-${parsedDesignDeliverableSummary.objectId}-${parsedDesignDeliverableSummary.deliverableKey}-${child.key}`}
+                                    onClick={() => openDesignNode(buildDesignDeliverableChildNodeId(parsedDesignDeliverableSummary.objectId, parsedDesignDeliverableSummary.deliverableKey, child.key))}
+                                    sx={{ display: 'grid', gridTemplateColumns: '1fr auto', alignItems: 'center', gap: 1, px: 1, py: 0.7, borderRadius: 0.8, cursor: 'pointer', border: '1px solid rgba(255,255,255,0.08)', '&:hover': { backgroundColor: 'rgba(255,255,255,0.05)' } }}
+                                  >
+                                    <Box>
+                                      <Typography variant="body2" sx={{ fontWeight: 700 }}>{child.label}</Typography>
+                                      <Typography variant="caption" color="text.secondary">{child.description}</Typography>
                                     </Box>
-                                  ))}
+                                    <Typography variant="body2" sx={{ color: child.accent, fontWeight: 700 }}>Open</Typography>
+                                  </Box>
+                                ))}
+                              </Box>
+                            </Paper>
+                          </Box>
+                        );
+                      }
+
+                      if (isDesignDeliverableChildNode && parsedDesignDeliverableChild?.deliverableConfig) {
+                        const nodeKey = parsedDesignDeliverableChild.nodeKey;
+                        const deliverableAccentColor = parsedDesignDeliverableChild.deliverableConfig.accentColor;
+                        const planRows = designDeliverablePlanByNode[nodeKey] || [];
+                        const addPlanRow = () => {
+                          const newRow = {
+                            id: `row-${Date.now()}-${Math.round(Math.random() * 10000)}`,
+                            title: '',
+                            owner: '',
+                            status: 'not_started',
+                            startDate: '',
+                            endDate: '',
+                          };
+                          setDesignDeliverablePlanByNode((prev) => ({
+                            ...prev,
+                            [nodeKey]: [...(prev[nodeKey] || []), newRow],
+                          }));
+                        };
+                        const updatePlanRow = (rowId: string, field: string, value: string) => {
+                          setDesignDeliverablePlanByNode((prev) => ({
+                            ...prev,
+                            [nodeKey]: (prev[nodeKey] || []).map((row: any) => (
+                              row.id === rowId ? { ...row, [field]: value } : row
+                            )),
+                          }));
+                        };
+                        const removePlanRow = (rowId: string) => {
+                          setDesignDeliverablePlanByNode((prev) => ({
+                            ...prev,
+                            [nodeKey]: (prev[nodeKey] || []).filter((row: any) => row.id !== rowId),
+                          }));
+                        };
+                        const completedCount = planRows.filter((row: any) => row.status === 'complete').length;
+                        const progressPct = planRows.length > 0 ? Math.round((completedCount / planRows.length) * 100) : 0;
+
+                        if (parsedDesignDeliverableChild.childKey === 'plan') {
+                          return (
+                            <Box>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1.5 }}>
+                                {parentProgramName && <><Typography variant="caption" color="text.disabled">{parentProgramName}</Typography><Typography variant="caption" color="text.disabled">›</Typography></>}
+                                {parentCycleName && <><Typography variant="caption" color="text.disabled">{parentCycleName}</Typography><Typography variant="caption" color="text.disabled">›</Typography></>}
+                                <Typography variant="caption" sx={{ color: accentColor, fontWeight: 600 }}>{project.name}</Typography>
+                                <Typography variant="caption" color="text.disabled">›</Typography>
+                                <Typography variant="caption" sx={{ color: selectedAreaAccent, fontWeight: 700 }}>{processAreaLabel}</Typography>
+                                <Typography variant="caption" color="text.disabled">›</Typography>
+                                <Typography variant="caption" sx={{ color: deliverableAccentColor, fontWeight: 700 }}>{objectLabel}</Typography>
+                                <Typography variant="caption" color="text.disabled">›</Typography>
+                                <Typography variant="caption" sx={{ color: deliverableAccentColor, fontWeight: 700 }}>{parsedDesignDeliverableChild.deliverableConfig.label}</Typography>
+                                <Typography variant="caption" color="text.disabled">›</Typography>
+                                <Typography variant="caption" sx={{ color: deliverableAccentColor, fontWeight: 700 }}>Plan</Typography>
+                              </Box>
+
+                              <Typography variant="h4" sx={{ fontWeight: 700, color: deliverableAccentColor, mb: 0.55, fontSize: { xs: '1.5rem', sm: '2.05rem' } }}>
+                                {parsedDesignDeliverableChild.deliverableConfig.label} Plan
+                              </Typography>
+                              <Typography variant="body2" color="text.secondary" sx={{ mb: 1.2 }}>
+                                Plan node for {objectLabel} ({processAreaLabel})
+                              </Typography>
+
+                              <Box>
+                                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, minmax(140px, 1fr))' }, gap: 1, mb: 1.1 }}>
+                                  <Paper sx={{ p: 1, border: `1px solid ${deliverableAccentColor}44`, backgroundColor: 'rgba(255,255,255,0.04)' }}>
+                                    <Typography variant="caption" color="text.secondary">Plan Items</Typography>
+                                    <Typography variant="h6" sx={{ color: deliverableAccentColor }}>{planRows.length}</Typography>
+                                  </Paper>
+                                  <Paper sx={{ p: 1, border: `1px solid ${deliverableAccentColor}44`, backgroundColor: 'rgba(255,255,255,0.04)' }}>
+                                    <Typography variant="caption" color="text.secondary">Completed</Typography>
+                                    <Typography variant="h6" sx={{ color: deliverableAccentColor }}>{completedCount}</Typography>
+                                  </Paper>
+                                  <Paper sx={{ p: 1, border: `1px solid ${deliverableAccentColor}44`, backgroundColor: 'rgba(255,255,255,0.04)' }}>
+                                    <Typography variant="caption" color="text.secondary">Progress</Typography>
+                                    <Typography variant="h6" sx={{ color: deliverableAccentColor }}>{progressPct}%</Typography>
+                                  </Paper>
                                 </Box>
+
+                                <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 0.8 }}>
+                                  <Button size="small" variant="contained" startIcon={<AddIcon />} onClick={addPlanRow} sx={{ textTransform: 'none' }}>
+                                    Add Plan Item
+                                  </Button>
+                                </Box>
+
+                                <Paper sx={{ p: 1.1, border: `1px solid ${deliverableAccentColor}44`, backgroundColor: 'rgba(255,255,255,0.03)' }}>
+                                  <Box sx={{ display: 'grid', gridTemplateColumns: '1.4fr 0.9fr 0.9fr 0.8fr 0.8fr 0.35fr', gap: 0.8, pb: 0.5, borderBottom: '1px solid rgba(255,255,255,0.09)' }}>
+                                    <Typography variant="caption" sx={{ color: deliverableAccentColor, fontWeight: 700 }}>Task</Typography>
+                                    <Typography variant="caption" sx={{ color: deliverableAccentColor, fontWeight: 700 }}>Owner</Typography>
+                                    <Typography variant="caption" sx={{ color: deliverableAccentColor, fontWeight: 700 }}>Status</Typography>
+                                    <Typography variant="caption" sx={{ color: deliverableAccentColor, fontWeight: 700 }}>Start</Typography>
+                                    <Typography variant="caption" sx={{ color: deliverableAccentColor, fontWeight: 700 }}>End</Typography>
+                                    <Typography variant="caption" sx={{ color: deliverableAccentColor, fontWeight: 700, textAlign: 'right' }}>X</Typography>
+                                  </Box>
+                                  <Box sx={{ display: 'grid', gap: 0.35, mt: 0.45 }}>
+                                    {planRows.length === 0 ? (
+                                      <Typography variant="body2" color="text.secondary" sx={{ py: 0.75 }}>
+                                        No plan items yet. Add plan items to track this deliverable.
+                                      </Typography>
+                                    ) : planRows.map((row: any) => (
+                                      <Box key={`design-plan-row-${row.id}`} sx={{ display: 'grid', gridTemplateColumns: '1.4fr 0.9fr 0.9fr 0.8fr 0.8fr 0.35fr', gap: 0.8, alignItems: 'center', py: 0.35, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                        <TextField size="small" value={row.title} onChange={(e) => updatePlanRow(row.id, 'title', e.target.value)} placeholder="Task title" sx={{ '& .MuiInputBase-root': { height: 30, fontSize: '0.78rem' } }} />
+                                        <TextField size="small" value={row.owner} onChange={(e) => updatePlanRow(row.id, 'owner', e.target.value)} placeholder="Owner" sx={{ '& .MuiInputBase-root': { height: 30, fontSize: '0.78rem' } }} />
+                                        <TextField select size="small" value={row.status} onChange={(e) => updatePlanRow(row.id, 'status', e.target.value)} sx={{ '& .MuiInputBase-root': { height: 30, fontSize: '0.78rem' } }}>
+                                          <MenuItem value="not_started">Not Started</MenuItem>
+                                          <MenuItem value="in_progress">In Progress</MenuItem>
+                                          <MenuItem value="blocked">Blocked</MenuItem>
+                                          <MenuItem value="complete">Complete</MenuItem>
+                                        </TextField>
+                                        <TextField type="date" size="small" value={row.startDate} onChange={(e) => updatePlanRow(row.id, 'startDate', e.target.value)} sx={{ '& .MuiInputBase-root': { height: 30, fontSize: '0.78rem' } }} />
+                                        <TextField type="date" size="small" value={row.endDate} onChange={(e) => updatePlanRow(row.id, 'endDate', e.target.value)} sx={{ '& .MuiInputBase-root': { height: 30, fontSize: '0.78rem' } }} />
+                                        <IconButton size="small" onClick={() => removePlanRow(row.id)} sx={{ justifySelf: 'end', color: 'rgba(255,255,255,0.5)', '&:hover': { color: '#ef5350' } }}>
+                                          <DeleteIcon sx={{ fontSize: '0.9rem' }} />
+                                        </IconButton>
+                                      </Box>
+                                    ))}
+                                  </Box>
+                                </Paper>
+                              </Box>
+                            </Box>
+                          );
+                        }
+
+                        if (parsedDesignDeliverableChild.childKey === 'maintain') {
+                          return (
+                            <Box>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1.5 }}>
+                                {parentProgramName && <><Typography variant="caption" color="text.disabled">{parentProgramName}</Typography><Typography variant="caption" color="text.disabled">›</Typography></>}
+                                {parentCycleName && <><Typography variant="caption" color="text.disabled">{parentCycleName}</Typography><Typography variant="caption" color="text.disabled">›</Typography></>}
+                                <Typography variant="caption" sx={{ color: accentColor, fontWeight: 600 }}>{project.name}</Typography>
+                                <Typography variant="caption" color="text.disabled">›</Typography>
+                                <Typography variant="caption" sx={{ color: selectedAreaAccent, fontWeight: 700 }}>{processAreaLabel}</Typography>
+                                <Typography variant="caption" color="text.disabled">›</Typography>
+                                <Typography variant="caption" sx={{ color: deliverableAccentColor, fontWeight: 700 }}>{objectLabel}</Typography>
+                                <Typography variant="caption" color="text.disabled">›</Typography>
+                                <Typography variant="caption" sx={{ color: deliverableAccentColor, fontWeight: 700 }}>{parsedDesignDeliverableChild.deliverableConfig.label}</Typography>
+                                <Typography variant="caption" color="text.disabled">›</Typography>
+                                <Typography variant="caption" sx={{ color: '#90A4AE', fontWeight: 700 }}>Maintain</Typography>
+                              </Box>
+
+                              <Typography variant="h4" sx={{ fontWeight: 700, color: deliverableAccentColor, mb: 0.55, fontSize: { xs: '1.5rem', sm: '2.05rem' } }}>
+                                Maintain {parsedDesignDeliverableChild.deliverableConfig.label}
+                              </Typography>
+                              <Typography variant="body2" color="text.secondary" sx={{ mb: 1.2 }}>
+                                Maintenance node for {objectLabel} ({processAreaLabel})
+                              </Typography>
+
+                              <Paper sx={{ p: 1.3, border: `1px dashed ${deliverableAccentColor}66`, backgroundColor: 'rgba(255,255,255,0.03)' }}>
+                                <Typography variant="subtitle2" sx={{ color: deliverableAccentColor, fontWeight: 700, mb: 0.5 }}>Maintain Deliverable</Typography>
+                                <Typography variant="body2" color="text.secondary">
+                                  Placeholder: deliverable maintenance UI will be implemented in this node.
+                                </Typography>
                               </Paper>
                             </Box>
-                          ) : (
-                            <Paper sx={{ p: 1.3, border: `1px dashed ${deliverableAccentColor}66`, backgroundColor: 'rgba(255,255,255,0.03)' }}>
-                              <Typography variant="subtitle2" sx={{ color: deliverableAccentColor, fontWeight: 700, mb: 0.5 }}>Maintain Deliverable</Typography>
-                              <Typography variant="body2" color="text.secondary">
-                                Placeholder: deliverable maintenance UI will be implemented in this tab in the next step.
-                              </Typography>
+                          );
+                        }
+
+                        const approvalGroupName = `${objectLabel} - ${parsedDesignDeliverableChild.deliverableConfig.label} Approvals`;
+                        const approvalDraft = designApprovalDraftByNode[nodeKey] || { title: '', assignee: '' };
+                        const designApprovalsGroup = projectTaskGroups.find((group: any) => (
+                          group.projectId === project.id
+                          && String(group.name || '').trim().toLowerCase() === approvalGroupName.toLowerCase()
+                        ));
+                        const approvalEntries = designApprovalsGroup
+                          ? projectTasks
+                            .filter((task: any) => task.taskGroupId === designApprovalsGroup.id)
+                            .sort((a: any, b: any) => String(a.name || '').localeCompare(String(b.name || '')))
+                          : [];
+                        const isCreatingDesignApproval = creatingDesignApprovalNodeKey === nodeKey;
+                        const statusChipColor = (status: string) => {
+                          if (status === 'complete') return 'success';
+                          if (status === 'blocked') return 'error';
+                          if (status === 'in_progress') return 'info';
+                          return 'default';
+                        };
+                        const setApprovalDraft = (patch: Partial<{ title: string; assignee: string }>) => {
+                          setDesignApprovalDraftByNode((prev) => ({
+                            ...prev,
+                            [nodeKey]: {
+                              title: patch.title ?? prev[nodeKey]?.title ?? '',
+                              assignee: patch.assignee ?? prev[nodeKey]?.assignee ?? '',
+                            },
+                          }));
+                        };
+                        const ensureDesignApprovalsGroup = async () => {
+                          if (!activeCycleId) throw new Error('Mock cycle context missing. Select a project under a mock cycle to manage approvals.');
+                          if (designApprovalsGroup) return designApprovalsGroup;
+                          const response = await apiClient.post(`/api/tasks/groups/cycle/${activeCycleId}`, {
+                            name: approvalGroupName,
+                            processArea: null,
+                          });
+                          const createdGroup = response.data?.data;
+                          if (!createdGroup) throw new Error('Failed to create design approvals group.');
+                          setProjectTaskGroups((prev) => prev.some((group: any) => group.id === createdGroup.id) ? prev : [...prev, createdGroup]);
+                          setDeliverableTaskGroupAssignments((prev) => ({
+                            ...prev,
+                            [project.id]: {
+                              ...(prev[project.id] || {}),
+                              [createdGroup.id]: selectedItem.deliverableId,
+                            },
+                          }));
+                          return createdGroup;
+                        };
+                        const createApprovalEntry = async () => {
+                          if (!approvalDraft.title.trim()) return;
+                          if (!activeCycleId) {
+                            alert('Mock cycle context missing. Select a project under a mock cycle to manage approvals.');
+                            return;
+                          }
+                          try {
+                            setCreatingDesignApprovalNodeKey(nodeKey);
+                            const group = await ensureDesignApprovalsGroup();
+                            const response = await apiClient.post(`/api/tasks/cycle/${activeCycleId}`, {
+                              taskType: 'custom',
+                              taskGroupId: group.id,
+                              name: approvalDraft.title.trim(),
+                              assignedTo: approvalDraft.assignee || null,
+                              durationUnit: 'days',
+                            });
+                            const createdTask = normalizeTaskDateFields(response.data?.data || response.data || {});
+                            if (createdTask?.id) {
+                              setProjectTasks((prev) => prev.some((task: any) => task.id === createdTask.id) ? prev : [...prev, createdTask]);
+                              setTaskCommentCounts((prev) => ({ ...prev, [createdTask.id]: 0 }));
+                            }
+                            setDesignApprovalDraftByNode((prev) => ({ ...prev, [nodeKey]: { title: '', assignee: '' } }));
+                          } catch (error: any) {
+                            console.error('Failed to create design approval entry:', error);
+                            alert(error?.message || 'Failed to create design approval entry.');
+                          } finally {
+                            setCreatingDesignApprovalNodeKey(null);
+                          }
+                        };
+
+                        return (
+                          <Box>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1.5 }}>
+                              {parentProgramName && <><Typography variant="caption" color="text.disabled">{parentProgramName}</Typography><Typography variant="caption" color="text.disabled">›</Typography></>}
+                              {parentCycleName && <><Typography variant="caption" color="text.disabled">{parentCycleName}</Typography><Typography variant="caption" color="text.disabled">›</Typography></>}
+                              <Typography variant="caption" sx={{ color: accentColor, fontWeight: 600 }}>{project.name}</Typography>
+                              <Typography variant="caption" color="text.disabled">›</Typography>
+                              <Typography variant="caption" sx={{ color: selectedAreaAccent, fontWeight: 700 }}>{processAreaLabel}</Typography>
+                              <Typography variant="caption" color="text.disabled">›</Typography>
+                              <Typography variant="caption" sx={{ color: deliverableAccentColor, fontWeight: 700 }}>{objectLabel}</Typography>
+                              <Typography variant="caption" color="text.disabled">›</Typography>
+                              <Typography variant="caption" sx={{ color: deliverableAccentColor, fontWeight: 700 }}>{parsedDesignDeliverableChild.deliverableConfig.label}</Typography>
+                              <Typography variant="caption" color="text.disabled">›</Typography>
+                              <Typography variant="caption" sx={{ color: '#FF8A65', fontWeight: 700 }}>Approvals</Typography>
+                            </Box>
+
+                            <Typography variant="h4" sx={{ fontWeight: 700, color: deliverableAccentColor, mb: 1, fontSize: { xs: '1.55rem', sm: '2.125rem' } }}>
+                              {parsedDesignDeliverableChild.deliverableConfig.label} Approvals
+                            </Typography>
+
+                            <Paper sx={{ p: 1.25, border: `1px solid ${deliverableAccentColor}44`, backgroundColor: 'rgba(255,255,255,0.04)', mb: 1.25 }}>
+                              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1.2fr 1fr auto' }, gap: 1, alignItems: 'center' }}>
+                                <TextField
+                                  size="small"
+                                  label="Approval Entry"
+                                  placeholder={`e.g., ${parsedDesignDeliverableChild.deliverableConfig.label} sign-off`}
+                                  value={approvalDraft.title}
+                                  onChange={(e) => setApprovalDraft({ title: e.target.value })}
+                                />
+                                <TextField
+                                  select
+                                  size="small"
+                                  label="Approver"
+                                  value={approvalDraft.assignee}
+                                  onChange={(e) => setApprovalDraft({ assignee: e.target.value })}
+                                >
+                                  <MenuItem value=""><em>Unassigned</em></MenuItem>
+                                  {people.map((person: any) => (
+                                    <MenuItem key={person.id} value={person.id}>{person.name || person.email}</MenuItem>
+                                  ))}
+                                </TextField>
+                                <Button
+                                  variant="contained"
+                                  startIcon={<AddIcon />}
+                                  onClick={createApprovalEntry}
+                                  disabled={isCreatingDesignApproval || !approvalDraft.title.trim()}
+                                  sx={{ textTransform: 'none' }}
+                                >
+                                  {isCreatingDesignApproval ? 'Adding...' : 'Add Entry'}
+                                </Button>
+                              </Box>
                             </Paper>
-                          )}
-                        </Box>
-                      );
+
+                            <Paper sx={{ p: 1.25, border: `1px solid ${deliverableAccentColor}44`, backgroundColor: 'rgba(255,255,255,0.03)' }}>
+                              <Box sx={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr 0.8fr 0.8fr 0.9fr', gap: 1, pb: 0.6, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                                <Typography variant="caption" sx={{ color: deliverableAccentColor, fontWeight: 700 }}>Entry</Typography>
+                                <Typography variant="caption" sx={{ color: deliverableAccentColor, fontWeight: 700 }}>Approver</Typography>
+                                <Typography variant="caption" sx={{ color: deliverableAccentColor, fontWeight: 700 }}>Status</Typography>
+                                <Typography variant="caption" sx={{ color: deliverableAccentColor, fontWeight: 700 }}>Discussion</Typography>
+                                <Typography variant="caption" sx={{ color: deliverableAccentColor, fontWeight: 700, textAlign: 'right' }}>Actions</Typography>
+                              </Box>
+                              {approvalEntries.length === 0 ? (
+                                <Typography variant="body2" color="text.secondary" sx={{ py: 1.25 }}>
+                                  No approval entries yet. Add entries above and use Discussion to @mention approvers.
+                                </Typography>
+                              ) : (
+                                <Box sx={{ display: 'grid', gap: 0.4, mt: 0.5 }}>
+                                  {approvalEntries.map((entry: any) => {
+                                    const approver = people.find((person: any) => person.id === entry.assignedTo);
+                                    const discussionCount = taskCommentCounts[entry.id] || 0;
+                                    return (
+                                      <Box key={entry.id} sx={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr 0.8fr 0.8fr 0.9fr', gap: 1, alignItems: 'center', py: 0.45, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                        <Typography variant="body2" sx={{ fontWeight: 600 }}>{entry.name || 'Approval Entry'}</Typography>
+                                        <Typography variant="body2" color="text.secondary">{approver?.name || approver?.email || 'Unassigned'}</Typography>
+                                        <Chip size="small" label={(entry.status || 'not_started').replace('_', ' ')} color={statusChipColor(entry.status || 'not_started') as any} variant="outlined" />
+                                        <Button size="small" variant="text" onClick={() => setCommentModalTask({ id: entry.id, name: entry.name || 'Approval Entry' })} sx={{ textTransform: 'none', justifyContent: 'flex-start' }}>
+                                          {discussionCount} comment{discussionCount === 1 ? '' : 's'}
+                                        </Button>
+                                        <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.25 }}>
+                                          <IconButton size="small" title="Open entry" onClick={() => openApprovalEntryEditor(entry)} sx={{ color: 'rgba(255,255,255,0.65)', '&:hover': { color: 'white' } }}>
+                                            <EditIcon sx={{ fontSize: '0.95rem' }} />
+                                          </IconButton>
+                                          <IconButton size="small" title="Delete entry" onClick={() => openDeleteDialog('task', entry.id, entry.name || 'Approval Entry')} sx={{ color: 'rgba(255,255,255,0.5)', '&:hover': { color: '#ef5350' } }}>
+                                            <DeleteIcon sx={{ fontSize: '0.95rem' }} />
+                                          </IconButton>
+                                        </Box>
+                                      </Box>
+                                    );
+                                  })}
+                                </Box>
+                              )}
+                            </Paper>
+                          </Box>
+                        );
+                      }
                     }
                     if (isDesignBuildDeveloperPoolNode) {
                       const topLevelObjects = projectInventoryItems.filter((item: any) => !item.parentProjectObjectId);
