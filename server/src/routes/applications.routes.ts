@@ -115,7 +115,7 @@ router.get('/data-definitions/:definitionId/fields', requireAuth, async (req: Re
   try {
     const result = await db.query(
       `SELECT f.id, f.data_definition_id, f.sub_object_id, f.table_name, f.field_name, f.field_label,
-              f.data_type, f.length, f.decimals, f.is_key, f.is_required, f.description, f.sort_order,
+              f.data_type, f.length, f.decimals, f.is_key, f.is_required, f.business_process_required, f.description, f.sort_order,
               f.created_at, f.updated_at,
               s.name as sub_object_name
        FROM data_definition_fields f
@@ -130,15 +130,15 @@ router.get('/data-definitions/:definitionId/fields', requireAuth, async (req: Re
 
 router.post('/data-definitions/:definitionId/fields', requireAuth, requireRole('analyst', 'admin'), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { tableName, fieldName, fieldLabel, dataType, length, decimals, isKey, isRequired, description, sortOrder, subObjectId } = req.body;
+    const { tableName, fieldName, fieldLabel, dataType, length, decimals, isKey, isRequired, businessProcessRequired, description, sortOrder, subObjectId } = req.body;
     if (!fieldName?.trim()) throw new ApiError(400, 'fieldName is required', 'MISSING_FIELD');
     const result = await db.query(
       `INSERT INTO data_definition_fields
-         (data_definition_id, sub_object_id, table_name, field_name, field_label, data_type, length, decimals, is_key, is_required, description, sort_order)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+         (data_definition_id, sub_object_id, table_name, field_name, field_label, data_type, length, decimals, is_key, is_required, business_process_required, description, sort_order)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
        RETURNING *`,
       [req.params.definitionId, subObjectId || null, tableName || null, fieldName.trim(), fieldLabel || null, dataType || null,
-       length || null, decimals || null, isKey || false, isRequired || false, description || null, sortOrder || 0]
+       length || null, decimals || null, isKey || false, isRequired || false, businessProcessRequired || false, description || null, sortOrder || 0]
     );
     res.status(201).json(formatSingleResponse(result.rows[0]));
   } catch (err) { next(err); }
@@ -146,14 +146,14 @@ router.post('/data-definitions/:definitionId/fields', requireAuth, requireRole('
 
 router.put('/data-definitions/fields/:fieldId', requireAuth, requireRole('analyst', 'admin'), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { tableName, fieldName, fieldLabel, dataType, length, decimals, isKey, isRequired, description, sortOrder, subObjectId } = req.body;
+    const { tableName, fieldName, fieldLabel, dataType, length, decimals, isKey, isRequired, businessProcessRequired, description, sortOrder, subObjectId } = req.body;
     const result = await db.query(
       `UPDATE data_definition_fields
        SET sub_object_id=$1, table_name=$2, field_name=$3, field_label=$4, data_type=$5, length=$6, decimals=$7,
-           is_key=$8, is_required=$9, description=$10, sort_order=$11, updated_at=CURRENT_TIMESTAMP
-       WHERE id=$12 RETURNING *`,
+           is_key=$8, is_required=$9, business_process_required=$10, description=$11, sort_order=$12, updated_at=CURRENT_TIMESTAMP
+       WHERE id=$13 RETURNING *`,
       [subObjectId || null, tableName || null, fieldName || '', fieldLabel || null, dataType || null,
-       length || null, decimals || null, isKey || false, isRequired || false, description || null, sortOrder || 0, req.params.fieldId]
+       length || null, decimals || null, isKey || false, isRequired || false, businessProcessRequired || false, description || null, sortOrder || 0, req.params.fieldId]
     );
     if (!result.rows.length) throw new ApiError(404, 'Field not found', 'NOT_FOUND');
     res.json(formatSingleResponse(result.rows[0]));

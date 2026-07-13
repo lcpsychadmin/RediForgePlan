@@ -1492,7 +1492,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   const [dataDefFields, setDataDefFields] = useState<any[]>([]);
   const [editingFieldRow, setEditingFieldRow] = useState<Record<string, any> | null>(null);
   const [addingFieldToSubObj, setAddingFieldToSubObj] = useState<string | 'root' | null>(null);
-  const [newField, setNewField] = useState({ tableName: '', fieldName: '', fieldLabel: '', dataType: '', length: '', decimals: '', isKey: false, isRequired: false, description: '' });
+  const [newField, setNewField] = useState({ tableName: '', fieldName: '', fieldLabel: '', dataType: '', length: '', decimals: '', isKey: false, isRequired: false, businessProcessRequired: false, description: '' });
   const [addingSubObj, setAddingSubObj] = useState(false);
   const [newSubObjName, setNewSubObjName] = useState('');
   const [collapsedSubObjs, setCollapsedSubObjs] = useState<Set<string>>(new Set());
@@ -1501,7 +1501,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   const [dataConstructionTemplateFields, setDataConstructionTemplateFields] = useState<any[]>([]);
   const [isAddingTemplateField, setIsAddingTemplateField] = useState(false);
   const [editingTemplateFieldId, setEditingTemplateFieldId] = useState<string | null>(null);
-  const [templateFieldDraft, setTemplateFieldDraft] = useState({ fieldName: '', fieldLabel: '', dataType: '', length: '', decimals: '', isRequired: false, description: '' });
+  const [templateFieldDraft, setTemplateFieldDraft] = useState({ fieldName: '', fieldLabel: '', dataType: '', length: '', decimals: '', isRequired: false, businessProcessRequired: false, description: '' });
   const [catalogObjectId, setCatalogObjectId] = useState('');
   const [catalogObjectDesc, setCatalogObjectDesc] = useState('');
   const [catalogProcessArea, setCatalogProcessArea] = useState('');
@@ -1687,6 +1687,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
     length: '',
     decimals: '',
     isRequired: false,
+    businessProcessRequired: false,
     description: '',
   });
 
@@ -1703,6 +1704,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
         length: String(row?.length ?? ''),
         decimals: String(row?.decimals ?? ''),
         isRequired: !!row?.isRequired,
+        businessProcessRequired: !!row?.businessProcessRequired,
         description: String(row?.description || ''),
       }));
     } catch {
@@ -1719,6 +1721,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
       length: row.length === '' ? null : Number(row.length),
       decimals: row.decimals === '' ? null : Number(row.decimals),
       isRequired: !!row.isRequired,
+      businessProcessRequired: !!row.businessProcessRequired,
       description: String(row.description || '').trim(),
     }));
 
@@ -16665,6 +16668,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                           <Box component="td" sx={{ px: 0.75, py: 0.5, textAlign: 'center' }}>
                             <input type="checkbox" checked={newField.isRequired} onChange={e => setNewField(p => ({ ...p, isRequired: e.target.checked }))} style={{ cursor: 'pointer' }} />
                           </Box>
+                          <Box component="td" sx={{ px: 0.75, py: 0.5, textAlign: 'center' }}>
+                            <input type="checkbox" checked={newField.businessProcessRequired} onChange={e => setNewField(p => ({ ...p, businessProcessRequired: e.target.checked }))} style={{ cursor: 'pointer' }} />
+                          </Box>
                           <Box component="td" sx={{ px: 0.75, py: 0.5 }}>
                             <input value={newField.description} onChange={e => setNewField(p => ({ ...p, description: e.target.value }))}
                               style={{ width: '100%', fontSize: '0.75rem', padding: '2px 4px', borderRadius: 3, border: '1px solid rgba(255,255,255,0.2)', backgroundColor: 'rgba(0,0,0,0.3)', color: '#DBE7FF', boxSizing: 'border-box' }} />
@@ -16672,7 +16678,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                           <Box component="td" sx={{ px: 0.5, py: 0.5, whiteSpace: 'nowrap' }}>
                             <IconButton size="small" disabled={!newField.fieldName.trim()} sx={{ p: 0.3, color: '#66bb6a' }} onClick={async () => {
                               const res = await apiClient.post(`/api/applications/data-definitions/${selectedDataDefId}/fields`, { ...newField, length: newField.length ? parseInt(newField.length) : null, decimals: newField.decimals ? parseInt(newField.decimals) : null, subObjectId: subObjId, sortOrder: dataDefFields.filter((f: any) => f.sub_object_id === subObjId).length }).catch(() => null);
-                              if (res) { setDataDefFields(prev => [...prev, res.data.data]); setAddingFieldToSubObj(null); setNewField({ tableName: '', fieldName: '', fieldLabel: '', dataType: '', length: '', decimals: '', isKey: false, isRequired: false, description: '' }); }
+                              if (res) { setDataDefFields(prev => [...prev, res.data.data]); setAddingFieldToSubObj(null); setNewField({ tableName: '', fieldName: '', fieldLabel: '', dataType: '', length: '', decimals: '', isKey: false, isRequired: false, businessProcessRequired: false, description: '' }); }
                             }}><SaveIcon sx={{ fontSize: '0.9rem' }} /></IconButton>
                             <IconButton size="small" sx={{ p: 0.3 }} onClick={() => setAddingFieldToSubObj(null)}><CloseIcon sx={{ fontSize: '0.9rem' }} /></IconButton>
                           </Box>
@@ -16691,7 +16697,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                       <Box component="table" sx={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
                         <Box component="thead">
                           <Box component="tr">
-                            <TH>Table</TH><TH>Field Name</TH><TH>Label</TH><TH>Type</TH><TH>Len</TH><TH>Dec</TH><TH>Key</TH><TH>Req</TH><TH>Description</TH><TH></TH>
+                            <TH>Table</TH><TH>Field Name</TH><TH>Label</TH><TH>Type</TH><TH>Len</TH><TH>Dec</TH><TH>Key</TH><TH>Req</TH><TH>BP Req</TH><TH>Description</TH><TH></TH>
                           </Box>
                         </Box>
                         <Box component="tbody">
@@ -16703,7 +16709,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                               {/* Sub-object section header */}
                               {label && (
                                 <Box component="tr">
-                                  <Box component="td" colSpan={10} sx={{ px: 1, py: 0, backgroundColor: 'rgba(255,255,255,0.09)', borderTop: '1px solid rgba(255,255,255,0.14)', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                                  <Box component="td" colSpan={11} sx={{ px: 1, py: 0, backgroundColor: 'rgba(255,255,255,0.09)', borderTop: '1px solid rgba(255,255,255,0.14)', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
                                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minHeight: 32 }}>
                                       <IconButton size="small" sx={{ p: 0.3, color: 'rgba(255,255,255,0.5)', '&:hover': { color: 'white' } }} onClick={() => toggleCollapse(subObjId!)}>
                                         {isCollapsed
@@ -16735,7 +16741,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                       )}
                                       {editingSubObjId !== subObjId && (
                                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, ml: 'auto' }}>
-                                          <Box component="button" onClick={() => { setAddingFieldToSubObj(subObjId || 'root'); setNewField({ tableName: '', fieldName: '', fieldLabel: '', dataType: '', length: '', decimals: '', isKey: false, isRequired: false, description: '' }); }}
+                                          <Box component="button" onClick={() => { setAddingFieldToSubObj(subObjId || 'root'); setNewField({ tableName: '', fieldName: '', fieldLabel: '', dataType: '', length: '', decimals: '', isKey: false, isRequired: false, businessProcessRequired: false, description: '' }); }}
                                             sx={{ fontSize: '0.65rem', px: 0.6, py: 0.2, borderRadius: 1, border: '1px dashed rgba(255,255,255,0.2)', backgroundColor: 'transparent', color: 'rgba(255,255,255,0.45)', cursor: 'pointer', '&:hover': { borderColor: 'white', color: 'white' } }}>+ Add Field</Box>
                                           <IconButton size="small" sx={{ p: 0.3, opacity: 0.55, '&:hover': { opacity: 1, color: '#90caf9' } }} onClick={() => { setEditingSubObjId(subObjId!); setEditingSubObjName(label); }}>
                                             <EditIcon sx={{ fontSize: '0.8rem' }} />
@@ -16753,8 +16759,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                               )}
                               {!label && (
                                 <Box component="tr">
-                                  <Box component="td" colSpan={10} sx={{ px: 1, py: 0.4, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                                    <Box component="button" onClick={() => { setAddingFieldToSubObj('root'); setNewField({ tableName: '', fieldName: '', fieldLabel: '', dataType: '', length: '', decimals: '', isKey: false, isRequired: false, description: '' }); }}
+                                  <Box component="td" colSpan={11} sx={{ px: 1, py: 0.4, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                                    <Box component="button" onClick={() => { setAddingFieldToSubObj('root'); setNewField({ tableName: '', fieldName: '', fieldLabel: '', dataType: '', length: '', decimals: '', isKey: false, isRequired: false, businessProcessRequired: false, description: '' }); }}
                                       sx={{ fontSize: '0.7rem', px: 0.75, py: 0.2, borderRadius: 1, border: '1px dashed rgba(255,255,255,0.15)', backgroundColor: 'transparent', color: 'rgba(255,255,255,0.4)', cursor: 'pointer', '&:hover': { borderColor: 'white', color: 'white' } }}>+ Add Field</Box>
                                   </Box>
                                 </Box>
@@ -16779,13 +16785,16 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                     <Box component="td" sx={{ px: 0.75, textAlign: 'center' }}>
                                       <input type="checkbox" checked={!!editingFieldRow.is_required} onChange={e => setEditingFieldRow((p: any) => ({ ...p, is_required: e.target.checked }))} style={{ cursor: 'pointer' }} />
                                     </Box>
+                                    <Box component="td" sx={{ px: 0.75, textAlign: 'center' }}>
+                                      <input type="checkbox" checked={!!editingFieldRow.business_process_required} onChange={e => setEditingFieldRow((p: any) => ({ ...p, business_process_required: e.target.checked }))} style={{ cursor: 'pointer' }} />
+                                    </Box>
                                     <Box component="td" sx={{ px: 0.75 }}>
                                       <input value={editingFieldRow.description ?? ''} onChange={e => setEditingFieldRow((p: any) => ({ ...p, description: e.target.value }))}
                                         style={{ width: '100%', fontSize: '0.75rem', padding: '2px 4px', borderRadius: 3, border: '1px solid rgba(91,103,202,0.4)', backgroundColor: 'rgba(0,0,0,0.3)', color: '#DBE7FF', boxSizing: 'border-box' }} />
                                     </Box>
                                     <Box component="td" sx={{ px: 0.5, whiteSpace: 'nowrap' }}>
                                       <IconButton size="small" sx={{ p: 0.3, color: '#66bb6a' }} onClick={async () => {
-                                        await apiClient.put(`/api/applications/data-definitions/fields/${f.id}`, { tableName: editingFieldRow.table_name, fieldName: editingFieldRow.field_name, fieldLabel: editingFieldRow.field_label, dataType: editingFieldRow.data_type, length: editingFieldRow.length, decimals: editingFieldRow.decimals, isKey: editingFieldRow.is_key, isRequired: editingFieldRow.is_required, description: editingFieldRow.description, sortOrder: f.sort_order, subObjectId: f.sub_object_id });
+                                        await apiClient.put(`/api/applications/data-definitions/fields/${f.id}`, { tableName: editingFieldRow.table_name, fieldName: editingFieldRow.field_name, fieldLabel: editingFieldRow.field_label, dataType: editingFieldRow.data_type, length: editingFieldRow.length, decimals: editingFieldRow.decimals, isKey: editingFieldRow.is_key, isRequired: editingFieldRow.is_required, businessProcessRequired: editingFieldRow.business_process_required, description: editingFieldRow.description, sortOrder: f.sort_order, subObjectId: f.sub_object_id });
                                         setDataDefFields(prev => prev.map((ff: any) => ff.id === f.id ? { ...ff, ...editingFieldRow } : ff));
                                         setEditingFieldRow(null);
                                       }}><SaveIcon sx={{ fontSize: '0.9rem' }} /></IconButton>
@@ -16800,6 +16809,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                     ))}
                                     <Box component="td" sx={{ px: 1, py: 0.65, textAlign: 'center' }}>{f.is_key ? <Box component="span" sx={{ color: '#ffa726', fontWeight: 700 }}>●</Box> : <Box component="span" sx={{ color: 'rgba(255,255,255,0.15)' }}>○</Box>}</Box>
                                     <Box component="td" sx={{ px: 1, py: 0.65, textAlign: 'center' }}>{f.is_required ? <Box component="span" sx={{ color: '#ef5350', fontWeight: 700 }}>●</Box> : <Box component="span" sx={{ color: 'rgba(255,255,255,0.15)' }}>○</Box>}</Box>
+                                    <Box component="td" sx={{ px: 1, py: 0.65, textAlign: 'center' }}>{f.business_process_required ? <Box component="span" sx={{ color: '#42a5f5', fontWeight: 700 }}>●</Box> : <Box component="span" sx={{ color: 'rgba(255,255,255,0.15)' }}>○</Box>}</Box>
                                     <Box component="td" sx={{ px: 1, py: 0.65, color: 'text.disabled', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.description || '—'}</Box>
                                     <Box component="td" sx={{ px: 0.5, py: 0.65, whiteSpace: 'nowrap' }} onClick={e => e.stopPropagation()}>
                                       <IconButton size="small" onClick={async () => { await apiClient.delete(`/api/applications/data-definitions/fields/${f.id}`); setDataDefFields(prev => prev.filter((ff: any) => ff.id !== f.id)); }} sx={{ p: 0.25, opacity: 0.4, '&:hover': { opacity: 1, color: '#ef5350' } }}><DeleteIcon sx={{ fontSize: '0.8rem' }} /></IconButton>
@@ -16827,23 +16837,64 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                         Define the default business-provided template fields when no source application data is available.
                       </Typography>
                     </Box>
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      onClick={() => {
-                        setIsAddingTemplateField(true);
-                        setEditingTemplateFieldId(null);
-                        setTemplateFieldDraft(emptyTemplateFieldDraft());
-                      }}
-                      sx={{ textTransform: 'none', fontSize: '0.72rem', px: 1, py: 0.2 }}
-                    >
-                      + Add Template Field
-                    </Button>
+                    <Box sx={{ display: 'flex', gap: 0.6, alignItems: 'center' }}>
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        onClick={async () => {
+                          if (!selectedDataDefId) return;
+                          const eligibleFields = dataDefFields.filter((f: any) => !!f.is_required || !!f.business_process_required);
+                          if (eligibleFields.length === 0) {
+                            alert('No eligible fields found. Mark fields as required or business process required first.');
+                            return;
+                          }
+                          if (dataConstructionTemplateFields.length > 0 && !window.confirm('Replace existing template fields with generated rows?')) {
+                            return;
+                          }
+                          const generatedRows = eligibleFields.map((field: any) => ({
+                            id: `generated-${field.id}`,
+                            fieldName: String(field.field_name || ''),
+                            fieldLabel: String(field.field_label || field.field_name || ''),
+                            dataType: String(field.data_type || ''),
+                            length: String(field.length ?? ''),
+                            decimals: String(field.decimals ?? ''),
+                            isRequired: !!field.is_required,
+                            businessProcessRequired: !!field.business_process_required,
+                            description: String(field.description || ''),
+                          }));
+                          try {
+                            await persistTemplateFieldsForDefinition(selectedDataDefId, generatedRows);
+                            setDataConstructionTemplateFields(generatedRows);
+                            setIsAddingTemplateField(false);
+                            setEditingTemplateFieldId(null);
+                            setTemplateFieldDraft(emptyTemplateFieldDraft());
+                          } catch (error) {
+                            console.error('Failed to generate template fields:', error);
+                            alert('Failed to generate template fields. Please try again.');
+                          }
+                        }}
+                        sx={{ textTransform: 'none', fontSize: '0.72rem', px: 1, py: 0.2 }}
+                      >
+                        Generate From Required Fields
+                      </Button>
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        onClick={() => {
+                          setIsAddingTemplateField(true);
+                          setEditingTemplateFieldId(null);
+                          setTemplateFieldDraft(emptyTemplateFieldDraft());
+                        }}
+                        sx={{ textTransform: 'none', fontSize: '0.72rem', px: 1, py: 0.2 }}
+                      >
+                        + Add Template Field
+                      </Button>
+                    </Box>
                   </Box>
 
                   <Box sx={{ border: '1px solid rgba(255,255,255,0.1)', borderRadius: 1, overflow: 'hidden' }}>
-                    <Box sx={{ display: 'grid', gridTemplateColumns: '1.1fr 1.1fr 0.9fr 0.45fr 0.45fr 0.45fr 1.25fr 0.7fr', gap: 0, backgroundColor: 'rgba(255,255,255,0.05)', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-                      {['Field Name', 'Label', 'Type', 'Len', 'Dec', 'Req', 'Description', 'Actions'].map((header) => (
+                    <Box sx={{ display: 'grid', gridTemplateColumns: '1.1fr 1.1fr 0.9fr 0.45fr 0.45fr 0.6fr 0.6fr 1.25fr 0.7fr', gap: 0, backgroundColor: 'rgba(255,255,255,0.05)', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                      {['Field Name', 'Label', 'Type', 'Len', 'Dec', 'System Req', 'BP Req', 'Description', 'Actions'].map((header) => (
                         <Box key={`tmpl-head-${header}`} sx={{ px: 0.85, py: 0.5, fontSize: '0.64rem', fontWeight: 700, letterSpacing: '0.06em', color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase' }}>
                           {header}
                         </Box>
@@ -16851,13 +16902,14 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                     </Box>
 
                     {isAddingTemplateField && (
-                      <Box sx={{ display: 'grid', gridTemplateColumns: '1.1fr 1.1fr 0.9fr 0.45fr 0.45fr 0.45fr 1.25fr 0.7fr', gap: 0, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: 'rgba(102,126,234,0.1)' }}>
+                      <Box sx={{ display: 'grid', gridTemplateColumns: '1.1fr 1.1fr 0.9fr 0.45fr 0.45fr 0.6fr 0.6fr 1.25fr 0.7fr', gap: 0, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: 'rgba(102,126,234,0.1)' }}>
                         <Box sx={{ px: 0.65, py: 0.35 }}><input autoFocus value={templateFieldDraft.fieldName} onChange={(e) => setTemplateFieldDraft((prev) => ({ ...prev, fieldName: e.target.value }))} style={{ width: '100%', fontSize: '0.75rem', fontFamily: 'monospace', padding: '2px 4px', borderRadius: 3, border: '1px solid rgba(255,255,255,0.2)', backgroundColor: 'rgba(0,0,0,0.3)', color: '#DBE7FF', boxSizing: 'border-box' }} /></Box>
                         <Box sx={{ px: 0.65, py: 0.35 }}><input value={templateFieldDraft.fieldLabel} onChange={(e) => setTemplateFieldDraft((prev) => ({ ...prev, fieldLabel: e.target.value }))} style={{ width: '100%', fontSize: '0.75rem', padding: '2px 4px', borderRadius: 3, border: '1px solid rgba(255,255,255,0.2)', backgroundColor: 'rgba(0,0,0,0.3)', color: '#DBE7FF', boxSizing: 'border-box' }} /></Box>
                         <Box sx={{ px: 0.65, py: 0.35 }}><input value={templateFieldDraft.dataType} onChange={(e) => setTemplateFieldDraft((prev) => ({ ...prev, dataType: e.target.value }))} style={{ width: '100%', fontSize: '0.75rem', padding: '2px 4px', borderRadius: 3, border: '1px solid rgba(255,255,255,0.2)', backgroundColor: 'rgba(0,0,0,0.3)', color: '#DBE7FF', boxSizing: 'border-box' }} /></Box>
                         <Box sx={{ px: 0.65, py: 0.35 }}><input value={templateFieldDraft.length} onChange={(e) => setTemplateFieldDraft((prev) => ({ ...prev, length: e.target.value.replace(/[^0-9]/g, '') }))} style={{ width: '100%', fontSize: '0.75rem', padding: '2px 4px', borderRadius: 3, border: '1px solid rgba(255,255,255,0.2)', backgroundColor: 'rgba(0,0,0,0.3)', color: '#DBE7FF', boxSizing: 'border-box' }} /></Box>
                         <Box sx={{ px: 0.65, py: 0.35 }}><input value={templateFieldDraft.decimals} onChange={(e) => setTemplateFieldDraft((prev) => ({ ...prev, decimals: e.target.value.replace(/[^0-9]/g, '') }))} style={{ width: '100%', fontSize: '0.75rem', padding: '2px 4px', borderRadius: 3, border: '1px solid rgba(255,255,255,0.2)', backgroundColor: 'rgba(0,0,0,0.3)', color: '#DBE7FF', boxSizing: 'border-box' }} /></Box>
                         <Box sx={{ px: 0.65, py: 0.35, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><input type="checkbox" checked={templateFieldDraft.isRequired} onChange={(e) => setTemplateFieldDraft((prev) => ({ ...prev, isRequired: e.target.checked }))} /></Box>
+                        <Box sx={{ px: 0.65, py: 0.35, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><input type="checkbox" checked={templateFieldDraft.businessProcessRequired} onChange={(e) => setTemplateFieldDraft((prev) => ({ ...prev, businessProcessRequired: e.target.checked }))} /></Box>
                         <Box sx={{ px: 0.65, py: 0.35 }}><input value={templateFieldDraft.description} onChange={(e) => setTemplateFieldDraft((prev) => ({ ...prev, description: e.target.value }))} style={{ width: '100%', fontSize: '0.75rem', padding: '2px 4px', borderRadius: 3, border: '1px solid rgba(255,255,255,0.2)', backgroundColor: 'rgba(0,0,0,0.3)', color: '#DBE7FF', boxSizing: 'border-box' }} /></Box>
                         <Box sx={{ px: 0.35, py: 0.2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.1 }}>
                           <IconButton
@@ -16897,7 +16949,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                     ) : dataConstructionTemplateFields.map((row: any) => {
                       const isEditing = editingTemplateFieldId === row.id;
                       return (
-                        <Box key={`tmpl-row-${row.id}`} sx={{ display: 'grid', gridTemplateColumns: '1.1fr 1.1fr 0.9fr 0.45fr 0.45fr 0.45fr 1.25fr 0.7fr', gap: 0, borderBottom: '1px solid rgba(255,255,255,0.05)', backgroundColor: isEditing ? 'rgba(102,126,234,0.1)' : 'transparent' }}>
+                        <Box key={`tmpl-row-${row.id}`} sx={{ display: 'grid', gridTemplateColumns: '1.1fr 1.1fr 0.9fr 0.45fr 0.45fr 0.6fr 0.6fr 1.25fr 0.7fr', gap: 0, borderBottom: '1px solid rgba(255,255,255,0.05)', backgroundColor: isEditing ? 'rgba(102,126,234,0.1)' : 'transparent' }}>
                           {isEditing ? (
                             <>
                               <Box sx={{ px: 0.65, py: 0.35 }}><input value={templateFieldDraft.fieldName} onChange={(e) => setTemplateFieldDraft((prev) => ({ ...prev, fieldName: e.target.value }))} style={{ width: '100%', fontSize: '0.75rem', fontFamily: 'monospace', padding: '2px 4px', borderRadius: 3, border: '1px solid rgba(255,255,255,0.2)', backgroundColor: 'rgba(0,0,0,0.3)', color: '#DBE7FF', boxSizing: 'border-box' }} /></Box>
@@ -16906,6 +16958,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                               <Box sx={{ px: 0.65, py: 0.35 }}><input value={templateFieldDraft.length} onChange={(e) => setTemplateFieldDraft((prev) => ({ ...prev, length: e.target.value.replace(/[^0-9]/g, '') }))} style={{ width: '100%', fontSize: '0.75rem', padding: '2px 4px', borderRadius: 3, border: '1px solid rgba(255,255,255,0.2)', backgroundColor: 'rgba(0,0,0,0.3)', color: '#DBE7FF', boxSizing: 'border-box' }} /></Box>
                               <Box sx={{ px: 0.65, py: 0.35 }}><input value={templateFieldDraft.decimals} onChange={(e) => setTemplateFieldDraft((prev) => ({ ...prev, decimals: e.target.value.replace(/[^0-9]/g, '') }))} style={{ width: '100%', fontSize: '0.75rem', padding: '2px 4px', borderRadius: 3, border: '1px solid rgba(255,255,255,0.2)', backgroundColor: 'rgba(0,0,0,0.3)', color: '#DBE7FF', boxSizing: 'border-box' }} /></Box>
                               <Box sx={{ px: 0.65, py: 0.35, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><input type="checkbox" checked={templateFieldDraft.isRequired} onChange={(e) => setTemplateFieldDraft((prev) => ({ ...prev, isRequired: e.target.checked }))} /></Box>
+                              <Box sx={{ px: 0.65, py: 0.35, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><input type="checkbox" checked={templateFieldDraft.businessProcessRequired} onChange={(e) => setTemplateFieldDraft((prev) => ({ ...prev, businessProcessRequired: e.target.checked }))} /></Box>
                               <Box sx={{ px: 0.65, py: 0.35 }}><input value={templateFieldDraft.description} onChange={(e) => setTemplateFieldDraft((prev) => ({ ...prev, description: e.target.value }))} style={{ width: '100%', fontSize: '0.75rem', padding: '2px 4px', borderRadius: 3, border: '1px solid rgba(255,255,255,0.2)', backgroundColor: 'rgba(0,0,0,0.3)', color: '#DBE7FF', boxSizing: 'border-box' }} /></Box>
                               <Box sx={{ px: 0.35, py: 0.2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.1 }}>
                                 <IconButton
@@ -16943,6 +16996,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                               <Box sx={{ px: 0.85, py: 0.5, fontSize: '0.78rem', color: 'text.secondary' }}>{row.length || '—'}</Box>
                               <Box sx={{ px: 0.85, py: 0.5, fontSize: '0.78rem', color: 'text.secondary' }}>{row.decimals || '—'}</Box>
                               <Box sx={{ px: 0.85, py: 0.5, textAlign: 'center' }}>{row.isRequired ? <Box component="span" sx={{ color: '#ef5350', fontWeight: 700 }}>●</Box> : <Box component="span" sx={{ color: 'rgba(255,255,255,0.15)' }}>○</Box>}</Box>
+                              <Box sx={{ px: 0.85, py: 0.5, textAlign: 'center' }}>{row.businessProcessRequired ? <Box component="span" sx={{ color: '#42a5f5', fontWeight: 700 }}>●</Box> : <Box component="span" sx={{ color: 'rgba(255,255,255,0.15)' }}>○</Box>}</Box>
                               <Box sx={{ px: 0.85, py: 0.5, fontSize: '0.78rem', color: 'text.disabled', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.description || '—'}</Box>
                               <Box sx={{ px: 0.35, py: 0.2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.1 }}>
                                 <IconButton
@@ -16958,6 +17012,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                       length: String(row.length ?? ''),
                                       decimals: String(row.decimals ?? ''),
                                       isRequired: !!row.isRequired,
+                                      businessProcessRequired: !!row.businessProcessRequired,
                                       description: String(row.description || ''),
                                     });
                                   }}
