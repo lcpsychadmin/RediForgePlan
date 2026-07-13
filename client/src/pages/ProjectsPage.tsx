@@ -1287,6 +1287,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   const [expandedProjectGroups, setExpandedProjectGroups] = useState<Set<string>>(new Set());
   const [expandedEstimationDeliverables, setExpandedEstimationDeliverables] = useState<Set<string>>(new Set());
   const [collapsedEstimationProcessAreaSections, setCollapsedEstimationProcessAreaSections] = useState<Set<string>>(new Set());
+  const [expandedDeveloperAssignmentAreas, setExpandedDeveloperAssignmentAreas] = useState<Set<string>>(new Set());
+  const [editingDeveloperAssignmentObjectId, setEditingDeveloperAssignmentObjectId] = useState<string | null>(null);
+  const [editingDeveloperAssignmentDeveloperId, setEditingDeveloperAssignmentDeveloperId] = useState('');
+  const [savingDeveloperAssignmentObjectId, setSavingDeveloperAssignmentObjectId] = useState<string | null>(null);
   const [expandedObjects, setExpandedObjects] = useState<Set<string>>(new Set());
   
   // State for selected item
@@ -8941,6 +8945,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                       }, {});
 
                       const areaKeys = Object.keys(groupedByArea).sort((a, b) => a.localeCompare(b));
+                      const groupedRows = areaKeys.map((area) => {
+                        const rows = [...groupedByArea[area]].sort((a, b) => String(a.objectLabel).localeCompare(String(b.objectLabel)));
+                        const assigned = rows.filter((item: any) => !!String(item.developer || '').trim()).length;
+                        return { area, rows, assigned, total: rows.length };
+                      });
 
                       const buildSuggestedAssignments = () => {
                         const suggested: Record<string, string> = {};
@@ -8983,6 +8992,37 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                       };
 
                       const suggestedAssignments = buildSuggestedAssignments();
+
+                      const startEditAssignment = (item: any) => {
+                        setEditingDeveloperAssignmentObjectId(item.id);
+                        setEditingDeveloperAssignmentDeveloperId(String(item.developer || ''));
+                      };
+
+                      const cancelEditAssignment = () => {
+                        setEditingDeveloperAssignmentObjectId(null);
+                        setEditingDeveloperAssignmentDeveloperId('');
+                      };
+
+                      const saveAssignment = async (itemId: string) => {
+                        try {
+                          setSavingDeveloperAssignmentObjectId(itemId);
+                          await apiClient.patch(`/api/project-objects/${itemId}`, {
+                            developer: editingDeveloperAssignmentDeveloperId || null,
+                          });
+                          setProjectInventoryItems((prev) => prev.map((entry: any) => (
+                            entry.id === itemId
+                              ? { ...entry, developer: editingDeveloperAssignmentDeveloperId || '' }
+                              : entry
+                          )));
+                          cancelEditAssignment();
+                        } catch (error) {
+                          console.error('Failed to save developer assignment:', error);
+                          alert('Failed to save developer assignment. Please try again.');
+                        } finally {
+                          setSavingDeveloperAssignmentObjectId(null);
+                        }
+                      };
+
                       const applySuggestedAssignments = async () => {
                         if (poolIds.length === 0) {
                           alert('Set a developer pool first in the Developer Pool node.');
@@ -9004,6 +9044,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                             const developerId = updateMap.get(item.id);
                             return developerId ? { ...item, developer: developerId } : item;
                           }));
+                          cancelEditAssignment();
                         } catch (error) {
                           console.error('Failed to apply suggested developer assignments:', error);
                           alert('Failed to apply default developer assignment. Please try again.');
@@ -9063,25 +9104,127 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                           </Box>
 
                           <Paper sx={{ p: 1.25, border: `1px solid ${deliverableAccent}44`, backgroundColor: 'rgba(255,255,255,0.03)' }}>
-                            <Box sx={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr 1fr', gap: 1, pb: 0.55, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-                              <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>Object</Typography>
-                              <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>Process Area</Typography>
-                              <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>Current</Typography>
-                              <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>Suggested</Typography>
-                            </Box>
-                            <Box sx={{ display: 'grid', gap: 0.4, mt: 0.4 }}>
+                            <Typography variant="subtitle2" sx={{ color: deliverableAccent, fontWeight: 700, mb: 1 }}>
+                              Assignment By Process Area
+                            </Typography>
+                            <Box sx={{ display: 'grid', gap: 0.8 }}>
                               {topLevelObjects.length === 0 ? (
                                 <Typography variant="body2" color="text.secondary" sx={{ py: 0.7 }}>No objects available for assignment.</Typography>
-                              ) : topLevelObjects.map((item: any) => {
-                                const currentDeveloper = poolById.get(String(item.developer || ''));
-                                const suggestedDeveloper = poolById.get(String(suggestedAssignments[item.id] || ''));
+                              ) : groupedRows.map((group) => {
+                                const sectionKey = `${project.id}_${parentCycleId || ''}_${group.area}`;
+                                const isExpanded = expandedDeveloperAssignmentAreas.has(sectionKey);
+                                const isCollapsed = !isExpanded;
                                 return (
-                                  <Box key={`assign-preview-${item.id}`} sx={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr 1fr', gap: 1, alignItems: 'center', py: 0.35, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                                    <Typography variant="body2" sx={{ fontWeight: 600 }}>{item.objectLabel}</Typography>
-                                    <Typography variant="body2" color="text.secondary">{getProcessAreaDisplayName(project.id, item.processArea, parentCycleId || undefined)}</Typography>
-                                    <Typography variant="body2" color="text.secondary">{currentDeveloper?.name || currentDeveloper?.email || 'Unassigned'}</Typography>
-                                    <Typography variant="body2" sx={{ color: deliverableAccent, fontWeight: 600 }}>{suggestedDeveloper?.name || suggestedDeveloper?.email || 'Unassigned'}</Typography>
-                                  </Box>
+                                  <Paper key={`dev-assign-area-${sectionKey}`} sx={{ p: 0.9, border: '1px solid rgba(255,255,255,0.08)', backgroundColor: 'rgba(255,255,255,0.02)' }}>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: isCollapsed ? 0 : 0.6 }}>
+                                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4 }}>
+                                        <IconButton
+                                          size="small"
+                                          onClick={() => {
+                                            setExpandedDeveloperAssignmentAreas((prev) => {
+                                              const next = new Set(prev);
+                                              if (next.has(sectionKey)) next.delete(sectionKey);
+                                              else next.add(sectionKey);
+                                              return next;
+                                            });
+                                          }}
+                                          sx={{ p: 0.2 }}
+                                        >
+                                          {isCollapsed
+                                            ? <ExpandMoreIcon sx={{ fontSize: '0.95rem', color: deliverableAccent }} />
+                                            : <ExpandLessIcon sx={{ fontSize: '0.95rem', color: deliverableAccent }} />}
+                                        </IconButton>
+                                        <Typography variant="subtitle2" sx={{ color: deliverableAccent, fontWeight: 700 }}>
+                                          {getProcessAreaDisplayName(project.id, group.area, parentCycleId || undefined)}
+                                        </Typography>
+                                      </Box>
+                                      <Typography variant="caption" color="text.secondary">
+                                        {group.assigned}/{group.total} assigned
+                                      </Typography>
+                                    </Box>
+
+                                    {!isCollapsed && (
+                                      <>
+                                        <Box sx={{ display: 'grid', gridTemplateColumns: '1.1fr 1fr 1fr 1.15fr 0.9fr', gap: 1, pb: 0.45, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                                          <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>Object</Typography>
+                                          <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>Current</Typography>
+                                          <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>Suggested</Typography>
+                                          <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>Edit Assignment</Typography>
+                                          <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700, textAlign: 'right' }}>Actions</Typography>
+                                        </Box>
+                                        <Box sx={{ display: 'grid', gap: 0.35, mt: 0.45 }}>
+                                          {group.rows.map((item: any) => {
+                                            const currentDeveloper = poolById.get(String(item.developer || ''));
+                                            const suggestedDeveloper = poolById.get(String(suggestedAssignments[item.id] || ''));
+                                            const isEditing = editingDeveloperAssignmentObjectId === item.id;
+                                            const isSaving = savingDeveloperAssignmentObjectId === item.id;
+                                            return (
+                                              <Box key={`assign-preview-${item.id}`} sx={{ display: 'grid', gridTemplateColumns: '1.1fr 1fr 1fr 1.15fr 0.9fr', gap: 1, alignItems: 'center', py: 0.32, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                                <Typography variant="body2" sx={{ fontWeight: 600 }}>{item.objectLabel}</Typography>
+                                                <Typography variant="body2" color="text.secondary">{currentDeveloper?.name || currentDeveloper?.email || 'Unassigned'}</Typography>
+                                                <Typography variant="body2" sx={{ color: deliverableAccent, fontWeight: 600 }}>{suggestedDeveloper?.name || suggestedDeveloper?.email || 'Unassigned'}</Typography>
+                                                {isEditing ? (
+                                                  <TextField
+                                                    select
+                                                    size="small"
+                                                    value={editingDeveloperAssignmentDeveloperId}
+                                                    onChange={(e) => setEditingDeveloperAssignmentDeveloperId(e.target.value)}
+                                                    disabled={isSaving}
+                                                    sx={{ '& .MuiInputBase-root': { height: 30, fontSize: '0.8rem' } }}
+                                                  >
+                                                    <MenuItem value="">Unassigned</MenuItem>
+                                                    {poolPeople.map((person: any) => (
+                                                      <MenuItem key={`assignment-edit-${item.id}-${person.id}`} value={person.id}>
+                                                        {person.name || person.email}
+                                                      </MenuItem>
+                                                    ))}
+                                                  </TextField>
+                                                ) : (
+                                                  <Typography variant="body2" color="text.secondary">
+                                                    {currentDeveloper?.name || currentDeveloper?.email || 'Unassigned'}
+                                                  </Typography>
+                                                )}
+                                                <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.2 }}>
+                                                  {isEditing ? (
+                                                    <>
+                                                      <IconButton
+                                                        size="small"
+                                                        title="Save"
+                                                        onClick={() => saveAssignment(item.id)}
+                                                        disabled={isSaving}
+                                                        sx={{ color: 'rgba(255,255,255,0.68)', '&:hover': { color: '#66bb6a' } }}
+                                                      >
+                                                        <SaveIcon sx={{ fontSize: '0.95rem' }} />
+                                                      </IconButton>
+                                                      <IconButton
+                                                        size="small"
+                                                        title="Cancel"
+                                                        onClick={cancelEditAssignment}
+                                                        disabled={isSaving}
+                                                        sx={{ color: 'rgba(255,255,255,0.55)', '&:hover': { color: '#ef5350' } }}
+                                                      >
+                                                        <CloseIcon sx={{ fontSize: '0.95rem' }} />
+                                                      </IconButton>
+                                                    </>
+                                                  ) : (
+                                                    <IconButton
+                                                      size="small"
+                                                      title="Edit"
+                                                      onClick={() => startEditAssignment(item)}
+                                                      disabled={poolPeople.length === 0}
+                                                      sx={{ color: 'rgba(255,255,255,0.6)', '&:hover': { color: 'white' } }}
+                                                    >
+                                                      <EditIcon sx={{ fontSize: '0.95rem' }} />
+                                                    </IconButton>
+                                                  )}
+                                                </Box>
+                                              </Box>
+                                            );
+                                          })}
+                                        </Box>
+                                      </>
+                                    )}
+                                  </Paper>
                                 );
                               })}
                             </Box>
