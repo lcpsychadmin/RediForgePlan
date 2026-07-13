@@ -282,7 +282,9 @@ const PLAN_DELIVERABLE_NODES: Array<{
   { id: 'migrationStrategy', label: 'Data Migration Strategy', targetView: 'plan', accentColor: '#EC407A', icon: 'fa-file-lines' },
   { id: 'migrationStrategyStrategy', parentId: 'migrationStrategy', label: 'Strategy', targetView: 'plan', accentColor: '#F06292', icon: 'fa-file-lines' },
   { id: 'migrationStrategyApprovals', parentId: 'migrationStrategy', label: 'Approvals', targetView: 'plan', accentColor: '#FF8A65', icon: 'fa-list-check' },
-  { id: 'projectRoadmap', label: 'Project Roadmap', targetView: 'roadmap', accentColor: '#FFB74D', icon: 'fa-chart-gantt' },
+  { id: 'projectRoadmap', label: 'Project Roadmap', targetView: 'plan', accentColor: '#FFB74D', icon: 'fa-chart-gantt' },
+  { id: 'projectRoadmapRoadmap', parentId: 'projectRoadmap', label: 'Roadmap', targetView: 'plan', accentColor: '#FFCC80', icon: 'fa-chart-gantt' },
+  { id: 'projectRoadmapApprovals', parentId: 'projectRoadmap', label: 'Approvals', targetView: 'plan', accentColor: '#FF8A65', icon: 'fa-list-check' },
   { id: 'mockCriteria', label: 'Mock Entry and Exit Criteria', targetView: 'plan', accentColor: '#66BB6A', icon: 'fa-list-check' },
   { id: 'designBuildEstimation', label: 'Design and Build Estimation', targetView: 'plan', accentColor: '#B0BEC5', icon: 'fa-triangle-exclamation' },
   { id: 'designBuildCompletion', label: 'Design and Build Phase Plan Completion', targetView: 'plan', accentColor: '#5C6BC0', icon: 'fa-clipboard-list' },
@@ -306,13 +308,15 @@ interface RoadmapViewProps {
   mockCycles: Record<string, any[]>;
   projectsByMockCycle: Record<string, any[]>;
   onSaveCycleDates: (cycleId: string, startDate: string, endDate: string) => Promise<void>;
+  forcedProjectName?: string;
+  hideFilters?: boolean;
 }
 
 const PHASE_COLORS: Record<string, string> = { planning: '#4FC3F7', design: '#CE93D8', build: '#A5D6A7' };
 const TEST_CYCLE_COLOR = '#FFB74D';
 const MILESTONE_COLOR = '#FFD54F';
 
-const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, projectsByMockCycle, onSaveCycleDates }) => {
+const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, projectsByMockCycle, onSaveCycleDates, forcedProjectName, hideFilters = false }) => {
   const [roadmapItems, setRoadmapItems] = React.useState<RoadmapItem[]>([]);
   const [filterProgram, setFilterProgram] = React.useState('');
   const [filterProject, setFilterProject] = React.useState('');
@@ -432,6 +436,9 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
 
   // Filtered projects
   const filteredProjects = React.useMemo(() => {
+    if (forcedProjectName) {
+      return uniqueProjects.filter((p) => p.name === forcedProjectName);
+    }
     let projs = uniqueProjects;
     if (filterProgram) {
       const prog = programs.find((p: any) => p.id === filterProgram);
@@ -591,7 +598,13 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
 
   const openAdd = (type: 'phase' | 'test-cycle' | 'milestone', projectKey?: string) => {
     const defaultColor = type === 'phase' ? PHASE_COLORS.planning : type === 'test-cycle' ? TEST_CYCLE_COLOR : MILESTONE_COLOR;
-    setForm({ type, projectKey: projectKey || uniqueProjects[0]?.name || '', color: defaultColor, subtype: type === 'phase' ? 'planning' : undefined, name: type === 'phase' ? 'Planning' : '' });
+    setForm({
+      type,
+      projectKey: projectKey || forcedProjectName || uniqueProjects[0]?.name || '',
+      color: defaultColor,
+      subtype: type === 'phase' ? 'planning' : undefined,
+      name: type === 'phase' ? 'Planning' : '',
+    });
     setEditingItem(null);
     setAddDialog(type);
   };
@@ -675,7 +688,7 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
         <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
           {(['phase', 'test-cycle', 'milestone'] as const).map(t => (
             <Button key={t} size="small" variant="outlined" startIcon={t === 'milestone' ? <span>★</span> : <AddIcon sx={{ fontSize: '0.9rem !important' }} />}
-              onClick={() => openAdd(t)}
+              onClick={() => openAdd(t, forcedProjectName)}
               sx={{ textTransform: 'none', fontSize: '0.75rem', borderColor: 'rgba(255,255,255,0.2)', color: 'rgba(255,255,255,0.7)', '&:hover': { borderColor: 'white', color: 'white' } }}>
               {t === 'phase' ? 'Add Phase' : t === 'test-cycle' ? 'Add Test Cycle' : 'Add Milestone'}
             </Button>
@@ -684,6 +697,7 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
       </Box>
 
       {/* Filters */}
+      {!hideFilters && (
       <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
         <Box component="select" value={filterProgram} onChange={(e: any) => { setFilterProgram(e.target.value); setFilterProject(''); }}
           sx={{ fontSize: '0.78rem', px: 1, py: 0.6, borderRadius: 1, border: '1px solid rgba(255,255,255,0.15)', backgroundColor: 'rgba(255,255,255,0.06)', color: '#DBE7FF', minWidth: 160, cursor: 'pointer' }}>
@@ -699,6 +713,7 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
           <Button size="small" variant="text" onClick={() => { setFilterProgram(''); setFilterProject(''); }} sx={{ textTransform: 'none', color: 'text.secondary', fontSize: '0.75rem' }}>Clear</Button>
         )}
       </Box>
+      )}
 
       {/* Timeline card — tall, horizontally scrollable */}
       <Box ref={scrollContainerRef} sx={{ backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 2, p: 2, overflowX: 'auto', overflowY: 'auto', minHeight: '60vh', maxHeight: '80vh' }}>
@@ -933,8 +948,12 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
               <Box>
                 <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>Project</Typography>
                 <Box component="select" value={form.projectKey || ''} onChange={(e: any) => setForm(p => ({ ...p, projectKey: e.target.value }))}
+                  disabled={!!forcedProjectName}
                   style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.2)', backgroundColor: 'rgba(255,255,255,0.06)', color: '#DBE7FF', fontSize: '0.85rem' }}>
-                  {uniqueProjects.map(p => <option key={p.name} value={p.name}>{p.name}</option>)}
+                  {(forcedProjectName
+                    ? uniqueProjects.filter((p) => p.name === forcedProjectName)
+                    : uniqueProjects
+                  ).map(p => <option key={p.name} value={p.name}>{p.name}</option>)}
                 </Box>
               </Box>
               {/* Name / Subtype */}
@@ -1175,6 +1194,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   const [newStrategyApprovalTitle, setNewStrategyApprovalTitle] = useState('');
   const [newStrategyApprovalAssignee, setNewStrategyApprovalAssignee] = useState('');
   const [isCreatingStrategyApproval, setIsCreatingStrategyApproval] = useState(false);
+  const [newRoadmapApprovalTitle, setNewRoadmapApprovalTitle] = useState('');
+  const [newRoadmapApprovalAssignee, setNewRoadmapApprovalAssignee] = useState('');
+  const [isCreatingRoadmapApproval, setIsCreatingRoadmapApproval] = useState(false);
 
   // Plan group object picker state
   const [groupObjectPickerGroupId, setGroupObjectPickerGroupId] = useState<string | null>(null);
@@ -7631,6 +7653,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                     const isMigrationStrategySummaryDeliverable = selectedItem.type === 'deliverable' && selectedItem.deliverableId === 'migrationStrategy';
                     const isMigrationStrategyNode = selectedItem.type === 'deliverable' && selectedItem.deliverableId === 'migrationStrategyStrategy';
                     const isMigrationApprovalsNode = selectedItem.type === 'deliverable' && selectedItem.deliverableId === 'migrationStrategyApprovals';
+                    const isProjectRoadmapSummaryDeliverable = selectedItem.type === 'deliverable' && selectedItem.deliverableId === 'projectRoadmap';
+                    const isProjectRoadmapNode = selectedItem.type === 'deliverable' && selectedItem.deliverableId === 'projectRoadmapRoadmap';
+                    const isProjectRoadmapApprovalsNode = selectedItem.type === 'deliverable' && selectedItem.deliverableId === 'projectRoadmapApprovals';
                     const estimationAccent = isEstimationProcessAreaSelection ? selectedAreaAccent : deliverableAccent;
                     const estimationSelectedArea = selectedItem.type === 'deliverableProcessArea'
                       ? (selectedItem.area || '').trim()
@@ -8780,6 +8805,267 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                 sx={{ textTransform: 'none' }}
                               >
                                 {isCreatingStrategyApproval ? 'Adding...' : 'Add Entry'}
+                              </Button>
+                            </Box>
+                          </Paper>
+
+                          <Paper sx={{ p: 1.25, border: `1px solid ${deliverableAccent}44`, backgroundColor: 'rgba(255,255,255,0.03)' }}>
+                            <Box sx={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr 0.8fr 0.8fr 0.9fr', gap: 1, pb: 0.6, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                              <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>Entry</Typography>
+                              <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>Approver</Typography>
+                              <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>Status</Typography>
+                              <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>Discussion</Typography>
+                              <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700, textAlign: 'right' }}>Actions</Typography>
+                            </Box>
+
+                            {approvalEntries.length === 0 ? (
+                              <Typography variant="body2" color="text.secondary" sx={{ py: 1.25 }}>
+                                No approval entries yet. Add entries above and use Discussion to @mention approvers.
+                              </Typography>
+                            ) : (
+                              <Box sx={{ display: 'grid', gap: 0.4, mt: 0.5 }}>
+                                {approvalEntries.map((entry: any) => {
+                                  const approver = people.find((person: any) => person.id === entry.assignedTo);
+                                  const discussionCount = taskCommentCounts[entry.id] || 0;
+                                  return (
+                                    <Box key={entry.id} sx={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr 0.8fr 0.8fr 0.9fr', gap: 1, alignItems: 'center', py: 0.45, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                      <Typography variant="body2" sx={{ fontWeight: 600 }}>{entry.name || 'Approval Entry'}</Typography>
+                                      <Typography variant="body2" color="text.secondary">{approver?.name || approver?.email || 'Unassigned'}</Typography>
+                                      <Chip size="small" label={(entry.status || 'not_started').replace('_', ' ')} color={statusChipColor(entry.status || 'not_started') as any} variant="outlined" />
+                                      <Button
+                                        size="small"
+                                        variant="text"
+                                        onClick={() => setCommentModalTask({ id: entry.id, name: entry.name || 'Approval Entry' })}
+                                        sx={{ textTransform: 'none', justifyContent: 'flex-start' }}
+                                      >
+                                        {discussionCount} comment{discussionCount === 1 ? '' : 's'}
+                                      </Button>
+                                      <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.25 }}>
+                                        <IconButton size="small" title="Open entry" onClick={() => openApprovalEntryEditor(entry)} sx={{ color: 'rgba(255,255,255,0.65)', '&:hover': { color: 'white' } }}>
+                                          <EditIcon sx={{ fontSize: '0.95rem' }} />
+                                        </IconButton>
+                                        <IconButton size="small" title="Delete entry" onClick={() => openDeleteDialog('task', entry.id, entry.name || 'Approval Entry')} sx={{ color: 'rgba(255,255,255,0.5)', '&:hover': { color: '#ef5350' } }}>
+                                          <DeleteIcon sx={{ fontSize: '0.95rem' }} />
+                                        </IconButton>
+                                      </Box>
+                                    </Box>
+                                  );
+                                })}
+                              </Box>
+                            )}
+                          </Paper>
+                        </Box>
+                      );
+                    }
+                    if (isProjectRoadmapSummaryDeliverable) {
+                      const selectRoadmapChild = (deliverableId: string) => {
+                        if (parentCycleId) {
+                          handleHierarchySelection({
+                            type: 'deliverable',
+                            projectId: project.id,
+                            cycleId: parentCycleId,
+                            deliverableId,
+                          });
+                        } else {
+                          handleHierarchySelection({
+                            type: 'deliverable',
+                            projectId: project.id,
+                            deliverableId,
+                          });
+                        }
+                        navigate('/planning/plan');
+                      };
+
+                      return (
+                        <Box>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1.5 }}>
+                            {parentProgramName && <><Typography variant="caption" color="text.disabled">{parentProgramName}</Typography><Typography variant="caption" color="text.disabled">›</Typography></>}
+                            {parentCycleName && <><Typography variant="caption" color="text.disabled">{parentCycleName}</Typography><Typography variant="caption" color="text.disabled">›</Typography></>}
+                            <Typography variant="caption" sx={{ color: accentColor, fontWeight: 600 }}>{project.name}</Typography>
+                            <Typography variant="caption" color="text.disabled">›</Typography>
+                            <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>Project Roadmap</Typography>
+                          </Box>
+
+                          <Typography variant="h4" sx={{ fontWeight: 700, color: deliverableAccent, mb: 0.75, fontSize: { xs: '1.55rem', sm: '2.125rem' } }}>
+                            Project Roadmap
+                          </Typography>
+
+                          <Paper sx={{ p: 1.25, border: `1px solid ${deliverableAccent}44`, backgroundColor: 'rgba(255,255,255,0.04)' }}>
+                            <Typography variant="subtitle2" sx={{ color: deliverableAccent, fontWeight: 700, mb: 1 }}>Node Summary</Typography>
+                            <Box
+                              onClick={() => selectRoadmapChild('projectRoadmapRoadmap')}
+                              sx={{ display: 'grid', gridTemplateColumns: '1fr auto', alignItems: 'center', gap: 1, px: 1, py: 0.7, borderRadius: 0.8, cursor: 'pointer', border: '1px solid rgba(255,255,255,0.08)', mb: 0.75, '&:hover': { backgroundColor: 'rgba(255,255,255,0.05)' } }}
+                            >
+                              <Box>
+                                <Typography variant="body2" sx={{ fontWeight: 700 }}>Roadmap</Typography>
+                                <Typography variant="caption" color="text.secondary">Create and edit the roadmap timeline for this project inline.</Typography>
+                              </Box>
+                              <Typography variant="body2" sx={{ color: deliverableAccent, fontWeight: 700 }}>Open</Typography>
+                            </Box>
+                            <Box
+                              onClick={() => selectRoadmapChild('projectRoadmapApprovals')}
+                              sx={{ display: 'grid', gridTemplateColumns: '1fr auto', alignItems: 'center', gap: 1, px: 1, py: 0.7, borderRadius: 0.8, cursor: 'pointer', border: '1px solid rgba(255,255,255,0.08)', '&:hover': { backgroundColor: 'rgba(255,255,255,0.05)' } }}
+                            >
+                              <Box>
+                                <Typography variant="body2" sx={{ fontWeight: 700 }}>Approvals</Typography>
+                                <Typography variant="caption" color="text.secondary">Track roadmap approvals with owners, status, discussion, and attachments.</Typography>
+                              </Box>
+                              <Typography variant="body2" sx={{ color: deliverableAccent, fontWeight: 700 }}>Open</Typography>
+                            </Box>
+                          </Paper>
+                        </Box>
+                      );
+                    }
+                    if (isProjectRoadmapNode) {
+                      return (
+                        <Box>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1.5 }}>
+                            {parentProgramName && <><Typography variant="caption" color="text.disabled">{parentProgramName}</Typography><Typography variant="caption" color="text.disabled">›</Typography></>}
+                            {parentCycleName && <><Typography variant="caption" color="text.disabled">{parentCycleName}</Typography><Typography variant="caption" color="text.disabled">›</Typography></>}
+                            <Typography variant="caption" sx={{ color: accentColor, fontWeight: 600 }}>{project.name}</Typography>
+                            <Typography variant="caption" color="text.disabled">›</Typography>
+                            <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>Project Roadmap</Typography>
+                            <Typography variant="caption" color="text.disabled">›</Typography>
+                            <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>Roadmap</Typography>
+                          </Box>
+
+                          <RoadmapView
+                            programs={programs}
+                            mockCycles={mockCycles}
+                            projectsByMockCycle={projectsByMockCycle}
+                            forcedProjectName={project.name}
+                            hideFilters
+                            onSaveCycleDates={async (cycleId: string, startDate: string, endDate: string) => {
+                              await apiClient.patch(`/api/mock-cycles/${cycleId}`, { startDate: startDate || null, endDate: endDate || null });
+                              queryClient.invalidateQueries({ queryKey: ['mockCycles'] });
+                              queryClient.invalidateQueries({ queryKey: ['allMockCyclesForMaintain'] });
+                            }}
+                          />
+                        </Box>
+                      );
+                    }
+                    if (isProjectRoadmapApprovalsNode) {
+                      const roadmapApprovalsGroupName = 'Roadmap Approvals';
+                      const roadmapApprovalsGroup = projectTaskGroups.find((group: any) => (
+                        group.projectId === project.id
+                        && String(group.name || '').trim().toLowerCase() === roadmapApprovalsGroupName.toLowerCase()
+                      ));
+                      const approvalEntries = roadmapApprovalsGroup
+                        ? projectTasks
+                          .filter((task: any) => task.taskGroupId === roadmapApprovalsGroup.id)
+                          .sort((a: any, b: any) => String(a.name || '').localeCompare(String(b.name || '')))
+                        : [];
+
+                      const ensureRoadmapApprovalsGroup = async () => {
+                        if (!activeCycleId) {
+                          throw new Error('Mock cycle context missing. Select a project under a mock cycle to manage approvals.');
+                        }
+
+                        if (roadmapApprovalsGroup) return roadmapApprovalsGroup;
+
+                        const response = await apiClient.post(`/api/tasks/groups/cycle/${activeCycleId}`, {
+                          name: roadmapApprovalsGroupName,
+                          processArea: null,
+                        });
+                        const createdGroup = response.data?.data;
+                        if (!createdGroup) throw new Error('Failed to create Roadmap Approvals group.');
+
+                        setProjectTaskGroups((prev) => prev.some((group: any) => group.id === createdGroup.id) ? prev : [...prev, createdGroup]);
+                        setDeliverableTaskGroupAssignments((prev) => ({
+                          ...prev,
+                          [project.id]: {
+                            ...(prev[project.id] || {}),
+                            [createdGroup.id]: 'projectRoadmapApprovals',
+                          },
+                        }));
+
+                        return createdGroup;
+                      };
+
+                      const createApprovalEntry = async () => {
+                        if (!newRoadmapApprovalTitle.trim()) return;
+                        if (!activeCycleId) {
+                          alert('Mock cycle context missing. Select a project under a mock cycle to manage approvals.');
+                          return;
+                        }
+
+                        try {
+                          setIsCreatingRoadmapApproval(true);
+                          const group = await ensureRoadmapApprovalsGroup();
+                          const response = await apiClient.post(`/api/tasks/cycle/${activeCycleId}`, {
+                            taskType: 'custom',
+                            taskGroupId: group.id,
+                            name: newRoadmapApprovalTitle.trim(),
+                            assignedTo: newRoadmapApprovalAssignee || null,
+                            durationUnit: 'days',
+                          });
+                          const createdTask = normalizeTaskDateFields(response.data?.data || response.data || {});
+                          if (createdTask?.id) {
+                            setProjectTasks((prev) => prev.some((task: any) => task.id === createdTask.id) ? prev : [...prev, createdTask]);
+                            setTaskCommentCounts((prev) => ({ ...prev, [createdTask.id]: 0 }));
+                          }
+                          setNewRoadmapApprovalTitle('');
+                          setNewRoadmapApprovalAssignee('');
+                        } catch (error: any) {
+                          console.error('Failed to create roadmap approval entry:', error);
+                          alert(error?.message || 'Failed to create roadmap approval entry.');
+                        } finally {
+                          setIsCreatingRoadmapApproval(false);
+                        }
+                      };
+
+                      const statusChipColor = (status: string) => {
+                        if (status === 'complete') return 'success';
+                        if (status === 'blocked') return 'error';
+                        if (status === 'in_progress') return 'info';
+                        return 'default';
+                      };
+
+                      return (
+                        <Box>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1.5 }}>
+                            {parentProgramName && <><Typography variant="caption" color="text.disabled">{parentProgramName}</Typography><Typography variant="caption" color="text.disabled">›</Typography></>}
+                            {parentCycleName && <><Typography variant="caption" color="text.disabled">{parentCycleName}</Typography><Typography variant="caption" color="text.disabled">›</Typography></>}
+                            <Typography variant="caption" sx={{ color: accentColor, fontWeight: 600 }}>{project.name}</Typography>
+                            <Typography variant="caption" color="text.disabled">›</Typography>
+                            <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>Project Roadmap</Typography>
+                            <Typography variant="caption" color="text.disabled">›</Typography>
+                            <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>Approvals</Typography>
+                          </Box>
+
+                          <Typography variant="h4" sx={{ fontWeight: 700, color: deliverableAccent, mb: 1, fontSize: { xs: '1.55rem', sm: '2.125rem' } }}>
+                            Roadmap Approvals
+                          </Typography>
+
+                          <Paper sx={{ p: 1.25, border: `1px solid ${deliverableAccent}44`, backgroundColor: 'rgba(255,255,255,0.04)', mb: 1.25 }}>
+                            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1.2fr 1fr auto' }, gap: 1, alignItems: 'center' }}>
+                              <TextField
+                                size="small"
+                                label="Approval Entry"
+                                placeholder="e.g., Roadmap sign-off"
+                                value={newRoadmapApprovalTitle}
+                                onChange={(e) => setNewRoadmapApprovalTitle(e.target.value)}
+                              />
+                              <TextField
+                                select
+                                size="small"
+                                label="Approver"
+                                value={newRoadmapApprovalAssignee}
+                                onChange={(e) => setNewRoadmapApprovalAssignee(e.target.value)}
+                              >
+                                <MenuItem value=""><em>Unassigned</em></MenuItem>
+                                {people.map((person: any) => (
+                                  <MenuItem key={person.id} value={person.id}>{person.name || person.email}</MenuItem>
+                                ))}
+                              </TextField>
+                              <Button
+                                variant="contained"
+                                startIcon={<AddIcon />}
+                                onClick={createApprovalEntry}
+                                disabled={isCreatingRoadmapApproval || !newRoadmapApprovalTitle.trim()}
+                                sx={{ textTransform: 'none' }}
+                              >
+                                {isCreatingRoadmapApproval ? 'Adding...' : 'Add Entry'}
                               </Button>
                             </Box>
                           </Paper>
