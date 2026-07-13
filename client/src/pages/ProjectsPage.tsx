@@ -1766,23 +1766,22 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   const [editPersonRole, setEditPersonRole] = useState('');
   const [editPersonEmail, setEditPersonEmail] = useState('');
 
-  const openDesignDiscussionSidebar = async (params: {
+  const openHierarchyDiscussionSidebar = async (params: {
     nodeDeliverableId: string;
     projectId: string;
-    objectLabel: string;
-    deliverableLabel: string;
-    childLabel: string;
+    groupLabel: string;
+    taskLabel: string;
+    panelLabel: string;
     accentColor: string;
   }) => {
-    const { nodeDeliverableId, projectId, objectLabel, deliverableLabel, childLabel, accentColor } = params;
+    const { nodeDeliverableId, projectId, groupLabel, taskLabel, panelLabel, accentColor } = params;
     if (!activeCycleId) {
       alert('Mock cycle context missing. Select a project under a mock cycle to open discussion.');
       return;
     }
 
-    const groupName = `${objectLabel} - ${deliverableLabel} Discussions`;
-    const taskName = `${childLabel} Discussion`;
-    const panelLabel = `${objectLabel} • ${deliverableLabel} • ${childLabel}`;
+    const groupName = `${groupLabel} Discussions`;
+    const taskName = `${taskLabel} Discussion`;
 
     setDesignDiscussionSidebar({
       open: true,
@@ -1846,6 +1845,43 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
       setDesignDiscussionSidebar((prev) => ({ ...prev, loading: false, open: false }));
       alert(error?.message || 'Failed to open discussion sidebar.');
     }
+  };
+
+  const openDesignDiscussionSidebar = async (params: {
+    nodeDeliverableId: string;
+    projectId: string;
+    objectLabel: string;
+    deliverableLabel: string;
+    childLabel: string;
+    accentColor: string;
+  }) => {
+    const { nodeDeliverableId, projectId, objectLabel, deliverableLabel, childLabel, accentColor } = params;
+    return openHierarchyDiscussionSidebar({
+      nodeDeliverableId,
+      projectId,
+      groupLabel: `${objectLabel} - ${deliverableLabel}`,
+      taskLabel: childLabel,
+      panelLabel: `${objectLabel} • ${deliverableLabel} • ${childLabel}`,
+      accentColor,
+    });
+  };
+
+  const openPlanningDiscussionSidebar = async (params: {
+    nodeDeliverableId: string;
+    projectId: string;
+    groupLabel: string;
+    panelLabel: string;
+    accentColor: string;
+  }) => {
+    const { nodeDeliverableId, projectId, groupLabel, panelLabel, accentColor } = params;
+    return openHierarchyDiscussionSidebar({
+      nodeDeliverableId,
+      projectId,
+      groupLabel,
+      taskLabel: 'General',
+      panelLabel,
+      accentColor,
+    });
   };
 
   const emptyTemplateFieldDraft = () => ({
@@ -9189,6 +9225,23 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                             Identify the shared developers for this project. This roster will be used later when assigning objects at the start of design planning.
                           </Typography>
 
+                          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1.25 }}>
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              onClick={() => openPlanningDiscussionSidebar({
+                                nodeDeliverableId: 'designBuildDeveloperPool',
+                                projectId: project.id,
+                                groupLabel: 'Developer Pool',
+                                panelLabel: `${project.name} • Developer Pool`,
+                                accentColor: deliverableAccent,
+                              })}
+                              sx={{ textTransform: 'none' }}
+                            >
+                              Discussion
+                            </Button>
+                          </Box>
+
                           <Box sx={{ display: 'grid', gap: 1, gridTemplateColumns: { xs: '1fr', sm: 'repeat(4, minmax(140px, 1fr))' }, mb: 1.25 }}>
                             <Paper sx={{ p: 1, border: `1px solid ${deliverableAccent}44`, backgroundColor: 'rgba(255,255,255,0.04)' }}>
                               <Typography variant="caption" color="text.secondary">In-Scope Objects</Typography>
@@ -9476,6 +9529,23 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                             Project Settings
                           </Typography>
 
+                          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1.25 }}>
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              onClick={() => openPlanningDiscussionSidebar({
+                                nodeDeliverableId: 'projectSettings',
+                                projectId: project.id,
+                                groupLabel: 'Project Settings',
+                                panelLabel: `${project.name} • Project Settings`,
+                                accentColor: deliverableAccent,
+                              })}
+                              sx={{ textTransform: 'none' }}
+                            >
+                              Discussion
+                            </Button>
+                          </Box>
+
                           <Paper sx={{ p: 1.5, border: `1px solid ${deliverableAccent}44`, backgroundColor: 'rgba(255,255,255,0.04)', mb: 1.5 }}>
                             <Typography variant="subtitle2" sx={{ color: deliverableAccent, fontWeight: 700, mb: 1 }}>Workflow Roles</Typography>
                             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr auto' }, gap: 1, alignItems: 'center' }}>
@@ -9558,6 +9628,23 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                           <Typography variant="h4" sx={{ fontWeight: 700, color: deliverableAccent, mb: 1.5, fontSize: { xs: '1.55rem', sm: '2.125rem' } }}>
                             Mock Cycles
                           </Typography>
+
+                          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1.25 }}>
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              onClick={() => openPlanningDiscussionSidebar({
+                                nodeDeliverableId: 'projectMockCycles',
+                                projectId: project.id,
+                                groupLabel: 'Mock Cycles',
+                                panelLabel: `${project.name} • Mock Cycles`,
+                                accentColor: deliverableAccent,
+                              })}
+                              sx={{ textTransform: 'none' }}
+                            >
+                              Discussion
+                            </Button>
+                          </Box>
 
                           <Box sx={{ display: 'flex', gap: 1, mb: 1.5 }}>
                             <Button
@@ -10825,6 +10912,23 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                             <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>Strategy</Typography>
                           </Box>
 
+                          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1.25 }}>
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              onClick={() => openPlanningDiscussionSidebar({
+                                nodeDeliverableId: 'migrationStrategyStrategy',
+                                projectId: project.id,
+                                groupLabel: 'Data Migration Strategy',
+                                panelLabel: `${project.name} • Data Migration Strategy • Strategy`,
+                                accentColor: deliverableAccent,
+                              })}
+                              sx={{ textTransform: 'none' }}
+                            >
+                              Discussion
+                            </Button>
+                          </Box>
+
                           <DataMigrationStrategyView
                             projectId={project.id}
                             projectName={project.name}
@@ -10928,6 +11032,23 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                           <Typography variant="h4" sx={{ fontWeight: 700, color: deliverableAccent, mb: 1, fontSize: { xs: '1.55rem', sm: '2.125rem' } }}>
                             Strategy Approvals
                           </Typography>
+
+                          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1.1 }}>
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              onClick={() => openPlanningDiscussionSidebar({
+                                nodeDeliverableId: 'migrationStrategyApprovals',
+                                projectId: project.id,
+                                groupLabel: 'Strategy Approvals',
+                                panelLabel: `${project.name} • Data Migration Strategy • Approvals`,
+                                accentColor: deliverableAccent,
+                              })}
+                              sx={{ textTransform: 'none' }}
+                            >
+                              Discussion
+                            </Button>
+                          </Box>
 
                           <Paper sx={{ p: 1.25, border: `1px solid ${deliverableAccent}44`, backgroundColor: 'rgba(255,255,255,0.04)', mb: 1.25 }}>
                             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1.2fr 1fr auto' }, gap: 1, alignItems: 'center' }}>
@@ -11231,6 +11352,23 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                 {criteriaCycle.name || criteriaCycle.description || criteriaCycle.testPhase} Criteria
                               </Typography>
 
+                              <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1.1 }}>
+                                <Button
+                                  size="small"
+                                  variant="outlined"
+                                  onClick={() => openPlanningDiscussionSidebar({
+                                    nodeDeliverableId: selectedItem.deliverableId,
+                                    projectId: project.id,
+                                    groupLabel: `${criteriaCycle.name || criteriaCycle.description || criteriaCycle.testPhase} Criteria`,
+                                    panelLabel: `${project.name} • Entry/Exit Criteria • ${criteriaCycle.name || criteriaCycle.description || criteriaCycle.testPhase}`,
+                                    accentColor: deliverableAccent,
+                                  })}
+                                  sx={{ textTransform: 'none' }}
+                                >
+                                  Discussion
+                                </Button>
+                              </Box>
+
                               <Paper sx={{ p: 1.25, border: `1px solid ${deliverableAccent}44`, backgroundColor: 'rgba(255,255,255,0.04)', mb: 1 }}>
                                 <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.75 }}>Entry Criteria</Typography>
                                 <Box sx={{ border: '1px solid rgba(255,255,255,0.1)', borderRadius: 1.25 }}>
@@ -11350,6 +11488,23 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                               <Typography variant="h4" sx={{ fontWeight: 700, color: deliverableAccent, mb: 1, fontSize: { xs: '1.55rem', sm: '2.125rem' } }}>
                                 Entry/Exit Criteria Approvals
                               </Typography>
+
+                              <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1.1 }}>
+                                <Button
+                                  size="small"
+                                  variant="outlined"
+                                  onClick={() => openPlanningDiscussionSidebar({
+                                    nodeDeliverableId: 'mockCriteriaApprovals',
+                                    projectId: project.id,
+                                    groupLabel: 'Entry/Exit Criteria Approvals',
+                                    panelLabel: `${project.name} • Entry/Exit Criteria • Approvals`,
+                                    accentColor: deliverableAccent,
+                                  })}
+                                  sx={{ textTransform: 'none' }}
+                                >
+                                  Discussion
+                                </Button>
+                              </Box>
 
                               <Paper sx={{ p: 1.25, border: `1px solid ${deliverableAccent}44`, backgroundColor: 'rgba(255,255,255,0.04)', mb: 1.25 }}>
                                 <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1.2fr 1fr auto' }, gap: 1, alignItems: 'center' }}>
@@ -11486,6 +11641,23 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                             <Typography variant="caption" sx={{ color: deliverableAccent, fontWeight: 700 }}>Roadmap</Typography>
                           </Box>
 
+                          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1.25 }}>
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              onClick={() => openPlanningDiscussionSidebar({
+                                nodeDeliverableId: 'projectRoadmapRoadmap',
+                                projectId: project.id,
+                                groupLabel: 'Project Roadmap',
+                                panelLabel: `${project.name} • Project Roadmap • Roadmap`,
+                                accentColor: deliverableAccent,
+                              })}
+                              sx={{ textTransform: 'none' }}
+                            >
+                              Discussion
+                            </Button>
+                          </Box>
+
                           <RoadmapView
                             programs={programs}
                             mockCycles={mockCycles}
@@ -11593,6 +11765,23 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                           <Typography variant="h4" sx={{ fontWeight: 700, color: deliverableAccent, mb: 1, fontSize: { xs: '1.55rem', sm: '2.125rem' } }}>
                             Roadmap Approvals
                           </Typography>
+
+                          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1.1 }}>
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              onClick={() => openPlanningDiscussionSidebar({
+                                nodeDeliverableId: 'projectRoadmapApprovals',
+                                projectId: project.id,
+                                groupLabel: 'Roadmap Approvals',
+                                panelLabel: `${project.name} • Project Roadmap • Approvals`,
+                                accentColor: deliverableAccent,
+                              })}
+                              sx={{ textTransform: 'none' }}
+                            >
+                              Discussion
+                            </Button>
+                          </Box>
 
                           <Paper sx={{ p: 1.25, border: `1px solid ${deliverableAccent}44`, backgroundColor: 'rgba(255,255,255,0.04)', mb: 1.25 }}>
                             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1.2fr 1fr auto' }, gap: 1, alignItems: 'center' }}>
