@@ -9048,7 +9048,16 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                             deliverableId,
                           });
                         } else {
-                        if (isMockCriteriaSummaryDeliverable) {
+                          handleHierarchySelection({
+                            type: 'deliverable',
+                            projectId: project.id,
+                            deliverableId,
+                          });
+                        }
+                        navigate('/planning/plan');
+                      };
+
+                      if (isMockCriteriaSummaryDeliverable) {
                           const criteriaCycleMap = new Map<string, any>();
                           const cycleRows = parentProgramId ? (mockCycles[parentProgramId] || []) : [];
                           cycleRows.forEach((cycle: any) => {
@@ -9451,18 +9460,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                             </Box>
                           );
                         }
-                          handleHierarchySelection({
-                            type: 'deliverable',
-                            projectId: project.id,
-                            deliverableId,
-                          });
-                        }
-                        navigate('/planning/plan');
-                      };
-
-                      if (!isProjectRoadmapSummaryDeliverable) {
-                        return selectRoadmapChild('__noop__') as any;
-                      }
 
                       return (
                         <Box>
