@@ -31,9 +31,17 @@ interface TaskSubtaskInput {
   assignedTo?: string | null;
 }
 
+interface TaskAttachmentInput {
+  fileName: string;
+  mimeType: string;
+  dataBase64: string;
+  uploadedByUserId: string;
+}
+
 export class TaskService {
   private taskGroupProcessAreaSupported: boolean | null = null;
   private taskSubtasksTableReady: boolean | null = null;
+  private taskAttachmentsTableReady: boolean | null = null;
 
   private async supportsTaskGroupProcessArea() {
     if (this.taskGroupProcessAreaSupported !== null) {
@@ -73,6 +81,29 @@ export class TaskService {
     );
 
     this.taskSubtasksTableReady = true;
+  }
+
+  private async ensureTaskAttachmentsTable() {
+    if (this.taskAttachmentsTableReady) return;
+
+    await db.query(
+      `CREATE TABLE IF NOT EXISTS task_attachments (
+         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+         task_id UUID NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+         file_name TEXT NOT NULL,
+         mime_type TEXT,
+         file_size INTEGER NOT NULL,
+         file_data BYTEA NOT NULL,
+         uploaded_by_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+         created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+       )`
+    );
+
+    await db.query(
+      'CREATE INDEX IF NOT EXISTS idx_task_attachments_task_id ON task_attachments(task_id)'
+    );
+
+    this.taskAttachmentsTableReady = true;
   }
 
   // Timezone-safe date formatter: always returns YYYY-MM-DD string
@@ -401,6 +432,96 @@ export class TaskService {
     const result = await db.query(
       'DELETE FROM tasks WHERE id = $1 RETURNING id',
       [taskId]
+    );
+    return result.rows.length > 0;
+  }
+
+  // Task attachments
+  async getTaskAttachments(taskId: string) {
+    await this.ensureTaskAttachmentsTable();
+    const result = await db.query(
+      `SELECT ta.id, ta.task_id, ta.file_name, ta.mime_type, ta.file_size,
+              ta.uploaded_by_user_id, ta.created_at, u.email AS uploaded_by_user_email
+       FROM task_attachments ta
+       LEFT JOIN users u ON ta.uploaded_by_user_id = u.id
+       WHERE ta.task_id = $1
+       ORDER BY ta.created_at DESC`,
+      [taskId]
+    );
+
+    return result.rows.map((row: any) => ({
+      id: row.id,
+      taskId: row.task_id,
+      fileName: row.file_name,
+      mimeType: row.mime_type,
+      fileSize: row.file_size,
+      uploadedByUserId: row.uploaded_by_user_id,
+      uploadedByUserEmail: row.uploaded_by_user_email,
+      createdAt: row.created_at,
+    }));
+  }
+
+  async addTaskAttachment(taskId: string, input: TaskAttachmentInput) {
+    await this.ensureTaskAttachmentsTable();
+    const fileBuffer = Buffer.from(input.dataBase64, 'base64');
+    if (!fileBuffer.length) {
+      throw new Error('Attachment payload is empty');
+    }
+
+    const result = await db.query(
+      `INSERT INTO task_attachments (
+         task_id, file_name, mime_type, file_size, file_data, uploaded_by_user_id
+       ) VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id, task_id, file_name, mime_type, file_size, uploaded_by_user_id, created_at`,
+      [
+        taskId,
+        input.fileName,
+        input.mimeType,
+        fileBuffer.length,
+        fileBuffer,
+        input.uploadedByUserId,
+      ]
+    );
+
+    return {
+      id: result.rows[0].id,
+      taskId: result.rows[0].task_id,
+      fileName: result.rows[0].file_name,
+      mimeType: result.rows[0].mime_type,
+      fileSize: result.rows[0].file_size,
+      uploadedByUserId: result.rows[0].uploaded_by_user_id,
+      createdAt: result.rows[0].created_at,
+    };
+  }
+
+  async getTaskAttachmentById(attachmentId: string) {
+    await this.ensureTaskAttachmentsTable();
+    const result = await db.query(
+      `SELECT id, task_id, file_name, mime_type, file_size, file_data, uploaded_by_user_id, created_at
+       FROM task_attachments
+       WHERE id = $1`,
+      [attachmentId]
+    );
+
+    if (result.rows.length === 0) return null;
+
+    return {
+      id: result.rows[0].id,
+      taskId: result.rows[0].task_id,
+      fileName: result.rows[0].file_name,
+      mimeType: result.rows[0].mime_type,
+      fileSize: result.rows[0].file_size,
+      fileData: result.rows[0].file_data,
+      uploadedByUserId: result.rows[0].uploaded_by_user_id,
+      createdAt: result.rows[0].created_at,
+    };
+  }
+
+  async deleteTaskAttachment(attachmentId: string) {
+    await this.ensureTaskAttachmentsTable();
+    const result = await db.query(
+      'DELETE FROM task_attachments WHERE id = $1 RETURNING id',
+      [attachmentId]
     );
     return result.rows.length > 0;
   }

@@ -1412,6 +1412,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
     assignedTo: '',
     status: 'not_started',
   });
+  const [approvalAttachments, setApprovalAttachments] = useState<any[]>([]);
+  const [isLoadingApprovalAttachments, setIsLoadingApprovalAttachments] = useState(false);
+  const [isUploadingApprovalAttachment, setIsUploadingApprovalAttachment] = useState(false);
   const [isSavingApprovalEntry, setIsSavingApprovalEntry] = useState(false);
   const [depDialogTaskId, setDepDialogTaskId] = useState<string | null>(null);
   const [cycleTasksForDep, setCycleTasksForDep] = useState<any[]>([]);
@@ -1617,6 +1620,98 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
       assignedTo: String(task?.assignedTo || ''),
       status: String(task?.status || 'not_started'),
     });
+  };
+
+  useEffect(() => {
+    const taskId = editingApprovalEntry?.id;
+    if (!taskId) {
+      setApprovalAttachments([]);
+      setIsLoadingApprovalAttachments(false);
+      return;
+    }
+
+    setIsLoadingApprovalAttachments(true);
+    apiClient.get(`/api/tasks/${taskId}/attachments`)
+      .then((response) => setApprovalAttachments(response.data?.data || []))
+      .catch(() => setApprovalAttachments([]))
+      .finally(() => setIsLoadingApprovalAttachments(false));
+  }, [editingApprovalEntry?.id]);
+
+  const handleApprovalAttachmentUpload = async (file: File) => {
+    if (!editingApprovalEntry?.id) return;
+
+    const toBase64 = () => new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = String(reader.result || '');
+        const base64 = result.includes(',') ? result.split(',')[1] : result;
+        resolve(base64);
+      };
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(file);
+    });
+
+    try {
+      setIsUploadingApprovalAttachment(true);
+      const dataBase64 = await toBase64();
+      const response = await apiClient.post(`/api/tasks/${editingApprovalEntry.id}/attachments`, {
+        fileName: file.name,
+        mimeType: file.type || 'application/octet-stream',
+        dataBase64,
+      });
+      const created = response.data?.data;
+      if (created) {
+        setApprovalAttachments((prev) => [created, ...prev]);
+      }
+    } catch (error: any) {
+      console.error('Failed to upload attachment:', error);
+      alert(error?.response?.data?.error || error?.message || 'Failed to upload attachment.');
+    } finally {
+      setIsUploadingApprovalAttachment(false);
+    }
+  };
+
+  const handleApprovalAttachmentDownload = async (attachment: any) => {
+    if (!attachment?.id) return;
+    try {
+      const response = await apiClient.get(`/api/tasks/attachments/${attachment.id}/download`, {
+        responseType: 'blob',
+      });
+      const url = URL.createObjectURL(response.data);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = attachment.fileName || 'attachment';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (error: any) {
+      console.error('Failed to download attachment:', error);
+      alert(error?.response?.data?.error || error?.message || 'Failed to download attachment.');
+    }
+  };
+
+  const handleApprovalAttachmentDelete = async (attachmentId: string) => {
+    if (!attachmentId) return;
+    try {
+      await apiClient.delete(`/api/tasks/attachments/${attachmentId}`);
+      setApprovalAttachments((prev) => prev.filter((attachment) => attachment.id !== attachmentId));
+    } catch (error: any) {
+      console.error('Failed to delete attachment:', error);
+      alert(error?.response?.data?.error || error?.message || 'Failed to delete attachment.');
+    }
+  };
+
+  const formatAttachmentBytes = (value: number) => {
+    if (!Number.isFinite(value) || value <= 0) return '0 B';
+    const units = ['B', 'KB', 'MB', 'GB'];
+    let size = value;
+    let idx = 0;
+    while (size >= 1024 && idx < units.length - 1) {
+      size /= 1024;
+      idx += 1;
+    }
+    return `${size.toFixed(idx === 0 ? 0 : 1)} ${units[idx]}`;
   };
 
   const saveApprovalEntryEditor = async () => {
@@ -13127,41 +13222,55 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
             </Paper>
 
             <Paper sx={{ p: 1.1, border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'rgba(255,255,255,0.03)' }}>
-              <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.8 }}>Attachments</Typography>
-              {(() => {
-                const candidateAttachments = Array.isArray(editingApprovalEntry?.attachments)
-                  ? editingApprovalEntry.attachments
-                  : Array.isArray(editingApprovalEntry?.files)
-                    ? editingApprovalEntry.files
-                    : Array.isArray(editingApprovalEntry?.documents)
-                      ? editingApprovalEntry.documents
-                      : [];
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: 0.8 }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Attachments</Typography>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  component="label"
+                  disabled={isUploadingApprovalAttachment || !editingApprovalEntry?.id}
+                  sx={{ textTransform: 'none' }}
+                >
+                  {isUploadingApprovalAttachment ? 'Uploading...' : 'Add Attachment'}
+                  <input
+                    hidden
+                    type="file"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleApprovalAttachmentUpload(file);
+                      e.currentTarget.value = '';
+                    }}
+                  />
+                </Button>
+              </Box>
 
-                if (candidateAttachments.length === 0) {
-                  return <Typography variant="body2" color="text.secondary">No attachments on this approval entry.</Typography>;
-                }
-
-                return (
-                  <Box sx={{ display: 'grid', gap: 0.5 }}>
-                    {candidateAttachments.map((attachment: any, index: number) => {
-                      const attachmentName = attachment.fileName || attachment.filename || attachment.name || `Attachment ${index + 1}`;
-                      const attachmentUrl = attachment.downloadUrl || attachment.url || attachment.href || '';
-                      return (
-                        <Box key={attachment.id || `${attachmentName}-${index}`} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, px: 1, py: 0.65, border: '1px solid rgba(255,255,255,0.08)', borderRadius: 1 }}>
-                          <Typography variant="body2" sx={{ fontWeight: 600 }}>{attachmentName}</Typography>
-                          {attachmentUrl ? (
-                            <Button size="small" variant="text" sx={{ textTransform: 'none' }} onClick={() => window.open(attachmentUrl, '_blank', 'noopener,noreferrer')}>
-                              Open
-                            </Button>
-                          ) : (
-                            <Typography variant="caption" color="text.secondary">Unavailable</Typography>
-                          )}
-                        </Box>
-                      );
-                    })}
-                  </Box>
-                );
-              })()}
+              {isLoadingApprovalAttachments ? (
+                <Typography variant="body2" color="text.secondary">Loading attachments...</Typography>
+              ) : approvalAttachments.length === 0 ? (
+                <Typography variant="body2" color="text.secondary">No attachments on this approval entry.</Typography>
+              ) : (
+                <Box sx={{ display: 'grid', gap: 0.5 }}>
+                  {approvalAttachments.map((attachment: any) => (
+                    <Box key={attachment.id} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, px: 1, py: 0.65, border: '1px solid rgba(255,255,255,0.08)', borderRadius: 1 }}>
+                      <Box sx={{ minWidth: 0 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 600 }} noWrap>{attachment.fileName}</Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {formatAttachmentBytes(Number(attachment.fileSize || 0))}
+                          {attachment.uploadedByUserEmail ? ` · ${attachment.uploadedByUserEmail}` : ''}
+                        </Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
+                        <Button size="small" variant="text" sx={{ textTransform: 'none' }} onClick={() => handleApprovalAttachmentDownload(attachment)}>
+                          Download
+                        </Button>
+                        <IconButton size="small" onClick={() => handleApprovalAttachmentDelete(attachment.id)} sx={{ opacity: 0.6, '&:hover': { opacity: 1, color: '#ef5350' } }}>
+                          <DeleteIcon sx={{ fontSize: '0.95rem' }} />
+                        </IconButton>
+                      </Box>
+                    </Box>
+                  ))}
+                </Box>
+              )}
             </Paper>
           </Box>
         </DialogContent>

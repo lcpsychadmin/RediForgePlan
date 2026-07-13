@@ -313,6 +313,63 @@ router.delete(
   }
 );
 
+// ===== TASK ATTACHMENTS =====
+
+router.get('/:taskId/attachments', requireAuth, async (req, res, next) => {
+  try {
+    const task = await taskService.getTaskById(req.params.taskId);
+    if (!task) throw new ApiError(404, 'Task not found', 'NOT_FOUND');
+
+    const attachments = await taskService.getTaskAttachments(req.params.taskId);
+    res.json(formatListResponse(attachments, attachments.length));
+  } catch (error) { next(error); }
+});
+
+router.post('/:taskId/attachments', requireAuth, requireRole('analyst', 'admin'), async (req, res, next) => {
+  try {
+    const task = await taskService.getTaskById(req.params.taskId);
+    if (!task) throw new ApiError(404, 'Task not found', 'NOT_FOUND');
+
+    const fileName = String(req.body.fileName || '').trim();
+    const mimeType = String(req.body.mimeType || '').trim() || 'application/octet-stream';
+    const dataBase64 = String(req.body.dataBase64 || '').trim();
+
+    if (!fileName || !dataBase64) {
+      throw new ApiError(400, 'fileName and dataBase64 are required', 'MISSING_FIELD');
+    }
+
+    const attachment = await taskService.addTaskAttachment(req.params.taskId, {
+      fileName,
+      mimeType,
+      dataBase64,
+      uploadedByUserId: (req as any).userId,
+    });
+
+    res.status(201).json(formatSingleResponse(attachment));
+  } catch (error) { next(error); }
+});
+
+router.get('/attachments/:attachmentId/download', requireAuth, async (req, res, next) => {
+  try {
+    const attachment = await taskService.getTaskAttachmentById(req.params.attachmentId);
+    if (!attachment) throw new ApiError(404, 'Attachment not found', 'NOT_FOUND');
+
+    res.setHeader('Content-Type', attachment.mimeType || 'application/octet-stream');
+    res.setHeader('Content-Disposition', `attachment; filename="${attachment.fileName}"`);
+    res.send(attachment.fileData);
+  } catch (error) { next(error); }
+});
+
+router.delete('/attachments/:attachmentId', requireAuth, requireRole('analyst', 'admin'), async (req, res, next) => {
+  try {
+    const attachment = await taskService.getTaskAttachmentById(req.params.attachmentId);
+    if (!attachment) throw new ApiError(404, 'Attachment not found', 'NOT_FOUND');
+
+    await taskService.deleteTaskAttachment(req.params.attachmentId);
+    res.json({ success: true });
+  } catch (error) { next(error); }
+});
+
 // ===== TASK DEPENDENCIES =====
 
 router.get('/:taskId/dependencies', requireAuth, async (req, res, next) => {
