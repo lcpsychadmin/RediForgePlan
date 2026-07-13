@@ -4840,7 +4840,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
     if (!target.projectId) return;
 
     const selectNotificationProject = async () => {
-      if (selectedItem?.type === 'project' && selectedItem.id === target.projectId) {
+      if (activeProjectId === target.projectId) {
         setTabValue(0);
         return;
       }
@@ -4882,7 +4882,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
     };
 
     selectNotificationProject();
-  }, [projectsByMockCycle, mockCycles, selectedItem, location.search]);
+  }, [projectsByMockCycle, mockCycles, selectedItem, activeProjectId, location.search]);
 
   // Once tasks load for the selected project, open the full task modal for the target task.
   useEffect(() => {
