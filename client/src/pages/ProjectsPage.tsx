@@ -296,6 +296,7 @@ interface RoadmapItem {
   type: 'phase' | 'test-cycle' | 'milestone';
   projectKey: string; // project name (stable key across cycles)
   name: string;
+  linkedCycleId?: string;
   startDate?: string;
   endDate?: string;
   date?: string;
@@ -559,7 +560,7 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
   }) => {
     const hasS = !!startDate, hasE = !!endDate;
     if (!hasS && !hasE) return (
-      <Box onClick={onClick} sx={{ position: 'absolute', left: '4px', top: '50%', transform: 'translateY(-50%)', height: 26, px: 1.25, borderRadius: 1.5, border: `1px dashed rgba(255,255,255,0.2)`, cursor: 'pointer', display: 'flex', alignItems: 'center', '&:hover': { borderColor: color } }}>
+      <Box onClick={onClick} sx={{ position: 'absolute', left: '4px', top: '50%', transform: 'translateY(-50%)', height: 26, px: 1.25, borderRadius: 1.5, border: `1px dashed rgba(255,255,255,0.2)`, cursor: 'pointer', display: 'flex', alignItems: 'center', zIndex: 3, pointerEvents: 'auto', '&:hover': { borderColor: color } }}>
         <Typography sx={{ fontSize: '0.7rem', color: 'text.disabled' }}>{label} — click to set dates</Typography>
       </Box>
     );
@@ -610,20 +611,46 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
   };
 
   const openEditItem = (item: RoadmapItem) => {
-    setForm({ ...item });
+    let inferredCycleId = item.linkedCycleId || '';
+    if (item.type === 'test-cycle' && !inferredCycleId) {
+      const project = uniqueProjects.find((p) => p.name === item.projectKey);
+      const cycleCandidates = (project?.cycleIds || [])
+        .map((cid) => Object.values(mockCycles).flat().find((c: any) => c.id === cid) as any)
+        .filter(Boolean);
+      const match = cycleCandidates.find((cycle: any) => {
+        const phaseLabel = String(cycle.testPhase || cycle.description || cycle.name || '').trim().toLowerCase();
+        return phaseLabel && phaseLabel === String(item.name || '').trim().toLowerCase();
+      });
+      inferredCycleId = match?.id || '';
+    }
+
+    setForm({ ...item, linkedCycleId: inferredCycleId });
     setEditingItem(item);
     setAddDialog(item.type);
   };
 
   const saveItem = async () => {
     if (!form.projectKey || !form.name?.trim() || !form.type) return;
+    if (form.type === 'test-cycle' && !String((form as any).linkedCycleId || '').trim()) return;
+    if (form.type !== 'milestone' && (!String(form.startDate || '').trim() || !String(form.endDate || '').trim())) return;
     setSavingItem(true);
     try {
       if (editingItem) {
         const updated = roadmapItems.map(x => x.id === editingItem.id ? { ...x, ...form, name: form.name!.trim() } as RoadmapItem : x);
         persistItems(updated);
       } else {
-        const newItem: RoadmapItem = { id: `rm-${Date.now()}`, type: form.type!, projectKey: form.projectKey!, name: form.name!.trim(), color: form.color || '#667eea', startDate: form.startDate, endDate: form.endDate, date: form.date, subtype: form.subtype as any };
+        const newItem: RoadmapItem = {
+          id: `rm-${Date.now()}`,
+          type: form.type!,
+          projectKey: form.projectKey!,
+          name: form.name!.trim(),
+          linkedCycleId: String((form as any).linkedCycleId || '').trim() || undefined,
+          color: form.color || '#667eea',
+          startDate: form.startDate,
+          endDate: form.endDate,
+          date: form.date,
+          subtype: form.subtype as any,
+        };
         persistItems([...roadmapItems, newItem]);
       }
       setAddDialog(null); setEditingItem(null); setForm({});
@@ -631,6 +658,22 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
   };
 
   const deleteItem = (id: string) => persistItems(roadmapItems.filter(x => x.id !== id));
+
+  const selectedProjectCycleOptions = React.useMemo(() => {
+    const selectedProject = uniqueProjects.find((p) => p.name === String(form.projectKey || '').trim());
+    if (!selectedProject) return [] as any[];
+
+    return selectedProject.cycleIds
+      .map((cid) => Object.values(mockCycles).flat().find((c: any) => c.id === cid) as any)
+      .filter(Boolean)
+      .map((cycle: any) => ({
+        id: cycle.id,
+        label: String(cycle.testPhase || cycle.description || cycle.name || '').trim(),
+        startDate: cycle.startDate ? String(cycle.startDate).substring(0, 10) : '',
+        endDate: cycle.endDate ? String(cycle.endDate).substring(0, 10) : '',
+      }))
+      .filter((option) => option.label.length > 0);
+  }, [form.projectKey, uniqueProjects, mockCycles]);
 
   // Lane helpers
   const getActRange = (actId: string, phases: RoadmapItem[], cycles: any[], testCycles: RoadmapItem[]): {start:string;end:string}|null => {
@@ -971,9 +1014,38 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
                 </Box>
               ) : (
                 <Box>
-                  <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>Name</Typography>
-                  <input value={form.name || ''} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder={addDialog === 'milestone' ? 'e.g. Go Live' : 'e.g. UAT'}
-                    style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.2)', backgroundColor: 'rgba(255,255,255,0.06)', color: '#DBE7FF', fontSize: '0.85rem', boxSizing: 'border-box' }} />
+                  {addDialog === 'test-cycle' ? (
+                    <>
+                      <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>Test Phase (from Mock Cycles)</Typography>
+                      <Box
+                        component="select"
+                        value={(form as any).linkedCycleId || ''}
+                        onChange={(e: any) => {
+                          const selectedId = String(e.target.value || '').trim();
+                          const selected = selectedProjectCycleOptions.find((option) => option.id === selectedId);
+                          setForm((prev) => ({
+                            ...prev,
+                            linkedCycleId: selectedId,
+                            name: selected?.label || '',
+                            startDate: selected?.startDate || '',
+                            endDate: selected?.endDate || '',
+                          }));
+                        }}
+                        style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.2)', backgroundColor: 'rgba(255,255,255,0.06)', color: '#DBE7FF', fontSize: '0.85rem' }}
+                      >
+                        <option value="">Select a test phase</option>
+                        {selectedProjectCycleOptions.map((option) => (
+                          <option key={option.id} value={option.id}>{option.label}</option>
+                        ))}
+                      </Box>
+                    </>
+                  ) : (
+                    <>
+                      <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>Name</Typography>
+                      <input value={form.name || ''} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder={addDialog === 'milestone' ? 'e.g. Go Live' : 'e.g. UAT'}
+                        style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.2)', backgroundColor: 'rgba(255,255,255,0.06)', color: '#DBE7FF', fontSize: '0.85rem', boxSizing: 'border-box' }} />
+                    </>
+                  )}
                 </Box>
               )}
               {/* Dates */}
@@ -1010,7 +1082,16 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ programs, mockCycles, project
                 )}
                 <Box sx={{ display: 'flex', gap: 1, ml: 'auto' }}>
                   <Button size="small" onClick={() => { setAddDialog(null); setEditingItem(null); setForm({}); }} sx={{ textTransform: 'none' }}>Cancel</Button>
-                  <Button size="small" variant="contained" disabled={savingItem || !form.name?.trim() || !form.projectKey}
+                  <Button
+                    size="small"
+                    variant="contained"
+                    disabled={
+                      savingItem
+                      || !form.name?.trim()
+                      || !form.projectKey
+                      || (addDialog === 'test-cycle' && !String((form as any).linkedCycleId || '').trim())
+                      || (addDialog !== 'milestone' && (!String(form.startDate || '').trim() || !String(form.endDate || '').trim()))
+                    }
                     onClick={saveItem} sx={{ textTransform: 'none', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
                     {savingItem ? 'Saving…' : editingItem ? 'Update' : 'Add'}
                   </Button>
