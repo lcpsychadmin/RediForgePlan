@@ -33,6 +33,7 @@ const Layout: React.FC<LayoutProps> = ({
   // Pages with the full workspace header + sub-nav pills (need extra top margin for the sub-nav bar)
   const isWorkspacePage = 
     location.pathname.startsWith('/planning') ||
+    location.pathname.startsWith('/design') ||
     location.pathname.startsWith('/settings') ||
     location.pathname.startsWith('/admin') ||
     location.pathname === '/dashboard' ||
@@ -42,7 +43,8 @@ const Layout: React.FC<LayoutProps> = ({
     location.pathname.startsWith('/settings') ||
     location.pathname.startsWith('/admin') ||
     location.pathname === '/dashboard' ||
-    location.pathname.startsWith('/planning');
+    location.pathname.startsWith('/planning') ||
+    location.pathname.startsWith('/design');
   // Show global filter bar on standalone content pages (NOT on Plan hierarchy, Planning workspace, or utility pages)
   const isProjectWorkspace = location.pathname.startsWith('/programs/');
   const showFilterBar = isNoFilterPage ? false
