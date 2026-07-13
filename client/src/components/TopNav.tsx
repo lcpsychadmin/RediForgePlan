@@ -230,9 +230,9 @@ const TopNav: React.FC<TopNavProps> = ({
                   {[
                     { label: 'Dashboard', icon: <DashboardIcon fontSize="small" />, path: '/dashboard' },
                     { label: 'Planning', icon: <ArchitectureIcon fontSize="small" />, path: '/planning/plan' },
-                    { label: 'Execution', icon: <FolderOpenIcon fontSize="small" />, path: '/projects' },
                     { label: 'Design', icon: <DesignServicesIcon fontSize="small" />, path: '/planning/design' },
                     { label: 'Build', icon: <ConstructionIcon fontSize="small" />, path: null },
+                    { label: 'Execution', icon: <FolderOpenIcon fontSize="small" />, path: '/projects' },
                   ].map(item => (
                     <MenuItem key={item.label} disabled={!item.path}
                       selected={!!item.path && isActive(item.path)}
