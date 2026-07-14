@@ -15,6 +15,8 @@ import auditRouter from './audit.routes.js';
 import peopleRouter from './people.routes.js';
 import commentsRouter from './comments.routes.js';
 import hierarchyPreferencesRouter from './hierarchyPreferences.routes.js';
+import settingsDatabricksRouter from './settingsDatabricks.routes.js';
+import settingsDbtRouter from './settingsDbt.routes.js';
 import validationRouter from '../validation/validation.routes.js';
 import issuesRouter from '../issues/issues.routes.js';
 import defectsRouter from '../defects/defects.routes.js';
@@ -50,5 +52,7 @@ apiRouter.use('/applications', applicationsRouter);
 apiRouter.use('/comments', commentsRouter);
 apiRouter.use('/reporting', reportingRouter);
 apiRouter.use('/hierarchy-preferences', hierarchyPreferencesRouter);
+apiRouter.use('/settings/databricks', settingsDatabricksRouter);
+apiRouter.use('/settings/dbt', settingsDbtRouter);
 
 export default apiRouter;

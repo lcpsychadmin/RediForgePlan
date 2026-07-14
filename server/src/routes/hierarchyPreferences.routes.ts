@@ -75,7 +75,11 @@ router.put('/state', requireAuth, async (req: Request, res: Response, next: Next
              'roadmapRowOrder',             COALESCE(${preferenceTable}.hierarchy_state->'roadmapRowOrder', '{}'::jsonb),
              'deliverableWorkflows',        COALESCE(${preferenceTable}.hierarchy_state->'deliverableWorkflows', '{}'::jsonb),
              'designBuildEstimationRows',   COALESCE(${preferenceTable}.hierarchy_state->'designBuildEstimationRows', '[]'::jsonb),
-             'designBuildEstimationTasks',  COALESCE(${preferenceTable}.hierarchy_state->'designBuildEstimationTasks', '[]'::jsonb)
+             'designBuildEstimationTasks',  COALESCE(${preferenceTable}.hierarchy_state->'designBuildEstimationTasks', '[]'::jsonb),
+             'databricksIntegrationSettings', COALESCE(${preferenceTable}.hierarchy_state->'databricksIntegrationSettings', '{}'::jsonb),
+             'databricksProjectOverrides', COALESCE(${preferenceTable}.hierarchy_state->'databricksProjectOverrides', '{}'::jsonb),
+             'dbtIntegrationSettings', COALESCE(${preferenceTable}.hierarchy_state->'dbtIntegrationSettings', '{}'::jsonb),
+             'dbtProjectOverrides', COALESCE(${preferenceTable}.hierarchy_state->'dbtProjectOverrides', '{}'::jsonb)
            ) || EXCLUDED.hierarchy_state
          ),
          updated_at = CURRENT_TIMESTAMP`,

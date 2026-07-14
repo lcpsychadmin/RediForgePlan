@@ -6,6 +6,9 @@ import {
   Card,
   CardContent,
   CardHeader,
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
   Typography,
   Button,
   TextField,
@@ -22,6 +25,9 @@ import {
   Paper,
   Switch,
   MenuItem,
+  Select,
+  FormControl,
+  InputLabel,
   Snackbar,
   Alert,
 } from '@mui/material';
@@ -42,11 +48,23 @@ import BuildIcon from '@mui/icons-material/Build';
 import AssignmentIcon from '@mui/icons-material/Assignment';
 import SettingsIcon from '@mui/icons-material/Settings';
 import BarChartIcon from '@mui/icons-material/BarChart';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import ViewInArIcon from '@mui/icons-material/ViewInAr';
+import ChangeHistoryIcon from '@mui/icons-material/ChangeHistory';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faDatabase, faServer, faCloud, faCode, faGears, faDiagramProject, faListCheck, faFileLines, faCircleNodes, faNetworkWired, faTableCells, faChartGantt, faClipboardList, faTriangleExclamation } from '@fortawesome/free-solid-svg-icons';
 import Layout from '../components/Layout';
 import apiClient from '../api/client';
+import DatabricksSettings from '../components/settings/DatabricksSettings';
+import DbtSettings from '../components/settings/DbtSettings';
 import { UNIFIED_ROLE_MODEL, type UnifiedRoleKey } from '../constants/unifiedRoleModel';
+import {
+  DEFAULT_DATABRICKS_SETTINGS,
+  DEFAULT_DBT_SETTINGS,
+  type DatabricksIntegrationSettings,
+  type DbtIntegrationSettings,
+  type SettingsProjectOption,
+} from '../types/integrationSettings';
 import {
   DEFAULT_DESIGN_BUILD_ESTIMATION_ROWS,
   DEFAULT_DESIGN_BUILD_ESTIMATION_TASKS,
@@ -246,6 +264,26 @@ const SettingsPage: React.FC = () => {
   const [editingApp, setEditingApp] = useState<any | null>(null);
   const [addAppOpen, setAddAppOpen] = useState(false);
   const [newApp, setNewApp] = useState({ name: '', description: '', vendor: '', version: '' });
+  const [settingsProjects, setSettingsProjects] = useState<SettingsProjectOption[]>([]);
+  const [databricksSettings, setDatabricksSettings] = useState<DatabricksIntegrationSettings>(DEFAULT_DATABRICKS_SETTINGS);
+  const [databricksProjectOverrides, setDatabricksProjectOverrides] = useState<Record<string, Partial<DatabricksIntegrationSettings>>>({});
+  const [selectedDatabricksProjectOverride, setSelectedDatabricksProjectOverride] = useState('');
+  const [databricksCatalogs, setDatabricksCatalogs] = useState<string[]>([]);
+  const [databricksSchemas, setDatabricksSchemas] = useState<string[]>([]);
+  const [isTestingDatabricksConnection, setIsTestingDatabricksConnection] = useState(false);
+
+  const [dbtSettings, setDbtSettings] = useState<DbtIntegrationSettings>(DEFAULT_DBT_SETTINGS);
+  const [dbtProjectOverrides, setDbtProjectOverrides] = useState<Record<string, Partial<DbtIntegrationSettings>>>({});
+  const [selectedDbtProjectOverride, setSelectedDbtProjectOverride] = useState('');
+  const [dbtModels, setDbtModels] = useState<string[]>([]);
+  const [isValidatingDbtPaths, setIsValidatingDbtPaths] = useState(false);
+
+  const [menuGroupsExpanded, setMenuGroupsExpanded] = useState<Record<string, boolean>>({
+    planning: true,
+    reference: true,
+    platform: true,
+  });
+  const [integrationStatus, setIntegrationStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   useEffect(() => {
     apiClient.get('/api/tasks/templates/defaults').then(res => {
@@ -261,6 +299,35 @@ const SettingsPage: React.FC = () => {
 
     apiClient.get('/api/applications').then(res => {
       setApplications(res.data.data || []);
+    }).catch(() => {});
+
+    apiClient.get('/api/settings/databricks').then((res) => {
+      const payload = res.data?.data || {};
+      setDatabricksSettings({ ...DEFAULT_DATABRICKS_SETTINGS, ...(payload.globalDefaults || {}) });
+      setDatabricksProjectOverrides(payload.projectOverrides || {});
+    }).catch(() => {});
+
+    apiClient.get('/api/settings/dbt').then((res) => {
+      const payload = res.data?.data || {};
+      setDbtSettings({ ...DEFAULT_DBT_SETTINGS, ...(payload.globalDefaults || {}) });
+      setDbtProjectOverrides(payload.projectOverrides || {});
+    }).catch(() => {});
+
+    apiClient.get('/api/programs').then(async (programRes) => {
+      const programs = programRes.data?.data || [];
+      const projectOptions: SettingsProjectOption[] = [];
+      await Promise.all(programs.map(async (program: any) => {
+        try {
+          const projectsRes = await apiClient.get(`/api/projects/by-program/${program.id}`);
+          (projectsRes.data?.data || []).forEach((project: any) => {
+            projectOptions.push({ id: project.id, name: project.name, programName: program.name });
+          });
+        } catch {
+          // no-op
+        }
+      }));
+      projectOptions.sort((a, b) => `${a.programName || ''}${a.name}`.localeCompare(`${b.programName || ''}${b.name}`));
+      setSettingsProjects(projectOptions);
     }).catch(() => {});
 
     // Load process area settings (descriptions + global accent/icon defaults) from hierarchy preferences
@@ -328,6 +395,8 @@ const SettingsPage: React.FC = () => {
   const isDesignBuildTasksMode = selectedMenuItem === 'designBuildTasks';
   const isDesignBuildEstimationMode = selectedMenuItem === 'designBuildEstimation';
   const isApplicationsMode = selectedMenuItem === 'applications';
+  const isDatabricksMode = selectedMenuItem === 'databricksIntegration';
+  const isDbtMode = selectedMenuItem === 'dbtIntegration';
 
   const handleAddValue = () => {
     if (!selectedPicklist) return;
@@ -456,6 +525,147 @@ const SettingsPage: React.FC = () => {
     }
   };
 
+  const updateDatabricksOverride = (projectId: string, patch: Partial<DatabricksIntegrationSettings>) => {
+    setDatabricksProjectOverrides((prev) => ({
+      ...prev,
+      [projectId]: {
+        ...(prev[projectId] || {}),
+        ...patch,
+      },
+    }));
+  };
+
+  const updateDbtOverride = (projectId: string, patch: Partial<DbtIntegrationSettings>) => {
+    setDbtProjectOverrides((prev) => ({
+      ...prev,
+      [projectId]: {
+        ...(prev[projectId] || {}),
+        ...patch,
+      },
+    }));
+  };
+
+  const handleSaveDatabricks = async () => {
+    setSaveStatus('saving');
+    try {
+      await apiClient.put('/api/settings/databricks', {
+        globalDefaults: databricksSettings,
+        projectOverrides: databricksProjectOverrides,
+      });
+      setSaveStatus('saved');
+    } catch {
+      setSaveStatus('error');
+    }
+  };
+
+  const handleSaveDbt = async () => {
+    setSaveStatus('saving');
+    try {
+      await apiClient.put('/api/settings/dbt', {
+        globalDefaults: dbtSettings,
+        projectOverrides: dbtProjectOverrides,
+      });
+      setSaveStatus('saved');
+    } catch {
+      setSaveStatus('error');
+    }
+  };
+
+  const handleTestDatabricksConnection = async () => {
+    setIsTestingDatabricksConnection(true);
+    try {
+      const effective = {
+        ...databricksSettings,
+        ...(selectedDatabricksProjectOverride ? databricksProjectOverrides[selectedDatabricksProjectOverride] || {} : {}),
+      };
+      await apiClient.post('/api/settings/databricks/test-connection', { settings: effective });
+      setIntegrationStatus({ type: 'success', message: 'Databricks connection successful.' });
+    } catch (error: any) {
+      setIntegrationStatus({ type: 'error', message: error?.response?.data?.message || 'Databricks connection failed.' });
+    } finally {
+      setIsTestingDatabricksConnection(false);
+    }
+  };
+
+  const handleFetchDatabricksCatalogs = async () => {
+    try {
+      const effective = {
+        ...databricksSettings,
+        ...(selectedDatabricksProjectOverride ? databricksProjectOverrides[selectedDatabricksProjectOverride] || {} : {}),
+      };
+      const response = await apiClient.get('/api/settings/databricks/catalogs', {
+        params: {
+          workspaceUrl: effective.workspaceUrl,
+          token: effective.personalAccessToken,
+        },
+      });
+      setDatabricksCatalogs(response.data?.data?.catalogs || []);
+    } catch {
+      setDatabricksCatalogs([]);
+    }
+  };
+
+  const handleFetchDatabricksSchemas = async () => {
+    try {
+      const effective = {
+        ...databricksSettings,
+        ...(selectedDatabricksProjectOverride ? databricksProjectOverrides[selectedDatabricksProjectOverride] || {} : {}),
+      };
+      const response = await apiClient.get('/api/settings/databricks/schemas', {
+        params: {
+          workspaceUrl: effective.workspaceUrl,
+          token: effective.personalAccessToken,
+          catalog: effective.defaultCatalog,
+        },
+      });
+      setDatabricksSchemas(response.data?.data?.schemas || []);
+    } catch {
+      setDatabricksSchemas([]);
+    }
+  };
+
+  const handleValidateDbtPaths = async () => {
+    setIsValidatingDbtPaths(true);
+    try {
+      const effective = {
+        ...dbtSettings,
+        ...(selectedDbtProjectOverride ? dbtProjectOverrides[selectedDbtProjectOverride] || {} : {}),
+      };
+      const response = await apiClient.post('/api/settings/dbt/validate-paths', { settings: effective });
+      if (response.data?.data?.valid) {
+        setIntegrationStatus({ type: 'success', message: 'dbt paths validated successfully.' });
+      } else {
+        const firstError = response.data?.data?.errors?.[0] || 'dbt paths are invalid.';
+        setIntegrationStatus({ type: 'error', message: firstError });
+      }
+    } catch (error: any) {
+      setIntegrationStatus({ type: 'error', message: error?.response?.data?.message || 'Failed to validate dbt paths.' });
+    } finally {
+      setIsValidatingDbtPaths(false);
+    }
+  };
+
+  const handleFetchDbtModels = async () => {
+    try {
+      const effective = {
+        ...dbtSettings,
+        ...(selectedDbtProjectOverride ? dbtProjectOverrides[selectedDbtProjectOverride] || {} : {}),
+      };
+      const response = await apiClient.get('/api/settings/dbt/models', {
+        params: {
+          dbtProjectRootPath: effective.dbtProjectRootPath,
+        },
+      });
+      setDbtModels(response.data?.data?.models || []);
+    } catch {
+      setDbtModels([]);
+    }
+  };
+
+  const toggleMenuGroup = (groupKey: 'planning' | 'reference' | 'platform') => {
+    setMenuGroupsExpanded((prev) => ({ ...prev, [groupKey]: !prev[groupKey] }));
+  };
+
   return (
     <Layout>
       <Box sx={{ p: 3 }}>
@@ -466,103 +676,172 @@ const SettingsPage: React.FC = () => {
         <Box sx={{ display: 'flex', gap: 3, height: 'calc(100vh - 200px)', minHeight: 0 }}>
           {/* Left Sidebar - Picklist List */}
           <Card sx={{ width: '280px', flexShrink: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-            <CardHeader title="Settings Menu" />
+            <CardHeader title="Settings" subheader="Organized by domain" />
             <Divider />
             <CardContent sx={{ p: 0, overflowY: 'auto' }}>
-              <List sx={{ p: 0 }}>
-                <Box sx={{ px: 2, pt: 1.25, pb: 0.5 }}>
-                  <Typography variant="subtitle2" color="text.secondary">Picklists</Typography>
-                </Box>
-                {Object.entries(picklists).map(([key, picklist]) => (
-                  <ListItem
-                    key={key}
-                    button
-                    selected={selectedMenuItem === `picklist:${key}`}
-                    onClick={() => setSelectedMenuItem(`picklist:${key}`)}
-                    sx={{
-                      backgroundColor: selectedMenuItem === `picklist:${key}` ? 'primary.lighter' : 'transparent',
-                      '&:hover': { backgroundColor: 'action.hover' },
-                      borderLeft: selectedMenuItem === `picklist:${key}` ? '4px solid' : 'none',
-                      borderColor: 'primary.main',
-                    }}
-                  >
-                    <ListItemText primary={picklist.name} />
-                  </ListItem>
-                ))}
-                <Divider sx={{ my: 0.75 }} />
-                <Box sx={{ px: 2, pt: 0.5, pb: 0.5 }}>
-                  <Typography variant="subtitle2" color="text.secondary">Tasking</Typography>
-                </Box>
-                <ListItem
-                  button
-                  selected={isPeopleRolesMode}
-                  onClick={() => setSelectedMenuItem('peopleRoles')}
-                  sx={{
-                    backgroundColor: isPeopleRolesMode ? 'primary.lighter' : 'transparent',
-                    '&:hover': { backgroundColor: 'action.hover' },
-                    borderLeft: isPeopleRolesMode ? '4px solid' : 'none',
-                    borderColor: 'primary.main',
-                  }}
-                >
-                  <ListItemText primary="People Roles" />
-                </ListItem>
-                <ListItem
-                  button
-                  selected={isTaskTemplatesMode}
-                  onClick={() => setSelectedMenuItem('taskTemplates')}
-                  sx={{
-                    backgroundColor: isTaskTemplatesMode ? 'primary.lighter' : 'transparent',
-                    '&:hover': { backgroundColor: 'action.hover' },
-                    borderLeft: isTaskTemplatesMode ? '4px solid' : 'none',
-                    borderColor: 'primary.main',
-                  }}
-                >
-                  <ListItemText primary="Default Task Templates" />
-                </ListItem>
-                <ListItem
-                  button
-                  selected={isDesignBuildTasksMode}
-                  onClick={() => setSelectedMenuItem('designBuildTasks')}
-                  sx={{
-                    backgroundColor: isDesignBuildTasksMode ? 'primary.lighter' : 'transparent',
-                    '&:hover': { backgroundColor: 'action.hover' },
-                    borderLeft: isDesignBuildTasksMode ? '4px solid' : 'none',
-                    borderColor: 'primary.main',
-                  }}
-                >
-                  <ListItemText primary="Design/Build Standardized Tasks" />
-                </ListItem>
-                <ListItem
-                  button
-                  selected={isDesignBuildEstimationMode}
-                  onClick={() => setSelectedMenuItem('designBuildEstimation')}
-                  sx={{
-                    backgroundColor: isDesignBuildEstimationMode ? 'primary.lighter' : 'transparent',
-                    '&:hover': { backgroundColor: 'action.hover' },
-                    borderLeft: isDesignBuildEstimationMode ? '4px solid' : 'none',
-                    borderColor: 'primary.main',
-                  }}
-                >
-                  <ListItemText primary="Design/Build Estimation" />
-                </ListItem>
-                <Divider sx={{ my: 0.75 }} />
-                <Box sx={{ px: 2, pt: 0.5, pb: 0.5 }}>
-                  <Typography variant="subtitle2" color="text.secondary">Reference Data</Typography>
-                </Box>
-                <ListItem
-                  button
-                  selected={isApplicationsMode}
-                  onClick={() => setSelectedMenuItem('applications')}
-                  sx={{
-                    backgroundColor: isApplicationsMode ? 'primary.lighter' : 'transparent',
-                    '&:hover': { backgroundColor: 'action.hover' },
-                    borderLeft: isApplicationsMode ? '4px solid' : 'none',
-                    borderColor: 'primary.main',
-                  }}
-                >
-                  <ListItemText primary="Applications" />
-                </ListItem>
-              </List>
+              <Box sx={{ p: 1 }}>
+                <Accordion expanded={menuGroupsExpanded.planning} onChange={() => toggleMenuGroup('planning')} disableGutters>
+                  <AccordionSummary expandIcon={<ExpandMoreIcon />}> 
+                    <Typography variant="subtitle2" color="text.secondary">Planning Defaults</Typography>
+                  </AccordionSummary>
+                  <AccordionDetails sx={{ p: 0 }}>
+                    <List sx={{ p: 0 }}>
+                      {Object.entries(picklists)
+                        .filter(([key]) => key !== 'processArea')
+                        .map(([key, picklist]) => (
+                        <ListItem
+                          key={key}
+                          button
+                          selected={selectedMenuItem === `picklist:${key}`}
+                          onClick={() => setSelectedMenuItem(`picklist:${key}`)}
+                          sx={{
+                            backgroundColor: selectedMenuItem === `picklist:${key}` ? 'primary.lighter' : 'transparent',
+                            '&:hover': { backgroundColor: 'action.hover' },
+                            borderLeft: selectedMenuItem === `picklist:${key}` ? '4px solid' : 'none',
+                            borderColor: 'primary.main',
+                          }}
+                        >
+                          <ListItemText primary={picklist.name} />
+                        </ListItem>
+                      ))}
+
+                      <ListItem
+                        button
+                        selected={selectedMenuItem === 'picklist:processArea'}
+                        onClick={() => setSelectedMenuItem('picklist:processArea')}
+                        sx={{
+                          backgroundColor: selectedMenuItem === 'picklist:processArea' ? 'primary.lighter' : 'transparent',
+                          '&:hover': { backgroundColor: 'action.hover' },
+                          borderLeft: selectedMenuItem === 'picklist:processArea' ? '4px solid' : 'none',
+                          borderColor: 'primary.main',
+                        }}
+                      >
+                        <ListItemText primary="Process Areas" />
+                      </ListItem>
+
+                      <ListItem
+                        button
+                        selected={isPeopleRolesMode}
+                        onClick={() => setSelectedMenuItem('peopleRoles')}
+                        sx={{
+                          backgroundColor: isPeopleRolesMode ? 'primary.lighter' : 'transparent',
+                          '&:hover': { backgroundColor: 'action.hover' },
+                          borderLeft: isPeopleRolesMode ? '4px solid' : 'none',
+                          borderColor: 'primary.main',
+                        }}
+                      >
+                        <ListItemText primary="People Roles" />
+                      </ListItem>
+
+                      <ListItem
+                        button
+                        selected={isTaskTemplatesMode}
+                        onClick={() => setSelectedMenuItem('taskTemplates')}
+                        sx={{
+                          backgroundColor: isTaskTemplatesMode ? 'primary.lighter' : 'transparent',
+                          '&:hover': { backgroundColor: 'action.hover' },
+                          borderLeft: isTaskTemplatesMode ? '4px solid' : 'none',
+                          borderColor: 'primary.main',
+                        }}
+                      >
+                        <ListItemText primary="Default Task Templates" />
+                      </ListItem>
+
+                      <ListItem
+                        button
+                        selected={isDesignBuildTasksMode}
+                        onClick={() => setSelectedMenuItem('designBuildTasks')}
+                        sx={{
+                          backgroundColor: isDesignBuildTasksMode ? 'primary.lighter' : 'transparent',
+                          '&:hover': { backgroundColor: 'action.hover' },
+                          borderLeft: isDesignBuildTasksMode ? '4px solid' : 'none',
+                          borderColor: 'primary.main',
+                        }}
+                      >
+                        <ListItemText primary="Design and Build Standard Tasks" />
+                      </ListItem>
+
+                      <ListItem
+                        button
+                        selected={isDesignBuildEstimationMode}
+                        onClick={() => setSelectedMenuItem('designBuildEstimation')}
+                        sx={{
+                          backgroundColor: isDesignBuildEstimationMode ? 'primary.lighter' : 'transparent',
+                          '&:hover': { backgroundColor: 'action.hover' },
+                          borderLeft: isDesignBuildEstimationMode ? '4px solid' : 'none',
+                          borderColor: 'primary.main',
+                        }}
+                      >
+                        <ListItemText primary="Design and Build Estimation" />
+                      </ListItem>
+                    </List>
+                  </AccordionDetails>
+                </Accordion>
+
+                <Accordion expanded={menuGroupsExpanded.reference} onChange={() => toggleMenuGroup('reference')} disableGutters>
+                  <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                    <Typography variant="subtitle2" color="text.secondary">Reference Data</Typography>
+                  </AccordionSummary>
+                  <AccordionDetails sx={{ p: 0 }}>
+                    <List sx={{ p: 0 }}>
+                      <ListItem
+                        button
+                        selected={isApplicationsMode}
+                        onClick={() => setSelectedMenuItem('applications')}
+                        sx={{
+                          backgroundColor: isApplicationsMode ? 'primary.lighter' : 'transparent',
+                          '&:hover': { backgroundColor: 'action.hover' },
+                          borderLeft: isApplicationsMode ? '4px solid' : 'none',
+                          borderColor: 'primary.main',
+                        }}
+                      >
+                        <ListItemText primary="Applications" />
+                      </ListItem>
+                    </List>
+                  </AccordionDetails>
+                </Accordion>
+
+                <Accordion expanded={menuGroupsExpanded.platform} onChange={() => toggleMenuGroup('platform')} disableGutters>
+                  <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                    <Typography variant="subtitle2" color="text.secondary">Canonical Data Platform</Typography>
+                  </AccordionSummary>
+                  <AccordionDetails sx={{ p: 0 }}>
+                    <List sx={{ p: 0 }}>
+                      <ListItem
+                        button
+                        selected={isDatabricksMode}
+                        onClick={() => setSelectedMenuItem('databricksIntegration')}
+                        sx={{
+                          backgroundColor: isDatabricksMode ? 'primary.lighter' : 'transparent',
+                          '&:hover': { backgroundColor: 'action.hover' },
+                          borderLeft: isDatabricksMode ? '4px solid' : 'none',
+                          borderColor: 'primary.main',
+                          gap: 1,
+                        }}
+                      >
+                        <ViewInArIcon sx={{ fontSize: '1rem', color: '#4FC3F7' }} />
+                        <ListItemText primary="Databricks Integration" />
+                      </ListItem>
+
+                      <ListItem
+                        button
+                        selected={isDbtMode}
+                        onClick={() => setSelectedMenuItem('dbtIntegration')}
+                        sx={{
+                          backgroundColor: isDbtMode ? 'primary.lighter' : 'transparent',
+                          '&:hover': { backgroundColor: 'action.hover' },
+                          borderLeft: isDbtMode ? '4px solid' : 'none',
+                          borderColor: 'primary.main',
+                          gap: 1,
+                        }}
+                      >
+                        <ChangeHistoryIcon sx={{ fontSize: '1rem', color: '#FF8A65' }} />
+                        <ListItemText primary="dbt Integration" />
+                      </ListItem>
+                    </List>
+                  </AccordionDetails>
+                </Accordion>
+              </Box>
             </CardContent>
           </Card>
 
@@ -570,13 +849,17 @@ const SettingsPage: React.FC = () => {
           <Card sx={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
             <CardHeader title={
               isPicklistMode
-                ? `Edit ${picklists[selectedPicklist]?.name || 'Picklist'}`
+                ? `${picklists[selectedPicklist]?.name || 'Picklist'} Settings`
                 : isPeopleRolesMode
                   ? 'People Roles'
                   : isDesignBuildTasksMode
-                    ? 'Design/Build Standardized Tasks'
+                    ? 'Design and Build Standard Tasks'
                   : isDesignBuildEstimationMode
-                    ? 'Design/Build Estimation'
+                    ? 'Design and Build Estimation'
+                  : isDatabricksMode
+                    ? 'Databricks Integration'
+                  : isDbtMode
+                    ? 'dbt Integration'
                   : isApplicationsMode
                     ? 'Applications'
                     : 'Default Task Templates'
@@ -957,6 +1240,54 @@ const SettingsPage: React.FC = () => {
               </Box>
               )}
 
+              {isDatabricksMode && (
+                <Box>
+                  <DatabricksSettings
+                    globalDefaults={databricksSettings}
+                    projectOverrides={databricksProjectOverrides}
+                    selectedProjectId={selectedDatabricksProjectOverride}
+                    projects={settingsProjects}
+                    catalogs={databricksCatalogs}
+                    schemas={databricksSchemas}
+                    isTestingConnection={isTestingDatabricksConnection}
+                    onGlobalChange={(patch) => setDatabricksSettings((prev) => ({ ...prev, ...patch }))}
+                    onOverrideChange={updateDatabricksOverride}
+                    onSelectProject={setSelectedDatabricksProjectOverride}
+                    onTestConnection={handleTestDatabricksConnection}
+                    onRefreshCatalogs={handleFetchDatabricksCatalogs}
+                    onRefreshSchemas={handleFetchDatabricksSchemas}
+                  />
+                  <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
+                    <Button variant="contained" onClick={handleSaveDatabricks} sx={{ textTransform: 'none' }} disabled={saveStatus === 'saving'}>
+                      {saveStatus === 'saving' ? 'Saving...' : 'Save Databricks Settings'}
+                    </Button>
+                  </Box>
+                </Box>
+              )}
+
+              {isDbtMode && (
+                <Box>
+                  <DbtSettings
+                    globalDefaults={dbtSettings}
+                    projectOverrides={dbtProjectOverrides}
+                    selectedProjectId={selectedDbtProjectOverride}
+                    projects={settingsProjects}
+                    modelNames={dbtModels}
+                    isValidatingPaths={isValidatingDbtPaths}
+                    onGlobalChange={(patch) => setDbtSettings((prev) => ({ ...prev, ...patch }))}
+                    onOverrideChange={updateDbtOverride}
+                    onSelectProject={setSelectedDbtProjectOverride}
+                    onValidatePaths={handleValidateDbtPaths}
+                    onRefreshModels={handleFetchDbtModels}
+                  />
+                  <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
+                    <Button variant="contained" onClick={handleSaveDbt} sx={{ textTransform: 'none' }} disabled={saveStatus === 'saving'}>
+                      {saveStatus === 'saving' ? 'Saving...' : 'Save dbt Settings'}
+                    </Button>
+                  </Box>
+                </Box>
+              )}
+
               {/* Save Button */}
               {(isPicklistMode || isDesignBuildTasksMode || isDesignBuildEstimationMode) && (
                 <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end', mt: 4, pt: 2, borderTop: '1px solid', borderColor: 'divider' }}>
@@ -1166,6 +1497,17 @@ const SettingsPage: React.FC = () => {
       >
         <Alert severity={saveStatus === 'saved' ? 'success' : 'error'} onClose={() => setSaveStatus('idle')}>
           {saveStatus === 'saved' ? 'Settings saved successfully.' : 'Failed to save settings. Please try again.'}
+        </Alert>
+      </Snackbar>
+
+      <Snackbar
+        open={!!integrationStatus}
+        autoHideDuration={4000}
+        onClose={() => setIntegrationStatus(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert severity={integrationStatus?.type || 'info'} onClose={() => setIntegrationStatus(null)}>
+          {integrationStatus?.message || ''}
         </Alert>
       </Snackbar>
     </Layout>
