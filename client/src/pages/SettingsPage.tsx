@@ -49,11 +49,11 @@ import AssignmentIcon from '@mui/icons-material/Assignment';
 import SettingsIcon from '@mui/icons-material/Settings';
 import BarChartIcon from '@mui/icons-material/BarChart';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import ViewInArIcon from '@mui/icons-material/ViewInAr';
 import ChangeHistoryIcon from '@mui/icons-material/ChangeHistory';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faDatabase, faServer, faCloud, faCode, faGears, faDiagramProject, faListCheck, faFileLines, faCircleNodes, faNetworkWired, faTableCells, faChartGantt, faClipboardList, faTriangleExclamation } from '@fortawesome/free-solid-svg-icons';
 import Layout from '../components/Layout';
+import DatabricksIcon from '../components/icons/DatabricksIcon';
 import apiClient from '../api/client';
 import DatabricksSettings from '../components/settings/DatabricksSettings';
 import DbtSettings from '../components/settings/DbtSettings';
@@ -823,7 +823,7 @@ const SettingsPage: React.FC = () => {
                           gap: 1,
                         }}
                       >
-                        <ViewInArIcon sx={{ fontSize: '1rem', color: '#4FC3F7' }} />
+                        <DatabricksIcon sx={{ fontSize: '1rem' }} />
                         <ListItemText primary="Databricks Integration" />
                       </ListItem>
 

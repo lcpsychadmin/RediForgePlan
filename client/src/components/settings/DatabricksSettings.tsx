@@ -18,7 +18,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import ViewInArIcon from '@mui/icons-material/ViewInAr';
+import DatabricksIcon from '../icons/DatabricksIcon';
 import type {
   DatabricksIntegrationSettings,
   MetadataSyncFrequency,
@@ -78,7 +78,7 @@ const DatabricksSettings: React.FC<DatabricksSettingsProps> = ({
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <ViewInArIcon sx={{ color: '#4FC3F7' }} />
+          <DatabricksIcon sx={{ fontSize: '1.15rem' }} />
           <Typography variant="h6" sx={{ fontWeight: 700 }}>Databricks Integration</Typography>
         </Box>
         <Box sx={{ display: 'flex', gap: 1 }}>
