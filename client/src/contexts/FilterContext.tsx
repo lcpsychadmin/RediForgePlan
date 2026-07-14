@@ -98,7 +98,7 @@ export const FilterProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         return (taskCount * 1_000_000) + (objectCount * 10_000) + (cycleCount * 100) + progress + (updatedAt / 1_000_000_000_000);
       };
 
-      const chooseCanonicalProjects = async (items: any[]) => {
+      const chooseNormalizedProjects = async (items: any[]) => {
         const grouped = new Map<string, any[]>();
         items.forEach((project: any) => {
           const programId = String(project?.programId || project?.program_id || '').trim();
@@ -109,7 +109,7 @@ export const FilterProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           grouped.get(key)!.push(project);
         });
 
-        const canonical = await Promise.all(
+        const normalized = await Promise.all(
           Array.from(grouped.values()).map(async (group) => {
             if (group.length === 1) return group[0];
 
@@ -128,7 +128,7 @@ export const FilterProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           })
         );
 
-        return canonical;
+        return normalized;
       };
 
       if (selectedProgramId) {
@@ -137,7 +137,7 @@ export const FilterProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           ...project,
           programId: project.programId || project.program_id || selectedProgramId,
         }));
-        return await chooseCanonicalProjects(rawProjects);
+        return await chooseNormalizedProjects(rawProjects);
       }
 
       const allProgramsResponse = await apiClient.get('/api/programs');
@@ -152,7 +152,7 @@ export const FilterProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         })
       );
 
-      return await chooseCanonicalProjects(projectGroups.flat());
+      return await chooseNormalizedProjects(projectGroups.flat());
     },
     enabled: programs.length > 0,
     staleTime: 30000,

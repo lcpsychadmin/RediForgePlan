@@ -1,20 +1,34 @@
 export interface CommonDataModel {
   id: string;
   globalObjectId: string;
+  objectName?: string | null;
   notes?: string | null;
   createdAt?: string;
   updatedAt?: string;
 }
 
-export interface CanonicalAttribute {
+export interface CDMAttribute {
   id: string;
   commonDataModelId: string;
-  canonicalAttributeName: string;
-  canonicalDescription?: string | null;
-  canonicalDataType?: string | null;
-  canonicalLength?: number | null;
-  canonicalBusinessRules?: string | null;
-  relationships?: string | null;
+  attributeName: string;
+  attributeDescription?: string | null;
+  dataType?: string | null;
+  length?: number | null;
+  businessRules?: string | null;
+  sortOrder?: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CDMRelationship {
+  id: string;
+  commonDataModelId: string;
+  sourceAttributeId?: string | null;
+  sourceAttributeName?: string | null;
+  targetObjectName: string;
+  targetAttributeName?: string | null;
+  relationshipType?: string | null;
+  businessRules?: string | null;
   sortOrder?: number;
   createdAt?: string;
   updatedAt?: string;

@@ -39,6 +39,6 @@ export const DEFAULT_DBT_SETTINGS: DbtIntegrationSettings = {
   targetProfileName: '',
   environment: 'dev',
   enableCanonicalLayer: true,
-  canonicalModelFolderPath: '/models/canonical',
+  canonicalModelFolderPath: '/models/common-data-model',
   targetProjectionFolderPath: '/models/targets',
 };

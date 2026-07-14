@@ -1,85 +1,91 @@
-# Common Data Model Integration
+# Common Data Model
 
-This document defines the Common Data Model (CDM) support added to RediForge Data Object Inventory and explains Databricks metadata ingestion.
+This document defines how RediForge uses the Common Data Model (CDM) in Object Inventory and how Databricks metadata ingestion supports application data definitions.
 
-## Goals
+## Purpose
 
-- Replace the legacy Data Construction Template workflow.
-- Support canonical attribute modeling at the global object level.
-- Ingest physical metadata from Databricks Unity Catalog into application data definitions.
-- Keep application-specific and canonical definitions connected but independently maintainable.
+The Common Data Model provides a shared, object-level definition for:
 
-## Data Model
+- CDM attributes
+- CDM relationships
+- CDM business rules
+
+It is managed separately from application-specific data definitions so each application can keep its own physical metadata while sharing common business definitions.
+
+## Data Structure
 
 ### common_data_model
 
-Stores one canonical model row per global object.
+One row per global object.
 
-- `id` UUID primary key
-- `global_object_id` UUID unique reference to global object
-- `object_name` canonical object label
-- `object_description` optional
-- `created_at`, `updated_at`
+- id
+- global_object_id
+- object_name
+- notes
+- created_at
+- updated_at
 
-### canonical_attributes
+### cdm_attributes
 
-Stores canonical attributes for a canonical object.
+CDM attribute rows for a common data model.
 
-- `id` UUID primary key
-- `common_data_model_id` UUID foreign key
-- `canonical_attribute_name` required
-- `canonical_description` optional
-- `canonical_data_type` optional
-- `canonical_length` optional integer
-- `canonical_business_rules` optional
-- `relationships` optional
-- `sort_order` integer
-- `created_at`, `updated_at`
+- id
+- common_data_model_id
+- attribute_name
+- attribute_description
+- data_type
+- length
+- business_rules
+- sort_order
+- created_at
+- updated_at
 
-### Legacy cleanup
+### cdm_relationships
 
-Migration removes:
+Relationship rows connected to a common data model.
 
-- `construction_template_fields`
-- `construction_templates`
+- id
+- common_data_model_id
+- source_attribute_id
+- source_attribute_name
+- target_object_name
+- target_attribute_name
+- relationship_type
+- business_rules
+- sort_order
+- created_at
+- updated_at
 
-## API Endpoints
+## API
 
-### Common model
+Base route: `/api/cdm`
 
-- `GET /api/common-model/object/:globalObjectId`
-  - Returns the model row and canonical attributes.
-- `PUT /api/common-model/object/:globalObjectId`
-  - Upserts object-level common model metadata.
-- `POST /api/common-model/object/:globalObjectId/attributes`
-  - Creates a canonical attribute.
-- `PUT /api/common-model/attributes/:attributeId`
-  - Updates a canonical attribute.
-- `DELETE /api/common-model/attributes/:attributeId`
-  - Deletes a canonical attribute.
+- `GET /:objectId`
+  - Returns model, attributes, and relationships for a global object.
+- `POST /:objectId`
+  - Upserts model-level data and saves CDM attributes/relationships.
+- `PUT /:objectId/attribute/:attributeId`
+  - Updates one CDM attribute row.
+- `DELETE /:objectId/attribute/:attributeId`
+  - Deletes one CDM attribute row.
 
-### Databricks ingestion
+## UI Integration
 
-- `POST /api/applications/data-definitions/:definitionId/metadata-sync`
-  - Request body:
-    - `catalog`
-    - `schema`
-    - `table`
-  - Reads Databricks integration settings from `global_hierarchy_preferences.hierarchy_state.databricksIntegrationSettings`.
-  - Fetches table metadata from Unity Catalog and maps columns into `data_definition_fields` rows.
-  - Replaces existing data definition field rows for that definition with synced metadata.
+- The object table action `Assign Application` opens the dedicated `CommonDataModelModal`.
+- The Applications & Data Definitions panel remains focused on application-specific sub-objects and fields.
+- Common Data Model is shown as a distinct, muted row in the sidebar with a divider and layers icon.
 
-## UI Behavior
+## Databricks Metadata Ingestion
 
-In the Data Definitions panel:
+Within an application data definition:
 
-- Application list includes a pseudo-row named **Common Data Model**.
-- Selecting Common Data Model opens canonical attribute management.
-- For normal application data definitions, a **Pull Metadata from Databricks** action is available.
-- Sync status is tracked per data definition and displayed in the application list.
-
-## Operational Notes
-
-- Databricks metadata sync is destructive for existing fields on the selected data definition; current rows are replaced by synced metadata.
-- Canonical attributes remain separate from per-application physical metadata to support harmonization.
-- If Databricks settings are missing or invalid, metadata sync fails with an actionable API error.
+- Use `Pull Metadata from Databricks`.
+- Select catalog, schema, and table from live cascading dropdowns.
+- The sync imports and updates field definitions including:
+  - field name
+  - label (from comment when available)
+  - data type
+  - length
+  - required/nullability indicator
+  - key indicator
+- A `Last Synced` timestamp is shown per linked application definition.

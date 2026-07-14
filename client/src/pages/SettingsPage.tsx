@@ -807,7 +807,7 @@ const SettingsPage: React.FC = () => {
 
                 <Accordion expanded={menuGroupsExpanded.platform} onChange={() => toggleMenuGroup('platform')} disableGutters sx={{ backgroundColor: 'transparent', boxShadow: 'none', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 1, '&:before': { display: 'none' } }}>
                   <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                    <Typography variant="subtitle2" color="text.secondary">Canonical Data Platform</Typography>
+                    <Typography variant="subtitle2" color="text.secondary">Common Data Platform</Typography>
                   </AccordionSummary>
                   <AccordionDetails sx={{ p: 0 }}>
                     <List sx={{ p: 0 }}>

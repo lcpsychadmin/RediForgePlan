@@ -78,12 +78,12 @@ import apiClient from '../api/client';
 import Layout from '../components/Layout';
 import ProcessAreaRoleAssignmentPanel from '../components/ProcessAreaRoleAssignmentPanel';
 import TaskDetailModal from '../components/tasks/TaskDetailModal';
-import CommonDataModelDefinition from '../components/CommonDataModelDefinition';
+import CommonDataModelModal from '../components/CommonDataModelModal';
 import ProjectDefectsPage from './ProjectDefectsPage';
 import DataMigrationStrategyView from '../components/strategy/DataMigrationStrategyView';
 import PlanningDeliverablesTracker from '../components/plan/PlanningDeliverablesTracker';
 import { useAuth } from '../contexts/AuthContext';
-import type { CommonDataModel, CanonicalAttribute } from '../types/commonDataModel';
+import type { CommonDataModel, CDMAttribute, CDMRelationship } from '../types/commonDataModel';
 import {
   DEFAULT_DESIGN_BUILD_ESTIMATION_ROWS,
   DEFAULT_DESIGN_BUILD_ESTIMATION_TASKS,
@@ -93,7 +93,6 @@ import {
   type DesignBuildTaskType,
 } from '../constants/designBuildEstimationDefaults';
 
-const COMMON_DATA_MODEL_APP_ID = '__common_data_model__';
 const COMMON_DATA_MODEL_APP_NAME = 'Common Data Model';
 
 interface Program {
@@ -1555,10 +1554,13 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   const [collapsedSubObjs, setCollapsedSubObjs] = useState<Set<string>>(new Set());
   const [editingSubObjId, setEditingSubObjId] = useState<string | null>(null);
   const [editingSubObjName, setEditingSubObjName] = useState('');
-  const [commonModelModalOpen, setCommonModelModalOpen] = useState(false);
-  const [commonModel, setCommonModel] = useState<CommonDataModel | null>(null);
-  const [canonicalAttributes, setCanonicalAttributes] = useState<CanonicalAttribute[]>([]);
-  const [isSavingCanonicalAttribute, setIsSavingCanonicalAttribute] = useState(false);
+  const [commonDataModelModalOpen, setCommonDataModelModalOpen] = useState(false);
+  const [cdmModalObjectId, setCdmModalObjectId] = useState<string | null>(null);
+  const [cdmModalObject, setCdmModalObject] = useState<any | null>(null);
+  const [commonDataModel, setCommonDataModel] = useState<CommonDataModel | null>(null);
+  const [cdmAttributes, setCdmAttributes] = useState<CDMAttribute[]>([]);
+  const [cdmRelationships, setCdmRelationships] = useState<CDMRelationship[]>([]);
+  const [isSavingCommonDataModel, setIsSavingCommonDataModel] = useState(false);
   const [metadataSyncDialogOpen, setMetadataSyncDialogOpen] = useState(false);
   const [metadataSyncDraft, setMetadataSyncDraft] = useState({ catalog: '', schema: '', table: '' });
   const [metadataSyncCatalogs, setMetadataSyncCatalogs] = useState<string[]>([]);
@@ -6008,59 +6010,58 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
     }
   };
 
-  const loadCommonModelForObject = async (globalObjectId: string) => {
-    const response = await apiClient.get(`/api/common-model/object/${globalObjectId}`);
+  const mapCDMAttribute = (row: any): CDMAttribute => ({
+    id: String(row.id || ''),
+    commonDataModelId: String(row.common_data_model_id || row.commonDataModelId || ''),
+    attributeName: String(row.attribute_name || row.attributeName || ''),
+    attributeDescription: row.attribute_description ?? row.attributeDescription ?? null,
+    dataType: row.data_type ?? row.dataType ?? null,
+    length: row.length ?? null,
+    businessRules: row.business_rules ?? row.businessRules ?? null,
+    sortOrder: Number(row.sort_order ?? row.sortOrder ?? 0),
+    createdAt: row.created_at || row.createdAt,
+    updatedAt: row.updated_at || row.updatedAt,
+  });
+
+  const mapCDMRelationship = (row: any): CDMRelationship => ({
+    id: String(row.id || ''),
+    commonDataModelId: String(row.common_data_model_id || row.commonDataModelId || ''),
+    sourceAttributeId: row.source_attribute_id ?? row.sourceAttributeId ?? null,
+    sourceAttributeName: row.source_attribute_name ?? row.sourceAttributeName ?? null,
+    targetObjectName: String(row.target_object_name || row.targetObjectName || ''),
+    targetAttributeName: row.target_attribute_name ?? row.targetAttributeName ?? null,
+    relationshipType: row.relationship_type ?? row.relationshipType ?? null,
+    businessRules: row.business_rules ?? row.businessRules ?? null,
+    sortOrder: Number(row.sort_order ?? row.sortOrder ?? 0),
+    createdAt: row.created_at || row.createdAt,
+    updatedAt: row.updated_at || row.updatedAt,
+  });
+
+  const loadCommonDataModelForObject = async (objectId: string) => {
+    const response = await apiClient.get(`/api/cdm/${objectId}`);
     const payload = response.data?.data || {};
-    setCommonModel(payload.model || null);
-    setCanonicalAttributes(payload.attributes || []);
+    setCommonDataModel(payload.model || null);
+    setCdmAttributes(Array.isArray(payload.attributes) ? payload.attributes.map(mapCDMAttribute) : []);
+    setCdmRelationships(Array.isArray(payload.relationships) ? payload.relationships.map(mapCDMRelationship) : []);
   };
 
-  const createCanonicalAttribute = async (draft: Omit<CanonicalAttribute, 'id' | 'commonDataModelId'>) => {
-    if (!dataDefPanelObjectId) return;
-    setIsSavingCanonicalAttribute(true);
+  const saveCommonDataModelForObject = async (
+    objectId: string,
+    payload: { attributes: CDMAttribute[]; relationships: CDMRelationship[] },
+  ) => {
+    setIsSavingCommonDataModel(true);
     try {
-      await apiClient.post(`/api/common-model/object/${dataDefPanelObjectId}/attributes`, {
-        canonicalAttributeName: draft.canonicalAttributeName,
-        canonicalDescription: draft.canonicalDescription || null,
-        canonicalDataType: draft.canonicalDataType || null,
-        canonicalLength: draft.canonicalLength || null,
-        canonicalBusinessRules: draft.canonicalBusinessRules || null,
-        relationships: draft.relationships || null,
-        sortOrder: draft.sortOrder || canonicalAttributes.length,
+      const response = await apiClient.post(`/api/cdm/${objectId}`, {
+        objectName: dataDefPanelObject?.objectId || null,
+        attributes: payload.attributes,
+        relationships: payload.relationships,
       });
-      await loadCommonModelForObject(dataDefPanelObjectId);
+      const data = response.data?.data || {};
+      setCommonDataModel(data.model || null);
+      setCdmAttributes(Array.isArray(data.attributes) ? data.attributes.map(mapCDMAttribute) : []);
+      setCdmRelationships(Array.isArray(data.relationships) ? data.relationships.map(mapCDMRelationship) : []);
     } finally {
-      setIsSavingCanonicalAttribute(false);
-    }
-  };
-
-  const updateCanonicalAttribute = async (attributeId: string, draft: Omit<CanonicalAttribute, 'id' | 'commonDataModelId'>) => {
-    if (!dataDefPanelObjectId) return;
-    setIsSavingCanonicalAttribute(true);
-    try {
-      await apiClient.put(`/api/common-model/attributes/${attributeId}`, {
-        canonicalAttributeName: draft.canonicalAttributeName,
-        canonicalDescription: draft.canonicalDescription || null,
-        canonicalDataType: draft.canonicalDataType || null,
-        canonicalLength: draft.canonicalLength || null,
-        canonicalBusinessRules: draft.canonicalBusinessRules || null,
-        relationships: draft.relationships || null,
-        sortOrder: draft.sortOrder || 0,
-      });
-      await loadCommonModelForObject(dataDefPanelObjectId);
-    } finally {
-      setIsSavingCanonicalAttribute(false);
-    }
-  };
-
-  const deleteCanonicalAttribute = async (attributeId: string) => {
-    if (!dataDefPanelObjectId) return;
-    setIsSavingCanonicalAttribute(true);
-    try {
-      await apiClient.delete(`/api/common-model/attributes/${attributeId}`);
-      await loadCommonModelForObject(dataDefPanelObjectId);
-    } finally {
-      setIsSavingCanonicalAttribute(false);
+      setIsSavingCommonDataModel(false);
     }
   };
 
@@ -6151,6 +6152,15 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
     setMetadataSyncTables([]);
     setMetadataSyncDialogOpen(true);
     await loadMetadataSyncCatalogs();
+  };
+
+  const openCommonDataModelModal = async (objectId: string, objectRow?: any) => {
+    setCdmModalObjectId(objectId);
+    if (objectRow) {
+      setCdmModalObject(objectRow);
+    }
+    setCommonDataModelModalOpen(true);
+    await loadCommonDataModelForObject(objectId);
   };
 
   useEffect(() => {
@@ -14266,6 +14276,16 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                 </IconButton>
                                 <IconButton
                                   size="small"
+                                  title="Assign Application"
+                                  onClick={() => {
+                                    openCommonDataModelModal(obj.id, obj).catch(() => {});
+                                  }}
+                                  sx={{ color: 'rgba(255,255,255,0.5)', '&:hover': { color: 'white', backgroundColor: 'rgba(255,255,255,0.08)' } }}
+                                >
+                                  <LayersIcon sx={{ fontSize: '1rem' }} />
+                                </IconButton>
+                                <IconButton
+                                  size="small"
                                   title="Applications & Data Definitions"
                                   onClick={() => {
                                     setDataDefPanelObjectId(obj.id);
@@ -14276,9 +14296,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                       .then(r => setDataDefinitions(r.data.data || []))
                                       .catch(() => setDataDefinitions([]));
                                   }}
-                                  sx={{ color: 'rgba(255,255,255,0.5)', '&:hover': { color: 'white', backgroundColor: 'rgba(255,255,255,0.08)' } }}
+                                  sx={{ color: 'rgba(255,255,255,0.5)', '&:hover': { color: '#90caf9', backgroundColor: 'rgba(144,202,249,0.12)' } }}
                                 >
-                                  <LayersIcon sx={{ fontSize: '1rem' }} />
+                                  <ViewListIcon sx={{ fontSize: '1rem' }} />
                                 </IconButton>
                                 <IconButton
                                   size="small"
@@ -16132,7 +16152,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                 areaValue || ''
               ).trim().toLowerCase();
 
-              const canonical = (value: string) => (value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+              const normalized = (value: string) => (value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
               const acronym = (value: string) => {
                 const tokens = (value || '').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
                 if (tokens.length === 0) return '';
@@ -16142,8 +16162,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
               const selectedTokens = new Set<string>([
                 selectedProcessAreaRaw,
                 selectedProcessAreaDisplay,
-                canonical(selectedProcessAreaRaw),
-                canonical(selectedProcessAreaDisplay),
+                normalized(selectedProcessAreaRaw),
+                normalized(selectedProcessAreaDisplay),
                 acronym(selectedProcessAreaRaw),
                 acronym(selectedProcessAreaDisplay),
               ].filter(Boolean));
@@ -16151,8 +16171,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
               const itemTokens = [
                 areaRaw,
                 areaDisplay,
-                canonical(areaRaw),
-                canonical(areaDisplay),
+                normalized(areaRaw),
+                normalized(areaDisplay),
                 acronym(areaRaw),
                 acronym(areaDisplay),
               ].filter(Boolean);
@@ -16161,10 +16181,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                 return true;
               }
 
-              const selectedCanonical = canonical(selectedProcessAreaRaw || selectedProcessAreaDisplay);
-              const itemCanonical = canonical(areaRaw || areaDisplay);
-              if (selectedCanonical && itemCanonical) {
-                return itemCanonical.includes(selectedCanonical) || selectedCanonical.includes(itemCanonical);
+              const selectedNormalized = normalized(selectedProcessAreaRaw || selectedProcessAreaDisplay);
+              const itemNormalized = normalized(areaRaw || areaDisplay);
+              if (selectedNormalized && itemNormalized) {
+                return itemNormalized.includes(selectedNormalized) || selectedNormalized.includes(itemNormalized);
               }
 
               return false;
@@ -18020,7 +18040,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
       </Dialog>
 
       {/* ── Data Definitions Panel ──────────────────────────────────────────── */}
-      <Dialog open={!!dataDefPanelObjectId} onClose={() => { setDataDefPanelObjectId(null); setDataDefPanelObject(null); setSelectedDataDefId(null); setDataDefFields([]); setDataDefSubObjects([]); setEditingFieldRow(null); setAddingFieldToSubObj(null); setCollapsedSubObjs(new Set()); setEditingSubObjId(null); setCommonModelModalOpen(false); setMetadataSyncDialogOpen(false); }}
+      <Dialog open={!!dataDefPanelObjectId} onClose={() => { setDataDefPanelObjectId(null); setDataDefPanelObject(null); setSelectedDataDefId(null); setDataDefFields([]); setDataDefSubObjects([]); setEditingFieldRow(null); setAddingFieldToSubObj(null); setCollapsedSubObjs(new Set()); setEditingSubObjId(null); setCommonDataModelModalOpen(false); setMetadataSyncDialogOpen(false); }}
         fullWidth maxWidth="xl"
         PaperProps={{ sx: { borderRadius: 2, height: '80vh', maxHeight: '94vh', display: 'flex', flexDirection: 'column', background: 'linear-gradient(160deg, #141e35 0%, #0c1527 100%)', border: '1px solid rgba(255,255,255,0.1)' } }}>
         <DialogTitle sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', borderBottom: '1px solid rgba(255,255,255,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', pb: 1.5, flexShrink: 0 }}>
@@ -18028,7 +18048,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
             <Typography sx={{ fontWeight: 700, fontSize: '1rem', fontFamily: 'monospace', color: '#fff' }}>{dataDefPanelObject?.objectId}</Typography>
             <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.7)' }}>Applications &amp; Data Definitions</Typography>
           </Box>
-          <IconButton onClick={() => { setDataDefPanelObjectId(null); setDataDefPanelObject(null); setSelectedDataDefId(null); setDataDefFields([]); setDataDefSubObjects([]); setEditingFieldRow(null); setAddingFieldToSubObj(null); setCommonModelModalOpen(false); setMetadataSyncDialogOpen(false); }} size="small"><CloseIcon /></IconButton>
+          <IconButton onClick={() => { setDataDefPanelObjectId(null); setDataDefPanelObject(null); setSelectedDataDefId(null); setDataDefFields([]); setDataDefSubObjects([]); setEditingFieldRow(null); setAddingFieldToSubObj(null); setCommonDataModelModalOpen(false); setMetadataSyncDialogOpen(false); }} size="small"><CloseIcon /></IconButton>
         </DialogTitle>
         <DialogContent sx={{ p: 0, display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden' }}>
           {/* Left: application list */}
@@ -18057,7 +18077,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                     setSelectedDataDefId(dd.id);
                     setEditingFieldRow(null);
                     setAddingFieldToSubObj(null);
-                    setCommonModelModalOpen(false);
+                    setCommonDataModelModalOpen(false);
                     Promise.all([
                       apiClient.get(`/api/applications/data-definitions/${dd.id}/sub-objects`),
                       apiClient.get(`/api/applications/data-definitions/${dd.id}/fields`),
@@ -18081,30 +18101,25 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
               ))}
               <Box sx={{ borderTop: '1px solid rgba(255,255,255,0.08)', mt: 0.5, pt: 0.5 }}>
                 <Box
-                  onClick={async () => {
-                    if (!dataDefPanelObjectId) return;
-                    setSelectedDataDefId(COMMON_DATA_MODEL_APP_ID);
-                    setDataDefFields([]);
-                    setDataDefSubObjects([]);
-                    await loadCommonModelForObject(dataDefPanelObjectId);
-                    setCommonModelModalOpen(true);
-                  }}
                   sx={{
                     px: 1.5,
                     py: 1,
-                    cursor: 'pointer',
+                    cursor: 'default',
                     borderBottom: '1px solid rgba(255,255,255,0.04)',
-                    backgroundColor: selectedDataDefId === COMMON_DATA_MODEL_APP_ID ? 'rgba(109, 180, 255, 0.22)' : 'transparent',
-                    borderLeft: selectedDataDefId === COMMON_DATA_MODEL_APP_ID ? '3px solid #7bb5ff' : '3px solid transparent',
-                    '&:hover': { backgroundColor: selectedDataDefId === COMMON_DATA_MODEL_APP_ID ? 'rgba(109, 180, 255, 0.28)' : 'rgba(255,255,255,0.04)' },
+                    backgroundColor: commonDataModelModalOpen ? 'rgba(109, 180, 255, 0.22)' : 'transparent',
+                    borderLeft: commonDataModelModalOpen ? '3px solid #7bb5ff' : '3px solid transparent',
+                    '&:hover': { backgroundColor: commonDataModelModalOpen ? 'rgba(109, 180, 255, 0.22)' : 'transparent' },
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between'
                   }}
                 >
                   <Box sx={{ minWidth: 0 }}>
-                    <Typography sx={{ fontWeight: 700, fontSize: '0.8rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#cfe3ff' }}>{COMMON_DATA_MODEL_APP_NAME}</Typography>
-                    <Typography variant="caption" sx={{ color: 'rgba(207,227,255,0.75)' }}>Canonical attributes and enterprise relationships</Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.7 }}>
+                      <LayersIcon sx={{ fontSize: '0.95rem', color: 'rgba(207,227,255,0.9)' }} />
+                      <Typography sx={{ fontWeight: 700, fontSize: '0.8rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#cfe3ff' }}>{COMMON_DATA_MODEL_APP_NAME}</Typography>
+                    </Box>
+                    <Typography variant="caption" sx={{ color: 'rgba(207,227,255,0.75)' }}>Use Assign Application in Object Inventory to edit CDM attributes, relationships, and business rules.</Typography>
                   </Box>
                 </Box>
               </Box>
@@ -18116,18 +18131,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
             {!selectedDataDefId ? (
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1 }}>
                 <Typography color="text.disabled" variant="body2">Select an application to manage its data definition</Typography>
-              </Box>
-            ) : selectedDataDefId === COMMON_DATA_MODEL_APP_ID ? (
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1, p: 3 }}>
-                <Box sx={{ textAlign: 'center' }}>
-                  <Typography sx={{ fontWeight: 700, mb: 0.5 }}>Common Data Model</Typography>
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-                    Manage canonical attributes for this object across source applications.
-                  </Typography>
-                  <Button variant="contained" onClick={() => setCommonModelModalOpen(true)}>
-                    Open Canonical Attribute Definition
-                  </Button>
-                </Box>
               </Box>
             ) : (
               <>
@@ -18306,15 +18309,17 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
         </DialogContent>
       </Dialog>
 
-      <CommonDataModelDefinition
-        open={commonModelModalOpen}
-        objectLabel={dataDefPanelObject?.objectId || commonModel?.objectName || ''}
-        attributes={canonicalAttributes}
-        saving={isSavingCanonicalAttribute}
-        onClose={() => setCommonModelModalOpen(false)}
-        onCreateAttribute={createCanonicalAttribute}
-        onUpdateAttribute={updateCanonicalAttribute}
-        onDeleteAttribute={deleteCanonicalAttribute}
+      <CommonDataModelModal
+        open={commonDataModelModalOpen}
+        objectLabel={cdmModalObject?.objectId || dataDefPanelObject?.objectId || commonDataModel?.objectName || ''}
+        attributes={cdmAttributes}
+        relationships={cdmRelationships}
+        saving={isSavingCommonDataModel}
+        onClose={() => { setCommonDataModelModalOpen(false); setCdmModalObjectId(null); setCdmModalObject(null); }}
+        onSave={async (payload) => {
+          if (!cdmModalObjectId) return;
+          await saveCommonDataModelForObject(cdmModalObjectId, payload);
+        }}
       />
 
       <Dialog

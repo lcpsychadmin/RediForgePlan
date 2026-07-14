@@ -149,7 +149,7 @@ const DbtSettings: React.FC<DbtSettingsProps> = ({
           </TextField>
           <TextField
             size="small"
-            label="Canonical Model Folder Path"
+            label="Common Data Model Folder Path"
             value={effectiveSettings.canonicalModelFolderPath}
             onChange={(e) => setOverrideOrGlobal({ canonicalModelFolderPath: e.target.value })}
           />
@@ -166,7 +166,7 @@ const DbtSettings: React.FC<DbtSettingsProps> = ({
                 onChange={(e) => setOverrideOrGlobal({ enableCanonicalLayer: e.target.checked })}
               />
             }
-            label="Enable Canonical Layer"
+            label="Enable Common Data Model Layer"
           />
         </Box>
       </Paper>
@@ -217,7 +217,7 @@ const DbtSettings: React.FC<DbtSettingsProps> = ({
               <TableCell>{effectiveSettings.environment}</TableCell>
             </TableRow>
             <TableRow>
-              <TableCell>Canonical Layer</TableCell>
+              <TableCell>Common Data Model Layer</TableCell>
               <TableCell>{globalDefaults.enableCanonicalLayer ? 'Enabled' : 'Disabled'}</TableCell>
               <TableCell>{selectedProjectId ? (selectedOverride.enableCanonicalLayer === undefined ? '-' : (selectedOverride.enableCanonicalLayer ? 'Enabled' : 'Disabled')) : '-'}</TableCell>
               <TableCell>{effectiveSettings.enableCanonicalLayer ? 'Enabled' : 'Disabled'}</TableCell>

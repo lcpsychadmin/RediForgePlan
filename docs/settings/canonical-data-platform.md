@@ -1,6 +1,6 @@
-# Canonical Data Platform Settings
+# Common Data Platform Settings
 
-This document describes how Databricks and dbt integrate with RediForge Settings to support canonical-model and target-projection workflows.
+This document describes how Databricks and dbt integrate with RediForge Settings to support Common Data Model and target-projection workflows.
 
 ## Overview
 
@@ -55,8 +55,8 @@ Settings are persisted in the existing hierarchy preferences state so they can b
 - dbt Profiles Path
 - Target Profile Name
 - Environment (`dev`, `test`, `prod`)
-- Enable Canonical Layer
-- Canonical Model Folder Path (default: `/models/canonical`)
+- Enable Common Data Model Layer
+- Common Data Model Folder Path (default: `/models/common-data-model`)
 - Target Projection Folder Path (default: `/models/targets`)
 
 ### API Endpoints
@@ -77,13 +77,13 @@ Settings are persisted in the existing hierarchy preferences state so they can b
 - `runDbtCommand()`
 - `getDbtManifest()`
 
-## Canonical -> Target Mapping Flow
+## Common Data Model -> Target Mapping Flow
 
-### Example Flow 1: Canonical model as source of truth
+### Example Flow 1: Common Data Model as source of truth
 
-1. A canonical model is authored under `/models/canonical/customer.sql`.
-2. dbt builds canonical entities using standard naming and key policies.
-3. Target projection models under `/models/targets/erp_customer.sql` and `/models/targets/crm_customer.sql` map canonical fields to system-specific structures.
+1. A Common Data Model object is authored under `/models/common-data-model/customer.sql`.
+2. dbt builds shared entities using standard naming and key policies.
+3. Target projection models under `/models/targets/erp_customer.sql` and `/models/targets/crm_customer.sql` map common fields to system-specific structures.
 4. Databricks metadata sync updates available catalogs/schemas in Settings.
 5. RediForge planning features consume these settings for process-area and object planning context.
 
