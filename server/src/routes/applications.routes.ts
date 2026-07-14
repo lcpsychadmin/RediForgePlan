@@ -5,6 +5,7 @@ import { requireAuth, requireRole } from '../middleware/authMiddleware.js';
 import db from '../db.js';
 import { ApiError } from '../middleware/errorHandler.js';
 import { formatListResponse, formatSingleResponse } from '../utils/responseFormatter.js';
+import databricksMetadataService from '../services/databricksMetadataService.js';
 
 const router = Router();
 
@@ -164,6 +165,71 @@ router.delete('/data-definitions/fields/:fieldId', requireAuth, requireRole('ana
   try {
     await db.query('DELETE FROM data_definition_fields WHERE id=$1', [req.params.fieldId]);
     res.json({ success: true });
+  } catch (err) { next(err); }
+});
+
+router.post('/data-definitions/:definitionId/metadata-sync', requireAuth, requireRole('analyst', 'admin'), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { catalog, schema, table } = req.body || {};
+    if (!catalog || !schema || !table) {
+      throw new ApiError(400, 'catalog, schema, and table are required', 'MISSING_FIELD');
+    }
+
+    const metadata = await databricksMetadataService.fetchTableMetadata(String(catalog), String(schema), String(table));
+    const mappedFields = databricksMetadataService.mapMetadataToFieldDefinitions(metadata);
+
+    await db.query('DELETE FROM data_definition_fields WHERE data_definition_id = $1', [req.params.definitionId]);
+
+    for (const field of mappedFields) {
+      await db.query(
+        `INSERT INTO data_definition_fields
+           (data_definition_id, sub_object_id, table_name, field_name, field_label, data_type, length, decimals, is_key, is_required, business_process_required, description, field_metadata, sort_order)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+        [
+          req.params.definitionId,
+          null,
+          field.tableName,
+          field.fieldName,
+          field.fieldLabel,
+          field.dataType,
+          field.length,
+          field.decimals,
+          field.isKey,
+          field.isRequired,
+          field.businessProcessRequired,
+          field.description,
+          {
+            ...(field.fieldMetadata || {}),
+            metadataSync: {
+              source: 'databricks',
+              catalog: String(catalog),
+              schema: String(schema),
+              table: String(table),
+              syncedAt: new Date().toISOString(),
+            },
+          },
+          field.sortOrder,
+        ]
+      );
+    }
+
+    const updatedFields = await db.query(
+      `SELECT f.id, f.data_definition_id, f.sub_object_id, f.table_name, f.field_name, f.field_label,
+              f.data_type, f.length, f.decimals, f.is_key, f.is_required, f.business_process_required, f.description, f.field_metadata, f.sort_order,
+              f.created_at, f.updated_at,
+              s.name as sub_object_name
+       FROM data_definition_fields f
+       LEFT JOIN data_definition_sub_objects s ON s.id = f.sub_object_id
+       WHERE f.data_definition_id = $1
+       ORDER BY COALESCE(s.sort_order, -1) ASC, f.sort_order ASC, f.field_name ASC`,
+      [req.params.definitionId]
+    );
+
+    res.json(formatSingleResponse({
+      syncedAt: new Date().toISOString(),
+      source: { catalog: String(catalog), schema: String(schema), table: String(table) },
+      fields: updatedFields.rows,
+    }));
   } catch (err) { next(err); }
 });
 

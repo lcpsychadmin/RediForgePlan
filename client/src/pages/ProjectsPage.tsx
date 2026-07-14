@@ -78,10 +78,12 @@ import apiClient from '../api/client';
 import Layout from '../components/Layout';
 import ProcessAreaRoleAssignmentPanel from '../components/ProcessAreaRoleAssignmentPanel';
 import TaskDetailModal from '../components/tasks/TaskDetailModal';
+import CommonDataModelDefinition from '../components/CommonDataModelDefinition';
 import ProjectDefectsPage from './ProjectDefectsPage';
 import DataMigrationStrategyView from '../components/strategy/DataMigrationStrategyView';
 import PlanningDeliverablesTracker from '../components/plan/PlanningDeliverablesTracker';
 import { useAuth } from '../contexts/AuthContext';
+import type { CommonDataModel, CanonicalAttribute } from '../types/commonDataModel';
 import {
   DEFAULT_DESIGN_BUILD_ESTIMATION_ROWS,
   DEFAULT_DESIGN_BUILD_ESTIMATION_TASKS,
@@ -90,6 +92,9 @@ import {
   type DesignBuildEstimationTaskOption,
   type DesignBuildTaskType,
 } from '../constants/designBuildEstimationDefaults';
+
+const COMMON_DATA_MODEL_APP_ID = '__common_data_model__';
+const COMMON_DATA_MODEL_APP_NAME = 'Common Data Model';
 
 interface Program {
   id: string;
@@ -1550,10 +1555,14 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   const [collapsedSubObjs, setCollapsedSubObjs] = useState<Set<string>>(new Set());
   const [editingSubObjId, setEditingSubObjId] = useState<string | null>(null);
   const [editingSubObjName, setEditingSubObjName] = useState('');
-  const [dataConstructionTemplateFields, setDataConstructionTemplateFields] = useState<any[]>([]);
-  const [isAddingTemplateField, setIsAddingTemplateField] = useState(false);
-  const [editingTemplateFieldId, setEditingTemplateFieldId] = useState<string | null>(null);
-  const [templateFieldDraft, setTemplateFieldDraft] = useState({ fieldName: '', fieldLabel: '', dataType: '', length: '', decimals: '', isRequired: false, businessProcessRequired: false, description: '' });
+  const [commonModelModalOpen, setCommonModelModalOpen] = useState(false);
+  const [commonModel, setCommonModel] = useState<CommonDataModel | null>(null);
+  const [canonicalAttributes, setCanonicalAttributes] = useState<CanonicalAttribute[]>([]);
+  const [isSavingCanonicalAttribute, setIsSavingCanonicalAttribute] = useState(false);
+  const [metadataSyncDialogOpen, setMetadataSyncDialogOpen] = useState(false);
+  const [metadataSyncDraft, setMetadataSyncDraft] = useState({ catalog: '', schema: '', table: '' });
+  const [isSyncingMetadata, setIsSyncingMetadata] = useState(false);
+  const [dataDefinitionSyncStatus, setDataDefinitionSyncStatus] = useState<Record<string, string>>({});
   const [catalogObjectId, setCatalogObjectId] = useState('');
   const [catalogObjectDesc, setCatalogObjectDesc] = useState('');
   const [catalogProcessArea, setCatalogProcessArea] = useState('');
@@ -1884,37 +1893,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
     });
   };
 
-  const emptyTemplateFieldDraft = () => ({
-    fieldName: '',
-    fieldLabel: '',
-    dataType: '',
-    length: '',
-    decimals: '',
-    isRequired: false,
-    businessProcessRequired: false,
-    description: '',
-  });
-
-  const parseTemplateFieldsFromNotes = (notes: string | null | undefined) => {
-    if (!notes || typeof notes !== 'string') return [];
-    try {
-      const parsed = JSON.parse(notes);
-      const rows = Array.isArray(parsed?.dataConstructionTemplateFields) ? parsed.dataConstructionTemplateFields : [];
-      return rows.map((row: any, index: number) => ({
-        id: String(row?.id || `${index}-${row?.fieldName || 'template'}`),
-        fieldName: String(row?.fieldName || ''),
-        fieldLabel: String(row?.fieldLabel || ''),
-        dataType: String(row?.dataType || ''),
-        length: String(row?.length ?? ''),
-        decimals: String(row?.decimals ?? ''),
-        isRequired: !!row?.isRequired,
-        businessProcessRequired: !!row?.businessProcessRequired,
-        description: String(row?.description || ''),
-      }));
-    } catch {
-      return [];
-    }
-  };
 
   const emptyDataDefFieldDraft = () => ({
     table: '',
@@ -2003,41 +1981,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
       securityControls: draft.securityControls || '',
     },
   });
-
-  const buildNotesWithTemplateFields = (existingNotes: string | null | undefined, templateFields: any[]) => {
-    const normalizedFields = templateFields.map((row: any) => ({
-      id: String(row.id),
-      fieldName: String(row.fieldName || '').trim(),
-      fieldLabel: String(row.fieldLabel || '').trim(),
-      dataType: String(row.dataType || '').trim(),
-      length: row.length === '' ? null : Number(row.length),
-      decimals: row.decimals === '' ? null : Number(row.decimals),
-      isRequired: !!row.isRequired,
-      businessProcessRequired: !!row.businessProcessRequired,
-      description: String(row.description || '').trim(),
-    }));
-
-    try {
-      const parsed = existingNotes ? JSON.parse(existingNotes) : {};
-      const base = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
-      return JSON.stringify({ ...base, dataConstructionTemplateFields: normalizedFields });
-    } catch {
-      const base = existingNotes && String(existingNotes).trim() ? { noteText: String(existingNotes) } : {};
-      return JSON.stringify({ ...base, dataConstructionTemplateFields: normalizedFields });
-    }
-  };
-
-  const persistTemplateFieldsForDefinition = async (definitionId: string, templateFields: any[]) => {
-    const dd = dataDefinitions.find((entry: any) => entry.id === definitionId);
-    if (!dd) return;
-    const nextNotes = buildNotesWithTemplateFields(dd.notes, templateFields);
-    await apiClient.put(`/api/applications/data-definitions/${definitionId}`, { notes: nextNotes });
-    setDataDefinitions((prev) => prev.map((entry: any) => (
-      entry.id === definitionId
-        ? { ...entry, notes: nextNotes }
-        : entry
-    )));
-  };
 
   useEffect(() => {
     try {
@@ -6056,6 +5999,91 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
     } catch (error) {
       console.error('Failed to update inventory item field:', error);
       alert('Failed to update inventory item. Please try again.');
+    }
+  };
+
+  const loadCommonModelForObject = async (globalObjectId: string) => {
+    const response = await apiClient.get(`/api/common-model/object/${globalObjectId}`);
+    const payload = response.data?.data || {};
+    setCommonModel(payload.model || null);
+    setCanonicalAttributes(payload.attributes || []);
+  };
+
+  const createCanonicalAttribute = async (draft: Omit<CanonicalAttribute, 'id' | 'commonDataModelId'>) => {
+    if (!dataDefPanelObjectId) return;
+    setIsSavingCanonicalAttribute(true);
+    try {
+      await apiClient.post(`/api/common-model/object/${dataDefPanelObjectId}/attributes`, {
+        canonicalAttributeName: draft.canonicalAttributeName,
+        canonicalDescription: draft.canonicalDescription || null,
+        canonicalDataType: draft.canonicalDataType || null,
+        canonicalLength: draft.canonicalLength || null,
+        canonicalBusinessRules: draft.canonicalBusinessRules || null,
+        relationships: draft.relationships || null,
+        sortOrder: draft.sortOrder || canonicalAttributes.length,
+      });
+      await loadCommonModelForObject(dataDefPanelObjectId);
+    } finally {
+      setIsSavingCanonicalAttribute(false);
+    }
+  };
+
+  const updateCanonicalAttribute = async (attributeId: string, draft: Omit<CanonicalAttribute, 'id' | 'commonDataModelId'>) => {
+    if (!dataDefPanelObjectId) return;
+    setIsSavingCanonicalAttribute(true);
+    try {
+      await apiClient.put(`/api/common-model/attributes/${attributeId}`, {
+        canonicalAttributeName: draft.canonicalAttributeName,
+        canonicalDescription: draft.canonicalDescription || null,
+        canonicalDataType: draft.canonicalDataType || null,
+        canonicalLength: draft.canonicalLength || null,
+        canonicalBusinessRules: draft.canonicalBusinessRules || null,
+        relationships: draft.relationships || null,
+        sortOrder: draft.sortOrder || 0,
+      });
+      await loadCommonModelForObject(dataDefPanelObjectId);
+    } finally {
+      setIsSavingCanonicalAttribute(false);
+    }
+  };
+
+  const deleteCanonicalAttribute = async (attributeId: string) => {
+    if (!dataDefPanelObjectId) return;
+    setIsSavingCanonicalAttribute(true);
+    try {
+      await apiClient.delete(`/api/common-model/attributes/${attributeId}`);
+      await loadCommonModelForObject(dataDefPanelObjectId);
+    } finally {
+      setIsSavingCanonicalAttribute(false);
+    }
+  };
+
+  const handleDatabricksMetadataSync = async () => {
+    if (!selectedDataDefId) return;
+    if (!metadataSyncDraft.catalog.trim() || !metadataSyncDraft.schema.trim() || !metadataSyncDraft.table.trim()) {
+      alert('Catalog, schema, and table are required for metadata sync.');
+      return;
+    }
+
+    setIsSyncingMetadata(true);
+    try {
+      const response = await apiClient.post(`/api/applications/data-definitions/${selectedDataDefId}/metadata-sync`, {
+        catalog: metadataSyncDraft.catalog.trim(),
+        schema: metadataSyncDraft.schema.trim(),
+        table: metadataSyncDraft.table.trim(),
+      });
+      const payload = response.data?.data || {};
+      setDataDefFields(payload.fields || []);
+      setDataDefinitionSyncStatus((prev) => ({
+        ...prev,
+        [selectedDataDefId]: payload.syncedAt || new Date().toISOString(),
+      }));
+      setMetadataSyncDialogOpen(false);
+    } catch (error) {
+      console.error('Failed to pull metadata from Databricks:', error);
+      alert('Failed to pull metadata from Databricks. Please verify your integration settings and try again.');
+    } finally {
+      setIsSyncingMetadata(false);
     }
   };
 
@@ -17926,7 +17954,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
       </Dialog>
 
       {/* ── Data Definitions Panel ──────────────────────────────────────────── */}
-      <Dialog open={!!dataDefPanelObjectId} onClose={() => { setDataDefPanelObjectId(null); setDataDefPanelObject(null); setSelectedDataDefId(null); setDataDefFields([]); setDataDefSubObjects([]); setEditingFieldRow(null); setAddingFieldToSubObj(null); setCollapsedSubObjs(new Set()); setEditingSubObjId(null); setDataConstructionTemplateFields([]); setIsAddingTemplateField(false); setEditingTemplateFieldId(null); setTemplateFieldDraft(emptyTemplateFieldDraft()); }}
+      <Dialog open={!!dataDefPanelObjectId} onClose={() => { setDataDefPanelObjectId(null); setDataDefPanelObject(null); setSelectedDataDefId(null); setDataDefFields([]); setDataDefSubObjects([]); setEditingFieldRow(null); setAddingFieldToSubObj(null); setCollapsedSubObjs(new Set()); setEditingSubObjId(null); setCommonModelModalOpen(false); setMetadataSyncDialogOpen(false); }}
         fullWidth maxWidth="xl"
         PaperProps={{ sx: { borderRadius: 2, height: '80vh', maxHeight: '94vh', display: 'flex', flexDirection: 'column', background: 'linear-gradient(160deg, #141e35 0%, #0c1527 100%)', border: '1px solid rgba(255,255,255,0.1)' } }}>
         <DialogTitle sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', borderBottom: '1px solid rgba(255,255,255,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', pb: 1.5, flexShrink: 0 }}>
@@ -17934,7 +17962,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
             <Typography sx={{ fontWeight: 700, fontSize: '1rem', fontFamily: 'monospace', color: '#fff' }}>{dataDefPanelObject?.objectId}</Typography>
             <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.7)' }}>Applications &amp; Data Definitions</Typography>
           </Box>
-          <IconButton onClick={() => { setDataDefPanelObjectId(null); setDataDefPanelObject(null); setSelectedDataDefId(null); setDataDefFields([]); setDataDefSubObjects([]); setEditingFieldRow(null); setAddingFieldToSubObj(null); setDataConstructionTemplateFields([]); setIsAddingTemplateField(false); setEditingTemplateFieldId(null); setTemplateFieldDraft(emptyTemplateFieldDraft()); }} size="small"><CloseIcon /></IconButton>
+          <IconButton onClick={() => { setDataDefPanelObjectId(null); setDataDefPanelObject(null); setSelectedDataDefId(null); setDataDefFields([]); setDataDefSubObjects([]); setEditingFieldRow(null); setAddingFieldToSubObj(null); setCommonModelModalOpen(false); setMetadataSyncDialogOpen(false); }} size="small"><CloseIcon /></IconButton>
         </DialogTitle>
         <DialogContent sx={{ p: 0, display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden' }}>
           {/* Left: application list */}
@@ -17963,10 +17991,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                     setSelectedDataDefId(dd.id);
                     setEditingFieldRow(null);
                     setAddingFieldToSubObj(null);
-                    setIsAddingTemplateField(false);
-                    setEditingTemplateFieldId(null);
-                    setTemplateFieldDraft(emptyTemplateFieldDraft());
-                    setDataConstructionTemplateFields(parseTemplateFieldsFromNotes(dd.notes));
+                    setCommonModelModalOpen(false);
                     Promise.all([
                       apiClient.get(`/api/applications/data-definitions/${dd.id}/sub-objects`),
                       apiClient.get(`/api/applications/data-definitions/${dd.id}/fields`),
@@ -17981,12 +18006,42 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                   <Box sx={{ minWidth: 0 }}>
                     <Typography sx={{ fontWeight: 600, fontSize: '0.8rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{dd.application_name}</Typography>
                     {(dd.vendor || dd.version) && <Typography variant="caption" color="text.secondary">{[dd.vendor, dd.version].filter(Boolean).join(' ')}</Typography>}
+                    {dataDefinitionSyncStatus[dd.id] && <Typography variant="caption" sx={{ color: 'rgba(155,230,180,0.85)', display: 'block' }}>Synced {new Date(dataDefinitionSyncStatus[dd.id]).toLocaleString()}</Typography>}
                   </Box>
-                  <IconButton size="small" onClick={async e => { e.stopPropagation(); await apiClient.delete(`/api/applications/data-definitions/${dd.id}`); setDataDefinitions(prev => prev.filter((d: any) => d.id !== dd.id)); if (selectedDataDefId === dd.id) { setSelectedDataDefId(null); setDataDefFields([]); setDataDefSubObjects([]); setDataConstructionTemplateFields([]); setIsAddingTemplateField(false); setEditingTemplateFieldId(null); setTemplateFieldDraft(emptyTemplateFieldDraft()); } }} sx={{ opacity: 0.4, flexShrink: 0, '&:hover': { opacity: 1, color: '#ef5350' } }}>
+                  <IconButton size="small" onClick={async e => { e.stopPropagation(); await apiClient.delete(`/api/applications/data-definitions/${dd.id}`); setDataDefinitions(prev => prev.filter((d: any) => d.id !== dd.id)); if (selectedDataDefId === dd.id) { setSelectedDataDefId(null); setDataDefFields([]); setDataDefSubObjects([]); } }} sx={{ opacity: 0.4, flexShrink: 0, '&:hover': { opacity: 1, color: '#ef5350' } }}>
                     <DeleteIcon sx={{ fontSize: '0.8rem' }} />
                   </IconButton>
                 </Box>
               ))}
+              <Box sx={{ borderTop: '1px solid rgba(255,255,255,0.08)', mt: 0.5, pt: 0.5 }}>
+                <Box
+                  onClick={async () => {
+                    if (!dataDefPanelObjectId) return;
+                    setSelectedDataDefId(COMMON_DATA_MODEL_APP_ID);
+                    setDataDefFields([]);
+                    setDataDefSubObjects([]);
+                    await loadCommonModelForObject(dataDefPanelObjectId);
+                    setCommonModelModalOpen(true);
+                  }}
+                  sx={{
+                    px: 1.5,
+                    py: 1,
+                    cursor: 'pointer',
+                    borderBottom: '1px solid rgba(255,255,255,0.04)',
+                    backgroundColor: selectedDataDefId === COMMON_DATA_MODEL_APP_ID ? 'rgba(109, 180, 255, 0.22)' : 'transparent',
+                    borderLeft: selectedDataDefId === COMMON_DATA_MODEL_APP_ID ? '3px solid #7bb5ff' : '3px solid transparent',
+                    '&:hover': { backgroundColor: selectedDataDefId === COMMON_DATA_MODEL_APP_ID ? 'rgba(109, 180, 255, 0.28)' : 'rgba(255,255,255,0.04)' },
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between'
+                  }}
+                >
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography sx={{ fontWeight: 700, fontSize: '0.8rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#cfe3ff' }}>{COMMON_DATA_MODEL_APP_NAME}</Typography>
+                    <Typography variant="caption" sx={{ color: 'rgba(207,227,255,0.75)' }}>Canonical attributes and enterprise relationships</Typography>
+                  </Box>
+                </Box>
+              </Box>
             </Box>
           </Box>
 
@@ -17995,6 +18050,18 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
             {!selectedDataDefId ? (
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1 }}>
                 <Typography color="text.disabled" variant="body2">Select an application to manage its data definition</Typography>
+              </Box>
+            ) : selectedDataDefId === COMMON_DATA_MODEL_APP_ID ? (
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1, p: 3 }}>
+                <Box sx={{ textAlign: 'center' }}>
+                  <Typography sx={{ fontWeight: 700, mb: 0.5 }}>Common Data Model</Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+                    Manage canonical attributes for this object across source applications.
+                  </Typography>
+                  <Button variant="contained" onClick={() => setCommonModelModalOpen(true)}>
+                    Open Canonical Attribute Definition
+                  </Button>
+                </Box>
               </Box>
             ) : (
               <>
@@ -18145,227 +18212,23 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                   })()}
                 </Box>
 
-                {/* Data Construction Template */}
-                <Box sx={{ px: 2, py: 1.1, borderTop: '1px solid rgba(255,255,255,0.08)', backgroundColor: 'rgba(255,255,255,0.02)' }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.75 }}>
-                    <Box>
-                      <Typography sx={{ fontWeight: 700, fontSize: '0.74rem', color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                        Data Construction Template
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        Define the default business-provided template fields when no source application data is available.
-                      </Typography>
-                    </Box>
-                    <Box sx={{ display: 'flex', gap: 0.6, alignItems: 'center' }}>
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        onClick={async () => {
-                          if (!selectedDataDefId) return;
-                          const eligibleFields = dataDefFields.filter((f: any) => !!f.is_required || !!f.business_process_required);
-                          if (eligibleFields.length === 0) {
-                            alert('No eligible fields found. Mark fields as required or business process required first.');
-                            return;
-                          }
-                          if (dataConstructionTemplateFields.length > 0 && !window.confirm('Replace existing template fields with generated rows?')) {
-                            return;
-                          }
-                          const generatedRows = eligibleFields.map((field: any) => ({
-                            id: `generated-${field.id}`,
-                            fieldName: String(field.field_name || ''),
-                            fieldLabel: String(field.field_label || field.field_name || ''),
-                            dataType: String(field.data_type || ''),
-                            length: String(field.length ?? ''),
-                            decimals: String(field.decimals ?? ''),
-                            isRequired: !!field.is_required,
-                            businessProcessRequired: !!field.business_process_required,
-                            description: String(field.description || ''),
-                          }));
-                          try {
-                            await persistTemplateFieldsForDefinition(selectedDataDefId, generatedRows);
-                            setDataConstructionTemplateFields(generatedRows);
-                            setIsAddingTemplateField(false);
-                            setEditingTemplateFieldId(null);
-                            setTemplateFieldDraft(emptyTemplateFieldDraft());
-                          } catch (error) {
-                            console.error('Failed to generate template fields:', error);
-                            alert('Failed to generate template fields. Please try again.');
-                          }
-                        }}
-                        sx={{ textTransform: 'none', fontSize: '0.72rem', px: 1, py: 0.2 }}
-                      >
-                        Generate From Required Fields
-                      </Button>
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        onClick={() => {
-                          setIsAddingTemplateField(true);
-                          setEditingTemplateFieldId(null);
-                          setTemplateFieldDraft(emptyTemplateFieldDraft());
-                        }}
-                        sx={{ textTransform: 'none', fontSize: '0.72rem', px: 1, py: 0.2 }}
-                      >
-                        + Add Template Field
-                      </Button>
-                    </Box>
+                <Box sx={{ px: 2, py: 1.1, borderTop: '1px solid rgba(255,255,255,0.08)', backgroundColor: 'rgba(255,255,255,0.02)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Box>
+                    <Typography sx={{ fontWeight: 700, fontSize: '0.74rem', color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                      Databricks Metadata Ingestion
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Pull current table metadata into this application data definition.
+                    </Typography>
                   </Box>
-
-                  <Box sx={{ border: '1px solid rgba(255,255,255,0.1)', borderRadius: 1, overflow: 'hidden' }}>
-                    <Box sx={{ display: 'grid', gridTemplateColumns: '1.1fr 1.1fr 0.9fr 0.45fr 0.45fr 0.6fr 0.6fr 1.25fr 0.7fr', gap: 0, backgroundColor: 'rgba(255,255,255,0.05)', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-                      {['Field Name', 'Label', 'Type', 'Len', 'Dec', 'System Req', 'BP Req', 'Description', 'Actions'].map((header) => (
-                        <Box key={`tmpl-head-${header}`} sx={{ px: 0.85, py: 0.5, fontSize: '0.64rem', fontWeight: 700, letterSpacing: '0.06em', color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase' }}>
-                          {header}
-                        </Box>
-                      ))}
-                    </Box>
-
-                    {isAddingTemplateField && (
-                      <Box sx={{ display: 'grid', gridTemplateColumns: '1.1fr 1.1fr 0.9fr 0.45fr 0.45fr 0.6fr 0.6fr 1.25fr 0.7fr', gap: 0, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: 'rgba(102,126,234,0.1)' }}>
-                        <Box sx={{ px: 0.65, py: 0.35 }}><input autoFocus value={templateFieldDraft.fieldName} onChange={(e) => setTemplateFieldDraft((prev) => ({ ...prev, fieldName: e.target.value }))} style={{ width: '100%', fontSize: '0.75rem', fontFamily: 'monospace', padding: '2px 4px', borderRadius: 3, border: '1px solid rgba(255,255,255,0.2)', backgroundColor: 'rgba(0,0,0,0.3)', color: '#DBE7FF', boxSizing: 'border-box' }} /></Box>
-                        <Box sx={{ px: 0.65, py: 0.35 }}><input value={templateFieldDraft.fieldLabel} onChange={(e) => setTemplateFieldDraft((prev) => ({ ...prev, fieldLabel: e.target.value }))} style={{ width: '100%', fontSize: '0.75rem', padding: '2px 4px', borderRadius: 3, border: '1px solid rgba(255,255,255,0.2)', backgroundColor: 'rgba(0,0,0,0.3)', color: '#DBE7FF', boxSizing: 'border-box' }} /></Box>
-                        <Box sx={{ px: 0.65, py: 0.35 }}><input value={templateFieldDraft.dataType} onChange={(e) => setTemplateFieldDraft((prev) => ({ ...prev, dataType: e.target.value }))} style={{ width: '100%', fontSize: '0.75rem', padding: '2px 4px', borderRadius: 3, border: '1px solid rgba(255,255,255,0.2)', backgroundColor: 'rgba(0,0,0,0.3)', color: '#DBE7FF', boxSizing: 'border-box' }} /></Box>
-                        <Box sx={{ px: 0.65, py: 0.35 }}><input value={templateFieldDraft.length} onChange={(e) => setTemplateFieldDraft((prev) => ({ ...prev, length: e.target.value.replace(/[^0-9]/g, '') }))} style={{ width: '100%', fontSize: '0.75rem', padding: '2px 4px', borderRadius: 3, border: '1px solid rgba(255,255,255,0.2)', backgroundColor: 'rgba(0,0,0,0.3)', color: '#DBE7FF', boxSizing: 'border-box' }} /></Box>
-                        <Box sx={{ px: 0.65, py: 0.35 }}><input value={templateFieldDraft.decimals} onChange={(e) => setTemplateFieldDraft((prev) => ({ ...prev, decimals: e.target.value.replace(/[^0-9]/g, '') }))} style={{ width: '100%', fontSize: '0.75rem', padding: '2px 4px', borderRadius: 3, border: '1px solid rgba(255,255,255,0.2)', backgroundColor: 'rgba(0,0,0,0.3)', color: '#DBE7FF', boxSizing: 'border-box' }} /></Box>
-                        <Box sx={{ px: 0.65, py: 0.35, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><input type="checkbox" checked={templateFieldDraft.isRequired} onChange={(e) => setTemplateFieldDraft((prev) => ({ ...prev, isRequired: e.target.checked }))} /></Box>
-                        <Box sx={{ px: 0.65, py: 0.35, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><input type="checkbox" checked={templateFieldDraft.businessProcessRequired} onChange={(e) => setTemplateFieldDraft((prev) => ({ ...prev, businessProcessRequired: e.target.checked }))} /></Box>
-                        <Box sx={{ px: 0.65, py: 0.35 }}><input value={templateFieldDraft.description} onChange={(e) => setTemplateFieldDraft((prev) => ({ ...prev, description: e.target.value }))} style={{ width: '100%', fontSize: '0.75rem', padding: '2px 4px', borderRadius: 3, border: '1px solid rgba(255,255,255,0.2)', backgroundColor: 'rgba(0,0,0,0.3)', color: '#DBE7FF', boxSizing: 'border-box' }} /></Box>
-                        <Box sx={{ px: 0.35, py: 0.2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.1 }}>
-                          <IconButton
-                            size="small"
-                            disabled={!templateFieldDraft.fieldName.trim() || !selectedDataDefId}
-                            sx={{ p: 0.25, color: '#66bb6a' }}
-                            onClick={async () => {
-                              if (!selectedDataDefId) return;
-                              const nextRows = [
-                                ...dataConstructionTemplateFields,
-                                { id: `template-${Date.now()}-${Math.round(Math.random() * 10000)}`, ...templateFieldDraft },
-                              ];
-                              try {
-                                await persistTemplateFieldsForDefinition(selectedDataDefId, nextRows);
-                                setDataConstructionTemplateFields(nextRows);
-                                setIsAddingTemplateField(false);
-                                setTemplateFieldDraft(emptyTemplateFieldDraft());
-                              } catch (error) {
-                                console.error('Failed to save template field:', error);
-                                alert('Failed to save template field. Please try again.');
-                              }
-                            }}
-                          >
-                            <SaveIcon sx={{ fontSize: '0.9rem' }} />
-                          </IconButton>
-                          <IconButton size="small" sx={{ p: 0.25 }} onClick={() => { setIsAddingTemplateField(false); setTemplateFieldDraft(emptyTemplateFieldDraft()); }}>
-                            <CloseIcon sx={{ fontSize: '0.85rem' }} />
-                          </IconButton>
-                        </Box>
-                      </Box>
-                    )}
-
-                    {dataConstructionTemplateFields.length === 0 && !isAddingTemplateField ? (
-                      <Box sx={{ px: 1, py: 0.9 }}>
-                        <Typography variant="caption" color="text.secondary">No template fields defined yet for this object/application combination.</Typography>
-                      </Box>
-                    ) : dataConstructionTemplateFields.map((row: any) => {
-                      const isEditing = editingTemplateFieldId === row.id;
-                      return (
-                        <Box key={`tmpl-row-${row.id}`} sx={{ display: 'grid', gridTemplateColumns: '1.1fr 1.1fr 0.9fr 0.45fr 0.45fr 0.6fr 0.6fr 1.25fr 0.7fr', gap: 0, borderBottom: '1px solid rgba(255,255,255,0.05)', backgroundColor: isEditing ? 'rgba(102,126,234,0.1)' : 'transparent' }}>
-                          {isEditing ? (
-                            <>
-                              <Box sx={{ px: 0.65, py: 0.35 }}><input value={templateFieldDraft.fieldName} onChange={(e) => setTemplateFieldDraft((prev) => ({ ...prev, fieldName: e.target.value }))} style={{ width: '100%', fontSize: '0.75rem', fontFamily: 'monospace', padding: '2px 4px', borderRadius: 3, border: '1px solid rgba(255,255,255,0.2)', backgroundColor: 'rgba(0,0,0,0.3)', color: '#DBE7FF', boxSizing: 'border-box' }} /></Box>
-                              <Box sx={{ px: 0.65, py: 0.35 }}><input value={templateFieldDraft.fieldLabel} onChange={(e) => setTemplateFieldDraft((prev) => ({ ...prev, fieldLabel: e.target.value }))} style={{ width: '100%', fontSize: '0.75rem', padding: '2px 4px', borderRadius: 3, border: '1px solid rgba(255,255,255,0.2)', backgroundColor: 'rgba(0,0,0,0.3)', color: '#DBE7FF', boxSizing: 'border-box' }} /></Box>
-                              <Box sx={{ px: 0.65, py: 0.35 }}><input value={templateFieldDraft.dataType} onChange={(e) => setTemplateFieldDraft((prev) => ({ ...prev, dataType: e.target.value }))} style={{ width: '100%', fontSize: '0.75rem', padding: '2px 4px', borderRadius: 3, border: '1px solid rgba(255,255,255,0.2)', backgroundColor: 'rgba(0,0,0,0.3)', color: '#DBE7FF', boxSizing: 'border-box' }} /></Box>
-                              <Box sx={{ px: 0.65, py: 0.35 }}><input value={templateFieldDraft.length} onChange={(e) => setTemplateFieldDraft((prev) => ({ ...prev, length: e.target.value.replace(/[^0-9]/g, '') }))} style={{ width: '100%', fontSize: '0.75rem', padding: '2px 4px', borderRadius: 3, border: '1px solid rgba(255,255,255,0.2)', backgroundColor: 'rgba(0,0,0,0.3)', color: '#DBE7FF', boxSizing: 'border-box' }} /></Box>
-                              <Box sx={{ px: 0.65, py: 0.35 }}><input value={templateFieldDraft.decimals} onChange={(e) => setTemplateFieldDraft((prev) => ({ ...prev, decimals: e.target.value.replace(/[^0-9]/g, '') }))} style={{ width: '100%', fontSize: '0.75rem', padding: '2px 4px', borderRadius: 3, border: '1px solid rgba(255,255,255,0.2)', backgroundColor: 'rgba(0,0,0,0.3)', color: '#DBE7FF', boxSizing: 'border-box' }} /></Box>
-                              <Box sx={{ px: 0.65, py: 0.35, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><input type="checkbox" checked={templateFieldDraft.isRequired} onChange={(e) => setTemplateFieldDraft((prev) => ({ ...prev, isRequired: e.target.checked }))} /></Box>
-                              <Box sx={{ px: 0.65, py: 0.35, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><input type="checkbox" checked={templateFieldDraft.businessProcessRequired} onChange={(e) => setTemplateFieldDraft((prev) => ({ ...prev, businessProcessRequired: e.target.checked }))} /></Box>
-                              <Box sx={{ px: 0.65, py: 0.35 }}><input value={templateFieldDraft.description} onChange={(e) => setTemplateFieldDraft((prev) => ({ ...prev, description: e.target.value }))} style={{ width: '100%', fontSize: '0.75rem', padding: '2px 4px', borderRadius: 3, border: '1px solid rgba(255,255,255,0.2)', backgroundColor: 'rgba(0,0,0,0.3)', color: '#DBE7FF', boxSizing: 'border-box' }} /></Box>
-                              <Box sx={{ px: 0.35, py: 0.2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.1 }}>
-                                <IconButton
-                                  size="small"
-                                  disabled={!templateFieldDraft.fieldName.trim() || !selectedDataDefId}
-                                  sx={{ p: 0.25, color: '#66bb6a' }}
-                                  onClick={async () => {
-                                    if (!selectedDataDefId) return;
-                                    const nextRows = dataConstructionTemplateFields.map((entry: any) => (
-                                      entry.id === row.id ? { ...entry, ...templateFieldDraft } : entry
-                                    ));
-                                    try {
-                                      await persistTemplateFieldsForDefinition(selectedDataDefId, nextRows);
-                                      setDataConstructionTemplateFields(nextRows);
-                                      setEditingTemplateFieldId(null);
-                                      setTemplateFieldDraft(emptyTemplateFieldDraft());
-                                    } catch (error) {
-                                      console.error('Failed to update template field:', error);
-                                      alert('Failed to update template field. Please try again.');
-                                    }
-                                  }}
-                                >
-                                  <SaveIcon sx={{ fontSize: '0.9rem' }} />
-                                </IconButton>
-                                <IconButton size="small" sx={{ p: 0.25 }} onClick={() => { setEditingTemplateFieldId(null); setTemplateFieldDraft(emptyTemplateFieldDraft()); }}>
-                                  <CloseIcon sx={{ fontSize: '0.85rem' }} />
-                                </IconButton>
-                              </Box>
-                            </>
-                          ) : (
-                            <>
-                              <Box sx={{ px: 0.85, py: 0.5, fontSize: '0.78rem', fontFamily: 'monospace', color: '#DBE7FF', fontWeight: 700 }}>{row.fieldName || '—'}</Box>
-                              <Box sx={{ px: 0.85, py: 0.5, fontSize: '0.78rem', color: 'text.secondary' }}>{row.fieldLabel || '—'}</Box>
-                              <Box sx={{ px: 0.85, py: 0.5, fontSize: '0.78rem', color: 'text.secondary' }}>{row.dataType || '—'}</Box>
-                              <Box sx={{ px: 0.85, py: 0.5, fontSize: '0.78rem', color: 'text.secondary' }}>{row.length || '—'}</Box>
-                              <Box sx={{ px: 0.85, py: 0.5, fontSize: '0.78rem', color: 'text.secondary' }}>{row.decimals || '—'}</Box>
-                              <Box sx={{ px: 0.85, py: 0.5, textAlign: 'center' }}>{row.isRequired ? <Box component="span" sx={{ color: '#ef5350', fontWeight: 700 }}>●</Box> : <Box component="span" sx={{ color: 'rgba(255,255,255,0.15)' }}>○</Box>}</Box>
-                              <Box sx={{ px: 0.85, py: 0.5, textAlign: 'center' }}>{row.businessProcessRequired ? <Box component="span" sx={{ color: '#42a5f5', fontWeight: 700 }}>●</Box> : <Box component="span" sx={{ color: 'rgba(255,255,255,0.15)' }}>○</Box>}</Box>
-                              <Box sx={{ px: 0.85, py: 0.5, fontSize: '0.78rem', color: 'text.disabled', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.description || '—'}</Box>
-                              <Box sx={{ px: 0.35, py: 0.2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.1 }}>
-                                <IconButton
-                                  size="small"
-                                  sx={{ p: 0.25, opacity: 0.5, '&:hover': { opacity: 1, color: 'white' } }}
-                                  onClick={() => {
-                                    setEditingTemplateFieldId(row.id);
-                                    setIsAddingTemplateField(false);
-                                    setTemplateFieldDraft({
-                                      fieldName: String(row.fieldName || ''),
-                                      fieldLabel: String(row.fieldLabel || ''),
-                                      dataType: String(row.dataType || ''),
-                                      length: String(row.length ?? ''),
-                                      decimals: String(row.decimals ?? ''),
-                                      isRequired: !!row.isRequired,
-                                      businessProcessRequired: !!row.businessProcessRequired,
-                                      description: String(row.description || ''),
-                                    });
-                                  }}
-                                >
-                                  <EditIcon sx={{ fontSize: '0.84rem' }} />
-                                </IconButton>
-                                <IconButton
-                                  size="small"
-                                  sx={{ p: 0.25, opacity: 0.4, '&:hover': { opacity: 1, color: '#ef5350' } }}
-                                  onClick={async () => {
-                                    if (!selectedDataDefId) return;
-                                    const nextRows = dataConstructionTemplateFields.filter((entry: any) => entry.id !== row.id);
-                                    try {
-                                      await persistTemplateFieldsForDefinition(selectedDataDefId, nextRows);
-                                      setDataConstructionTemplateFields(nextRows);
-                                      if (editingTemplateFieldId === row.id) {
-                                        setEditingTemplateFieldId(null);
-                                        setTemplateFieldDraft(emptyTemplateFieldDraft());
-                                      }
-                                    } catch (error) {
-                                      console.error('Failed to delete template field:', error);
-                                      alert('Failed to delete template field. Please try again.');
-                                    }
-                                  }}
-                                >
-                                  <DeleteIcon sx={{ fontSize: '0.84rem' }} />
-                                </IconButton>
-                              </Box>
-                            </>
-                          )}
-                        </Box>
-                      );
-                    })}
-                  </Box>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    onClick={() => setMetadataSyncDialogOpen(true)}
+                    sx={{ textTransform: 'none', fontSize: '0.72rem', px: 1, py: 0.2 }}
+                  >
+                    Pull Metadata from Databricks
+                  </Button>
                 </Box>
 
                 <Box sx={{ px: 2, py: 0.75, borderTop: '1px solid rgba(255,255,255,0.06)', flexShrink: 0 }}>
@@ -18375,6 +18238,60 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
             )}
           </Box>
         </DialogContent>
+      </Dialog>
+
+      <CommonDataModelDefinition
+        open={commonModelModalOpen}
+        objectLabel={dataDefPanelObject?.objectId || commonModel?.objectName || ''}
+        attributes={canonicalAttributes}
+        saving={isSavingCanonicalAttribute}
+        onClose={() => setCommonModelModalOpen(false)}
+        onCreateAttribute={createCanonicalAttribute}
+        onUpdateAttribute={updateCanonicalAttribute}
+        onDeleteAttribute={deleteCanonicalAttribute}
+      />
+
+      <Dialog
+        open={metadataSyncDialogOpen}
+        onClose={() => setMetadataSyncDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: 2, background: 'linear-gradient(160deg, #141e35 0%, #0c1527 100%)' } }}
+      >
+        <DialogTitle sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: '#fff' }}>
+          Pull Metadata from Databricks
+        </DialogTitle>
+        <DialogContent sx={{ pt: 2 }}>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+            Enter the Unity Catalog coordinates for the table to ingest into this data definition.
+          </Typography>
+          <Box sx={{ display: 'grid', gridTemplateColumns: '1fr', gap: 1 }}>
+            <TextField
+              label="Catalog"
+              size="small"
+              value={metadataSyncDraft.catalog}
+              onChange={(e) => setMetadataSyncDraft((prev) => ({ ...prev, catalog: e.target.value }))}
+            />
+            <TextField
+              label="Schema"
+              size="small"
+              value={metadataSyncDraft.schema}
+              onChange={(e) => setMetadataSyncDraft((prev) => ({ ...prev, schema: e.target.value }))}
+            />
+            <TextField
+              label="Table"
+              size="small"
+              value={metadataSyncDraft.table}
+              onChange={(e) => setMetadataSyncDraft((prev) => ({ ...prev, table: e.target.value }))}
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setMetadataSyncDialogOpen(false)} disabled={isSyncingMetadata}>Cancel</Button>
+          <Button variant="contained" onClick={handleDatabricksMetadataSync} disabled={isSyncingMetadata}>
+            {isSyncingMetadata ? 'Syncing...' : 'Sync Metadata'}
+          </Button>
+        </DialogActions>
       </Dialog>
 
       {/* Data Definition Field Modal */}
