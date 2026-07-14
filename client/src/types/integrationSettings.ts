@@ -2,6 +2,8 @@ export type MetadataSyncFrequency = 'manual' | 'daily' | 'weekly';
 export type DbtEnvironment = 'dev' | 'test' | 'prod';
 
 export interface DatabricksIntegrationSettings {
+  serverHostname: string;
+  httpPath: string;
   workspaceUrl: string;
   personalAccessToken: string;
   defaultCatalog: string;
@@ -32,6 +34,8 @@ export interface SettingsProjectOption {
 }
 
 export const DEFAULT_DATABRICKS_SETTINGS: DatabricksIntegrationSettings = {
+  serverHostname: '',
+  httpPath: '',
   workspaceUrl: '',
   personalAccessToken: '',
   defaultCatalog: '',

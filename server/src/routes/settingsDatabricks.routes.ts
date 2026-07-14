@@ -86,6 +86,8 @@ router.get('/catalogs', requireAuth, async (req: Request, res: Response, next: N
     const settings = {
       ...DEFAULT_DATABRICKS_SETTINGS,
       ...(state[SETTINGS_KEY] || {}),
+      ...(req.query?.serverHostname ? { serverHostname: String(req.query.serverHostname) } : {}),
+      ...(req.query?.httpPath ? { httpPath: String(req.query.httpPath) } : {}),
       ...(req.query?.workspaceUrl ? { workspaceUrl: String(req.query.workspaceUrl) } : {}),
       ...(req.query?.token ? { personalAccessToken: String(req.query.token) } : {}),
     } as DatabricksIntegrationSettings;
@@ -103,6 +105,8 @@ router.get('/schemas', requireAuth, async (req: Request, res: Response, next: Ne
     const settings = {
       ...DEFAULT_DATABRICKS_SETTINGS,
       ...(state[SETTINGS_KEY] || {}),
+      ...(req.query?.serverHostname ? { serverHostname: String(req.query.serverHostname) } : {}),
+      ...(req.query?.httpPath ? { httpPath: String(req.query.httpPath) } : {}),
       ...(req.query?.workspaceUrl ? { workspaceUrl: String(req.query.workspaceUrl) } : {}),
       ...(req.query?.token ? { personalAccessToken: String(req.query.token) } : {}),
       ...(req.query?.catalog ? { defaultCatalog: String(req.query.catalog) } : {}),

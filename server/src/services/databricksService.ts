@@ -6,17 +6,35 @@ interface DatabricksRequestOptions {
 }
 
 class DatabricksService {
+  private normalizeHostname(serverHostname: string): string {
+    return String(serverHostname || '').trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+  }
+
   private normalizeWorkspaceUrl(workspaceUrl: string): string {
     return String(workspaceUrl || '').trim().replace(/\/+$/, '');
   }
 
+  private resolveBaseUrl(settings: DatabricksIntegrationSettings): string {
+    const explicitWorkspaceUrl = this.normalizeWorkspaceUrl(settings.workspaceUrl);
+    if (explicitWorkspaceUrl) return explicitWorkspaceUrl;
+
+    const normalizedHostname = this.normalizeHostname(settings.serverHostname);
+    return normalizedHostname ? `https://${normalizedHostname}` : '';
+  }
+
+  private extractWarehouseId(httpPath: string): string {
+    const normalizedPath = String(httpPath || '').trim();
+    const match = normalizedPath.match(/\/sql\/1\.0\/warehouses\/([^/?]+)/i);
+    return match?.[1] ? decodeURIComponent(match[1]) : '';
+  }
+
   private async request(settings: DatabricksIntegrationSettings, endpoint: string, options: DatabricksRequestOptions = {}): Promise<Record<string, any>> {
-    const workspaceUrl = this.normalizeWorkspaceUrl(settings.workspaceUrl);
-    if (!workspaceUrl || !settings.personalAccessToken) {
-      throw new Error('Workspace URL and Personal Access Token are required.');
+    const baseUrl = this.resolveBaseUrl(settings);
+    if (!baseUrl || !settings.personalAccessToken) {
+      throw new Error('Server Hostname (or Workspace URL) and Personal Access Token are required.');
     }
 
-    const response = await fetch(`${workspaceUrl}${endpoint}`, {
+    const response = await fetch(`${baseUrl}${endpoint}`, {
       method: options.method || 'GET',
       headers: {
         Authorization: `Bearer ${settings.personalAccessToken}`,
@@ -34,11 +52,18 @@ class DatabricksService {
   }
 
   async testConnection(settings: DatabricksIntegrationSettings) {
-    const payload = await this.request(settings, '/api/2.0/clusters/list');
+    const warehouseId = this.extractWarehouseId(settings.httpPath);
+    if (!warehouseId) {
+      throw new Error('A valid HTTP Path is required (expected format: /sql/1.0/warehouses/<warehouse-id>).');
+    }
+
+    const payload = await this.request(settings, `/api/2.0/sql/warehouses/${encodeURIComponent(warehouseId)}`);
     return {
       ok: true,
       message: 'Databricks connection succeeded.',
-      clusterCount: Array.isArray(payload?.clusters) ? payload.clusters.length : 0,
+      warehouseId,
+      warehouseName: String(payload?.name || ''),
+      warehouseState: String(payload?.state || ''),
     };
   }
 

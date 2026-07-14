@@ -96,7 +96,7 @@ const DatabricksSettings: React.FC<DatabricksSettingsProps> = ({
         </Box>
       </Box>
 
-      <Paper sx={{ p: 1.5, border: '1px solid rgba(255,255,255,0.08)' }}>
+      <Paper sx={{ p: 1.5, border: '1px solid rgba(255,255,255,0.12)', backgroundColor: 'rgba(255,255,255,0.03)' }}>
         <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>Scope</Typography>
         <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.25, alignItems: 'center' }}>
           <Alert severity="info" sx={{ py: 0.5 }}>
@@ -119,15 +119,22 @@ const DatabricksSettings: React.FC<DatabricksSettingsProps> = ({
         </Box>
       </Paper>
 
-      <Paper sx={{ p: 1.5, border: '1px solid rgba(255,255,255,0.08)' }}>
+      <Paper sx={{ p: 1.5, border: '1px solid rgba(255,255,255,0.12)', backgroundColor: 'rgba(255,255,255,0.03)' }}>
         <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>Connection Settings</Typography>
         <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.25 }}>
           <TextField
             size="small"
-            label="Workspace URL"
-            value={effectiveSettings.workspaceUrl}
-            onChange={(e) => setOverrideOrGlobal({ workspaceUrl: e.target.value })}
-            placeholder="https://adb-1234567890123.4.azuredatabricks.net"
+            label="Server Hostname"
+            value={effectiveSettings.serverHostname}
+            onChange={(e) => setOverrideOrGlobal({ serverHostname: e.target.value })}
+            placeholder="dbc-66ee8566-3d5b.cloud.databricks.com"
+          />
+          <TextField
+            size="small"
+            label="HTTP Path"
+            value={effectiveSettings.httpPath}
+            onChange={(e) => setOverrideOrGlobal({ httpPath: e.target.value })}
+            placeholder="/sql/1.0/warehouses/3c09c759117707af"
           />
           <TextField
             size="small"
@@ -136,6 +143,13 @@ const DatabricksSettings: React.FC<DatabricksSettingsProps> = ({
             value={effectiveSettings.personalAccessToken}
             onChange={(e) => setOverrideOrGlobal({ personalAccessToken: e.target.value })}
             placeholder="dapi..."
+          />
+          <TextField
+            size="small"
+            label="Workspace URL (Optional)"
+            value={effectiveSettings.workspaceUrl}
+            onChange={(e) => setOverrideOrGlobal({ workspaceUrl: e.target.value })}
+            placeholder="https://dbc-66ee8566-3d5b.cloud.databricks.com"
           />
           <TextField
             size="small"
@@ -172,7 +186,7 @@ const DatabricksSettings: React.FC<DatabricksSettingsProps> = ({
         </Box>
       </Paper>
 
-      <Paper sx={{ p: 1.5, border: '1px solid rgba(255,255,255,0.08)' }}>
+      <Paper sx={{ p: 1.5, border: '1px solid rgba(255,255,255,0.12)', backgroundColor: 'rgba(255,255,255,0.03)' }}>
         <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>Dynamic Metadata</Typography>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
           <Box>
@@ -209,7 +223,7 @@ const DatabricksSettings: React.FC<DatabricksSettingsProps> = ({
         </Box>
       </Paper>
 
-      <Paper sx={{ p: 1.5, border: '1px solid rgba(255,255,255,0.08)' }}>
+      <Paper sx={{ p: 1.5, border: '1px solid rgba(255,255,255,0.12)', backgroundColor: 'rgba(255,255,255,0.03)' }}>
         <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>Global Defaults</Typography>
         <Table size="small">
           <TableHead>
@@ -222,10 +236,16 @@ const DatabricksSettings: React.FC<DatabricksSettingsProps> = ({
           </TableHead>
           <TableBody>
             <TableRow>
-              <TableCell>Workspace URL</TableCell>
-              <TableCell>{globalDefaults.workspaceUrl || '-'}</TableCell>
-              <TableCell>{selectedProjectId ? (selectedOverride.workspaceUrl || '-') : '-'}</TableCell>
-              <TableCell>{effectiveSettings.workspaceUrl || '-'}</TableCell>
+              <TableCell>Server Hostname</TableCell>
+              <TableCell>{globalDefaults.serverHostname || '-'}</TableCell>
+              <TableCell>{selectedProjectId ? (selectedOverride.serverHostname || '-') : '-'}</TableCell>
+              <TableCell>{effectiveSettings.serverHostname || '-'}</TableCell>
+            </TableRow>
+            <TableRow>
+              <TableCell>HTTP Path</TableCell>
+              <TableCell>{globalDefaults.httpPath || '-'}</TableCell>
+              <TableCell>{selectedProjectId ? (selectedOverride.httpPath || '-') : '-'}</TableCell>
+              <TableCell>{effectiveSettings.httpPath || '-'}</TableCell>
             </TableRow>
             <TableRow>
               <TableCell>Default Catalog</TableCell>

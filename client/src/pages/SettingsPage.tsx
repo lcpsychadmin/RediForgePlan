@@ -279,9 +279,9 @@ const SettingsPage: React.FC = () => {
   const [isValidatingDbtPaths, setIsValidatingDbtPaths] = useState(false);
 
   const [menuGroupsExpanded, setMenuGroupsExpanded] = useState<Record<string, boolean>>({
-    planning: true,
-    reference: true,
-    platform: true,
+    planning: false,
+    reference: false,
+    platform: false,
   });
   const [integrationStatus, setIntegrationStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
@@ -595,6 +595,8 @@ const SettingsPage: React.FC = () => {
       };
       const response = await apiClient.get('/api/settings/databricks/catalogs', {
         params: {
+          serverHostname: effective.serverHostname,
+          httpPath: effective.httpPath,
           workspaceUrl: effective.workspaceUrl,
           token: effective.personalAccessToken,
         },
@@ -613,6 +615,8 @@ const SettingsPage: React.FC = () => {
       };
       const response = await apiClient.get('/api/settings/databricks/schemas', {
         params: {
+          serverHostname: effective.serverHostname,
+          httpPath: effective.httpPath,
           workspaceUrl: effective.workspaceUrl,
           token: effective.personalAccessToken,
           catalog: effective.defaultCatalog,
@@ -675,12 +679,12 @@ const SettingsPage: React.FC = () => {
 
         <Box sx={{ display: 'flex', gap: 3, height: 'calc(100vh - 200px)', minHeight: 0 }}>
           {/* Left Sidebar - Picklist List */}
-          <Card sx={{ width: '280px', flexShrink: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+          <Card sx={{ width: '280px', flexShrink: 0, display: 'flex', flexDirection: 'column', minHeight: 0, backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.12)', backdropFilter: 'blur(8px)' }}>
             <CardHeader title="Settings" subheader="Organized by domain" />
             <Divider />
             <CardContent sx={{ p: 0, overflowY: 'auto' }}>
               <Box sx={{ p: 1 }}>
-                <Accordion expanded={menuGroupsExpanded.planning} onChange={() => toggleMenuGroup('planning')} disableGutters>
+                <Accordion expanded={menuGroupsExpanded.planning} onChange={() => toggleMenuGroup('planning')} disableGutters sx={{ backgroundColor: 'transparent', boxShadow: 'none', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 1, mb: 1, '&:before': { display: 'none' } }}>
                   <AccordionSummary expandIcon={<ExpandMoreIcon />}> 
                     <Typography variant="subtitle2" color="text.secondary">Planning Defaults</Typography>
                   </AccordionSummary>
@@ -778,7 +782,7 @@ const SettingsPage: React.FC = () => {
                   </AccordionDetails>
                 </Accordion>
 
-                <Accordion expanded={menuGroupsExpanded.reference} onChange={() => toggleMenuGroup('reference')} disableGutters>
+                <Accordion expanded={menuGroupsExpanded.reference} onChange={() => toggleMenuGroup('reference')} disableGutters sx={{ backgroundColor: 'transparent', boxShadow: 'none', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 1, mb: 1, '&:before': { display: 'none' } }}>
                   <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                     <Typography variant="subtitle2" color="text.secondary">Reference Data</Typography>
                   </AccordionSummary>
@@ -801,7 +805,7 @@ const SettingsPage: React.FC = () => {
                   </AccordionDetails>
                 </Accordion>
 
-                <Accordion expanded={menuGroupsExpanded.platform} onChange={() => toggleMenuGroup('platform')} disableGutters>
+                <Accordion expanded={menuGroupsExpanded.platform} onChange={() => toggleMenuGroup('platform')} disableGutters sx={{ backgroundColor: 'transparent', boxShadow: 'none', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 1, '&:before': { display: 'none' } }}>
                   <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                     <Typography variant="subtitle2" color="text.secondary">Canonical Data Platform</Typography>
                   </AccordionSummary>
@@ -846,7 +850,7 @@ const SettingsPage: React.FC = () => {
           </Card>
 
           {/* Right Panel - Edit Picklist */}
-          <Card sx={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+          <Card sx={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.12)', backdropFilter: 'blur(8px)' }}>
             <CardHeader title={
               isPicklistMode
                 ? `${picklists[selectedPicklist]?.name || 'Picklist'} Settings`

@@ -17,8 +17,20 @@ interface DatabricksTableMetadata {
 }
 
 class DatabricksMetadataService {
+  private normalizeHostname(serverHostname: string): string {
+    return String(serverHostname || '').trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+  }
+
   private normalizeWorkspaceUrl(workspaceUrl: string): string {
     return String(workspaceUrl || '').trim().replace(/\/+$/, '');
+  }
+
+  private resolveBaseUrl(settings: { workspaceUrl: string; serverHostname: string }): string {
+    const workspaceUrl = this.normalizeWorkspaceUrl(settings.workspaceUrl);
+    if (workspaceUrl) return workspaceUrl;
+
+    const serverHostname = this.normalizeHostname(settings.serverHostname);
+    return serverHostname ? `https://${serverHostname}` : '';
   }
 
   private async getDatabricksSettings() {
@@ -29,6 +41,7 @@ class DatabricksMetadataService {
     const settings = state?.databricksIntegrationSettings || {};
 
     return {
+      serverHostname: String(settings.serverHostname || '').trim(),
       workspaceUrl: String(settings.workspaceUrl || '').trim(),
       personalAccessToken: String(settings.personalAccessToken || '').trim(),
     };
@@ -36,15 +49,15 @@ class DatabricksMetadataService {
 
   async fetchTableMetadata(catalog: string, schema: string, table: string): Promise<DatabricksTableMetadata> {
     const settings = await this.getDatabricksSettings();
-    if (!settings.workspaceUrl || !settings.personalAccessToken) {
+    if ((!settings.workspaceUrl && !settings.serverHostname) || !settings.personalAccessToken) {
       throw new Error('Databricks integration settings are not configured.');
     }
 
     const tableFullName = `${catalog}.${schema}.${table}`;
-    const workspaceUrl = this.normalizeWorkspaceUrl(settings.workspaceUrl);
+    const baseUrl = this.resolveBaseUrl(settings);
 
     const response = await fetch(
-      `${workspaceUrl}/api/2.0/unity-catalog/tables/${encodeURIComponent(tableFullName)}`,
+      `${baseUrl}/api/2.0/unity-catalog/tables/${encodeURIComponent(tableFullName)}`,
       {
         method: 'GET',
         headers: {
