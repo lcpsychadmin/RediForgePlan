@@ -1561,6 +1561,12 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   const [isSavingCanonicalAttribute, setIsSavingCanonicalAttribute] = useState(false);
   const [metadataSyncDialogOpen, setMetadataSyncDialogOpen] = useState(false);
   const [metadataSyncDraft, setMetadataSyncDraft] = useState({ catalog: '', schema: '', table: '' });
+  const [metadataSyncCatalogs, setMetadataSyncCatalogs] = useState<string[]>([]);
+  const [metadataSyncSchemas, setMetadataSyncSchemas] = useState<string[]>([]);
+  const [metadataSyncTables, setMetadataSyncTables] = useState<string[]>([]);
+  const [isLoadingMetadataCatalogs, setIsLoadingMetadataCatalogs] = useState(false);
+  const [isLoadingMetadataSchemas, setIsLoadingMetadataSchemas] = useState(false);
+  const [isLoadingMetadataTables, setIsLoadingMetadataTables] = useState(false);
   const [isSyncingMetadata, setIsSyncingMetadata] = useState(false);
   const [dataDefinitionSyncStatus, setDataDefinitionSyncStatus] = useState<Record<string, string>>({});
   const [catalogObjectId, setCatalogObjectId] = useState('');
@@ -6085,6 +6091,66 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
     } finally {
       setIsSyncingMetadata(false);
     }
+  };
+
+  const loadMetadataSyncCatalogs = async () => {
+    setIsLoadingMetadataCatalogs(true);
+    try {
+      const response = await apiClient.get('/api/settings/databricks/catalogs');
+      const catalogs = response.data?.data?.catalogs || [];
+      setMetadataSyncCatalogs(catalogs);
+      if (catalogs.length === 0) {
+        setMetadataSyncSchemas([]);
+        setMetadataSyncTables([]);
+      }
+    } catch {
+      setMetadataSyncCatalogs([]);
+      setMetadataSyncSchemas([]);
+      setMetadataSyncTables([]);
+    } finally {
+      setIsLoadingMetadataCatalogs(false);
+    }
+  };
+
+  const loadMetadataSyncSchemas = async (catalog: string) => {
+    if (!catalog) {
+      setMetadataSyncSchemas([]);
+      return;
+    }
+    setIsLoadingMetadataSchemas(true);
+    try {
+      const response = await apiClient.get('/api/settings/databricks/schemas', { params: { catalog } });
+      setMetadataSyncSchemas(response.data?.data?.schemas || []);
+    } catch {
+      setMetadataSyncSchemas([]);
+    } finally {
+      setIsLoadingMetadataSchemas(false);
+    }
+  };
+
+  const loadMetadataSyncTables = async (catalog: string, schema: string) => {
+    if (!catalog || !schema) {
+      setMetadataSyncTables([]);
+      return;
+    }
+    setIsLoadingMetadataTables(true);
+    try {
+      const response = await apiClient.get('/api/settings/databricks/tables', { params: { catalog, schema } });
+      setMetadataSyncTables(response.data?.data?.tables || []);
+    } catch {
+      setMetadataSyncTables([]);
+    } finally {
+      setIsLoadingMetadataTables(false);
+    }
+  };
+
+  const openMetadataSyncDialog = async () => {
+    setMetadataSyncDraft({ catalog: '', schema: '', table: '' });
+    setMetadataSyncCatalogs([]);
+    setMetadataSyncSchemas([]);
+    setMetadataSyncTables([]);
+    setMetadataSyncDialogOpen(true);
+    await loadMetadataSyncCatalogs();
   };
 
   useEffect(() => {
@@ -18224,7 +18290,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                   <Button
                     size="small"
                     variant="outlined"
-                    onClick={() => setMetadataSyncDialogOpen(true)}
+                    onClick={openMetadataSyncDialog}
                     sx={{ textTransform: 'none', fontSize: '0.72rem', px: 1, py: 0.2 }}
                   >
                     Pull Metadata from Databricks
@@ -18267,23 +18333,53 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
           </Typography>
           <Box sx={{ display: 'grid', gridTemplateColumns: '1fr', gap: 1 }}>
             <TextField
+              select
               label="Catalog"
               size="small"
               value={metadataSyncDraft.catalog}
-              onChange={(e) => setMetadataSyncDraft((prev) => ({ ...prev, catalog: e.target.value }))}
-            />
+              onChange={async (e) => {
+                const catalog = e.target.value;
+                setMetadataSyncDraft({ catalog, schema: '', table: '' });
+                setMetadataSyncTables([]);
+                await loadMetadataSyncSchemas(catalog);
+              }}
+              disabled={isLoadingMetadataCatalogs || metadataSyncCatalogs.length === 0}
+              helperText={isLoadingMetadataCatalogs ? 'Loading catalogs from Databricks...' : metadataSyncCatalogs.length === 0 ? 'No catalogs available from current Databricks settings.' : ''}
+            >
+              {metadataSyncCatalogs.map((catalog) => (
+                <MenuItem key={`metadata-catalog-${catalog}`} value={catalog}>{catalog}</MenuItem>
+              ))}
+            </TextField>
             <TextField
+              select
               label="Schema"
               size="small"
               value={metadataSyncDraft.schema}
-              onChange={(e) => setMetadataSyncDraft((prev) => ({ ...prev, schema: e.target.value }))}
-            />
+              onChange={async (e) => {
+                const schema = e.target.value;
+                setMetadataSyncDraft((prev) => ({ ...prev, schema, table: '' }));
+                await loadMetadataSyncTables(metadataSyncDraft.catalog, schema);
+              }}
+              disabled={!metadataSyncDraft.catalog || isLoadingMetadataSchemas || metadataSyncSchemas.length === 0}
+              helperText={!metadataSyncDraft.catalog ? 'Select catalog first.' : isLoadingMetadataSchemas ? 'Loading schemas from Databricks...' : metadataSyncSchemas.length === 0 ? 'No schemas found for selected catalog.' : ''}
+            >
+              {metadataSyncSchemas.map((schema) => (
+                <MenuItem key={`metadata-schema-${schema}`} value={schema}>{schema}</MenuItem>
+              ))}
+            </TextField>
             <TextField
+              select
               label="Table"
               size="small"
               value={metadataSyncDraft.table}
               onChange={(e) => setMetadataSyncDraft((prev) => ({ ...prev, table: e.target.value }))}
-            />
+              disabled={!metadataSyncDraft.schema || isLoadingMetadataTables || metadataSyncTables.length === 0}
+              helperText={!metadataSyncDraft.schema ? 'Select schema first.' : isLoadingMetadataTables ? 'Loading tables from Databricks...' : metadataSyncTables.length === 0 ? 'No tables found for selected catalog/schema.' : ''}
+            >
+              {metadataSyncTables.map((table) => (
+                <MenuItem key={`metadata-table-${table}`} value={table}>{table}</MenuItem>
+              ))}
+            </TextField>
           </Box>
         </DialogContent>
         <DialogActions>

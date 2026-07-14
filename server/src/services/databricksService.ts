@@ -88,6 +88,28 @@ class DatabricksService {
       .filter(Boolean);
   }
 
+  async listTables(settings: DatabricksIntegrationSettings, catalogName?: string, schemaName?: string): Promise<string[]> {
+    const catalog = String(catalogName || settings.defaultCatalog || '').trim();
+    const schema = String(schemaName || settings.defaultSchema || '').trim();
+
+    const queryParams: string[] = [];
+    if (catalog) queryParams.push(`catalog_name=${encodeURIComponent(catalog)}`);
+    if (schema) queryParams.push(`schema_name=${encodeURIComponent(schema)}`);
+    const query = queryParams.length > 0 ? `?${queryParams.join('&')}` : '';
+
+    let payload: Record<string, any>;
+    try {
+      payload = await this.request(settings, `/api/2.1/unity-catalog/tables${query}`);
+    } catch {
+      payload = await this.request(settings, `/api/2.0/unity-catalog/tables${query}`);
+    }
+
+    const tables = Array.isArray(payload?.tables) ? payload.tables : [];
+    return tables
+      .map((table: any) => String(table?.name || table?.table_name || '').trim())
+      .filter(Boolean);
+  }
+
   async fetchMetadata(settings: DatabricksIntegrationSettings) {
     const catalogs = await this.listCatalogs(settings);
     const defaultCatalog = settings.defaultCatalog || catalogs[0] || '';

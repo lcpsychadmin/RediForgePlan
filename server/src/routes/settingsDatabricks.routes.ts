@@ -119,6 +119,32 @@ router.get('/schemas', requireAuth, async (req: Request, res: Response, next: Ne
   }
 });
 
+router.get('/tables', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const state = await readSettingsState();
+    const settings = {
+      ...DEFAULT_DATABRICKS_SETTINGS,
+      ...(state[SETTINGS_KEY] || {}),
+      ...(req.query?.serverHostname ? { serverHostname: String(req.query.serverHostname) } : {}),
+      ...(req.query?.httpPath ? { httpPath: String(req.query.httpPath) } : {}),
+      ...(req.query?.workspaceUrl ? { workspaceUrl: String(req.query.workspaceUrl) } : {}),
+      ...(req.query?.token ? { personalAccessToken: String(req.query.token) } : {}),
+      ...(req.query?.catalog ? { defaultCatalog: String(req.query.catalog) } : {}),
+      ...(req.query?.schema ? { defaultSchema: String(req.query.schema) } : {}),
+    } as DatabricksIntegrationSettings;
+
+    const tables = await databricksService.listTables(
+      settings,
+      String(req.query?.catalog || settings.defaultCatalog || ''),
+      String(req.query?.schema || settings.defaultSchema || '')
+    );
+
+    res.json(formatSingleResponse({ tables }));
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.post('/metadata/fetch', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const settings = {
