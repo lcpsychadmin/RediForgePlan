@@ -1,45 +1,27 @@
 import React from 'react';
-import SvgIcon, { type SvgIconProps } from '@mui/material/SvgIcon';
+import Box from '@mui/material/Box';
+import type { SxProps, Theme } from '@mui/material/styles';
 
-const DatabricksIcon: React.FC<SvgIconProps> = (props) => (
-  <SvgIcon
-    {...props}
-    viewBox="0 0 512 512"
-    fill="none"
+interface DatabricksIconProps {
+  sx?: SxProps<Theme>;
+  className?: string;
+}
+
+const DatabricksIcon: React.FC<DatabricksIconProps> = ({ sx, className }) => (
+  <Box
+    component="img"
+    className={className}
+    src="/assets/icons/databricks-icon.png"
+    alt="Databricks"
     sx={{
-      color: '#FF3621',
-      ...props.sx,
+      width: '1em',
+      height: '1em',
+      display: 'inline-block',
+      objectFit: 'contain',
+      verticalAlign: 'middle',
+      ...sx,
     }}
-  >
-    <path
-      d="M32 145 L256 24 L480 145"
-      stroke="currentColor"
-      strokeWidth="24"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-    <path
-      d="M48 145 L256 262 L464 145"
-      stroke="currentColor"
-      strokeWidth="24"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-    <path
-      d="M48 218 L48 280 L256 397 L464 280 L464 218"
-      stroke="currentColor"
-      strokeWidth="24"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-    <path
-      d="M48 364 L256 481 L464 364"
-      stroke="currentColor"
-      strokeWidth="24"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </SvgIcon>
+  />
 );
 
 export default DatabricksIcon;
