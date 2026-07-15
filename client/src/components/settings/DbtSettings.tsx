@@ -17,7 +17,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import ChangeHistoryIcon from '@mui/icons-material/ChangeHistory';
+import DbtLogoIcon from '../icons/DbtLogoIcon';
 import type {
   DbtEnvironment,
   DbtIntegrationSettings,
@@ -73,7 +73,7 @@ const DbtSettings: React.FC<DbtSettingsProps> = ({
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <ChangeHistoryIcon sx={{ color: '#FF8A65' }} />
+          <DbtLogoIcon size={18} />
           <Typography variant="h6" sx={{ fontWeight: 700 }}>dbt Integration</Typography>
         </Box>
         <Box sx={{ display: 'flex', gap: 1 }}>

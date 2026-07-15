@@ -49,12 +49,12 @@ import AssignmentIcon from '@mui/icons-material/Assignment';
 import SettingsIcon from '@mui/icons-material/Settings';
 import BarChartIcon from '@mui/icons-material/BarChart';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import ChangeHistoryIcon from '@mui/icons-material/ChangeHistory';
 import AltRouteIcon from '@mui/icons-material/AltRoute';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faDatabase, faServer, faCloud, faCode, faGears, faDiagramProject, faListCheck, faFileLines, faCircleNodes, faNetworkWired, faTableCells, faChartGantt, faClipboardList, faTriangleExclamation } from '@fortawesome/free-solid-svg-icons';
 import Layout from '../components/Layout';
 import DatabricksIcon from '../components/icons/DatabricksIcon';
+import DbtLogoIcon from '../components/icons/DbtLogoIcon';
 import apiClient from '../api/client';
 import DatabricksSettings from '../components/settings/DatabricksSettings';
 import DbtSettings from '../components/settings/DbtSettings';
@@ -847,7 +847,7 @@ const SettingsPage: React.FC = () => {
                           gap: 1,
                         }}
                       >
-                        <ChangeHistoryIcon sx={{ fontSize: '1rem', color: '#FF8A65' }} />
+                        <DbtLogoIcon size={16} />
                         <ListItemText primary="dbt Integration" />
                       </ListItem>
 
