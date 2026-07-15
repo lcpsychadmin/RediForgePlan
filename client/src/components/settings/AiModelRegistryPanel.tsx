@@ -165,6 +165,7 @@ const AiModelRegistryPanel: React.FC = () => {
 
       <RegisterModelModal
         open={modalOpen}
+        modelId={editingRow?.id}
         initialValues={initialValues}
         onClose={() => { setModalOpen(false); setEditingRow(null); }}
         onSave={handleSave}

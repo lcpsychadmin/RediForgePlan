@@ -30,6 +30,7 @@ router.get('/models', requireAuth, async (_req: Request, res: Response, next: Ne
       `SELECT
          m.id, m.model_key, m.display_name, m.provider, m.model_family, m.context_window,
          m.endpoint_url, m.max_tokens, m.latency_class,
+         m.last_test_status, m.last_test_timestamp,
          m.input_cost_per_1k_tokens, m.output_cost_per_1k_tokens, m.is_active, m.created_at, m.updated_at,
          COALESCE(
            json_agg(
@@ -82,7 +83,7 @@ router.post('/models', requireAuth, requireRole('analyst', 'admin'), async (req:
       `INSERT INTO ai_models
          (model_key, display_name, provider, model_family, context_window, endpoint_url, api_key, max_tokens, latency_class, input_cost_per_1k_tokens, output_cost_per_1k_tokens, is_active)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-       RETURNING id, model_key, display_name, provider, model_family, context_window, endpoint_url, max_tokens, latency_class, input_cost_per_1k_tokens, output_cost_per_1k_tokens, is_active, created_at, updated_at`,
+       RETURNING id, model_key, display_name, provider, model_family, context_window, endpoint_url, max_tokens, latency_class, last_test_status, last_test_timestamp, input_cost_per_1k_tokens, output_cost_per_1k_tokens, is_active, created_at, updated_at`,
       [
         modelKey.trim(),
         displayName.trim(),
@@ -137,7 +138,7 @@ router.put('/models/:modelId', requireAuth, requireRole('analyst', 'admin'), asy
            is_active = COALESCE($12, is_active),
            updated_at = CURRENT_TIMESTAMP
        WHERE id = $13
-       RETURNING id, model_key, display_name, provider, model_family, context_window, endpoint_url, max_tokens, latency_class, input_cost_per_1k_tokens, output_cost_per_1k_tokens, is_active, created_at, updated_at`,
+      RETURNING id, model_key, display_name, provider, model_family, context_window, endpoint_url, max_tokens, latency_class, last_test_status, last_test_timestamp, input_cost_per_1k_tokens, output_cost_per_1k_tokens, is_active, created_at, updated_at`,
       [
         modelKey?.trim() || null,
         displayName?.trim() || null,
@@ -160,6 +161,57 @@ router.put('/models/:modelId', requireAuth, requireRole('analyst', 'admin'), asy
     }
 
     res.json(formatSingleResponse(result.rows[0]));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/models/test', requireAuth, requireRole('analyst', 'admin'), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { modelId, prompt } = req.body || {};
+
+    if (!modelId) {
+      throw new ApiError(400, 'modelId is required', 'MISSING_FIELD');
+    }
+
+    if (!prompt || !String(prompt).trim()) {
+      throw new ApiError(400, 'prompt is required', 'MISSING_FIELD');
+    }
+
+    try {
+      const result = await aiExecutionService.testModelConfiguration(String(modelId), String(prompt));
+      await db.query(
+        `UPDATE ai_models
+         SET last_test_status = 'success',
+             last_test_timestamp = CURRENT_TIMESTAMP,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $1`,
+        [modelId]
+      );
+
+      res.json(formatSingleResponse({
+        success: true,
+        responseText: result.responseText,
+        latencyMs: result.latencyMs,
+        tokensUsed: result.tokensUsed,
+      }));
+    } catch (error: any) {
+      await db.query(
+        `UPDATE ai_models
+         SET last_test_status = 'failure',
+             last_test_timestamp = CURRENT_TIMESTAMP,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $1`,
+        [modelId]
+      );
+
+      res.status(error?.statusCode || 500).json(formatSingleResponse({
+        success: false,
+        responseText: error?.message || 'Model test failed',
+        latencyMs: null,
+        tokensUsed: null,
+      }));
+    }
   } catch (error) {
     next(error);
   }

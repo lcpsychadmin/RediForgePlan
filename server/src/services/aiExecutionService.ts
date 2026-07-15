@@ -18,6 +18,14 @@ type AiSelectionResult = {
   router: any | null;
 };
 
+export type AiModelTestResult = {
+  success: boolean;
+  responseText: string;
+  latencyMs: number;
+  tokensUsed: number | null;
+  errorMessage?: string;
+};
+
 type ModelWithCapabilities = {
   id: string;
   model_key: string;
@@ -131,6 +139,134 @@ class AiExecutionService {
     }
 
     return result.rows[0];
+  }
+
+  private parseOpenAiResponse(responseJson: any) {
+    const responseText = responseJson?.choices?.[0]?.message?.content || '';
+    const usage = responseJson?.usage || null;
+    const tokensUsed = usage ? ((usage.total_tokens ?? (usage.prompt_tokens || 0) + (usage.completion_tokens || 0)) as number) : null;
+    return { responseText, tokensUsed };
+  }
+
+  private parseAnthropicResponse(responseJson: any) {
+    const responseText = Array.isArray(responseJson?.content)
+      ? responseJson.content.map((entry: any) => entry?.text || '').join('\n').trim()
+      : '';
+    const usage = responseJson?.usage || null;
+    const tokensUsed = usage ? ((usage.input_tokens || 0) + (usage.output_tokens || 0)) : null;
+    return { responseText, tokensUsed };
+  }
+
+  private parseDatabricksResponse(responseJson: any) {
+    const responseText =
+      responseJson?.choices?.[0]?.message?.content ||
+      responseJson?.predictions?.[0] ||
+      responseJson?.outputs?.[0] ||
+      responseJson?.result ||
+      '';
+    const usage = responseJson?.usage || null;
+    const tokensUsed = usage ? ((usage.total_tokens ?? (usage.prompt_tokens || 0) + (usage.completion_tokens || 0)) as number) : null;
+    return { responseText: String(responseText || ''), tokensUsed };
+  }
+
+  private async requestWithBearer(endpoint: string, apiKey: string, body: Record<string, unknown>) {
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify(body),
+    });
+
+    const responseJson: any = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new ApiError(
+        response.status,
+        responseJson?.error?.message || responseJson?.message || response.statusText,
+        'MODEL_TEST_REQUEST_FAILED'
+      );
+    }
+
+    return responseJson;
+  }
+
+  async testModelConfiguration(modelId: string, prompt: string): Promise<AiModelTestResult> {
+    const model = await this.loadModelById(modelId) as ModelWithCapabilities;
+    const provider = String(model.provider || '').toLowerCase();
+    const apiKey = model.api_key;
+
+    if (!apiKey) {
+      throw new ApiError(400, 'Model API key is missing', 'MODEL_TEST_KEY_MISSING');
+    }
+
+    const startedAt = Date.now();
+    let responseText = '';
+    let tokensUsed: number | null = null;
+
+    if (provider === 'openai') {
+      const endpoint = model.endpoint_url || 'https://api.openai.com/v1/chat/completions';
+      const responseJson = await this.requestWithBearer(endpoint, apiKey, {
+        model: model.model_key,
+        messages: [{ role: 'user', content: prompt }],
+        ...(model.max_tokens ? { max_tokens: model.max_tokens } : {}),
+      });
+      const parsed = this.parseOpenAiResponse(responseJson);
+      responseText = parsed.responseText;
+      tokensUsed = parsed.tokensUsed;
+    } else if (provider === 'anthropic') {
+      const endpoint = model.endpoint_url || 'https://api.anthropic.com/v1/messages';
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model: model.model_key,
+          max_tokens: model.max_tokens || 512,
+          messages: [{ role: 'user', content: prompt }],
+        }),
+      });
+      const responseJson: any = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new ApiError(
+          response.status,
+          responseJson?.error?.message || responseJson?.message || response.statusText,
+          'MODEL_TEST_REQUEST_FAILED'
+        );
+      }
+      const parsed = this.parseAnthropicResponse(responseJson);
+      responseText = parsed.responseText;
+      tokensUsed = parsed.tokensUsed;
+    } else if (provider === 'databricks') {
+      const baseEndpoint = (model.endpoint_url || '').replace(/\/+$/, '');
+      if (!baseEndpoint) {
+        throw new ApiError(400, 'Databricks endpoint URL is required', 'MODEL_TEST_ENDPOINT_MISSING');
+      }
+
+      const endpoint = baseEndpoint.includes('/serving-endpoints/')
+        ? (baseEndpoint.endsWith('/invocations') ? baseEndpoint : `${baseEndpoint}/invocations`)
+        : `${baseEndpoint}/serving-endpoints/${encodeURIComponent(model.model_key)}/invocations`;
+
+      const responseJson = await this.requestWithBearer(endpoint, apiKey, {
+        messages: [{ role: 'user', content: prompt }],
+      });
+      const parsed = this.parseDatabricksResponse(responseJson);
+      responseText = parsed.responseText;
+      tokensUsed = parsed.tokensUsed;
+    } else {
+      throw new ApiError(400, `Provider ${provider || 'unknown'} is not supported for model testing`, 'MODEL_TEST_PROVIDER_UNSUPPORTED');
+    }
+
+    const latencyMs = Date.now() - startedAt;
+    return {
+      success: true,
+      responseText: responseText || '(No response text returned by provider)',
+      latencyMs,
+      tokensUsed,
+    };
   }
 
   async selectModel(context: Pick<AiExecutionContext, 'modelId' | 'gatewayId' | 'routerId' | 'capabilityKeys'>): Promise<AiSelectionResult> {

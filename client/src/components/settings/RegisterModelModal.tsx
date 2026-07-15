@@ -1,17 +1,24 @@
 import React from 'react';
 import {
+  Alert,
   Box,
   Button,
   Chip,
+  CircularProgress,
+  Divider,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
   FormControlLabel,
   MenuItem,
+  Stack,
   Switch,
   TextField,
+  Typography,
 } from '@mui/material';
+import SmartToyIcon from '@mui/icons-material/SmartToy';
+import apiClient from '../../api/client';
 
 export interface RegisterModelFormValues {
   modelName: string;
@@ -27,6 +34,7 @@ export interface RegisterModelFormValues {
 
 interface RegisterModelModalProps {
   open: boolean;
+  modelId?: string;
   initialValues?: RegisterModelFormValues;
   onClose: () => void;
   onSave: (values: RegisterModelFormValues) => Promise<void>;
@@ -56,9 +64,15 @@ const emptyValues: RegisterModelFormValues = {
   enabled: true,
 };
 
-const RegisterModelModal: React.FC<RegisterModelModalProps> = ({ open, initialValues, onClose, onSave }) => {
+const RegisterModelModal: React.FC<RegisterModelModalProps> = ({ open, modelId, initialValues, onClose, onSave }) => {
   const [formValues, setFormValues] = React.useState<RegisterModelFormValues>(emptyValues);
   const [saving, setSaving] = React.useState(false);
+  const [testPrompt, setTestPrompt] = React.useState('');
+  const [testResponse, setTestResponse] = React.useState('');
+  const [testState, setTestState] = React.useState<'idle' | 'success' | 'failure'>('idle');
+  const [testLatencyMs, setTestLatencyMs] = React.useState<number | null>(null);
+  const [testTokensUsed, setTestTokensUsed] = React.useState<number | null>(null);
+  const [testingModel, setTestingModel] = React.useState(false);
 
   const isOpenAiProvider = formValues.provider === 'openai';
   const endpointHelperText = isOpenAiProvider
@@ -70,6 +84,11 @@ const RegisterModelModal: React.FC<RegisterModelModalProps> = ({ open, initialVa
       return;
     }
     setFormValues(initialValues ? { ...initialValues } : emptyValues);
+    setTestPrompt('');
+    setTestResponse('');
+    setTestState('idle');
+    setTestLatencyMs(null);
+    setTestTokensUsed(null);
   }, [open, initialValues]);
 
   const handleSubmit = async () => {
@@ -92,6 +111,43 @@ const RegisterModelModal: React.FC<RegisterModelModalProps> = ({ open, initialVa
           : [...prev.capabilities, capability],
       };
     });
+  };
+
+  const clearTestFields = () => {
+    setTestPrompt('');
+    setTestResponse('');
+    setTestState('idle');
+    setTestLatencyMs(null);
+    setTestTokensUsed(null);
+  };
+
+  const handleTestModel = async () => {
+    if (!modelId || !testPrompt.trim()) {
+      return;
+    }
+
+    setTestingModel(true);
+    setTestState('idle');
+    try {
+      const response = await apiClient.post('/api/ai/models/test', {
+        modelId,
+        prompt: testPrompt.trim(),
+      });
+
+      const payload = response.data?.data || {};
+      setTestResponse(payload.responseText || 'No response text returned.');
+      setTestLatencyMs(typeof payload.latencyMs === 'number' ? payload.latencyMs : null);
+      setTestTokensUsed(typeof payload.tokensUsed === 'number' ? payload.tokensUsed : null);
+      setTestState(payload.success ? 'success' : 'failure');
+    } catch (error: any) {
+      const message = error?.response?.data?.data?.responseText || error?.response?.data?.message || error?.message || 'Model test failed.';
+      setTestResponse(String(message));
+      setTestLatencyMs(null);
+      setTestTokensUsed(null);
+      setTestState('failure');
+    } finally {
+      setTestingModel(false);
+    }
   };
 
   return (
@@ -127,28 +183,24 @@ const RegisterModelModal: React.FC<RegisterModelModalProps> = ({ open, initialVa
             <MenuItem key={provider.value} value={provider.value}>{provider.label}</MenuItem>
           ))}
         </TextField>
-        {isOpenAiProvider && (
-          <>
-            <TextField
-              label="Endpoint URL"
-              value={formValues.endpointUrl}
-              onChange={(e) => setFormValues((prev) => ({ ...prev, endpointUrl: e.target.value }))}
-              fullWidth
-              size="small"
-              placeholder="https://api.openai.com/v1/chat/completions"
-              helperText={endpointHelperText}
-            />
-            <TextField
-              type="password"
-              label="API Key"
-              value={formValues.apiKey}
-              onChange={(e) => setFormValues((prev) => ({ ...prev, apiKey: e.target.value }))}
-              fullWidth
-              size="small"
-              helperText="Paste your OpenAI secret key (sk-...)."
-            />
-          </>
-        )}
+        <TextField
+          label="Endpoint URL"
+          value={formValues.endpointUrl}
+          onChange={(e) => setFormValues((prev) => ({ ...prev, endpointUrl: e.target.value }))}
+          fullWidth
+          size="small"
+          placeholder={isOpenAiProvider ? 'https://api.openai.com/v1/chat/completions' : 'https://provider-endpoint.example.com'}
+          helperText={isOpenAiProvider ? endpointHelperText : 'Provider endpoint URL used for test and execution.'}
+        />
+        <TextField
+          type="password"
+          label="API Key"
+          value={formValues.apiKey}
+          onChange={(e) => setFormValues((prev) => ({ ...prev, apiKey: e.target.value }))}
+          fullWidth
+          size="small"
+          helperText={isOpenAiProvider ? 'Paste your OpenAI secret key (sk-...).' : 'Secure API key for the selected provider.'}
+        />
         <TextField
           select
           label="Cost Tier"
@@ -209,6 +261,61 @@ const RegisterModelModal: React.FC<RegisterModelModalProps> = ({ open, initialVa
             />
           }
           label="Enabled"
+        />
+
+        <Divider sx={{ borderColor: 'rgba(255,255,255,0.12)', mt: 0.5 }} />
+
+        <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 0.5 }}>
+          <SmartToyIcon sx={{ fontSize: '1rem', color: 'text.secondary' }} />
+          <Typography variant="subtitle2" sx={{ color: 'text.secondary' }}>Test Configuration</Typography>
+        </Stack>
+
+        <TextField
+          label="Prompt"
+          value={testPrompt}
+          onChange={(e) => setTestPrompt(e.target.value)}
+          fullWidth
+          multiline
+          minRows={3}
+          size="small"
+        />
+
+        <Stack direction="row" spacing={1} alignItems="center">
+          <Button
+            variant="contained"
+            onClick={handleTestModel}
+            disabled={testingModel || !modelId || !testPrompt.trim()}
+            startIcon={testingModel ? <CircularProgress size={14} color="inherit" /> : undefined}
+            sx={{ textTransform: 'none' }}
+          >
+            {testingModel ? 'Testing...' : 'Test Model'}
+          </Button>
+          <Button onClick={clearTestFields} sx={{ textTransform: 'none' }}>Clear</Button>
+          {!modelId && (
+            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+              Save model first to enable testing.
+            </Typography>
+          )}
+        </Stack>
+
+        {testState !== 'idle' && (
+          <Alert severity={testState === 'success' ? 'success' : 'error'} sx={{ py: 0.5 }}>
+            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', fontSize: '0.8rem' }}>
+              <Box>Status: {testState === 'success' ? 'Success' : 'Failure'}</Box>
+              <Box>Latency: {testLatencyMs !== null ? `${testLatencyMs} ms` : 'N/A'}</Box>
+              <Box>Tokens: {testTokensUsed !== null ? testTokensUsed : 'N/A'}</Box>
+            </Box>
+          </Alert>
+        )}
+
+        <TextField
+          label="Response"
+          value={testResponse}
+          fullWidth
+          multiline
+          minRows={4}
+          size="small"
+          InputProps={{ readOnly: true }}
         />
       </DialogContent>
       <DialogActions>
