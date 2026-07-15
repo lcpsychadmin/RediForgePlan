@@ -52,6 +52,20 @@ const parseIdList = (value: unknown): string[] => {
   return value.map((entry) => String(entry)).filter(Boolean);
 };
 
+const normalizeModelName = (value: string | null | undefined) => String(value || '').trim().toLowerCase();
+
+const isModelEquivalent = (expected: string | null | undefined, actual: string | null | undefined) => {
+  const expectedNorm = normalizeModelName(expected);
+  const actualNorm = normalizeModelName(actual);
+  if (!expectedNorm || !actualNorm) {
+    return false;
+  }
+  if (expectedNorm === actualNorm) {
+    return true;
+  }
+  return expectedNorm.startsWith(`${actualNorm}-`) || actualNorm.startsWith(`${expectedNorm}-`);
+};
+
 class AiExecutionService {
   private async loadModelById(modelId: string) {
     const result = await db.query(
@@ -224,6 +238,14 @@ class AiExecutionService {
       tokensUsed = parsed.tokensUsed;
       modelUsed = parsed.modelUsed;
 
+      if (!isModelEquivalent(model.model_key, modelUsed)) {
+        throw new ApiError(
+          409,
+          `Provider model mismatch. Expected ${model.model_key}, got ${modelUsed || 'unknown'}.`,
+          'MODEL_PROVIDER_MISMATCH'
+        );
+      }
+
       const echoJson = await this.requestWithBearer(endpoint, apiKey, {
         model: model.model_key,
         messages: [{ role: 'user', content: echoPrompt }],
@@ -257,6 +279,14 @@ class AiExecutionService {
       responseText = parsed.responseText;
       tokensUsed = parsed.tokensUsed;
       modelUsed = parsed.modelUsed;
+
+      if (!isModelEquivalent(model.model_key, modelUsed)) {
+        throw new ApiError(
+          409,
+          `Provider model mismatch. Expected ${model.model_key}, got ${modelUsed || 'unknown'}.`,
+          'MODEL_PROVIDER_MISMATCH'
+        );
+      }
 
       const echoResponse = await fetch(endpoint, {
         method: 'POST',
@@ -297,6 +327,14 @@ class AiExecutionService {
       responseText = parsed.responseText;
       tokensUsed = parsed.tokensUsed;
       modelUsed = parsed.modelUsed;
+
+      if (!isModelEquivalent(model.model_key, modelUsed)) {
+        throw new ApiError(
+          409,
+          `Provider model mismatch. Expected ${model.model_key}, got ${modelUsed || 'unknown'}.`,
+          'MODEL_PROVIDER_MISMATCH'
+        );
+      }
 
       const echoJson = await this.requestWithBearer(endpoint, apiKey, {
         messages: [{ role: 'user', content: echoPrompt }],
@@ -448,6 +486,15 @@ class AiExecutionService {
         response.status,
         `OpenAI request failed: ${responseJson?.error?.message || response.statusText}`,
         'OPENAI_REQUEST_FAILED'
+      );
+    }
+
+    const providerModel = responseJson?.model ? String(responseJson.model) : null;
+    if (!isModelEquivalent(model.model_key, providerModel)) {
+      throw new ApiError(
+        409,
+        `OpenAI provider model mismatch. Expected ${model.model_key}, got ${providerModel || 'unknown'}.`,
+        'MODEL_PROVIDER_MISMATCH'
       );
     }
 

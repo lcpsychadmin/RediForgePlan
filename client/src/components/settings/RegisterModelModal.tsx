@@ -54,6 +54,19 @@ const COST_TIER_OPTIONS = ['low', 'standard', 'high', 'enterprise'];
 const CAPABILITY_OPTIONS = ['chat', 'reasoning', 'summarization', 'code', 'vision', 'embeddings'];
 const LATENCY_OPTIONS = ['low-latency', 'standard', 'economy'];
 
+const normalizeModelName = (value: string) => value.trim().toLowerCase();
+const modelMatches = (expected: string, actual: string) => {
+  const expectedNorm = normalizeModelName(expected);
+  const actualNorm = normalizeModelName(actual);
+  if (!expectedNorm || !actualNorm) {
+    return false;
+  }
+  if (expectedNorm === actualNorm) {
+    return true;
+  }
+  return expectedNorm.startsWith(`${actualNorm}-`) || actualNorm.startsWith(`${expectedNorm}-`);
+};
+
 const emptyValues: RegisterModelFormValues = {
   modelName: '',
   provider: 'openai',
@@ -150,8 +163,8 @@ const RegisterModelModal: React.FC<RegisterModelModalProps> = ({ open, modelId, 
       const modelUsed = String(payload.modelUsed || '').trim();
       const modelEcho = String(payload.modelEcho || '').trim();
       const expectedModelName = formValues.modelName.trim();
-      const modelUsedMatches = modelUsed === expectedModelName;
-      const modelEchoMatches = modelEcho === expectedModelName;
+      const modelUsedMatches = modelMatches(expectedModelName, modelUsed);
+      const modelEchoMatches = modelMatches(expectedModelName, modelEcho);
 
       setTestResponse(payload.responseText || 'No response text returned.');
       setTestLatencyMs(typeof payload.latencyMs === 'number' ? payload.latencyMs : null);
@@ -159,9 +172,13 @@ const RegisterModelModal: React.FC<RegisterModelModalProps> = ({ open, modelId, 
       setTestModelUsed(modelUsed);
       setTestModelEcho(modelEcho);
 
-      if (payload.success && modelUsedMatches && modelEchoMatches) {
+      if (payload.success && modelUsedMatches) {
         setTestState('success');
-        setTestDiagnostic('Model verification passed. modelUsed and modelEcho match the registered model.');
+        setTestDiagnostic(
+          modelEchoMatches
+            ? 'Model verification passed. Provider-reported model and echo both match.'
+            : 'Provider model matches configuration. Echo response did not match and is shown as a warning.'
+        );
       } else {
         setTestState('failure');
         const reasons: string[] = [];
@@ -356,7 +373,7 @@ const RegisterModelModal: React.FC<RegisterModelModalProps> = ({ open, modelId, 
           }}
         />
 
-        {testModelUsed && testModelEcho && testModelUsed !== testModelEcho && (
+        {testModelUsed && testModelEcho && !modelMatches(testModelUsed, testModelEcho) && (
           <Alert severity="warning" sx={{ py: 0.5 }}>
             Warning: Model response does not match expected model.
           </Alert>
