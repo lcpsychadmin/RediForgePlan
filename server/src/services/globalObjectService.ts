@@ -4,8 +4,29 @@
 import db from '../db.js';
 
 export class GlobalObjectService {
+  private aiColumnsReady: boolean | null = null;
+
+  private async ensureAiColumns() {
+    if (this.aiColumnsReady) {
+      return;
+    }
+
+    await db.query(
+      `ALTER TABLE global_objects
+         ADD COLUMN IF NOT EXISTS default_gateway_id UUID`
+    );
+
+    await db.query(
+      `ALTER TABLE global_objects
+         ADD COLUMN IF NOT EXISTS default_router_id UUID`
+    );
+
+    this.aiColumnsReady = true;
+  }
+
   async getAllGlobalObjects(filters?: { processArea?: string; search?: string }) {
-    let query = 'SELECT id, object_id, description, process_area, created_at, updated_at FROM global_objects WHERE 1=1';
+    await this.ensureAiColumns();
+    let query = 'SELECT id, object_id, description, process_area, default_gateway_id, default_router_id, created_at, updated_at FROM global_objects WHERE 1=1';
     const params: any[] = [];
     let paramCount = 1;
 
@@ -27,23 +48,32 @@ export class GlobalObjectService {
   }
 
   async getGlobalObjectById(globalObjectId: string) {
+    await this.ensureAiColumns();
     const result = await db.query(
-      'SELECT id, object_id, description, process_area, created_at, updated_at FROM global_objects WHERE id = $1',
+      'SELECT id, object_id, description, process_area, default_gateway_id, default_router_id, created_at, updated_at FROM global_objects WHERE id = $1',
       [globalObjectId]
     );
     if (result.rows.length === 0) return null;
     return this.formatGlobalObject(result.rows[0]);
   }
 
-  async createGlobalObject(objectId: string, description: string | undefined, processArea: string | undefined) {
+  async createGlobalObject(
+    objectId: string,
+    description: string | undefined,
+    processArea: string | undefined,
+    defaultGatewayId?: string | null,
+    defaultRouterId?: string | null
+  ) {
+    await this.ensureAiColumns();
     const result = await db.query(
-      'INSERT INTO global_objects (object_id, description, process_area) VALUES ($1, $2, $3) RETURNING id, object_id, description, process_area, created_at, updated_at',
-      [objectId, description || null, processArea || null]
+      'INSERT INTO global_objects (object_id, description, process_area, default_gateway_id, default_router_id) VALUES ($1, $2, $3, $4, $5) RETURNING id, object_id, description, process_area, default_gateway_id, default_router_id, created_at, updated_at',
+      [objectId, description || null, processArea || null, defaultGatewayId || null, defaultRouterId || null]
     );
     return this.formatGlobalObject(result.rows[0]);
   }
 
-  async updateGlobalObject(globalObjectId: string, data: { objectId?: string; description?: string; processArea?: string }) {
+  async updateGlobalObject(globalObjectId: string, data: { objectId?: string; description?: string; processArea?: string; defaultGatewayId?: string | null; defaultRouterId?: string | null }) {
+    await this.ensureAiColumns();
     const fields: string[] = [];
     const values: any[] = [globalObjectId];
     let paramCount = 2;
@@ -63,13 +93,23 @@ export class GlobalObjectService {
       values.push(data.processArea);
       paramCount++;
     }
+    if (data.defaultGatewayId !== undefined) {
+      fields.push(`default_gateway_id = $${paramCount}`);
+      values.push(data.defaultGatewayId);
+      paramCount++;
+    }
+    if (data.defaultRouterId !== undefined) {
+      fields.push(`default_router_id = $${paramCount}`);
+      values.push(data.defaultRouterId);
+      paramCount++;
+    }
 
     if (fields.length === 0) return this.getGlobalObjectById(globalObjectId);
 
     fields.push(`updated_at = CURRENT_TIMESTAMP`);
 
     const result = await db.query(
-      `UPDATE global_objects SET ${fields.join(', ')} WHERE id = $1 RETURNING id, object_id, description, process_area, created_at, updated_at`,
+      `UPDATE global_objects SET ${fields.join(', ')} WHERE id = $1 RETURNING id, object_id, description, process_area, default_gateway_id, default_router_id, created_at, updated_at`,
       values
     );
 
@@ -101,6 +141,8 @@ export class GlobalObjectService {
       objectId: row.object_id,
       description: row.description,
       processArea: row.process_area,
+      defaultGatewayId: row.default_gateway_id || null,
+      defaultRouterId: row.default_router_id || null,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };

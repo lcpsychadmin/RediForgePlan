@@ -57,6 +57,7 @@ import DatabricksIcon from '../components/icons/DatabricksIcon';
 import apiClient from '../api/client';
 import DatabricksSettings from '../components/settings/DatabricksSettings';
 import DbtSettings from '../components/settings/DbtSettings';
+import AiPlatformSettings from '../components/settings/AiPlatformSettings';
 import { UNIFIED_ROLE_MODEL, type UnifiedRoleKey } from '../constants/unifiedRoleModel';
 import {
   DEFAULT_DATABRICKS_SETTINGS,
@@ -397,6 +398,10 @@ const SettingsPage: React.FC = () => {
   const isApplicationsMode = selectedMenuItem === 'applications';
   const isDatabricksMode = selectedMenuItem === 'databricksIntegration';
   const isDbtMode = selectedMenuItem === 'dbtIntegration';
+  const isAiModelsMode = selectedMenuItem === 'aiModels';
+  const isAiGatewaysMode = selectedMenuItem === 'aiGateways';
+  const isAiRoutersMode = selectedMenuItem === 'aiRouters';
+  const isAiPoliciesMode = selectedMenuItem === 'aiPolicies';
 
   const handleAddValue = () => {
     if (!selectedPicklist) return;
@@ -842,6 +847,64 @@ const SettingsPage: React.FC = () => {
                         <ChangeHistoryIcon sx={{ fontSize: '1rem', color: '#FF8A65' }} />
                         <ListItemText primary="dbt Integration" />
                       </ListItem>
+
+                      <Divider sx={{ my: 1, borderColor: 'rgba(255,255,255,0.08)' }} />
+
+                      <ListItem
+                        button
+                        selected={isAiModelsMode}
+                        onClick={() => setSelectedMenuItem('aiModels')}
+                        sx={{
+                          backgroundColor: isAiModelsMode ? 'primary.lighter' : 'transparent',
+                          '&:hover': { backgroundColor: 'action.hover' },
+                          borderLeft: isAiModelsMode ? '4px solid' : 'none',
+                          borderColor: 'primary.main',
+                        }}
+                      >
+                        <ListItemText primary="AI Model Registry" />
+                      </ListItem>
+
+                      <ListItem
+                        button
+                        selected={isAiGatewaysMode}
+                        onClick={() => setSelectedMenuItem('aiGateways')}
+                        sx={{
+                          backgroundColor: isAiGatewaysMode ? 'primary.lighter' : 'transparent',
+                          '&:hover': { backgroundColor: 'action.hover' },
+                          borderLeft: isAiGatewaysMode ? '4px solid' : 'none',
+                          borderColor: 'primary.main',
+                        }}
+                      >
+                        <ListItemText primary="AI Gateways" />
+                      </ListItem>
+
+                      <ListItem
+                        button
+                        selected={isAiRoutersMode}
+                        onClick={() => setSelectedMenuItem('aiRouters')}
+                        sx={{
+                          backgroundColor: isAiRoutersMode ? 'primary.lighter' : 'transparent',
+                          '&:hover': { backgroundColor: 'action.hover' },
+                          borderLeft: isAiRoutersMode ? '4px solid' : 'none',
+                          borderColor: 'primary.main',
+                        }}
+                      >
+                        <ListItemText primary="AI Routers" />
+                      </ListItem>
+
+                      <ListItem
+                        button
+                        selected={isAiPoliciesMode}
+                        onClick={() => setSelectedMenuItem('aiPolicies')}
+                        sx={{
+                          backgroundColor: isAiPoliciesMode ? 'primary.lighter' : 'transparent',
+                          '&:hover': { backgroundColor: 'action.hover' },
+                          borderLeft: isAiPoliciesMode ? '4px solid' : 'none',
+                          borderColor: 'primary.main',
+                        }}
+                      >
+                        <ListItemText primary="AI Usage Policies" />
+                      </ListItem>
                     </List>
                   </AccordionDetails>
                 </Accordion>
@@ -866,6 +929,14 @@ const SettingsPage: React.FC = () => {
                     ? 'dbt Integration'
                   : isApplicationsMode
                     ? 'Applications'
+                  : isAiModelsMode
+                    ? 'AI Model Registry'
+                  : isAiGatewaysMode
+                    ? 'AI Gateways'
+                  : isAiRoutersMode
+                    ? 'AI Routers'
+                  : isAiPoliciesMode
+                    ? 'AI Usage Policies'
                     : 'Default Task Templates'
             } />
             <Divider />
@@ -1289,6 +1360,14 @@ const SettingsPage: React.FC = () => {
                       {saveStatus === 'saving' ? 'Saving...' : 'Save dbt Settings'}
                     </Button>
                   </Box>
+                </Box>
+              )}
+
+              {(isAiModelsMode || isAiGatewaysMode || isAiRoutersMode || isAiPoliciesMode) && (
+                <Box>
+                  <AiPlatformSettings
+                    section={isAiModelsMode ? 'models' : isAiGatewaysMode ? 'gateways' : isAiRoutersMode ? 'routers' : 'policies'}
+                  />
                 </Box>
               )}
 

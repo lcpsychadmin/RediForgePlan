@@ -31,7 +31,7 @@ router.post(
   requireRole('admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { objectId, description, processArea } = req.body;
+      const { objectId, description, processArea, defaultGatewayId, defaultRouterId } = req.body;
 
       if (!objectId) {
         throw new ApiError(400, 'Object ID is required', 'MISSING_FIELD');
@@ -40,7 +40,9 @@ router.post(
       const object = await globalObjectService.createGlobalObject(
         objectId,
         description,
-        processArea
+        processArea,
+        defaultGatewayId,
+        defaultRouterId
       );
 
       res.status(201).json(formatSingleResponse(object));

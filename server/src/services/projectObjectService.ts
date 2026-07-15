@@ -7,6 +7,8 @@ interface ProjectObjectInput {
   globalObjectId?: string;
   targetApplicationId?: string;
   sourceApplicationId?: string;
+  gatewayOverrideId?: string;
+  routerOverrideId?: string;
   parentProjectObjectId?: string;
   subObjectSuffix?: string;
   subObjectDescription?: string;
@@ -31,6 +33,7 @@ interface ProjectObjectInput {
 export class ProjectObjectService {
   private subObjectColumnsSupported: boolean | null = null;
   private targetApplicationColumnReady: boolean | null = null;
+  private aiColumnsReady: boolean | null = null;
 
   private async ensureTargetApplicationColumn() {
     if (this.targetApplicationColumnReady) {
@@ -48,6 +51,24 @@ export class ProjectObjectService {
     );
 
     this.targetApplicationColumnReady = true;
+  }
+
+  private async ensureAiColumns() {
+    if (this.aiColumnsReady) {
+      return;
+    }
+
+    await db.query(
+      `ALTER TABLE project_objects
+         ADD COLUMN IF NOT EXISTS gateway_override_id UUID`
+    );
+
+    await db.query(
+      `ALTER TABLE project_objects
+         ADD COLUMN IF NOT EXISTS router_override_id UUID`
+    );
+
+    this.aiColumnsReady = true;
   }
 
   private async supportsSubObjects() {
@@ -68,6 +89,7 @@ export class ProjectObjectService {
 
   async getProjectObjectsByProject(projectId: string, filters?: { status?: string; draUserId?: string; developerUserId?: string; processArea?: string }) {
     await this.ensureTargetApplicationColumn();
+    await this.ensureAiColumns();
     const supportsSubObjects = await this.supportsSubObjects();
     let query = supportsSubObjects
       ? `
@@ -80,6 +102,8 @@ export class ProjectObjectService {
           ta.name AS target_application_name,
           po.source_application_id,
           sa.name AS source_application_name,
+          po.gateway_override_id,
+          po.router_override_id,
           po.complexity, po.deployment_disposition,
              po.build_type, po.object_type, po.cutover_phase, po.ddm_approach, po.risk_security_type,
              po.migration_type, po.factor_type, po.load_method, po.start_date, po.end_date, po.status,
@@ -102,6 +126,8 @@ export class ProjectObjectService {
              ta.name AS target_application_name,
              po.source_application_id,
              sa.name AS source_application_name,
+              po.gateway_override_id,
+              po.router_override_id,
              po.complexity, po.deployment_disposition,
              po.build_type, po.object_type, po.cutover_phase, po.ddm_approach, po.risk_security_type,
              po.migration_type, po.factor_type, po.load_method, po.start_date, po.end_date, po.status,
@@ -163,6 +189,7 @@ export class ProjectObjectService {
 
   async getProjectObjectById(projectObjectId: string) {
     await this.ensureTargetApplicationColumn();
+    await this.ensureAiColumns();
     const supportsSubObjects = await this.supportsSubObjects();
     const result = await db.query(
       supportsSubObjects
@@ -175,6 +202,8 @@ export class ProjectObjectService {
               ta.name AS target_application_name,
               po.source_application_id,
               sa.name AS source_application_name,
+              po.gateway_override_id,
+              po.router_override_id,
               po.complexity, po.deployment_disposition,
               po.build_type, po.object_type, po.cutover_phase, po.ddm_approach, po.risk_security_type,
               po.migration_type, po.factor_type, po.load_method, po.start_date, po.end_date, po.status,
@@ -195,6 +224,8 @@ export class ProjectObjectService {
         ta.name AS target_application_name,
         po.source_application_id,
         sa.name AS source_application_name,
+        po.gateway_override_id,
+        po.router_override_id,
         po.complexity, po.deployment_disposition,
         po.build_type, po.object_type, po.cutover_phase, po.ddm_approach, po.risk_security_type,
         po.migration_type, po.factor_type, po.load_method, po.start_date, po.end_date, po.status,
@@ -212,6 +243,7 @@ export class ProjectObjectService {
 
   async createProjectObject(projectId: string, data: ProjectObjectInput) {
     await this.ensureTargetApplicationColumn();
+    await this.ensureAiColumns();
     const supportsSubObjects = await this.supportsSubObjects();
     let globalObjectId = data.globalObjectId;
     let parentProjectObjectId = data.parentProjectObjectId || null;
@@ -219,6 +251,8 @@ export class ProjectObjectService {
     let subObjectDescription = (data.subObjectDescription || '').trim() || null;
     let targetApplicationId = data.targetApplicationId || null;
     let sourceApplicationId = data.sourceApplicationId || null;
+    let gatewayOverrideId = data.gatewayOverrideId || null;
+    let routerOverrideId = data.routerOverrideId || null;
 
     if (!globalObjectId && !parentProjectObjectId) {
       throw new Error('Global object ID is required');
@@ -262,6 +296,12 @@ export class ProjectObjectService {
       if (!sourceApplicationId) {
         sourceApplicationId = parentRow.source_application_id || null;
       }
+      if (!gatewayOverrideId) {
+        gatewayOverrideId = parentRow.gateway_override_id || null;
+      }
+      if (!routerOverrideId) {
+        routerOverrideId = parentRow.router_override_id || null;
+      }
 
       const duplicateResult = await db.query(
         `SELECT 1
@@ -285,11 +325,11 @@ export class ProjectObjectService {
     const result = supportsSubObjects
       ? await db.query(
       `INSERT INTO project_objects (
-        project_id, global_object_id, target_application_id, source_application_id, parent_project_object_id, sub_object_suffix, sub_object_description,
+        project_id, global_object_id, target_application_id, source_application_id, gateway_override_id, router_override_id, parent_project_object_id, sub_object_suffix, sub_object_description,
         complexity, deployment_disposition, build_type, object_type,
         cutover_phase, ddm_approach, risk_security_type, migration_type, factor_type, load_method,
         start_date, end_date, status, dra_user_id, developer_user_id, notes
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)
        RETURNING id, project_id, global_object_id, complexity, deployment_disposition, build_type,
                  object_type, cutover_phase, ddm_approach, risk_security_type, migration_type,
                  factor_type, load_method, start_date, end_date, status, dra_user_id,
@@ -299,6 +339,8 @@ export class ProjectObjectService {
         globalObjectId,
         targetApplicationId,
         sourceApplicationId,
+        gatewayOverrideId,
+        routerOverrideId,
         parentProjectObjectId,
         subObjectSuffix,
         subObjectDescription,
@@ -322,17 +364,19 @@ export class ProjectObjectService {
     )
       : await db.query(
       `INSERT INTO project_objects (
-        project_id, global_object_id, target_application_id, source_application_id,
+        project_id, global_object_id, target_application_id, source_application_id, gateway_override_id, router_override_id,
         complexity, deployment_disposition, build_type, object_type,
         cutover_phase, ddm_approach, risk_security_type, migration_type, factor_type, load_method,
         start_date, end_date, status, dra_user_id, developer_user_id, notes
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
        RETURNING id`,
       [
         projectId,
         globalObjectId,
         targetApplicationId,
         sourceApplicationId,
+        gatewayOverrideId,
+        routerOverrideId,
         data.complexity || null,
         data.deploymentDisposition || null,
         data.buildType || null,
@@ -358,6 +402,7 @@ export class ProjectObjectService {
 
   async updateProjectObject(projectObjectId: string, data: Partial<ProjectObjectInput>) {
     await this.ensureTargetApplicationColumn();
+    await this.ensureAiColumns();
     const supportsSubObjects = await this.supportsSubObjects();
     const fields: string[] = [];
     const values: any[] = [projectObjectId];
@@ -386,6 +431,8 @@ export class ProjectObjectService {
         : {}),
       targetApplicationId: 'target_application_id',
       sourceApplicationId: 'source_application_id',
+      gatewayOverrideId: 'gateway_override_id',
+      routerOverrideId: 'router_override_id',
       startDate: 'start_date',
       endDate: 'end_date',
       status: 'status',
@@ -441,6 +488,7 @@ export class ProjectObjectService {
 
   async getProjectObjectsByCycle(mockCycleId: string, filters?: { status?: string; draUserId?: string; developerUserId?: string; processArea?: string }) {
     await this.ensureTargetApplicationColumn();
+    await this.ensureAiColumns();
     const supportsSubObjects = await this.supportsSubObjects();
     let query = supportsSubObjects
       ? `
@@ -453,6 +501,8 @@ export class ProjectObjectService {
           ta.name AS target_application_name,
           po.source_application_id,
           sa.name AS source_application_name,
+          po.gateway_override_id,
+          po.router_override_id,
           po.complexity, po.deployment_disposition,
           po.build_type, po.object_type, po.cutover_phase, po.ddm_approach, po.risk_security_type,
           po.migration_type, po.factor_type, po.load_method, po.start_date, po.end_date, po.status,
@@ -473,6 +523,8 @@ export class ProjectObjectService {
            ta.name AS target_application_name,
                po.source_application_id,
                sa.name AS source_application_name,
+               po.gateway_override_id,
+               po.router_override_id,
                po.complexity, po.deployment_disposition,
                po.build_type, po.object_type, po.cutover_phase, po.ddm_approach, po.risk_security_type,
                po.migration_type, po.factor_type, po.load_method, po.start_date, po.end_date, po.status,
@@ -553,6 +605,8 @@ export class ProjectObjectService {
       targetApplicationName: row.target_application_name || null,
       sourceApplicationId: row.source_application_id || null,
       sourceApplicationName: row.source_application_name || null,
+      gatewayOverrideId: row.gateway_override_id || null,
+      routerOverrideId: row.router_override_id || null,
       complexity: row.complexity,
       deploymentDisposition: row.deployment_disposition,
       buildType: row.build_type,

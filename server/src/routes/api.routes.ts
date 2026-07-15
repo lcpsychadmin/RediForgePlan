@@ -18,6 +18,7 @@ import hierarchyPreferencesRouter from './hierarchyPreferences.routes.js';
 import settingsDatabricksRouter from './settingsDatabricks.routes.js';
 import settingsDbtRouter from './settingsDbt.routes.js';
 import cdmRouter from './cdm.routes.js';
+import aiRouter from './ai.routes.js';
 import validationRouter from '../validation/validation.routes.js';
 import issuesRouter from '../issues/issues.routes.js';
 import defectsRouter from '../defects/defects.routes.js';
@@ -56,5 +57,6 @@ apiRouter.use('/hierarchy-preferences', hierarchyPreferencesRouter);
 apiRouter.use('/settings/databricks', settingsDatabricksRouter);
 apiRouter.use('/settings/dbt', settingsDbtRouter);
 apiRouter.use('/cdm', cdmRouter);
+apiRouter.use('/ai', aiRouter);
 
 export default apiRouter;
