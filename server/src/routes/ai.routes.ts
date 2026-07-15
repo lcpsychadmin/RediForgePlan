@@ -24,6 +24,17 @@ const parseStringList = (value: unknown) => {
 
 const asJsonArray = (value: unknown) => JSON.stringify(parseStringList(value));
 
+const getRoutingRules = async () => {
+  const result = await db.query(
+    `SELECT id, default_gateway_id, default_router_id, routing_strategy, cost_ceiling,
+            provider_preferences, fallback_logic, ai_overrides_enabled, created_at, updated_at
+     FROM ai_routing_rules
+     ORDER BY created_at ASC
+     LIMIT 1`
+  );
+  return result.rows[0] || null;
+};
+
 router.get('/models', requireAuth, async (_req: Request, res: Response, next: NextFunction) => {
   try {
     const result = await db.query(
@@ -563,6 +574,111 @@ router.get('/object-routing/options', requireAuth, async (_req: Request, res: Re
     res.json(formatSingleResponse({
       gateways: gatewaysResult.rows,
       routers: routersResult.rows,
+    }));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/routing-rules', requireAuth, async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    const rules = await getRoutingRules();
+    res.json(formatSingleResponse(rules || {
+      defaultGatewayId: null,
+      defaultRouterId: null,
+      routingStrategy: 'balanced',
+      costCeiling: null,
+      providerPreferences: [],
+      fallbackLogic: '',
+      aiOverridesEnabled: true,
+    }));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.put('/routing-rules', requireAuth, requireRole('analyst', 'admin'), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const {
+      defaultGatewayId,
+      defaultRouterId,
+      routingStrategy,
+      costCeiling,
+      providerPreferences,
+      fallbackLogic,
+      aiOverridesEnabled,
+    } = req.body || {};
+
+    const existing = await getRoutingRules();
+
+    const result = existing
+      ? await db.query(
+        `UPDATE ai_routing_rules
+         SET default_gateway_id = $1,
+             default_router_id = $2,
+             routing_strategy = $3,
+             cost_ceiling = $4,
+             provider_preferences = $5::jsonb,
+             fallback_logic = $6,
+             ai_overrides_enabled = $7,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $8
+         RETURNING id, default_gateway_id, default_router_id, routing_strategy, cost_ceiling, provider_preferences, fallback_logic, ai_overrides_enabled, created_at, updated_at`,
+        [
+          defaultGatewayId || null,
+          defaultRouterId || null,
+          routingStrategy || 'balanced',
+          costCeiling || null,
+          asJsonArray(providerPreferences),
+          fallbackLogic || null,
+          aiOverridesEnabled !== false,
+          existing.id,
+        ]
+      )
+      : await db.query(
+        `INSERT INTO ai_routing_rules
+           (default_gateway_id, default_router_id, routing_strategy, cost_ceiling, provider_preferences, fallback_logic, ai_overrides_enabled)
+         VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7)
+         RETURNING id, default_gateway_id, default_router_id, routing_strategy, cost_ceiling, provider_preferences, fallback_logic, ai_overrides_enabled, created_at, updated_at`,
+        [
+          defaultGatewayId || null,
+          defaultRouterId || null,
+          routingStrategy || 'balanced',
+          costCeiling || null,
+          asJsonArray(providerPreferences),
+          fallbackLogic || null,
+          aiOverridesEnabled !== false,
+        ]
+      );
+
+    res.json(formatSingleResponse(result.rows[0]));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/object-routing/global-object-id-by-code', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const objectId = String(req.query.objectId || '').trim();
+    if (!objectId) {
+      throw new ApiError(400, 'objectId query parameter is required', 'MISSING_FIELD');
+    }
+
+    const result = await db.query(
+      `SELECT id, object_id
+       FROM global_objects
+       WHERE object_id = $1
+       LIMIT 1`,
+      [objectId]
+    );
+
+    if (!result.rows.length) {
+      throw new ApiError(404, 'Global object not found', 'NOT_FOUND');
+    }
+
+    res.json(formatSingleResponse({
+      globalObjectId: result.rows[0].id,
+      objectId: result.rows[0].object_id,
     }));
   } catch (error) {
     next(error);

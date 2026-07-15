@@ -1,18 +1,30 @@
 # Common Data Model
 
-This document defines how RediForge uses the Common Data Model (CDM) in Object Inventory and how Databricks metadata ingestion supports application data definitions.
+## Overview
 
-## Purpose
+Common Data Model management is page-based and attached to object workspace routes.
 
-The Common Data Model provides a shared, object-level definition for:
+Route:
 
-- CDM attributes
-- CDM relationships
-- CDM business rules
+- /objects/:objectId/cdm
 
-It is managed separately from application-specific data definitions so each application can keep its own physical metadata while sharing common business definitions.
+The Common Data Model page presents object-level definitions without modal editing.
 
-## Data Structure
+## Terminology
+
+User-facing labels use these terms:
+
+- Attribute
+- Relationships
+- Attribute Name
+- Description
+- Data Type
+- Length
+- Business Rules
+
+CDM-prefixed labels are no longer used in object editing surfaces.
+
+## Data Structures
 
 ### common_data_model
 
@@ -27,7 +39,7 @@ One row per global object.
 
 ### cdm_attributes
 
-CDM attribute rows for a common data model.
+Attribute rows for a common data model.
 
 - id
 - common_data_model_id
@@ -58,34 +70,17 @@ Relationship rows connected to a common data model.
 
 ## API
 
-Base route: `/api/cdm`
+Base route: /api/common-data-model/object
 
-- `GET /:objectId`
+- GET /:objectId
   - Returns model, attributes, and relationships for a global object.
-- `POST /:objectId`
-  - Upserts model-level data and saves CDM attributes/relationships.
-- `PUT /:objectId/attribute/:attributeId`
-  - Updates one CDM attribute row.
-- `DELETE /:objectId/attribute/:attributeId`
-  - Deletes one CDM attribute row.
+- PUT /:objectId
+  - Upserts model-level data and saves attributes/relationships.
 
-## UI Integration
+## Related Object Pages
 
-- The object table action `Assign Application` opens the dedicated `CommonDataModelModal`.
-- The Applications & Data Definitions panel remains focused on application-specific sub-objects and fields.
-- Common Data Model is shown as a distinct, muted row in the sidebar with a divider and layers icon.
+- Applications: /objects/:objectId/applications
+- Relationships: /objects/:objectId/relationships
+- Metadata: /objects/:objectId/metadata
 
-## Databricks Metadata Ingestion
-
-Within an application data definition:
-
-- Use `Pull Metadata from Databricks`.
-- Select catalog, schema, and table from live cascading dropdowns.
-- The sync imports and updates field definitions including:
-  - field name
-  - label (from comment when available)
-  - data type
-  - length
-  - required/nullability indicator
-  - key indicator
-- A `Last Synced` timestamp is shown per linked application definition.
+Databricks metadata sync is available on object metadata workflows and no longer requires modal-based object editing.

@@ -25,6 +25,12 @@ import ProjectDefectsPage from './pages/ProjectDefectsPage';
 import SchedulePage from './pages/SchedulePage';
 import MyTasksPage from './pages/MyTasksPage';
 import ReportingDashboardPage from './pages/ReportingDashboardPage';
+import ObjectIndexPage from './pages/objects/[objectId]/index';
+import ObjectApplicationsPage from './pages/objects/[objectId]/applications';
+import ObjectCdmPage from './pages/objects/[objectId]/cdm';
+import ObjectRelationshipsPage from './pages/objects/[objectId]/relationships';
+import ObjectMetadataPage from './pages/objects/[objectId]/metadata';
+import ObjectAiOverridesPage from './pages/objects/[objectId]/ai-overrides';
 
 // Layout
 import Layout from './components/Layout';
@@ -219,6 +225,60 @@ const AppRoutes: React.FC = () => {
         element={
           <ProtectedRoute>
             <SettingsPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/objects/:objectId"
+        element={
+          <ProtectedRoute>
+            <ObjectIndexPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/objects/:objectId/applications"
+        element={
+          <ProtectedRoute>
+            <ObjectApplicationsPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/objects/:objectId/cdm"
+        element={
+          <ProtectedRoute>
+            <ObjectCdmPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/objects/:objectId/relationships"
+        element={
+          <ProtectedRoute>
+            <ObjectRelationshipsPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/objects/:objectId/metadata"
+        element={
+          <ProtectedRoute>
+            <ObjectMetadataPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/objects/:objectId/ai-overrides"
+        element={
+          <ProtectedRoute>
+            <ObjectAiOverridesPage />
           </ProtectedRoute>
         }
       />

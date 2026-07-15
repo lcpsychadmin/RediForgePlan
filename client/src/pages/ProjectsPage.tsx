@@ -78,8 +78,6 @@ import apiClient from '../api/client';
 import Layout from '../components/Layout';
 import ProcessAreaRoleAssignmentPanel from '../components/ProcessAreaRoleAssignmentPanel';
 import TaskDetailModal from '../components/tasks/TaskDetailModal';
-import CommonDataModelModal from '../components/CommonDataModelModal';
-import ObjectAiRoutingModal from '../components/ObjectAiRoutingModal';
 import ProjectDefectsPage from './ProjectDefectsPage';
 import DataMigrationStrategyView from '../components/strategy/DataMigrationStrategyView';
 import PlanningDeliverablesTracker from '../components/plan/PlanningDeliverablesTracker';
@@ -14285,9 +14283,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                           PROCESS AREA
                         </Box>
                         <Box sx={{ backgroundColor: 'rgba(255,255,255,0.07)', p: 1, fontWeight: 700, color: 'rgba(255,255,255,0.5)', fontSize: '0.72rem', letterSpacing: '0.4px', textAlign: 'center' }}>
-                          AI ROUTING
-                        </Box>
-                        <Box sx={{ backgroundColor: 'rgba(255,255,255,0.07)', p: 1, fontWeight: 700, color: 'rgba(255,255,255,0.5)', fontSize: '0.72rem', letterSpacing: '0.4px', textAlign: 'center' }}>
                           ACTIONS
                         </Box>
 
@@ -14326,19 +14321,15 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                   ))}
                                 </Box>
                               </Box>
-                              <Box sx={{ p: 0.75, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: idx % 2 === 0 ? 'rgba(255,255,255,0.03)' : 'transparent', textAlign: 'center' }}>
+                              <Box sx={{ p: 0.75, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: idx % 2 === 0 ? 'rgba(255,255,255,0.03)' : 'transparent', display: 'flex', gap: 0.25, justifyContent: 'center', alignItems: 'center' }}>
                                 <Button
                                   size="small"
                                   variant="outlined"
-                                  onClick={() => {
-                                    openObjectAiRoutingModal(obj).catch(() => {});
-                                  }}
+                                  onClick={() => navigate(`/objects/${encodeURIComponent(obj.id)}`)}
                                   sx={{ textTransform: 'none', fontSize: '0.68rem', px: 0.8, py: 0.2 }}
                                 >
-                                  Assign AI Routing
+                                  Open Object Page
                                 </Button>
-                              </Box>
-                              <Box sx={{ p: 0.75, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: idx % 2 === 0 ? 'rgba(255,255,255,0.03)' : 'transparent', display: 'flex', gap: 0.25, justifyContent: 'center', alignItems: 'center' }}>
                                 <IconButton
                                   size="small"
                                   onClick={() => handleEditCatalogObject(obj)}
@@ -14346,16 +14337,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                   title="Edit"
                                 >
                                   <EditIcon sx={{ fontSize: '1rem' }} />
-                                </IconButton>
-                                <IconButton
-                                  size="small"
-                                  title="Assign Application"
-                                  onClick={() => {
-                                    openCommonDataModelModal(obj.id, obj).catch(() => {});
-                                  }}
-                                  sx={{ color: 'rgba(255,255,255,0.5)', '&:hover': { color: 'white', backgroundColor: 'rgba(255,255,255,0.08)' } }}
-                                >
-                                  <LayersIcon sx={{ fontSize: '1rem' }} />
                                 </IconButton>
                                 <IconButton
                                   size="small"
@@ -14456,8 +14437,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                     </Box>
 
                     <Box sx={{ overflowX: 'auto' }}>
-                      <Box sx={{ minWidth: 1260, display: 'grid', gridTemplateColumns: '2.2fr 0.9fr 0.9fr 1.05fr 0.75fr 0.75fr 0.95fr 0.55fr', gap: 0, borderRadius: 1.25, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)' }}>
-                        {['DATA OBJECT', 'PROCESS AREA', 'COMPLEXITY', 'DEPLOY. DISPOSITION', 'BUILD TYPE', 'OBJECT TYPE', 'AI ROUTING', 'ACTIONS'].map((header) => (
+                      <Box sx={{ minWidth: 1180, display: 'grid', gridTemplateColumns: '2.2fr 0.9fr 0.9fr 1.05fr 0.75fr 0.75fr 0.95fr', gap: 0, borderRadius: 1.25, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)' }}>
+                        {['DATA OBJECT', 'PROCESS AREA', 'COMPLEXITY', 'DEPLOY. DISPOSITION', 'BUILD TYPE', 'OBJECT TYPE', 'ACTIONS'].map((header) => (
                           <Box key={header} sx={{ backgroundColor: 'rgba(255,255,255,0.07)', p: 1, fontWeight: 700, color: 'rgba(255,255,255,0.5)', fontSize: '0.72rem', letterSpacing: '0.4px' }}>
                             {header}
                           </Box>
@@ -14616,29 +14597,26 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                   )}
                                 </Box>
 
-                                <Box sx={{ p: 0.45, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: rowBg, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                                <Box sx={{ p: 0.45, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: rowBg, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 0.2 }}>
                                   {isSubObject ? (
-                                    <Typography sx={{ color: 'rgba(255,255,255,0.3)', fontSize: '0.85rem' }}>—</Typography>
-                                  ) : (
                                     <Button
                                       size="small"
                                       variant="outlined"
-                                      onClick={() => openObjectAiRoutingModal({
-                                        id: item.globalObjectId,
-                                        objectId: item.dataObjectId,
-                                      }).catch(() => {})}
+                                      onClick={() => navigate(`/objects/${encodeURIComponent(item.globalObjectId || item.dataObjectId)}`)}
                                       sx={{ textTransform: 'none', fontSize: '0.66rem', px: 0.7, py: 0.15 }}
                                     >
-                                      Assign AI Routing
+                                      Open Object Page
                                     </Button>
-                                  )}
-                                </Box>
-
-                                <Box sx={{ p: 0.45, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: rowBg, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 0.2 }}>
-                                  {isSubObject ? (
-                                    <Typography sx={{ color: 'rgba(255,255,255,0.3)', fontSize: '0.85rem' }}>—</Typography>
                                   ) : (
                                     <>
+                                      <Button
+                                        size="small"
+                                        variant="outlined"
+                                        onClick={() => navigate(`/objects/${encodeURIComponent(item.globalObjectId || item.dataObjectId)}`)}
+                                        sx={{ textTransform: 'none', fontSize: '0.66rem', px: 0.7, py: 0.15, mr: 0.3 }}
+                                      >
+                                        Open Object Page
+                                      </Button>
                                       <IconButton size="small" title="Edit" onClick={() => handleEditInventoryItem(item)} sx={{ color: 'rgba(255,255,255,0.5)', '&:hover': { color: 'white', backgroundColor: 'rgba(255,255,255,0.08)' } }}>
                                         <EditIcon sx={{ fontSize: '0.95rem' }} />
                                       </IconButton>
@@ -17516,19 +17494,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
         </DialogActions>
       </Dialog>
 
-      <ObjectAiRoutingModal
-        open={objectAiRoutingModalOpen}
-        objectLabel={objectAiRoutingTarget?.objectId || ''}
-        gatewayOptions={objectAiRoutingOptions.gateways.map((gateway) => ({ id: gateway.id, label: gateway.name }))}
-        routerOptions={objectAiRoutingOptions.routers.map((router) => ({ id: router.id, label: router.name }))}
-        initialValues={objectAiRoutingInitialValues}
-        onClose={() => {
-          setObjectAiRoutingModalOpen(false);
-          setObjectAiRoutingTarget(null);
-        }}
-        onSave={saveObjectAiRouting}
-      />
-
       {/* Project Inventory Item Dialog */}
       <Dialog open={projectInventoryDialogOpen} onClose={() => {
         setProjectInventoryDialogOpen(false);
@@ -18412,19 +18377,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
           </Box>
         </DialogContent>
       </Dialog>
-
-      <CommonDataModelModal
-        open={commonDataModelModalOpen}
-        objectLabel={cdmModalObject?.objectId || dataDefPanelObject?.objectId || commonDataModel?.objectName || ''}
-        attributes={cdmAttributes}
-        relationships={cdmRelationships}
-        saving={isSavingCommonDataModel}
-        onClose={() => { setCommonDataModelModalOpen(false); setCdmModalObjectId(null); setCdmModalObject(null); }}
-        onSave={async (payload) => {
-          if (!cdmModalObjectId) return;
-          await saveCommonDataModelForObject(cdmModalObjectId, payload);
-        }}
-      />
 
       <Dialog
         open={metadataSyncDialogOpen}

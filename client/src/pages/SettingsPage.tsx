@@ -61,6 +61,7 @@ import DbtSettings from '../components/settings/DbtSettings';
 import AiModelRegistryPanel from '../components/settings/AiModelRegistryPanel';
 import AiGatewayPanel from '../components/settings/AiGatewayPanel';
 import AiRouterPanel from '../components/settings/AiRouterPanel';
+import AiRoutingRulesPage from './AiRoutingRulesPage';
 import { UNIFIED_ROLE_MODEL, type UnifiedRoleKey } from '../constants/unifiedRoleModel';
 import {
   DEFAULT_DATABRICKS_SETTINGS,
@@ -405,6 +406,7 @@ const SettingsPage: React.FC = () => {
   const isAiModelsMode = selectedMenuItem === 'aiModels';
   const isAiGatewaysMode = selectedMenuItem === 'aiGateways';
   const isAiRoutersMode = selectedMenuItem === 'aiRouters';
+  const isAiRoutingRulesMode = selectedMenuItem === 'aiRoutingRules';
 
   const handleAddValue = () => {
     if (!selectedPicklist) return;
@@ -918,6 +920,22 @@ const SettingsPage: React.FC = () => {
                         <AccountTreeIcon sx={{ fontSize: '1rem' }} />
                         <ListItemText primary="AI Routers" />
                       </ListItem>
+
+                      <ListItem
+                        button
+                        selected={isAiRoutingRulesMode}
+                        onClick={() => setSelectedMenuItem('aiRoutingRules')}
+                        sx={{
+                          backgroundColor: isAiRoutingRulesMode ? 'primary.lighter' : 'transparent',
+                          '&:hover': { backgroundColor: 'action.hover' },
+                          borderLeft: isAiRoutingRulesMode ? '4px solid' : 'none',
+                          borderColor: 'primary.main',
+                          gap: 1,
+                        }}
+                      >
+                        <AltRouteIcon sx={{ fontSize: '1rem' }} />
+                        <ListItemText primary="AI Routing Rules" />
+                      </ListItem>
                     </List>
                   </AccordionDetails>
                 </Accordion>
@@ -948,6 +966,8 @@ const SettingsPage: React.FC = () => {
                     ? 'AI Gateways'
                   : isAiRoutersMode
                     ? 'AI Routers'
+                  : isAiRoutingRulesMode
+                    ? 'AI Routing Rules'
                     : 'Default Task Templates'
             } />
             <Divider />
@@ -1379,6 +1399,8 @@ const SettingsPage: React.FC = () => {
               {isAiGatewaysMode && <AiGatewayPanel />}
 
               {isAiRoutersMode && <AiRouterPanel />}
+
+              {isAiRoutingRulesMode && <AiRoutingRulesPage />}
 
               {/* Save Button */}
               {(isPicklistMode || isDesignBuildTasksMode || isDesignBuildEstimationMode) && (
