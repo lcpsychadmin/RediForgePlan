@@ -258,7 +258,7 @@ class AiExecutionService {
       body: JSON.stringify(body),
     });
 
-    const responseJson = await response.json().catch(() => ({}));
+    const responseJson: any = await response.json().catch(() => ({}));
     if (!response.ok) {
       throw new ApiError(
         response.status,
@@ -329,8 +329,9 @@ class AiExecutionService {
       routerId: context.routerId || policy?.default_router_id || undefined,
     });
     const responsePayload = await this.executeRequest(selection.model, context.payload || {});
-    const usageRequestTokens = responsePayload?.usage?.prompt_tokens || context.requestTokens || null;
-    const usageResponseTokens = responsePayload?.usage?.completion_tokens || context.responseTokens || null;
+    const usagePayload = (responsePayload && 'usage' in responsePayload) ? (responsePayload as any).usage : null;
+    const usageRequestTokens = usagePayload?.prompt_tokens || context.requestTokens || null;
+    const usageResponseTokens = usagePayload?.completion_tokens || context.responseTokens || null;
 
     const usage = await this.logUsage({
       modelId: selection.model.id,
