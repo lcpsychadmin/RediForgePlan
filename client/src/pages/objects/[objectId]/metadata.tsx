@@ -2,7 +2,7 @@ import React from 'react';
 import { Alert, Box, Button, Card, CardContent, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import { useParams } from 'react-router-dom';
 import Layout from '../../../components/Layout';
-import ObjectPageTabs from '../../../components/objects/ObjectPageTabs';
+import ObjectWorkspaceHeader from '../../../components/objects/ObjectWorkspaceHeader';
 import apiClient from '../../../api/client';
 
 const ObjectMetadataPage: React.FC = () => {
@@ -52,9 +52,8 @@ const ObjectMetadataPage: React.FC = () => {
 
   return (
     <Layout>
-      <Box sx={{ p: 2 }}>
-        <Typography variant="h5" sx={{ fontWeight: 700, mb: 2 }}>Object Metadata</Typography>
-        <ObjectPageTabs objectId={objectId} />
+      <Box sx={{ p: 3 }}>
+        <ObjectWorkspaceHeader objectId={objectId} title="Object Metadata" />
 
         <Card sx={{ backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.12)' }}>
           <CardContent>

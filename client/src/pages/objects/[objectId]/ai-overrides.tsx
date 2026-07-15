@@ -2,7 +2,7 @@ import React from 'react';
 import { Alert, Box, Button, Card, CardContent, MenuItem, Stack, Switch, TextField, Typography } from '@mui/material';
 import { useParams } from 'react-router-dom';
 import Layout from '../../../components/Layout';
-import ObjectPageTabs from '../../../components/objects/ObjectPageTabs';
+import ObjectWorkspaceHeader from '../../../components/objects/ObjectWorkspaceHeader';
 import apiClient from '../../../api/client';
 
 const ObjectAiOverridesPage: React.FC = () => {
@@ -87,9 +87,12 @@ const ObjectAiOverridesPage: React.FC = () => {
 
   return (
     <Layout>
-      <Box sx={{ p: 2 }}>
-        <Typography variant="h5" sx={{ fontWeight: 700, mb: 2 }}>Object AI Overrides</Typography>
-        <ObjectPageTabs objectId={objectId} showAiOverrides={enabled} />
+      <Box sx={{ p: 3 }}>
+        <ObjectWorkspaceHeader
+          objectId={objectId}
+          title="Object AI Overrides"
+          showAiOverrides={enabled}
+        />
 
         {!enabled ? (
           <Alert severity="info">Global AI overrides are disabled in Settings. Enable them under AI Routing Rules to use this page.</Alert>
