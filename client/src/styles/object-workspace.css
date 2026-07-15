@@ -1,0 +1,52 @@
+.table-container {
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.table-header {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.table-row[data-row-odd='true'] {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.table-row:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.table-cell {
+  border-color: rgba(255, 255, 255, 0.12) !important;
+  color: rgba(234, 241, 255, 0.9);
+  font-size: 0.875rem;
+}
+
+.table-header .table-cell {
+  font-weight: 700;
+  color: rgba(234, 241, 255, 0.78);
+  background: rgba(255, 255, 255, 0.06);
+  text-transform: none;
+}
+
+.table-cell-object-id {
+  font-weight: 700;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+}
+
+.object-workspace-header {
+  margin-bottom: 20px;
+}
+
+.object-workspace-back-link {
+  margin-bottom: 6px;
+}
+
+.object-workspace-breadcrumbs {
+  margin-bottom: 8px;
+}
+
+.object-workspace-tabs {
+  margin-top: 8px;
+}

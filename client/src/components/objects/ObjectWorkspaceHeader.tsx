@@ -40,17 +40,22 @@ const ObjectWorkspaceHeader: React.FC<ObjectWorkspaceHeaderProps> = ({
   }, [objectId]);
 
   return (
-    <Box sx={{ mb: 2.5 }}>
+    <Box className="object-workspace-header" sx={{ mb: 2.5 }}>
       <Button
         component={RouterLink}
         to="/object-inventory"
         startIcon={<ArrowBackIcon sx={{ fontSize: '1rem' }} />}
+        className="object-workspace-back-link"
         sx={{ textTransform: 'none', px: 0, mb: 0.75, color: 'text.secondary' }}
       >
         Back to Object Inventory
       </Button>
 
-      <Breadcrumbs separator="/" sx={{ mb: 1, '& .MuiBreadcrumbs-separator': { color: 'text.disabled' } }}>
+      <Breadcrumbs
+        className="object-workspace-breadcrumbs"
+        separator="/"
+        sx={{ mb: 1, '& .MuiBreadcrumbs-separator': { color: 'text.disabled' } }}
+      >
         <Link
           component={RouterLink}
           underline="hover"
@@ -68,7 +73,11 @@ const ObjectWorkspaceHeader: React.FC<ObjectWorkspaceHeaderProps> = ({
         {title}
       </Typography>
 
-      {showTabs && <ObjectPageTabs objectId={objectId} showAiOverrides={showAiOverrides} />}
+      {showTabs && (
+        <Box className="object-workspace-tabs">
+          <ObjectPageTabs objectId={objectId} showAiOverrides={showAiOverrides} />
+        </Box>
+      )}
     </Box>
   );
 };

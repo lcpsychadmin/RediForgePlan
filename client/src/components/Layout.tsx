@@ -35,12 +35,16 @@ const Layout: React.FC<LayoutProps> = ({
     location.pathname.startsWith('/planning') ||
     location.pathname.startsWith('/design') ||
     location.pathname.startsWith('/settings') ||
+    location.pathname.startsWith('/object-inventory') ||
+    location.pathname.startsWith('/objects/') ||
     location.pathname.startsWith('/admin') ||
     location.pathname === '/dashboard' ||
     ['/projects', '/priorities', '/schedule', '/defects', '/my-tasks'].includes(location.pathname);
   // Pages that should NOT show the global filter bar or the sub-nav pills
   const isNoFilterPage =
     location.pathname.startsWith('/settings') ||
+    location.pathname.startsWith('/object-inventory') ||
+    location.pathname.startsWith('/objects/') ||
     location.pathname.startsWith('/admin') ||
     location.pathname === '/dashboard' ||
     location.pathname.startsWith('/planning') ||

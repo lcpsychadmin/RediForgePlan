@@ -4,7 +4,6 @@ import {
   Box,
   Button,
   CircularProgress,
-  Paper,
   Table,
   TableBody,
   TableCell,
@@ -16,7 +15,6 @@ import {
 import { useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
 import apiClient from '../api/client';
-import { palette } from '../theme/palette';
 
 interface GlobalObjectRow {
   id: string;
@@ -73,30 +71,12 @@ const ObjectInventoryPage: React.FC = () => {
         ) : error ? (
           <Alert severity="error">{error}</Alert>
         ) : (
-          <TableContainer
-            component={Paper}
-            sx={{
-              backgroundColor: palette.background.paper,
-              backgroundImage: 'none',
-              borderRadius: 1.5,
-              border: `1px solid ${palette.divider}`,
-              overflow: 'hidden',
-            }}
-          >
+          <TableContainer className="table-container">
             <Table stickyHeader>
-              <TableHead sx={{ backgroundColor: palette.background.elevated }}>
-                <TableRow>
+              <TableHead className="table-header">
+                <TableRow className="table-row">
                   {['Object ID', 'Description', 'Process Area', 'Actions'].map((header) => (
-                    <TableCell
-                      key={header}
-                      sx={{
-                        fontWeight: 700,
-                        color: palette.text.primary,
-                        backgroundColor: palette.background.elevated,
-                        borderColor: palette.divider,
-                        fontSize: '0.875rem',
-                      }}
-                    >
+                    <TableCell key={header} className="table-cell">
                       {header}
                     </TableCell>
                   ))}
@@ -104,8 +84,8 @@ const ObjectInventoryPage: React.FC = () => {
               </TableHead>
               <TableBody>
                 {objects.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={4} sx={{ color: 'text.secondary', py: 2.5 }}>
+                  <TableRow className="table-row">
+                    <TableCell colSpan={4} className="table-cell" sx={{ color: 'text.secondary', py: 2.5 }}>
                       No objects found.
                     </TableCell>
                   </TableRow>
@@ -115,21 +95,19 @@ const ObjectInventoryPage: React.FC = () => {
                     return (
                       <TableRow
                         key={obj.id}
-                        sx={{
-                          backgroundColor: idx % 2 === 0 ? 'transparent' : `${palette.background.elevated}40`,
-                          '&:hover': { backgroundColor: `${palette.primary.main}08` },
-                        }}
+                        className="table-row"
+                        data-row-odd={idx % 2 !== 0 ? 'true' : 'false'}
                       >
-                        <TableCell sx={{ color: palette.text.primary, fontWeight: 600, borderColor: palette.divider }}>
+                        <TableCell className="table-cell table-cell-object-id">
                           {objectCode}
                         </TableCell>
-                        <TableCell sx={{ color: palette.text.secondary, borderColor: palette.divider }}>
+                        <TableCell className="table-cell">
                           {obj.description || '-'}
                         </TableCell>
-                        <TableCell sx={{ color: palette.text.secondary, borderColor: palette.divider }}>
+                        <TableCell className="table-cell">
                           {obj.processArea || obj.process_area || '-'}
                         </TableCell>
-                        <TableCell sx={{ borderColor: palette.divider }}>
+                        <TableCell className="table-cell">
                           <Button
                             variant="outlined"
                             size="small"
