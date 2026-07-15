@@ -31,7 +31,7 @@ const ObjectRelationshipsPage: React.FC = () => {
             ) : relationships.map((rel) => (
               <Box key={rel.id} sx={{ py: 0.8, borderTop: '1px solid rgba(255,255,255,0.08)' }}>
                 <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                  {rel.sourceEntity || rel.sourceAttribute || 'Unknown source'} -> {rel.targetEntity || rel.targetAttribute || 'Unknown target'}
+                  {rel.sourceEntity || rel.sourceAttribute || 'Unknown source'} {'->'} {rel.targetEntity || rel.targetAttribute || 'Unknown target'}
                 </Typography>
                 <Typography variant="caption" color="text.secondary">
                   {rel.relationshipType || 'related'}
