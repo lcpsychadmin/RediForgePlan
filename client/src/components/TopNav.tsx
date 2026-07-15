@@ -85,7 +85,8 @@ const TopNav: React.FC<TopNavProps> = ({
     return localUnread > 0 ? localUnread : unreadCount;
   }, [notifications, unreadCount]);
   const isExecutionPage = location.pathname === '/projects';
-  const isPlanningPage = location.pathname.startsWith('/planning');
+  const isObjectWorkspacePage = location.pathname === '/object-inventory' || location.pathname.startsWith('/objects/');
+  const isPlanningPage = location.pathname.startsWith('/planning') || isObjectWorkspacePage;
   const isDesignPage = location.pathname.startsWith('/design');
   const isDashboardPage = location.pathname === '/dashboard';
   const isSettingsPage = location.pathname.startsWith('/settings') || location.pathname.startsWith('/admin');
