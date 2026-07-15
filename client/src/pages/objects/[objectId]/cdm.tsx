@@ -122,7 +122,7 @@ const ObjectCdmPage: React.FC = () => {
               ) : (
                 relationships.map((rel) => (
                   <Typography key={rel.id} variant="body2" sx={{ mb: 0.5 }}>
-                    {rel.sourceEntity || rel.sourceAttribute || 'Unknown source'} -> {rel.targetEntity || rel.targetAttribute || 'Unknown target'} ({rel.relationshipType || 'related'})
+                    {rel.sourceEntity || rel.sourceAttribute || 'Unknown source'} {'->'} {rel.targetEntity || rel.targetAttribute || 'Unknown target'} ({rel.relationshipType || 'related'})
                   </Typography>
                 ))
               )}
