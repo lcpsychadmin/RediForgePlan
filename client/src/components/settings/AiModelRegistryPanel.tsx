@@ -23,10 +23,11 @@ interface ModelRow {
   provider: string;
   costTier: string;
   capabilities: string[];
+  endpointUrl: string;
+  maxTokens: string;
+  latencyClass: string;
   status: 'Enabled' | 'Disabled';
 }
-
-const slugify = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 
 const AiModelRegistryPanel: React.FC = () => {
   const [rows, setRows] = React.useState<ModelRow[]>([]);
@@ -41,6 +42,9 @@ const AiModelRegistryPanel: React.FC = () => {
       provider: row.provider || '-',
       costTier: row.model_family || '-',
       capabilities: Array.isArray(row.capabilities) ? row.capabilities.map((entry: any) => entry.capabilityKey) : [],
+      endpointUrl: row.endpoint_url || '',
+      maxTokens: row.max_tokens ? String(row.max_tokens) : '',
+      latencyClass: row.latency_class || 'standard',
       status: row.is_active ? 'Enabled' : 'Disabled',
     }));
     setRows(mapped);
@@ -51,11 +55,16 @@ const AiModelRegistryPanel: React.FC = () => {
   }, [loadModels]);
 
   const handleSave = async (values: RegisterModelFormValues) => {
+    const normalizedModelName = values.modelName.trim();
     const payload = {
-      modelKey: slugify(values.modelName),
-      displayName: values.modelName,
+      modelKey: normalizedModelName,
+      displayName: normalizedModelName,
       provider: values.provider,
       modelFamily: values.costTier,
+      endpointUrl: values.endpointUrl || null,
+      apiKey: values.apiKey || null,
+      maxTokens: values.maxTokens ? Number(values.maxTokens) : null,
+      latencyClass: values.latencyClass || null,
       isActive: values.enabled,
     };
 
@@ -86,10 +95,12 @@ const AiModelRegistryPanel: React.FC = () => {
     ? {
         modelName: editingRow.modelName,
         provider: editingRow.provider === '-' ? 'openai' : editingRow.provider,
-        endpointUrl: '',
+        endpointUrl: editingRow.endpointUrl,
         apiKey: '',
         costTier: editingRow.costTier === '-' ? 'standard' : editingRow.costTier,
         capabilities: editingRow.capabilities,
+        maxTokens: editingRow.maxTokens,
+        latencyClass: editingRow.latencyClass || 'standard',
         enabled: editingRow.status === 'Enabled',
       }
     : undefined;

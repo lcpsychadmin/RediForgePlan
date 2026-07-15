@@ -18,6 +18,23 @@ type AiSelectionResult = {
   router: any | null;
 };
 
+type ModelWithCapabilities = {
+  id: string;
+  model_key: string;
+  display_name: string;
+  provider: string | null;
+  model_family: string | null;
+  context_window: number | null;
+  endpoint_url: string | null;
+  api_key: string | null;
+  max_tokens: number | null;
+  latency_class: string | null;
+  input_cost_per_1k_tokens: number | null;
+  output_cost_per_1k_tokens: number | null;
+  is_active: boolean;
+  capabilities: string[];
+};
+
 const parseIdList = (value: unknown): string[] => {
   if (!Array.isArray(value)) {
     return [];
@@ -28,10 +45,17 @@ const parseIdList = (value: unknown): string[] => {
 class AiExecutionService {
   private async loadModelById(modelId: string) {
     const result = await db.query(
-      `SELECT id, model_key, display_name, provider, model_family, context_window,
-              input_cost_per_1k_tokens, output_cost_per_1k_tokens, is_active, created_at, updated_at
-       FROM ai_models
-       WHERE id = $1`,
+      `SELECT m.id, m.model_key, m.display_name, m.provider, m.model_family, m.context_window,
+              m.endpoint_url, m.api_key, m.max_tokens, m.latency_class,
+              m.input_cost_per_1k_tokens, m.output_cost_per_1k_tokens, m.is_active,
+              COALESCE(
+                json_agg(c.capability_key ORDER BY c.capability_key) FILTER (WHERE c.id IS NOT NULL AND c.is_supported = TRUE),
+                '[]'::json
+              ) AS capabilities
+       FROM ai_models m
+       LEFT JOIN ai_model_capabilities c ON c.model_id = m.id
+       WHERE m.id = $1
+       GROUP BY m.id`,
       [modelId]
     );
 
@@ -40,6 +64,25 @@ class AiExecutionService {
     }
 
     return result.rows[0];
+  }
+
+  private async loadAllActiveModels() {
+    const result = await db.query(
+      `SELECT m.id, m.model_key, m.display_name, m.provider, m.model_family, m.context_window,
+              m.endpoint_url, m.api_key, m.max_tokens, m.latency_class,
+              m.input_cost_per_1k_tokens, m.output_cost_per_1k_tokens, m.is_active,
+              COALESCE(
+                json_agg(c.capability_key ORDER BY c.capability_key) FILTER (WHERE c.id IS NOT NULL AND c.is_supported = TRUE),
+                '[]'::json
+              ) AS capabilities
+       FROM ai_models m
+       LEFT JOIN ai_model_capabilities c ON c.model_id = m.id
+       WHERE m.is_active = TRUE
+       GROUP BY m.id
+       ORDER BY m.display_name ASC`
+    );
+
+    return result.rows as ModelWithCapabilities[];
   }
 
   private async loadGatewayById(gatewayId: string) {
@@ -59,7 +102,9 @@ class AiExecutionService {
 
   private async loadRouterById(routerId: string) {
     const result = await db.query(
-      `SELECT id, name, description, strategy, primary_gateway_id, fallback_gateway_id, allowed_model_ids, is_active, created_at, updated_at
+      `SELECT id, name, description, strategy, primary_gateway_id, fallback_gateway_id, allowed_model_ids,
+              preferred_cost_tiers, preferred_latency_class, required_capabilities, fallback_model_ids,
+              is_active, created_at, updated_at
        FROM ai_routers
        WHERE id = $1`,
       [routerId]
@@ -90,7 +135,7 @@ class AiExecutionService {
 
   async selectModel(context: Pick<AiExecutionContext, 'modelId' | 'gatewayId' | 'routerId' | 'capabilityKeys'>): Promise<AiSelectionResult> {
     if (context.modelId) {
-      const model = await this.loadModelById(context.modelId);
+      const model = await this.loadModelById(context.modelId) as ModelWithCapabilities;
       return { model, gateway: null, router: null };
     }
 
@@ -101,16 +146,37 @@ class AiExecutionService {
         ? await this.loadGatewayById(String(router.primary_gateway_id))
         : null;
 
-    const allowedModelIds = new Set<string>([...parseIdList(router?.allowed_model_ids)]);
-    const candidateRows = await db.query(
-      `SELECT id, model_key, display_name, provider, model_family, context_window,
-              input_cost_per_1k_tokens, output_cost_per_1k_tokens, is_active, created_at, updated_at
-       FROM ai_models
-       WHERE is_active = TRUE
-       ORDER BY display_name ASC`
-    );
+    const allowedModelIds = new Set<string>(parseIdList(router?.allowed_model_ids));
+    const preferredCostTiers = parseIdList(router?.preferred_cost_tiers);
+    const preferredLatencyClass = router?.preferred_latency_class ? String(router.preferred_latency_class) : '';
+    const requiredCapabilities = parseIdList(router?.required_capabilities);
+    const requestedCapabilities = context.capabilityKeys?.length ? context.capabilityKeys : requiredCapabilities;
 
-    const activeModels = candidateRows.rows.filter((row) => !allowedModelIds.size || allowedModelIds.has(String(row.id)));
+    const allModels = await this.loadAllActiveModels();
+    let activeModels = allModels.filter((row) => !allowedModelIds.size || allowedModelIds.has(String(row.id)));
+
+    if (requestedCapabilities.length) {
+      activeModels = activeModels.filter((row) =>
+        requestedCapabilities.every((capability) => row.capabilities.includes(capability))
+      );
+    }
+
+    if (preferredLatencyClass) {
+      const latencyMatches = activeModels.filter((row) => (row.latency_class || '') === preferredLatencyClass);
+      if (latencyMatches.length) {
+        activeModels = latencyMatches;
+      }
+    }
+
+    if (preferredCostTiers.length) {
+      const byCostTier = preferredCostTiers
+        .map((tier) => activeModels.find((row) => (row.model_family || '') === tier))
+        .find(Boolean);
+      if (byCostTier) {
+        activeModels = [byCostTier as ModelWithCapabilities];
+      }
+    }
+
     const candidateFromGateway = gateway?.default_model_id || gateway?.failover_model_id || null;
     const selectedFromGateway = candidateFromGateway
       ? activeModels.find((row) => row.id === candidateFromGateway)
@@ -122,6 +188,14 @@ class AiExecutionService {
 
     if (activeModels.length > 0) {
       return { model: activeModels[0], gateway, router };
+    }
+
+    const fallbackModelIds = parseIdList(router?.fallback_model_ids);
+    if (fallbackModelIds.length) {
+      const fallbackPool = allModels.filter((row) => fallbackModelIds.includes(String(row.id)));
+      if (fallbackPool.length > 0) {
+        return { model: fallbackPool[0], gateway, router };
+      }
     }
 
     throw new ApiError(404, 'No active AI model available for routing', 'NOT_FOUND');
@@ -155,10 +229,61 @@ class AiExecutionService {
     return policy;
   }
 
-  async executeRequest(model: any, payload: Record<string, unknown>) {
+  private async executeOpenAiChatCompletion(model: ModelWithCapabilities, payload: Record<string, unknown>) {
+    const apiKey = model.api_key;
+    if (!apiKey) {
+      throw new ApiError(400, 'OpenAI model is missing API key configuration', 'OPENAI_KEY_MISSING');
+    }
+
+    const endpoint = model.endpoint_url || 'https://api.openai.com/v1/chat/completions';
+    const body: Record<string, unknown> = {
+      model: model.model_key,
+      messages: Array.isArray(payload.messages) ? payload.messages : [],
+    };
+
+    if (model.max_tokens) {
+      body.max_tokens = model.max_tokens;
+    }
+
+    if (typeof payload.temperature === 'number') {
+      body.temperature = payload.temperature;
+    }
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify(body),
+    });
+
+    const responseJson = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new ApiError(
+        response.status,
+        `OpenAI request failed: ${responseJson?.error?.message || response.statusText}`,
+        'OPENAI_REQUEST_FAILED'
+      );
+    }
+
+    return {
+      provider: 'openai',
+      endpoint,
+      model: model.model_key,
+      response: responseJson,
+      usage: responseJson?.usage || null,
+    };
+  }
+
+  async executeRequest(model: ModelWithCapabilities, payload: Record<string, unknown>) {
+    if ((model.provider || '').toLowerCase() === 'openai') {
+      return this.executeOpenAiChatCompletion(model, payload);
+    }
+
     return {
       simulated: true,
-      message: 'AI execution routing is wired; provider invocation can be attached later.',
+      message: 'Provider adapter is not implemented yet; routed successfully.',
       modelKey: model.model_key,
       provider: model.provider || null,
       payload,
@@ -204,14 +329,16 @@ class AiExecutionService {
       routerId: context.routerId || policy?.default_router_id || undefined,
     });
     const responsePayload = await this.executeRequest(selection.model, context.payload || {});
+    const usageRequestTokens = responsePayload?.usage?.prompt_tokens || context.requestTokens || null;
+    const usageResponseTokens = responsePayload?.usage?.completion_tokens || context.responseTokens || null;
 
     const usage = await this.logUsage({
       modelId: selection.model.id,
       gatewayId: selection.gateway?.id || null,
       routerId: selection.router?.id || null,
       policyId: policy?.id || context.policyId || null,
-      requestTokens: context.requestTokens || null,
-      responseTokens: context.responseTokens || null,
+      requestTokens: usageRequestTokens,
+      responseTokens: usageResponseTokens,
       status: 'success',
       requestPayload: context.payload || {},
       responsePayload,

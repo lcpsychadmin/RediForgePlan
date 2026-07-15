@@ -29,6 +29,7 @@ router.get('/models', requireAuth, async (_req: Request, res: Response, next: Ne
     const result = await db.query(
       `SELECT
          m.id, m.model_key, m.display_name, m.provider, m.model_family, m.context_window,
+         m.endpoint_url, m.max_tokens, m.latency_class,
          m.input_cost_per_1k_tokens, m.output_cost_per_1k_tokens, m.is_active, m.created_at, m.updated_at,
          COALESCE(
            json_agg(
@@ -56,7 +57,20 @@ router.get('/models', requireAuth, async (_req: Request, res: Response, next: Ne
 
 router.post('/models', requireAuth, requireRole('analyst', 'admin'), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { modelKey, displayName, provider, modelFamily, contextWindow, inputCostPer1kTokens, outputCostPer1kTokens, isActive } = req.body || {};
+    const {
+      modelKey,
+      displayName,
+      provider,
+      modelFamily,
+      contextWindow,
+      endpointUrl,
+      apiKey,
+      maxTokens,
+      latencyClass,
+      inputCostPer1kTokens,
+      outputCostPer1kTokens,
+      isActive,
+    } = req.body || {};
     if (!modelKey?.trim()) {
       throw new ApiError(400, 'Model key is required', 'MISSING_FIELD');
     }
@@ -66,15 +80,19 @@ router.post('/models', requireAuth, requireRole('analyst', 'admin'), async (req:
 
     const result = await db.query(
       `INSERT INTO ai_models
-         (model_key, display_name, provider, model_family, context_window, input_cost_per_1k_tokens, output_cost_per_1k_tokens, is_active)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-       RETURNING id, model_key, display_name, provider, model_family, context_window, input_cost_per_1k_tokens, output_cost_per_1k_tokens, is_active, created_at, updated_at`,
+         (model_key, display_name, provider, model_family, context_window, endpoint_url, api_key, max_tokens, latency_class, input_cost_per_1k_tokens, output_cost_per_1k_tokens, is_active)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+       RETURNING id, model_key, display_name, provider, model_family, context_window, endpoint_url, max_tokens, latency_class, input_cost_per_1k_tokens, output_cost_per_1k_tokens, is_active, created_at, updated_at`,
       [
         modelKey.trim(),
         displayName.trim(),
         provider || null,
         modelFamily || null,
         contextWindow || null,
+        endpointUrl || null,
+        apiKey || null,
+        maxTokens || null,
+        latencyClass || null,
         inputCostPer1kTokens || null,
         outputCostPer1kTokens || null,
         isActive !== false,
@@ -89,7 +107,20 @@ router.post('/models', requireAuth, requireRole('analyst', 'admin'), async (req:
 
 router.put('/models/:modelId', requireAuth, requireRole('analyst', 'admin'), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { modelKey, displayName, provider, modelFamily, contextWindow, inputCostPer1kTokens, outputCostPer1kTokens, isActive } = req.body || {};
+    const {
+      modelKey,
+      displayName,
+      provider,
+      modelFamily,
+      contextWindow,
+      endpointUrl,
+      apiKey,
+      maxTokens,
+      latencyClass,
+      inputCostPer1kTokens,
+      outputCostPer1kTokens,
+      isActive,
+    } = req.body || {};
     const result = await db.query(
       `UPDATE ai_models
        SET model_key = COALESCE($1, model_key),
@@ -97,18 +128,26 @@ router.put('/models/:modelId', requireAuth, requireRole('analyst', 'admin'), asy
            provider = $3,
            model_family = $4,
            context_window = $5,
-           input_cost_per_1k_tokens = $6,
-           output_cost_per_1k_tokens = $7,
-           is_active = COALESCE($8, is_active),
+           endpoint_url = $6,
+           api_key = COALESCE($7, api_key),
+           max_tokens = $8,
+           latency_class = $9,
+           input_cost_per_1k_tokens = $10,
+           output_cost_per_1k_tokens = $11,
+           is_active = COALESCE($12, is_active),
            updated_at = CURRENT_TIMESTAMP
-       WHERE id = $9
-       RETURNING id, model_key, display_name, provider, model_family, context_window, input_cost_per_1k_tokens, output_cost_per_1k_tokens, is_active, created_at, updated_at`,
+       WHERE id = $13
+       RETURNING id, model_key, display_name, provider, model_family, context_window, endpoint_url, max_tokens, latency_class, input_cost_per_1k_tokens, output_cost_per_1k_tokens, is_active, created_at, updated_at`,
       [
         modelKey?.trim() || null,
         displayName?.trim() || null,
         provider || null,
         modelFamily || null,
         contextWindow || null,
+        endpointUrl || null,
+        apiKey || null,
+        maxTokens || null,
+        latencyClass || null,
         inputCostPer1kTokens || null,
         outputCostPer1kTokens || null,
         isActive === undefined ? null : Boolean(isActive),
@@ -258,7 +297,9 @@ router.get('/routers', requireAuth, async (_req: Request, res: Response, next: N
   try {
     const result = await db.query(
       `SELECT r.id, r.name, r.description, r.strategy, r.primary_gateway_id, pg.name AS primary_gateway_name,
-              r.fallback_gateway_id, fg.name AS fallback_gateway_name, r.allowed_model_ids, r.is_active, r.created_at, r.updated_at
+              r.fallback_gateway_id, fg.name AS fallback_gateway_name, r.allowed_model_ids,
+              r.preferred_cost_tiers, r.preferred_latency_class, r.required_capabilities, r.fallback_model_ids,
+              r.is_active, r.created_at, r.updated_at
        FROM ai_routers r
        LEFT JOIN ai_gateways pg ON pg.id = r.primary_gateway_id
        LEFT JOIN ai_gateways fg ON fg.id = r.fallback_gateway_id
@@ -272,16 +313,41 @@ router.get('/routers', requireAuth, async (_req: Request, res: Response, next: N
 
 router.post('/routers', requireAuth, requireRole('analyst', 'admin'), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { name, description, strategy, primaryGatewayId, fallbackGatewayId, allowedModelIds, isActive } = req.body || {};
+    const {
+      name,
+      description,
+      strategy,
+      primaryGatewayId,
+      fallbackGatewayId,
+      allowedModelIds,
+      preferredCostTiers,
+      preferredLatencyClass,
+      requiredCapabilities,
+      fallbackModelIds,
+      isActive,
+    } = req.body || {};
     if (!name?.trim()) {
       throw new ApiError(400, 'Router name is required', 'MISSING_FIELD');
     }
 
     const result = await db.query(
-      `INSERT INTO ai_routers (name, description, strategy, primary_gateway_id, fallback_gateway_id, allowed_model_ids, is_active)
-       VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7)
-       RETURNING id, name, description, strategy, primary_gateway_id, fallback_gateway_id, allowed_model_ids, is_active, created_at, updated_at`,
-      [name.trim(), description || null, strategy || null, primaryGatewayId || null, fallbackGatewayId || null, asJsonArray(allowedModelIds), isActive !== false]
+      `INSERT INTO ai_routers
+        (name, description, strategy, primary_gateway_id, fallback_gateway_id, allowed_model_ids, preferred_cost_tiers, preferred_latency_class, required_capabilities, fallback_model_ids, is_active)
+       VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8, $9::jsonb, $10::jsonb, $11)
+       RETURNING id, name, description, strategy, primary_gateway_id, fallback_gateway_id, allowed_model_ids, preferred_cost_tiers, preferred_latency_class, required_capabilities, fallback_model_ids, is_active, created_at, updated_at`,
+      [
+        name.trim(),
+        description || null,
+        strategy || null,
+        primaryGatewayId || null,
+        fallbackGatewayId || null,
+        asJsonArray(allowedModelIds),
+        asJsonArray(preferredCostTiers),
+        preferredLatencyClass || null,
+        asJsonArray(requiredCapabilities),
+        asJsonArray(fallbackModelIds),
+        isActive !== false,
+      ]
     );
 
     res.status(201).json(formatSingleResponse(result.rows[0]));
@@ -292,7 +358,19 @@ router.post('/routers', requireAuth, requireRole('analyst', 'admin'), async (req
 
 router.put('/routers/:routerId', requireAuth, requireRole('analyst', 'admin'), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { name, description, strategy, primaryGatewayId, fallbackGatewayId, allowedModelIds, isActive } = req.body || {};
+    const {
+      name,
+      description,
+      strategy,
+      primaryGatewayId,
+      fallbackGatewayId,
+      allowedModelIds,
+      preferredCostTiers,
+      preferredLatencyClass,
+      requiredCapabilities,
+      fallbackModelIds,
+      isActive,
+    } = req.body || {};
     const result = await db.query(
       `UPDATE ai_routers
        SET name = COALESCE($1, name),
@@ -301,11 +379,28 @@ router.put('/routers/:routerId', requireAuth, requireRole('analyst', 'admin'), a
            primary_gateway_id = $4,
            fallback_gateway_id = $5,
            allowed_model_ids = $6::jsonb,
-           is_active = COALESCE($7, is_active),
+           preferred_cost_tiers = $7::jsonb,
+           preferred_latency_class = $8,
+           required_capabilities = $9::jsonb,
+           fallback_model_ids = $10::jsonb,
+           is_active = COALESCE($11, is_active),
            updated_at = CURRENT_TIMESTAMP
-       WHERE id = $8
-       RETURNING id, name, description, strategy, primary_gateway_id, fallback_gateway_id, allowed_model_ids, is_active, created_at, updated_at`,
-      [name?.trim() || null, description || null, strategy || null, primaryGatewayId || null, fallbackGatewayId || null, asJsonArray(allowedModelIds), isActive === undefined ? null : Boolean(isActive), req.params.routerId]
+       WHERE id = $12
+       RETURNING id, name, description, strategy, primary_gateway_id, fallback_gateway_id, allowed_model_ids, preferred_cost_tiers, preferred_latency_class, required_capabilities, fallback_model_ids, is_active, created_at, updated_at`,
+      [
+        name?.trim() || null,
+        description || null,
+        strategy || null,
+        primaryGatewayId || null,
+        fallbackGatewayId || null,
+        asJsonArray(allowedModelIds),
+        asJsonArray(preferredCostTiers),
+        preferredLatencyClass || null,
+        asJsonArray(requiredCapabilities),
+        asJsonArray(fallbackModelIds),
+        isActive === undefined ? null : Boolean(isActive),
+        req.params.routerId,
+      ]
     );
 
     if (!result.rows.length) {

@@ -7,6 +7,35 @@ RediForge now supports a multi-model AI control plane with four management surfa
 - AI Routers: routes requests across gateways and constrains the allowed model set.
 - Usage Policies: enforces token, request, capability, and model restrictions.
 
+## OpenAI Models
+
+- OpenAI API keys authorize an account and do not pick a model by themselves.
+- Model selection happens in the request payload (`model`) and is sourced from Model Registry.
+- RediForge stores OpenAI `modelName` exactly as entered (for example `gpt-4o-mini`) and passes that through to OpenAI.
+
+### OpenAI Registration Example
+
+Example fields in Model Registry:
+
+- Provider: `OpenAI`
+- Model Name: `gpt-4o-mini`
+- Endpoint URL: `https://api.openai.com/v1/chat/completions`
+- API Key: `sk-...`
+- Cost Tier: `standard`
+- Capabilities: `chat`, `reasoning`
+- Max Tokens: `4096`
+- Enabled: `true`
+
+### OpenAI Execution Payload
+
+When a routed OpenAI model is selected, the execution engine sends:
+
+- `POST https://api.openai.com/v1/chat/completions`
+- `Authorization: Bearer <apiKey>`
+- JSON body includes:
+	- `model: <modelName from registry>`
+	- `messages: [...]`
+
 ## API Surface
 
 - `GET /api/ai/models`
@@ -34,4 +63,4 @@ RediForge now supports a multi-model AI control plane with four management surfa
 4. The gateway can supply a default or failover model.
 5. Usage is logged to `ai_usage_logs`.
 
-The current execution path is intentionally lightweight and returns a simulated payload so the registry and governance layers can be exercised without a provider-specific adapter yet.
+OpenAI provider invocation is now active via chat completions. Other providers remain adapter-ready and continue to return a simulated payload until their provider adapters are enabled.

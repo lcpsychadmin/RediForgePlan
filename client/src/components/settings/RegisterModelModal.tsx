@@ -20,6 +20,8 @@ export interface RegisterModelFormValues {
   apiKey: string;
   costTier: string;
   capabilities: string[];
+  maxTokens: string;
+  latencyClass: string;
   enabled: boolean;
 }
 
@@ -30,17 +32,27 @@ interface RegisterModelModalProps {
   onSave: (values: RegisterModelFormValues) => Promise<void>;
 }
 
-const PROVIDER_OPTIONS = ['openai', 'anthropic', 'google', 'databricks', 'azure-openai', 'custom'];
+const PROVIDER_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: 'openai', label: 'OpenAI' },
+  { value: 'anthropic', label: 'Anthropic' },
+  { value: 'google', label: 'Google' },
+  { value: 'databricks', label: 'Databricks' },
+  { value: 'azure-openai', label: 'Azure OpenAI' },
+  { value: 'custom', label: 'Custom' },
+];
 const COST_TIER_OPTIONS = ['low', 'standard', 'high', 'enterprise'];
 const CAPABILITY_OPTIONS = ['chat', 'reasoning', 'summarization', 'code', 'vision', 'embeddings'];
+const LATENCY_OPTIONS = ['low-latency', 'standard', 'economy'];
 
 const emptyValues: RegisterModelFormValues = {
   modelName: '',
   provider: 'openai',
-  endpointUrl: '',
+  endpointUrl: 'https://api.openai.com/v1/chat/completions',
   apiKey: '',
   costTier: 'standard',
   capabilities: [],
+  maxTokens: '',
+  latencyClass: 'standard',
   enabled: true,
 };
 
@@ -50,7 +62,7 @@ const RegisterModelModal: React.FC<RegisterModelModalProps> = ({ open, initialVa
 
   const isOpenAiProvider = formValues.provider === 'openai';
   const endpointHelperText = isOpenAiProvider
-    ? 'Optional for OpenAI. Leave blank to use the provider default endpoint.'
+    ? 'Defaults to the OpenAI chat completions endpoint if left unchanged.'
     : 'Enter a provider-specific or custom endpoint URL.';
 
   React.useEffect(() => {
@@ -103,34 +115,40 @@ const RegisterModelModal: React.FC<RegisterModelModalProps> = ({ open, initialVa
             setFormValues((prev) => ({
               ...prev,
               provider,
-              endpointUrl: provider === 'openai' ? '' : prev.endpointUrl,
+              endpointUrl: provider === 'openai'
+                ? (prev.endpointUrl || 'https://api.openai.com/v1/chat/completions')
+                : prev.endpointUrl,
             }));
           }}
           fullWidth
           size="small"
         >
           {PROVIDER_OPTIONS.map((provider) => (
-            <MenuItem key={provider} value={provider}>{provider}</MenuItem>
+            <MenuItem key={provider.value} value={provider.value}>{provider.label}</MenuItem>
           ))}
         </TextField>
-        <TextField
-          label="Endpoint URL"
-          value={formValues.endpointUrl}
-          onChange={(e) => setFormValues((prev) => ({ ...prev, endpointUrl: e.target.value }))}
-          fullWidth
-          size="small"
-          placeholder={isOpenAiProvider ? 'https://api.openai.com/v1 (optional)' : 'https://your-endpoint.example.com'}
-          helperText={endpointHelperText}
-        />
-        <TextField
-          type="password"
-          label="API Key / Secret Key"
-          value={formValues.apiKey}
-          onChange={(e) => setFormValues((prev) => ({ ...prev, apiKey: e.target.value }))}
-          fullWidth
-          size="small"
-          helperText={isOpenAiProvider ? 'Paste your OpenAI secret key (sk-...).' : undefined}
-        />
+        {isOpenAiProvider && (
+          <>
+            <TextField
+              label="Endpoint URL"
+              value={formValues.endpointUrl}
+              onChange={(e) => setFormValues((prev) => ({ ...prev, endpointUrl: e.target.value }))}
+              fullWidth
+              size="small"
+              placeholder="https://api.openai.com/v1/chat/completions"
+              helperText={endpointHelperText}
+            />
+            <TextField
+              type="password"
+              label="API Key"
+              value={formValues.apiKey}
+              onChange={(e) => setFormValues((prev) => ({ ...prev, apiKey: e.target.value }))}
+              fullWidth
+              size="small"
+              helperText="Paste your OpenAI secret key (sk-...)."
+            />
+          </>
+        )}
         <TextField
           select
           label="Cost Tier"
@@ -143,6 +161,28 @@ const RegisterModelModal: React.FC<RegisterModelModalProps> = ({ open, initialVa
             <MenuItem key={tier} value={tier}>{tier}</MenuItem>
           ))}
         </TextField>
+
+        <TextField
+          select
+          label="Latency Class"
+          value={formValues.latencyClass}
+          onChange={(e) => setFormValues((prev) => ({ ...prev, latencyClass: e.target.value }))}
+          fullWidth
+          size="small"
+        >
+          {LATENCY_OPTIONS.map((latency) => (
+            <MenuItem key={latency} value={latency}>{latency}</MenuItem>
+          ))}
+        </TextField>
+
+        <TextField
+          type="number"
+          label="Max Tokens"
+          value={formValues.maxTokens}
+          onChange={(e) => setFormValues((prev) => ({ ...prev, maxTokens: e.target.value }))}
+          fullWidth
+          size="small"
+        />
 
         <Box>
           <Box sx={{ fontSize: '0.78rem', color: 'text.secondary', mb: 0.75 }}>Capabilities</Box>

@@ -23,22 +23,36 @@ interface RouterRow {
   gatewayId: string;
   gatewayName: string;
   rules: string;
+  allowedModelIds: string[];
+  preferredCostTiers: string[];
+  preferredLatencyClass: string;
+  requiredCapabilities: string[];
+  fallbackModelIds: string[];
 }
 
 const AiRouterPanel: React.FC = () => {
   const [rows, setRows] = React.useState<RouterRow[]>([]);
   const [gatewayOptions, setGatewayOptions] = React.useState<Array<{ id: string; label: string }>>([]);
+  const [modelOptions, setModelOptions] = React.useState<Array<{ id: string; label: string }>>([]);
   const [modalOpen, setModalOpen] = React.useState(false);
   const [editingRow, setEditingRow] = React.useState<RouterRow | null>(null);
 
   const loadData = React.useCallback(async () => {
-    const [gatewaysRes, routersRes] = await Promise.all([
+    const [gatewaysRes, routersRes, modelsRes] = await Promise.all([
       apiClient.get('/api/ai/gateways'),
       apiClient.get('/api/ai/routers'),
+      apiClient.get('/api/ai/models'),
     ]);
 
     const options = ((gatewaysRes.data?.data || []) as any[]).map((gateway: any) => ({ id: gateway.id, label: gateway.name }));
     setGatewayOptions(options);
+
+    const modelLookup = new Map<string, string>();
+    const mappedModelOptions = ((modelsRes.data?.data || []) as any[]).map((model: any) => {
+      modelLookup.set(model.id, `${model.display_name} (${model.provider || 'unknown'})`);
+      return { id: model.id, label: `${model.display_name} (${model.provider || 'unknown'})` };
+    });
+    setModelOptions(mappedModelOptions);
 
     const mapped = ((routersRes.data?.data || []) as any[]).map((router: any) => ({
       id: router.id,
@@ -47,6 +61,11 @@ const AiRouterPanel: React.FC = () => {
       gatewayId: router.primary_gateway_id || '',
       gatewayName: router.primary_gateway_name || '-',
       rules: router.description || '-',
+      allowedModelIds: Array.isArray(router.allowed_model_ids) ? router.allowed_model_ids : [],
+      preferredCostTiers: Array.isArray(router.preferred_cost_tiers) ? router.preferred_cost_tiers : [],
+      preferredLatencyClass: router.preferred_latency_class || '',
+      requiredCapabilities: Array.isArray(router.required_capabilities) ? router.required_capabilities : [],
+      fallbackModelIds: Array.isArray(router.fallback_model_ids) ? router.fallback_model_ids : [],
     }));
 
     setRows(mapped);
@@ -56,6 +75,7 @@ const AiRouterPanel: React.FC = () => {
     loadData().catch(() => {
       setRows([]);
       setGatewayOptions([]);
+      setModelOptions([]);
     });
   }, [loadData]);
 
@@ -65,6 +85,11 @@ const AiRouterPanel: React.FC = () => {
       strategy: values.routerType,
       primaryGatewayId: values.gatewayId || null,
       description: values.rules,
+      allowedModelIds: values.allowedModelIds,
+      preferredCostTiers: values.preferredCostTiers,
+      preferredLatencyClass: values.preferredLatencyClass || null,
+      requiredCapabilities: values.requiredCapabilities,
+      fallbackModelIds: values.fallbackModelIds,
       isActive: true,
     };
 
@@ -89,6 +114,11 @@ const AiRouterPanel: React.FC = () => {
         routerType: (editingRow.routerType as RouterEditorValues['routerType']) || 'costOptimized',
         gatewayId: editingRow.gatewayId,
         rules: editingRow.rules === '-' ? '' : editingRow.rules,
+        allowedModelIds: editingRow.allowedModelIds,
+        preferredCostTiers: editingRow.preferredCostTiers,
+        preferredLatencyClass: editingRow.preferredLatencyClass,
+        requiredCapabilities: editingRow.requiredCapabilities,
+        fallbackModelIds: editingRow.fallbackModelIds,
       }
     : undefined;
 
@@ -146,6 +176,7 @@ const AiRouterPanel: React.FC = () => {
         open={modalOpen}
         initialValues={initialValues}
         gatewayOptions={gatewayOptions}
+        modelOptions={modelOptions}
         onClose={() => { setModalOpen(false); setEditingRow(null); }}
         onSave={handleSave}
       />

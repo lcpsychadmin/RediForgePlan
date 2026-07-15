@@ -54,8 +54,9 @@ const AiGatewayPanel: React.FC = () => {
 
     const modelLookup = new Map<string, string>();
     const options = ((modelsRes.data?.data || []) as any[]).map((model: any) => {
-      modelLookup.set(model.id, model.display_name);
-      return { id: model.id, label: `${model.display_name} (${model.model_key})` };
+      const provider = (model.provider || 'unknown').toUpperCase();
+      modelLookup.set(model.id, `${model.display_name} (${provider})`);
+      return { id: model.id, label: `${model.display_name} (${provider})` };
     });
     setModelOptions(options);
 
