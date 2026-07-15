@@ -813,7 +813,7 @@ const SettingsPage: React.FC = () => {
                   </AccordionDetails>
                 </Accordion>
 
-                <Accordion expanded={menuGroupsExpanded.platform} onChange={() => toggleMenuGroup('platform')} disableGutters sx={{ backgroundColor: 'transparent', boxShadow: 'none', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 1, '&:before': { display: 'none' } }}>
+                <Accordion expanded={menuGroupsExpanded.platform} onChange={() => toggleMenuGroup('platform')} disableGutters sx={{ backgroundColor: 'transparent', boxShadow: 'none', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 1, mb: 1, '&:before': { display: 'none' } }}>
                   <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                     <Typography variant="subtitle2" color="text.secondary">Common Data Platform</Typography>
                   </AccordionSummary>
@@ -850,78 +850,74 @@ const SettingsPage: React.FC = () => {
                         <DbtLogoIcon size={16} />
                         <ListItemText primary="dbt Integration" />
                       </ListItem>
+                    </List>
+                  </AccordionDetails>
+                </Accordion>
 
-                      <Divider sx={{ my: 1, borderColor: 'rgba(255,255,255,0.08)' }} />
-
-                      <Accordion
-                        expanded={menuGroupsExpanded.aiRouting}
-                        onChange={() => toggleMenuGroup('aiRouting')}
-                        disableGutters
+                <Accordion
+                  expanded={menuGroupsExpanded.aiRouting}
+                  onChange={() => toggleMenuGroup('aiRouting')}
+                  disableGutters
+                  sx={{
+                    backgroundColor: 'transparent',
+                    boxShadow: 'none',
+                    border: '1px solid rgba(255,255,255,0.08)',
+                    borderRadius: 1,
+                    '&:before': { display: 'none' },
+                  }}
+                >
+                  <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                    <Typography variant="subtitle2" color="text.secondary">AI &amp; Model Routing</Typography>
+                  </AccordionSummary>
+                  <AccordionDetails sx={{ p: 0 }}>
+                    <List sx={{ p: 0 }}>
+                      <ListItem
+                        button
+                        selected={isAiModelsMode}
+                        onClick={() => setSelectedMenuItem('aiModels')}
                         sx={{
-                          backgroundColor: 'transparent',
-                          boxShadow: 'none',
-                          border: '1px solid rgba(255,255,255,0.08)',
-                          borderRadius: 1,
-                          mx: 1,
-                          mb: 1,
-                          '&:before': { display: 'none' },
+                          backgroundColor: isAiModelsMode ? 'primary.lighter' : 'transparent',
+                          '&:hover': { backgroundColor: 'action.hover' },
+                          borderLeft: isAiModelsMode ? '4px solid' : 'none',
+                          borderColor: 'primary.main',
+                          gap: 1,
                         }}
                       >
-                        <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ minHeight: 38 }}>
-                          <Typography variant="subtitle2" color="text.secondary">AI &amp; Model Routing</Typography>
-                        </AccordionSummary>
-                        <AccordionDetails sx={{ p: 0 }}>
-                          <List sx={{ p: 0 }}>
-                            <ListItem
-                              button
-                              selected={isAiModelsMode}
-                              onClick={() => setSelectedMenuItem('aiModels')}
-                              sx={{
-                                backgroundColor: isAiModelsMode ? 'primary.lighter' : 'transparent',
-                                '&:hover': { backgroundColor: 'action.hover' },
-                                borderLeft: isAiModelsMode ? '4px solid' : 'none',
-                                borderColor: 'primary.main',
-                                gap: 1,
-                              }}
-                            >
-                              <StorageIcon sx={{ fontSize: '1rem' }} />
-                              <ListItemText primary="AI Model Registry" />
-                            </ListItem>
+                        <StorageIcon sx={{ fontSize: '1rem' }} />
+                        <ListItemText primary="AI Model Registry" />
+                      </ListItem>
 
-                            <ListItem
-                              button
-                              selected={isAiGatewaysMode}
-                              onClick={() => setSelectedMenuItem('aiGateways')}
-                              sx={{
-                                backgroundColor: isAiGatewaysMode ? 'primary.lighter' : 'transparent',
-                                '&:hover': { backgroundColor: 'action.hover' },
-                                borderLeft: isAiGatewaysMode ? '4px solid' : 'none',
-                                borderColor: 'primary.main',
-                                gap: 1,
-                              }}
-                            >
-                              <AltRouteIcon sx={{ fontSize: '1rem' }} />
-                              <ListItemText primary="AI Gateways" />
-                            </ListItem>
+                      <ListItem
+                        button
+                        selected={isAiGatewaysMode}
+                        onClick={() => setSelectedMenuItem('aiGateways')}
+                        sx={{
+                          backgroundColor: isAiGatewaysMode ? 'primary.lighter' : 'transparent',
+                          '&:hover': { backgroundColor: 'action.hover' },
+                          borderLeft: isAiGatewaysMode ? '4px solid' : 'none',
+                          borderColor: 'primary.main',
+                          gap: 1,
+                        }}
+                      >
+                        <AltRouteIcon sx={{ fontSize: '1rem' }} />
+                        <ListItemText primary="AI Gateways" />
+                      </ListItem>
 
-                            <ListItem
-                              button
-                              selected={isAiRoutersMode}
-                              onClick={() => setSelectedMenuItem('aiRouters')}
-                              sx={{
-                                backgroundColor: isAiRoutersMode ? 'primary.lighter' : 'transparent',
-                                '&:hover': { backgroundColor: 'action.hover' },
-                                borderLeft: isAiRoutersMode ? '4px solid' : 'none',
-                                borderColor: 'primary.main',
-                                gap: 1,
-                              }}
-                            >
-                              <AccountTreeIcon sx={{ fontSize: '1rem' }} />
-                              <ListItemText primary="AI Routers" />
-                            </ListItem>
-                          </List>
-                        </AccordionDetails>
-                      </Accordion>
+                      <ListItem
+                        button
+                        selected={isAiRoutersMode}
+                        onClick={() => setSelectedMenuItem('aiRouters')}
+                        sx={{
+                          backgroundColor: isAiRoutersMode ? 'primary.lighter' : 'transparent',
+                          '&:hover': { backgroundColor: 'action.hover' },
+                          borderLeft: isAiRoutersMode ? '4px solid' : 'none',
+                          borderColor: 'primary.main',
+                          gap: 1,
+                        }}
+                      >
+                        <AccountTreeIcon sx={{ fontSize: '1rem' }} />
+                        <ListItemText primary="AI Routers" />
+                      </ListItem>
                     </List>
                   </AccordionDetails>
                 </Accordion>
