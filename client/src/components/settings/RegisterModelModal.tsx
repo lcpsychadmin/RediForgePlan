@@ -48,6 +48,11 @@ const RegisterModelModal: React.FC<RegisterModelModalProps> = ({ open, initialVa
   const [formValues, setFormValues] = React.useState<RegisterModelFormValues>(emptyValues);
   const [saving, setSaving] = React.useState(false);
 
+  const isOpenAiProvider = formValues.provider === 'openai';
+  const endpointHelperText = isOpenAiProvider
+    ? 'Optional for OpenAI. Leave blank to use the provider default endpoint.'
+    : 'Enter a provider-specific or custom endpoint URL.';
+
   React.useEffect(() => {
     if (!open) {
       return;
@@ -93,7 +98,14 @@ const RegisterModelModal: React.FC<RegisterModelModalProps> = ({ open, initialVa
           select
           label="Provider"
           value={formValues.provider}
-          onChange={(e) => setFormValues((prev) => ({ ...prev, provider: e.target.value }))}
+          onChange={(e) => {
+            const provider = e.target.value;
+            setFormValues((prev) => ({
+              ...prev,
+              provider,
+              endpointUrl: provider === 'openai' ? '' : prev.endpointUrl,
+            }));
+          }}
           fullWidth
           size="small"
         >
@@ -107,14 +119,17 @@ const RegisterModelModal: React.FC<RegisterModelModalProps> = ({ open, initialVa
           onChange={(e) => setFormValues((prev) => ({ ...prev, endpointUrl: e.target.value }))}
           fullWidth
           size="small"
+          placeholder={isOpenAiProvider ? 'https://api.openai.com/v1 (optional)' : 'https://your-endpoint.example.com'}
+          helperText={endpointHelperText}
         />
         <TextField
           type="password"
-          label="API Key"
+          label="API Key / Secret Key"
           value={formValues.apiKey}
           onChange={(e) => setFormValues((prev) => ({ ...prev, apiKey: e.target.value }))}
           fullWidth
           size="small"
+          helperText={isOpenAiProvider ? 'Paste your OpenAI secret key (sk-...).' : undefined}
         />
         <TextField
           select
