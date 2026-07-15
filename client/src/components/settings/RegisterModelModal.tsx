@@ -18,6 +18,8 @@ import {
   Typography,
 } from '@mui/material';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
+import MemoryIcon from '@mui/icons-material/Memory';
+import FingerprintIcon from '@mui/icons-material/Fingerprint';
 import apiClient from '../../api/client';
 
 export interface RegisterModelFormValues {
@@ -72,6 +74,9 @@ const RegisterModelModal: React.FC<RegisterModelModalProps> = ({ open, modelId, 
   const [testState, setTestState] = React.useState<'idle' | 'success' | 'failure'>('idle');
   const [testLatencyMs, setTestLatencyMs] = React.useState<number | null>(null);
   const [testTokensUsed, setTestTokensUsed] = React.useState<number | null>(null);
+  const [testModelUsed, setTestModelUsed] = React.useState('');
+  const [testModelEcho, setTestModelEcho] = React.useState('');
+  const [testDiagnostic, setTestDiagnostic] = React.useState('');
   const [testingModel, setTestingModel] = React.useState(false);
 
   const isOpenAiProvider = formValues.provider === 'openai';
@@ -89,6 +94,9 @@ const RegisterModelModal: React.FC<RegisterModelModalProps> = ({ open, modelId, 
     setTestState('idle');
     setTestLatencyMs(null);
     setTestTokensUsed(null);
+    setTestModelUsed('');
+    setTestModelEcho('');
+    setTestDiagnostic('');
   }, [open, initialValues]);
 
   const handleSubmit = async () => {
@@ -119,6 +127,9 @@ const RegisterModelModal: React.FC<RegisterModelModalProps> = ({ open, modelId, 
     setTestState('idle');
     setTestLatencyMs(null);
     setTestTokensUsed(null);
+    setTestModelUsed('');
+    setTestModelEcho('');
+    setTestDiagnostic('');
   };
 
   const handleTestModel = async () => {
@@ -128,6 +139,7 @@ const RegisterModelModal: React.FC<RegisterModelModalProps> = ({ open, modelId, 
 
     setTestingModel(true);
     setTestState('idle');
+    setTestDiagnostic('');
     try {
       const response = await apiClient.post('/api/ai/models/test', {
         modelId,
@@ -135,15 +147,37 @@ const RegisterModelModal: React.FC<RegisterModelModalProps> = ({ open, modelId, 
       });
 
       const payload = response.data?.data || {};
+      const modelUsed = String(payload.modelUsed || '').trim();
+      const modelEcho = String(payload.modelEcho || '').trim();
+      const expectedModelName = formValues.modelName.trim();
+      const modelUsedMatches = modelUsed === expectedModelName;
+      const modelEchoMatches = modelEcho === expectedModelName;
+
       setTestResponse(payload.responseText || 'No response text returned.');
       setTestLatencyMs(typeof payload.latencyMs === 'number' ? payload.latencyMs : null);
       setTestTokensUsed(typeof payload.tokensUsed === 'number' ? payload.tokensUsed : null);
-      setTestState(payload.success ? 'success' : 'failure');
+      setTestModelUsed(modelUsed);
+      setTestModelEcho(modelEcho);
+
+      if (payload.success && modelUsedMatches && modelEchoMatches) {
+        setTestState('success');
+        setTestDiagnostic('Model verification passed. modelUsed and modelEcho match the registered model.');
+      } else {
+        setTestState('failure');
+        const reasons: string[] = [];
+        if (!payload.success) reasons.push('Provider test request failed.');
+        if (!modelUsedMatches) reasons.push(`Model Used mismatch (expected ${expectedModelName}, got ${modelUsed || 'N/A'}).`);
+        if (!modelEchoMatches) reasons.push(`Model Echo mismatch (expected ${expectedModelName}, got ${modelEcho || 'N/A'}).`);
+        setTestDiagnostic(reasons.join(' '));
+      }
     } catch (error: any) {
       const message = error?.response?.data?.data?.responseText || error?.response?.data?.message || error?.message || 'Model test failed.';
       setTestResponse(String(message));
       setTestLatencyMs(null);
       setTestTokensUsed(null);
+      setTestModelUsed('');
+      setTestModelEcho('');
+      setTestDiagnostic('Provider request failed before verification completed.');
       setTestState('failure');
     } finally {
       setTestingModel(false);
@@ -298,6 +332,36 @@ const RegisterModelModal: React.FC<RegisterModelModalProps> = ({ open, modelId, 
           )}
         </Stack>
 
+        <Divider sx={{ borderColor: 'rgba(255,255,255,0.12)' }} />
+
+        <TextField
+          label="Model Used"
+          value={testModelUsed}
+          fullWidth
+          size="small"
+          InputProps={{
+            readOnly: true,
+            startAdornment: <MemoryIcon sx={{ fontSize: '1rem', color: 'text.secondary', mr: 1 }} />,
+          }}
+        />
+
+        <TextField
+          label="Model Echo"
+          value={testModelEcho}
+          fullWidth
+          size="small"
+          InputProps={{
+            readOnly: true,
+            startAdornment: <FingerprintIcon sx={{ fontSize: '1rem', color: 'text.secondary', mr: 1 }} />,
+          }}
+        />
+
+        {testModelUsed && testModelEcho && testModelUsed !== testModelEcho && (
+          <Alert severity="warning" sx={{ py: 0.5 }}>
+            Warning: Model response does not match expected model.
+          </Alert>
+        )}
+
         {testState !== 'idle' && (
           <Alert severity={testState === 'success' ? 'success' : 'error'} sx={{ py: 0.5 }}>
             <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', fontSize: '0.8rem' }}>
@@ -305,6 +369,9 @@ const RegisterModelModal: React.FC<RegisterModelModalProps> = ({ open, modelId, 
               <Box>Latency: {testLatencyMs !== null ? `${testLatencyMs} ms` : 'N/A'}</Box>
               <Box>Tokens: {testTokensUsed !== null ? testTokensUsed : 'N/A'}</Box>
             </Box>
+            {testDiagnostic && (
+              <Box sx={{ mt: 0.5, fontSize: '0.78rem' }}>{testDiagnostic}</Box>
+            )}
           </Alert>
         )}
 

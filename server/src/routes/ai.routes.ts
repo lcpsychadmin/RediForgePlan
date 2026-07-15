@@ -194,6 +194,8 @@ router.post('/models/test', requireAuth, requireRole('analyst', 'admin'), async 
         responseText: result.responseText,
         latencyMs: result.latencyMs,
         tokensUsed: result.tokensUsed,
+        modelUsed: result.modelUsed,
+        modelEcho: result.modelEcho,
       }));
     } catch (error: any) {
       await db.query(
@@ -210,6 +212,8 @@ router.post('/models/test', requireAuth, requireRole('analyst', 'admin'), async 
         responseText: error?.message || 'Model test failed',
         latencyMs: null,
         tokensUsed: null,
+        modelUsed: null,
+        modelEcho: null,
       }));
     }
   } catch (error) {

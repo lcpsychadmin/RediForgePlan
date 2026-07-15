@@ -23,6 +23,8 @@ export type AiModelTestResult = {
   responseText: string;
   latencyMs: number;
   tokensUsed: number | null;
+  modelUsed: string | null;
+  modelEcho: string | null;
   errorMessage?: string;
 };
 
@@ -145,7 +147,8 @@ class AiExecutionService {
     const responseText = responseJson?.choices?.[0]?.message?.content || '';
     const usage = responseJson?.usage || null;
     const tokensUsed = usage ? ((usage.total_tokens ?? (usage.prompt_tokens || 0) + (usage.completion_tokens || 0)) as number) : null;
-    return { responseText, tokensUsed };
+    const modelUsed = responseJson?.model ? String(responseJson.model) : null;
+    return { responseText, tokensUsed, modelUsed };
   }
 
   private parseAnthropicResponse(responseJson: any) {
@@ -154,7 +157,8 @@ class AiExecutionService {
       : '';
     const usage = responseJson?.usage || null;
     const tokensUsed = usage ? ((usage.input_tokens || 0) + (usage.output_tokens || 0)) : null;
-    return { responseText, tokensUsed };
+    const modelUsed = responseJson?.model ? String(responseJson.model) : null;
+    return { responseText, tokensUsed, modelUsed };
   }
 
   private parseDatabricksResponse(responseJson: any) {
@@ -166,7 +170,8 @@ class AiExecutionService {
       '';
     const usage = responseJson?.usage || null;
     const tokensUsed = usage ? ((usage.total_tokens ?? (usage.prompt_tokens || 0) + (usage.completion_tokens || 0)) as number) : null;
-    return { responseText: String(responseText || ''), tokensUsed };
+    const modelUsed = responseJson?.metadata?.model_name ? String(responseJson.metadata.model_name) : null;
+    return { responseText: String(responseText || ''), tokensUsed, modelUsed };
   }
 
   private async requestWithBearer(endpoint: string, apiKey: string, body: Record<string, unknown>) {
@@ -203,6 +208,9 @@ class AiExecutionService {
     const startedAt = Date.now();
     let responseText = '';
     let tokensUsed: number | null = null;
+    let modelUsed: string | null = null;
+    let modelEcho: string | null = null;
+    const echoPrompt = 'Respond ONLY with the model name you are running on.';
 
     if (provider === 'openai') {
       const endpoint = model.endpoint_url || 'https://api.openai.com/v1/chat/completions';
@@ -214,6 +222,14 @@ class AiExecutionService {
       const parsed = this.parseOpenAiResponse(responseJson);
       responseText = parsed.responseText;
       tokensUsed = parsed.tokensUsed;
+      modelUsed = parsed.modelUsed;
+
+      const echoJson = await this.requestWithBearer(endpoint, apiKey, {
+        model: model.model_key,
+        messages: [{ role: 'user', content: echoPrompt }],
+        ...(model.max_tokens ? { max_tokens: model.max_tokens } : {}),
+      });
+      modelEcho = this.parseOpenAiResponse(echoJson).responseText || null;
     } else if (provider === 'anthropic') {
       const endpoint = model.endpoint_url || 'https://api.anthropic.com/v1/messages';
       const response = await fetch(endpoint, {
@@ -240,6 +256,30 @@ class AiExecutionService {
       const parsed = this.parseAnthropicResponse(responseJson);
       responseText = parsed.responseText;
       tokensUsed = parsed.tokensUsed;
+      modelUsed = parsed.modelUsed;
+
+      const echoResponse = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model: model.model_key,
+          max_tokens: model.max_tokens || 512,
+          messages: [{ role: 'user', content: echoPrompt }],
+        }),
+      });
+      const echoJson: any = await echoResponse.json().catch(() => ({}));
+      if (!echoResponse.ok) {
+        throw new ApiError(
+          echoResponse.status,
+          echoJson?.error?.message || echoJson?.message || echoResponse.statusText,
+          'MODEL_TEST_REQUEST_FAILED'
+        );
+      }
+      modelEcho = this.parseAnthropicResponse(echoJson).responseText || null;
     } else if (provider === 'databricks') {
       const baseEndpoint = (model.endpoint_url || '').replace(/\/+$/, '');
       if (!baseEndpoint) {
@@ -256,6 +296,12 @@ class AiExecutionService {
       const parsed = this.parseDatabricksResponse(responseJson);
       responseText = parsed.responseText;
       tokensUsed = parsed.tokensUsed;
+      modelUsed = parsed.modelUsed;
+
+      const echoJson = await this.requestWithBearer(endpoint, apiKey, {
+        messages: [{ role: 'user', content: echoPrompt }],
+      });
+      modelEcho = this.parseDatabricksResponse(echoJson).responseText || null;
     } else {
       throw new ApiError(400, `Provider ${provider || 'unknown'} is not supported for model testing`, 'MODEL_TEST_PROVIDER_UNSUPPORTED');
     }
@@ -266,6 +312,8 @@ class AiExecutionService {
       responseText: responseText || '(No response text returned by provider)',
       latencyMs,
       tokensUsed,
+      modelUsed,
+      modelEcho,
     };
   }
 
