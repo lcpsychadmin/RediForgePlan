@@ -50,6 +50,7 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import BarChartIcon from '@mui/icons-material/BarChart';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ChangeHistoryIcon from '@mui/icons-material/ChangeHistory';
+import AltRouteIcon from '@mui/icons-material/AltRoute';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faDatabase, faServer, faCloud, faCode, faGears, faDiagramProject, faListCheck, faFileLines, faCircleNodes, faNetworkWired, faTableCells, faChartGantt, faClipboardList, faTriangleExclamation } from '@fortawesome/free-solid-svg-icons';
 import Layout from '../components/Layout';
@@ -57,7 +58,9 @@ import DatabricksIcon from '../components/icons/DatabricksIcon';
 import apiClient from '../api/client';
 import DatabricksSettings from '../components/settings/DatabricksSettings';
 import DbtSettings from '../components/settings/DbtSettings';
-import AiPlatformSettings from '../components/settings/AiPlatformSettings';
+import AiModelRegistryPanel from '../components/settings/AiModelRegistryPanel';
+import AiGatewayPanel from '../components/settings/AiGatewayPanel';
+import AiRouterPanel from '../components/settings/AiRouterPanel';
 import { UNIFIED_ROLE_MODEL, type UnifiedRoleKey } from '../constants/unifiedRoleModel';
 import {
   DEFAULT_DATABRICKS_SETTINGS,
@@ -283,6 +286,7 @@ const SettingsPage: React.FC = () => {
     planning: false,
     reference: false,
     platform: false,
+    aiRouting: false,
   });
   const [integrationStatus, setIntegrationStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
@@ -401,7 +405,6 @@ const SettingsPage: React.FC = () => {
   const isAiModelsMode = selectedMenuItem === 'aiModels';
   const isAiGatewaysMode = selectedMenuItem === 'aiGateways';
   const isAiRoutersMode = selectedMenuItem === 'aiRouters';
-  const isAiPoliciesMode = selectedMenuItem === 'aiPolicies';
 
   const handleAddValue = () => {
     if (!selectedPicklist) return;
@@ -671,7 +674,7 @@ const SettingsPage: React.FC = () => {
     }
   };
 
-  const toggleMenuGroup = (groupKey: 'planning' | 'reference' | 'platform') => {
+  const toggleMenuGroup = (groupKey: 'planning' | 'reference' | 'platform' | 'aiRouting') => {
     setMenuGroupsExpanded((prev) => ({ ...prev, [groupKey]: !prev[groupKey] }));
   };
 
@@ -850,61 +853,75 @@ const SettingsPage: React.FC = () => {
 
                       <Divider sx={{ my: 1, borderColor: 'rgba(255,255,255,0.08)' }} />
 
-                      <ListItem
-                        button
-                        selected={isAiModelsMode}
-                        onClick={() => setSelectedMenuItem('aiModels')}
+                      <Accordion
+                        expanded={menuGroupsExpanded.aiRouting}
+                        onChange={() => toggleMenuGroup('aiRouting')}
+                        disableGutters
                         sx={{
-                          backgroundColor: isAiModelsMode ? 'primary.lighter' : 'transparent',
-                          '&:hover': { backgroundColor: 'action.hover' },
-                          borderLeft: isAiModelsMode ? '4px solid' : 'none',
-                          borderColor: 'primary.main',
+                          backgroundColor: 'transparent',
+                          boxShadow: 'none',
+                          border: '1px solid rgba(255,255,255,0.08)',
+                          borderRadius: 1,
+                          mx: 1,
+                          mb: 1,
+                          '&:before': { display: 'none' },
                         }}
                       >
-                        <ListItemText primary="AI Model Registry" />
-                      </ListItem>
+                        <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ minHeight: 38 }}>
+                          <Typography variant="subtitle2" color="text.secondary">AI &amp; Model Routing</Typography>
+                        </AccordionSummary>
+                        <AccordionDetails sx={{ p: 0 }}>
+                          <List sx={{ p: 0 }}>
+                            <ListItem
+                              button
+                              selected={isAiModelsMode}
+                              onClick={() => setSelectedMenuItem('aiModels')}
+                              sx={{
+                                backgroundColor: isAiModelsMode ? 'primary.lighter' : 'transparent',
+                                '&:hover': { backgroundColor: 'action.hover' },
+                                borderLeft: isAiModelsMode ? '4px solid' : 'none',
+                                borderColor: 'primary.main',
+                                gap: 1,
+                              }}
+                            >
+                              <StorageIcon sx={{ fontSize: '1rem' }} />
+                              <ListItemText primary="AI Model Registry" />
+                            </ListItem>
 
-                      <ListItem
-                        button
-                        selected={isAiGatewaysMode}
-                        onClick={() => setSelectedMenuItem('aiGateways')}
-                        sx={{
-                          backgroundColor: isAiGatewaysMode ? 'primary.lighter' : 'transparent',
-                          '&:hover': { backgroundColor: 'action.hover' },
-                          borderLeft: isAiGatewaysMode ? '4px solid' : 'none',
-                          borderColor: 'primary.main',
-                        }}
-                      >
-                        <ListItemText primary="AI Gateways" />
-                      </ListItem>
+                            <ListItem
+                              button
+                              selected={isAiGatewaysMode}
+                              onClick={() => setSelectedMenuItem('aiGateways')}
+                              sx={{
+                                backgroundColor: isAiGatewaysMode ? 'primary.lighter' : 'transparent',
+                                '&:hover': { backgroundColor: 'action.hover' },
+                                borderLeft: isAiGatewaysMode ? '4px solid' : 'none',
+                                borderColor: 'primary.main',
+                                gap: 1,
+                              }}
+                            >
+                              <AltRouteIcon sx={{ fontSize: '1rem' }} />
+                              <ListItemText primary="AI Gateways" />
+                            </ListItem>
 
-                      <ListItem
-                        button
-                        selected={isAiRoutersMode}
-                        onClick={() => setSelectedMenuItem('aiRouters')}
-                        sx={{
-                          backgroundColor: isAiRoutersMode ? 'primary.lighter' : 'transparent',
-                          '&:hover': { backgroundColor: 'action.hover' },
-                          borderLeft: isAiRoutersMode ? '4px solid' : 'none',
-                          borderColor: 'primary.main',
-                        }}
-                      >
-                        <ListItemText primary="AI Routers" />
-                      </ListItem>
-
-                      <ListItem
-                        button
-                        selected={isAiPoliciesMode}
-                        onClick={() => setSelectedMenuItem('aiPolicies')}
-                        sx={{
-                          backgroundColor: isAiPoliciesMode ? 'primary.lighter' : 'transparent',
-                          '&:hover': { backgroundColor: 'action.hover' },
-                          borderLeft: isAiPoliciesMode ? '4px solid' : 'none',
-                          borderColor: 'primary.main',
-                        }}
-                      >
-                        <ListItemText primary="AI Usage Policies" />
-                      </ListItem>
+                            <ListItem
+                              button
+                              selected={isAiRoutersMode}
+                              onClick={() => setSelectedMenuItem('aiRouters')}
+                              sx={{
+                                backgroundColor: isAiRoutersMode ? 'primary.lighter' : 'transparent',
+                                '&:hover': { backgroundColor: 'action.hover' },
+                                borderLeft: isAiRoutersMode ? '4px solid' : 'none',
+                                borderColor: 'primary.main',
+                                gap: 1,
+                              }}
+                            >
+                              <AccountTreeIcon sx={{ fontSize: '1rem' }} />
+                              <ListItemText primary="AI Routers" />
+                            </ListItem>
+                          </List>
+                        </AccordionDetails>
+                      </Accordion>
                     </List>
                   </AccordionDetails>
                 </Accordion>
@@ -935,8 +952,6 @@ const SettingsPage: React.FC = () => {
                     ? 'AI Gateways'
                   : isAiRoutersMode
                     ? 'AI Routers'
-                  : isAiPoliciesMode
-                    ? 'AI Usage Policies'
                     : 'Default Task Templates'
             } />
             <Divider />
@@ -1363,13 +1378,11 @@ const SettingsPage: React.FC = () => {
                 </Box>
               )}
 
-              {(isAiModelsMode || isAiGatewaysMode || isAiRoutersMode || isAiPoliciesMode) && (
-                <Box>
-                  <AiPlatformSettings
-                    section={isAiModelsMode ? 'models' : isAiGatewaysMode ? 'gateways' : isAiRoutersMode ? 'routers' : 'policies'}
-                  />
-                </Box>
-              )}
+              {isAiModelsMode && <AiModelRegistryPanel />}
+
+              {isAiGatewaysMode && <AiGatewayPanel />}
+
+              {isAiRoutersMode && <AiRouterPanel />}
 
               {/* Save Button */}
               {(isPicklistMode || isDesignBuildTasksMode || isDesignBuildEstimationMode) && (

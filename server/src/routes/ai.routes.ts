@@ -402,6 +402,118 @@ router.delete('/policies/:policyId', requireAuth, requireRole('analyst', 'admin'
   }
 });
 
+router.get('/object-routing/options', requireAuth, async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    const [gatewaysResult, routersResult] = await Promise.all([
+      db.query(`SELECT id, name FROM ai_gateways WHERE is_active = TRUE ORDER BY name ASC`),
+      db.query(`SELECT id, name FROM ai_routers WHERE is_active = TRUE ORDER BY name ASC`),
+    ]);
+
+    res.json(formatSingleResponse({
+      gateways: gatewaysResult.rows,
+      routers: routersResult.rows,
+    }));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/object-routing/:globalObjectId', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const globalResult = await db.query(
+      `SELECT id, object_id, default_gateway_id, default_router_id
+       FROM global_objects
+       WHERE id = $1`,
+      [req.params.globalObjectId]
+    );
+
+    if (!globalResult.rows.length) {
+      throw new ApiError(404, 'Global object not found', 'NOT_FOUND');
+    }
+
+    res.json(formatSingleResponse({
+      globalObjectId: globalResult.rows[0].id,
+      objectId: globalResult.rows[0].object_id,
+      defaultGatewayId: globalResult.rows[0].default_gateway_id,
+      defaultRouterId: globalResult.rows[0].default_router_id,
+    }));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.put('/object-routing', requireAuth, requireRole('analyst', 'admin'), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const {
+      globalObjectId,
+      projectObjectId,
+      defaultGatewayId,
+      defaultRouterId,
+      gatewayOverrideId,
+      routerOverrideId,
+      projectLevelOverride,
+    } = req.body || {};
+
+    if (!globalObjectId && !projectObjectId) {
+      throw new ApiError(400, 'globalObjectId or projectObjectId is required', 'MISSING_FIELD');
+    }
+
+    let globalPayload: any = null;
+    let projectPayload: any = null;
+
+    if (globalObjectId) {
+      const globalResult = await db.query(
+        `UPDATE global_objects
+         SET default_gateway_id = $1,
+             default_router_id = $2,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $3
+         RETURNING id, default_gateway_id, default_router_id`,
+        [defaultGatewayId || null, defaultRouterId || null, globalObjectId]
+      );
+
+      if (!globalResult.rows.length) {
+        throw new ApiError(404, 'Global object not found', 'NOT_FOUND');
+      }
+
+      globalPayload = {
+        id: globalResult.rows[0].id,
+        defaultGatewayId: globalResult.rows[0].default_gateway_id,
+        defaultRouterId: globalResult.rows[0].default_router_id,
+      };
+    }
+
+    if (projectLevelOverride && projectObjectId) {
+      const projectResult = await db.query(
+        `UPDATE project_objects
+         SET gateway_override_id = $1,
+             router_override_id = $2,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $3
+         RETURNING id, gateway_override_id, router_override_id`,
+        [gatewayOverrideId || defaultGatewayId || null, routerOverrideId || defaultRouterId || null, projectObjectId]
+      );
+
+      if (!projectResult.rows.length) {
+        throw new ApiError(404, 'Project object not found', 'NOT_FOUND');
+      }
+
+      projectPayload = {
+        id: projectResult.rows[0].id,
+        gatewayOverrideId: projectResult.rows[0].gateway_override_id,
+        routerOverrideId: projectResult.rows[0].router_override_id,
+      };
+    }
+
+    res.json(formatSingleResponse({
+      global: globalPayload,
+      project: projectPayload,
+    }));
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.post('/execute', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const result = await aiExecutionService.execute({

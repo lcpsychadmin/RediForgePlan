@@ -79,6 +79,7 @@ import Layout from '../components/Layout';
 import ProcessAreaRoleAssignmentPanel from '../components/ProcessAreaRoleAssignmentPanel';
 import TaskDetailModal from '../components/tasks/TaskDetailModal';
 import CommonDataModelModal from '../components/CommonDataModelModal';
+import ObjectAiRoutingModal from '../components/ObjectAiRoutingModal';
 import ProjectDefectsPage from './ProjectDefectsPage';
 import DataMigrationStrategyView from '../components/strategy/DataMigrationStrategyView';
 import PlanningDeliverablesTracker from '../components/plan/PlanningDeliverablesTracker';
@@ -1498,7 +1499,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   const [maintainProjectParentCycleId, setMaintainProjectParentCycleId] = useState('');
   const [maintainProjectFilterCycleId, setMaintainProjectFilterCycleId] = useState<'all' | string>('all');
   const [maintainPendingCycleProjectId, setMaintainPendingCycleProjectId] = useState<string | null>(null);
-  const [inventoryObjects, setInventoryObjects] = useState<{ id: string; objectId: string; description: string; processArea: string }[]>([]);
+  const [inventoryObjects, setInventoryObjects] = useState<{ id: string; objectId: string; description: string; processArea: string; defaultGatewayId?: string; defaultRouterId?: string }[]>([]);
+  const [objectAiRoutingModalOpen, setObjectAiRoutingModalOpen] = useState(false);
+  const [objectAiRoutingTarget, setObjectAiRoutingTarget] = useState<any | null>(null);
+  const [objectAiRoutingOptions, setObjectAiRoutingOptions] = useState<{ gateways: Array<{ id: string; name: string }>; routers: Array<{ id: string; name: string }> }>({ gateways: [], routers: [] });
+  const [objectAiRoutingInitialValues, setObjectAiRoutingInitialValues] = useState<{ defaultGatewayId: string; defaultRouterId: string; projectLevelOverride: boolean }>({ defaultGatewayId: '', defaultRouterId: '', projectLevelOverride: false });
   const [projectInventoryItems, setProjectInventoryItems] = useState<any[]>([]);
   const [projectInventoryTaskObjectIds, setProjectInventoryTaskObjectIds] = useState<string[]>([]);
   const [projectHierarchySummaries, setProjectHierarchySummaries] = useState<Record<string, {
@@ -2351,6 +2356,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
       objectId: obj.objectId,
       description: obj.description || '',
       processArea: obj.processArea || '',
+      defaultGatewayId: obj.defaultGatewayId || '',
+      defaultRouterId: obj.defaultRouterId || '',
     })));
   }, [_globalObjectsRaw]);
 
@@ -5625,6 +5632,57 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
       console.error('Failed to update catalog process area:', error);
       alert('Failed to update process area. Please try again.');
     }
+  };
+
+  const openObjectAiRoutingModal = async (obj: any) => {
+    setObjectAiRoutingTarget(obj);
+    try {
+      const [optionsRes, objectRes] = await Promise.all([
+        apiClient.get('/api/ai/object-routing/options'),
+        apiClient.get(`/api/ai/object-routing/${obj.id}`),
+      ]);
+
+      setObjectAiRoutingOptions({
+        gateways: optionsRes.data?.data?.gateways || [],
+        routers: optionsRes.data?.data?.routers || [],
+      });
+      setObjectAiRoutingInitialValues({
+        defaultGatewayId: objectRes.data?.data?.defaultGatewayId || '',
+        defaultRouterId: objectRes.data?.data?.defaultRouterId || '',
+        projectLevelOverride: false,
+      });
+    } catch {
+      setObjectAiRoutingOptions({ gateways: [], routers: [] });
+      setObjectAiRoutingInitialValues({
+        defaultGatewayId: obj.defaultGatewayId || '',
+        defaultRouterId: obj.defaultRouterId || '',
+        projectLevelOverride: false,
+      });
+    }
+    setObjectAiRoutingModalOpen(true);
+  };
+
+  const saveObjectAiRouting = async (values: { defaultGatewayId: string; defaultRouterId: string; projectLevelOverride: boolean }) => {
+    if (!objectAiRoutingTarget) {
+      return;
+    }
+
+    await apiClient.put('/api/ai/object-routing', {
+      globalObjectId: objectAiRoutingTarget.id,
+      defaultGatewayId: values.defaultGatewayId || null,
+      defaultRouterId: values.defaultRouterId || null,
+      projectLevelOverride: values.projectLevelOverride,
+    });
+
+    setInventoryObjects((prev) => prev.map((obj) => (
+      obj.id === objectAiRoutingTarget.id
+        ? {
+            ...obj,
+            defaultGatewayId: values.defaultGatewayId,
+            defaultRouterId: values.defaultRouterId,
+          }
+        : obj
+    )));
   };
 
   const handleOpenAddToInv = async (obj: any) => {
@@ -14215,7 +14273,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                     />
 
                     <Box sx={{ overflowX: 'auto' }}>
-                      <Box sx={{ display: 'grid', gridTemplateColumns: '0.95fr 2fr 0.85fr 0.6fr', gap: 0, borderRadius: 1.25, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)' }}>
+                      <Box sx={{ display: 'grid', gridTemplateColumns: '0.95fr 2fr 0.85fr 0.9fr 0.6fr', gap: 0, borderRadius: 1.25, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)' }}>
                         {/* Header Row */}
                         <Box sx={{ backgroundColor: 'rgba(255,255,255,0.07)', p: 1, fontWeight: 700, color: 'rgba(255,255,255,0.5)', fontSize: '0.72rem', letterSpacing: '0.4px' }}>
                           OBJECT ID
@@ -14225,6 +14283,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                         </Box>
                         <Box sx={{ backgroundColor: 'rgba(255,255,255,0.07)', p: 1, fontWeight: 700, color: 'rgba(255,255,255,0.5)', fontSize: '0.72rem', letterSpacing: '0.4px' }}>
                           PROCESS AREA
+                        </Box>
+                        <Box sx={{ backgroundColor: 'rgba(255,255,255,0.07)', p: 1, fontWeight: 700, color: 'rgba(255,255,255,0.5)', fontSize: '0.72rem', letterSpacing: '0.4px', textAlign: 'center' }}>
+                          AI ROUTING
                         </Box>
                         <Box sx={{ backgroundColor: 'rgba(255,255,255,0.07)', p: 1, fontWeight: 700, color: 'rgba(255,255,255,0.5)', fontSize: '0.72rem', letterSpacing: '0.4px', textAlign: 'center' }}>
                           ACTIONS
@@ -14264,6 +14325,18 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                     <option key={area} value={area}>{area}</option>
                                   ))}
                                 </Box>
+                              </Box>
+                              <Box sx={{ p: 0.75, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: idx % 2 === 0 ? 'rgba(255,255,255,0.03)' : 'transparent', textAlign: 'center' }}>
+                                <Button
+                                  size="small"
+                                  variant="outlined"
+                                  onClick={() => {
+                                    openObjectAiRoutingModal(obj).catch(() => {});
+                                  }}
+                                  sx={{ textTransform: 'none', fontSize: '0.68rem', px: 0.8, py: 0.2 }}
+                                >
+                                  Assign AI Routing
+                                </Button>
                               </Box>
                               <Box sx={{ p: 0.75, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: idx % 2 === 0 ? 'rgba(255,255,255,0.03)' : 'transparent', display: 'flex', gap: 0.25, justifyContent: 'center', alignItems: 'center' }}>
                                 <IconButton
@@ -14383,8 +14456,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                     </Box>
 
                     <Box sx={{ overflowX: 'auto' }}>
-                      <Box sx={{ minWidth: 1120, display: 'grid', gridTemplateColumns: '2.2fr 0.9fr 0.9fr 1.05fr 0.75fr 0.75fr 0.55fr', gap: 0, borderRadius: 1.25, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)' }}>
-                        {['DATA OBJECT', 'PROCESS AREA', 'COMPLEXITY', 'DEPLOY. DISPOSITION', 'BUILD TYPE', 'OBJECT TYPE', 'ACTIONS'].map((header) => (
+                      <Box sx={{ minWidth: 1260, display: 'grid', gridTemplateColumns: '2.2fr 0.9fr 0.9fr 1.05fr 0.75fr 0.75fr 0.95fr 0.55fr', gap: 0, borderRadius: 1.25, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)' }}>
+                        {['DATA OBJECT', 'PROCESS AREA', 'COMPLEXITY', 'DEPLOY. DISPOSITION', 'BUILD TYPE', 'OBJECT TYPE', 'AI ROUTING', 'ACTIONS'].map((header) => (
                           <Box key={header} sx={{ backgroundColor: 'rgba(255,255,255,0.07)', p: 1, fontWeight: 700, color: 'rgba(255,255,255,0.5)', fontSize: '0.72rem', letterSpacing: '0.4px' }}>
                             {header}
                           </Box>
@@ -14540,6 +14613,24 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                       <option value="">—</option>
                                       {objectTypeOptions.map((option) => <option key={option} value={option}>{option}</option>)}
                                     </Box>
+                                  )}
+                                </Box>
+
+                                <Box sx={{ p: 0.45, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: rowBg, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                                  {isSubObject ? (
+                                    <Typography sx={{ color: 'rgba(255,255,255,0.3)', fontSize: '0.85rem' }}>—</Typography>
+                                  ) : (
+                                    <Button
+                                      size="small"
+                                      variant="outlined"
+                                      onClick={() => openObjectAiRoutingModal({
+                                        id: item.globalObjectId,
+                                        objectId: item.dataObjectId,
+                                      }).catch(() => {})}
+                                      sx={{ textTransform: 'none', fontSize: '0.66rem', px: 0.7, py: 0.15 }}
+                                    >
+                                      Assign AI Routing
+                                    </Button>
                                   )}
                                 </Box>
 
@@ -17424,6 +17515,19 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
           </Button>
         </DialogActions>
       </Dialog>
+
+      <ObjectAiRoutingModal
+        open={objectAiRoutingModalOpen}
+        objectLabel={objectAiRoutingTarget?.objectId || ''}
+        gatewayOptions={objectAiRoutingOptions.gateways.map((gateway) => ({ id: gateway.id, label: gateway.name }))}
+        routerOptions={objectAiRoutingOptions.routers.map((router) => ({ id: router.id, label: router.name }))}
+        initialValues={objectAiRoutingInitialValues}
+        onClose={() => {
+          setObjectAiRoutingModalOpen(false);
+          setObjectAiRoutingTarget(null);
+        }}
+        onSave={saveObjectAiRouting}
+      />
 
       {/* Project Inventory Item Dialog */}
       <Dialog open={projectInventoryDialogOpen} onClose={() => {
