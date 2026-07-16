@@ -153,6 +153,20 @@ const ObjectApplicationsPage: React.FC = () => {
     } catch {
       setCatalogs([]);
     }
+  }, []);
+
+  const loadMetadataSchemas = async (catalog: string) => {
+    if (!catalog) {
+      setSchemas([]);
+      return;
+    }
+    try {
+      const res = await apiClient.get('/api/settings/databricks/schemas', { params: { catalog } });
+      setSchemas(res.data?.data?.schemas || []);
+    } catch {
+      setSchemas([]);
+    }
+  };
 
   const loadMetadataTables = async (catalog: string, schema: string) => {
     if (!catalog || !schema) {
@@ -164,15 +178,14 @@ const ObjectApplicationsPage: React.FC = () => {
       setTables(res.data?.data?.tables || []);
     } catch {
       setTables([]);
-            const applicationTableName = String(field.tableName || '').trim();
-            const dedupeKey = `${String(field.fieldName || '').trim().toLowerCase()}::${applicationTableName.toLowerCase()}`;
+    }
   };
 
   React.useEffect(() => {
     load().catch(() => {
       setApps([]);
       setLinked([]);
-              tableName: applicationTableName || null,
+    });
   }, [load]);
 
   React.useEffect(() => {
@@ -186,7 +199,7 @@ const ObjectApplicationsPage: React.FC = () => {
       setLinked([]);
     });
   }, [selectedSubObjectId, load]);
-                  table: applicationTableName || null,
+
   React.useEffect(() => {
     loadSelectedDefinition(selectedDataDefId).catch(() => {
       setDataDefFields([]);
@@ -201,6 +214,7 @@ const ObjectApplicationsPage: React.FC = () => {
   }, [loadMetadataCatalogs]);
 
   const selectedDefinition = linked.find((row: any) => row.id === selectedDataDefId) || null;
+  const selectedSubObjectFields = dataDefFields;
   const metadataDraft = metadataBySubObject[selectedSubObjectId] || { catalog: '', schema: '', table: '' };
 
   const resolveFieldSource = (field: any): 'application' | 'databricks' => {
