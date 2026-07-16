@@ -486,7 +486,16 @@ const TopNav: React.FC<TopNavProps> = ({
             '&::-webkit-scrollbar': { display: 'none' },
           }}
         >
-          {activeSubNavItems.map((item, idx) => (
+          {activeSubNavItems.map((item, idx) => {
+            const isItemActive = !!item.path
+              ? (
+                  location.pathname === item.path ||
+                  (item.path === '/object-inventory/catalog' && location.pathname.startsWith('/objects/')) ||
+                  (item.path === '/object-inventory/catalog' && location.pathname.startsWith('/object-inventory'))
+                )
+              : (typeof item.tabIndex === 'number' && tabValue === item.tabIndex);
+
+            return (
             <Button
               key={idx}
               size="small"
@@ -515,23 +524,17 @@ const TopNav: React.FC<TopNavProps> = ({
                   mr: { xs: 0, sm: 0.75 },
                   ml: { xs: 0, sm: -0.5 },
                 },
-                backgroundColor: (
-                  (item.path && location.pathname === item.path) ||
-                  (!item.path && typeof item.tabIndex === 'number' && tabValue === item.tabIndex)
-                ) ? 'primary.main' : 'rgba(255, 255, 255, 0.08)',
+                backgroundColor: isItemActive ? 'primary.main' : 'rgba(255, 255, 255, 0.08)',
                 opacity: 1,
                 cursor: 'pointer',
                 '&:hover': {
-                  backgroundColor: (
-                    (item.path && location.pathname === item.path) ||
-                    (!item.path && typeof item.tabIndex === 'number' && tabValue === item.tabIndex)
-                  ) ? 'primary.dark' : 'rgba(255, 255, 255, 0.15)',
+                  backgroundColor: isItemActive ? 'primary.dark' : 'rgba(255, 255, 255, 0.15)',
                 },
               }}
             >
               {item.label}
             </Button>
-          ))}
+          );})}
         </Box>
       )}
     </AppBar>
