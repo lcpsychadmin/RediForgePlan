@@ -1,5 +1,5 @@
 import React from 'react';
-import { Alert, Box, Button, Card, CardContent, Stack, TextField, Typography } from '@mui/material';
+import { Alert, Box, Button, Card, CardContent, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import { useParams } from 'react-router-dom';
 import Layout from '../../../components/Layout';
 import ObjectWorkspaceHeader from '../../../components/objects/ObjectWorkspaceHeader';
@@ -14,6 +14,7 @@ const ObjectIndexPage: React.FC = () => {
   const [isSavingObject, setIsSavingObject] = React.useState(false);
   const [saveStatus, setSaveStatus] = React.useState('');
   const [saveError, setSaveError] = React.useState('');
+  const [processAreaOptions, setProcessAreaOptions] = React.useState<string[]>([]);
 
   React.useEffect(() => {
     let active = true;
@@ -57,6 +58,27 @@ const ObjectIndexPage: React.FC = () => {
       active = false;
     };
   }, [objectId]);
+
+  React.useEffect(() => {
+    let active = true;
+
+    apiClient.get('/api/hierarchy-preferences/state')
+      .then((res) => {
+        if (!active) return;
+        const values = res.data?.data?.picklistValues?.processArea;
+        if (Array.isArray(values) && values.length > 0) {
+          setProcessAreaOptions(values.filter((v: any) => typeof v === 'string' && v.trim()));
+        }
+      })
+      .catch(() => {
+        if (!active) return;
+        setProcessAreaOptions([]);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const handleSaveOverview = async () => {
     setSaveStatus('');
@@ -116,11 +138,17 @@ const ObjectIndexPage: React.FC = () => {
                   onChange={(e) => setObjectDraft((prev) => ({ ...prev, description: e.target.value }))}
                 />
                 <TextField
+                  select
                   size="small"
                   label="Process Area"
                   value={objectDraft.processArea}
                   onChange={(e) => setObjectDraft((prev) => ({ ...prev, processArea: e.target.value }))}
-                />
+                >
+                  <MenuItem value="">Select process area</MenuItem>
+                  {processAreaOptions.map((option) => (
+                    <MenuItem key={`process-area-${option}`} value={option}>{option}</MenuItem>
+                  ))}
+                </TextField>
                 <Box>
                   <Button
                     size="small"
@@ -135,9 +163,6 @@ const ObjectIndexPage: React.FC = () => {
               </Stack>
             )}
 
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-              Use the tabs above to manage linked applications, application data definitions, common data model attributes, relationships, and optional AI overrides.
-            </Typography>
             {saveStatus && (
               <Alert severity="success" sx={{ mt: 2 }}>{saveStatus}</Alert>
             )}
