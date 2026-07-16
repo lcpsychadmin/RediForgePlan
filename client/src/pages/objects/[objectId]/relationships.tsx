@@ -10,7 +10,7 @@ const ObjectRelationshipsPage: React.FC = () => {
   const [relationships, setRelationships] = React.useState<any[]>([]);
 
   React.useEffect(() => {
-    apiClient.get(`/api/common-data-model/object/${objectId}`)
+    apiClient.get(`/api/cdm/${objectId}`)
       .then((res) => {
         setRelationships(res.data?.data?.relationships || []);
       })
@@ -30,10 +30,10 @@ const ObjectRelationshipsPage: React.FC = () => {
             ) : relationships.map((rel) => (
               <Box key={rel.id} sx={{ py: 0.8, borderTop: '1px solid rgba(255,255,255,0.08)' }}>
                 <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                  {rel.sourceEntity || rel.sourceAttribute || 'Unknown source'} {'->'} {rel.targetEntity || rel.targetAttribute || 'Unknown target'}
+                  {rel.source_attribute_name || rel.sourceAttributeName || 'Unknown source'} {'->'} {rel.target_object_name || rel.targetObjectName || 'Unknown target'}
                 </Typography>
                 <Typography variant="caption" color="text.secondary">
-                  {rel.relationshipType || 'related'}
+                  {rel.relationship_type || rel.relationshipType || 'related'}
                 </Typography>
               </Box>
             ))}
