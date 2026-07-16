@@ -58,7 +58,6 @@ import CorporateFareIcon from '@mui/icons-material/CorporateFare';
 import SyncIcon from '@mui/icons-material/Sync';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
 import LayersIcon from '@mui/icons-material/Layers';
-import PlaylistAddIcon from '@mui/icons-material/PlaylistAdd';
 import SearchIcon from '@mui/icons-material/Search';
 import EventIcon from '@mui/icons-material/Event';
 import ViewListIcon from '@mui/icons-material/ViewList';
@@ -14343,19 +14342,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                 </Box>
                               </Box>
                               <Box sx={{ p: 0.75, borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: idx % 2 === 0 ? 'rgba(255,255,255,0.03)' : 'transparent', display: 'flex', gap: 0.25, justifyContent: 'center', alignItems: 'center' }}>
-                                <Button
-                                  size="small"
-                                  variant="outlined"
-                                  onClick={() => navigate(`/objects/${encodeURIComponent(obj.id)}`)}
-                                  sx={{ textTransform: 'none', fontSize: '0.68rem', px: 0.8, py: 0.2 }}
-                                >
-                                  Open Object Page
-                                </Button>
                                 <IconButton
                                   size="small"
-                                  onClick={() => handleEditCatalogObject(obj)}
+                                  onClick={() => navigate(`/objects/${encodeURIComponent(obj.id)}`)}
                                   sx={{ color: 'rgba(255,255,255,0.5)', '&:hover': { color: 'white', backgroundColor: 'rgba(255,255,255,0.08)' } }}
-                                  title="Edit"
+                                  title="Open Object Page"
                                 >
                                   <EditIcon sx={{ fontSize: '1rem' }} />
                                 </IconButton>
@@ -14374,14 +14365,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                                   sx={{ color: 'rgba(255,255,255,0.5)', '&:hover': { color: '#90caf9', backgroundColor: 'rgba(144,202,249,0.12)' } }}
                                 >
                                   <ViewListIcon sx={{ fontSize: '1rem' }} />
-                                </IconButton>
-                                <IconButton
-                                  size="small"
-                                  title="Add to Project Inventory"
-                                  onClick={() => handleOpenAddToInv(obj)}
-                                  sx={{ color: 'rgba(255,255,255,0.5)', '&:hover': { color: '#66bb6a', backgroundColor: 'rgba(102,187,106,0.1)' } }}
-                                >
-                                  <PlaylistAddIcon sx={{ fontSize: '1rem' }} />
                                 </IconButton>
                                 <IconButton
                                   size="small"
