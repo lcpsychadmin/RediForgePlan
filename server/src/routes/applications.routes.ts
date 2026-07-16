@@ -51,6 +51,7 @@ const normalizeAiFieldProposal = (row: any, index: number) => ({
   id: String(row?.id || `ai-field-${index}`),
   fieldName: String(row?.fieldName || row?.field_name || '').trim(),
   fieldLabel: String(row?.fieldLabel || row?.field_label || '').trim(),
+  tableName: String(row?.tableName || row?.table_name || row?.table || '').trim(),
   dataType: String(row?.dataType || row?.data_type || '').trim(),
   length: row?.length === '' || row?.length == null ? null : Number(row.length),
   decimals: row?.decimals === '' || row?.decimals == null ? null : Number(row.decimals),
@@ -420,7 +421,8 @@ router.post('/data-definitions/:definitionId/ai-generate-fields', requireAuth, a
       'Use context from CDM attributes, relationships, and existing fields.',
       'Incorporate industry-standard schema conventions for ERP applications such as SAP, JDE, and Workday when relevant.',
       'Return JSON only as an array of fields with keys:',
-      '[{"fieldName":string,"fieldLabel":string,"dataType":string,"length":number|null,"decimals":number|null,"isKey":boolean,"isRequired":boolean,"description":string,"businessRules":string}]',
+      '[{"fieldName":string,"fieldLabel":string,"tableName":string,"dataType":string,"length":number|null,"decimals":number|null,"isKey":boolean,"isRequired":boolean,"description":string,"businessRules":string}]',
+      'Include tableName for each field when possible. If unknown, return tableName as an empty string.',
       'Do not include markdown or commentary.',
       'Return between 8 and 25 high-value fields.',
     ].join('\n');

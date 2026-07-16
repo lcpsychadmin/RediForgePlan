@@ -18,6 +18,7 @@ export interface AiDataDefinitionProposalField {
   id: string;
   fieldName: string;
   fieldLabel: string;
+  tableName: string;
   dataType: string;
   length: number | null;
   decimals: number | null;
@@ -89,8 +90,8 @@ const DataDefinitionAiProposalModal: React.FC<DataDefinitionAiProposalModalProps
         </Typography>
 
         <Box sx={{ border: '1px solid rgba(255,255,255,0.12)', borderRadius: 1, overflowX: 'auto' }}>
-          <Box sx={{ minWidth: 1320, display: 'grid', gridTemplateColumns: '0.6fr 1.2fr 1.2fr 0.9fr 0.7fr 0.7fr 0.55fr 0.75fr 1.6fr 1.6fr 0.8fr', backgroundColor: 'rgba(255,255,255,0.06)' }}>
-            {['Select', 'Field Name', 'Label', 'Data Type', 'Length', 'Decimal', 'Key', 'Required', 'Description', 'Business Rules', 'Actions'].map((header) => (
+          <Box sx={{ minWidth: 1420, display: 'grid', gridTemplateColumns: '0.55fr 1.1fr 1.1fr 1fr 0.85fr 0.65fr 0.65fr 0.5fr 0.7fr 1.45fr 1.45fr 0.75fr', backgroundColor: 'rgba(255,255,255,0.06)' }}>
+            {['Select', 'Field Name', 'Label', 'Table', 'Data Type', 'Length', 'Decimal', 'Key', 'Required', 'Description', 'Business Rules', 'Actions'].map((header) => (
               <Box key={header} sx={{ px: 1, py: 0.75, fontSize: '0.72rem', fontWeight: 700, color: 'text.secondary' }}>{header}</Box>
             ))}
           </Box>
@@ -98,7 +99,7 @@ const DataDefinitionAiProposalModal: React.FC<DataDefinitionAiProposalModalProps
           {rows.length === 0 ? (
             <Box sx={{ p: 1.2 }}><Typography color="text.secondary" variant="body2">No proposals returned.</Typography></Box>
           ) : rows.map((row, index) => (
-            <Box key={row.id} sx={{ minWidth: 1320, display: 'grid', gridTemplateColumns: '0.6fr 1.2fr 1.2fr 0.9fr 0.7fr 0.7fr 0.55fr 0.75fr 1.6fr 1.6fr 0.8fr', borderTop: '1px solid rgba(255,255,255,0.08)', opacity: row.rejected ? 0.45 : 1 }}>
+            <Box key={row.id} sx={{ minWidth: 1420, display: 'grid', gridTemplateColumns: '0.55fr 1.1fr 1.1fr 1fr 0.85fr 0.65fr 0.65fr 0.5fr 0.7fr 1.45fr 1.45fr 0.75fr', borderTop: '1px solid rgba(255,255,255,0.08)', opacity: row.rejected ? 0.45 : 1 }}>
               <Box sx={{ px: 1, py: 0.55, display: 'flex', alignItems: 'center' }}>
                 <input
                   type="checkbox"
@@ -112,6 +113,7 @@ const DataDefinitionAiProposalModal: React.FC<DataDefinitionAiProposalModalProps
                 <>
                   <Box sx={{ px: 1, py: 0.45 }}><TextField size="small" value={row.fieldName} onChange={(e) => setRow(index, { fieldName: e.target.value })} fullWidth /></Box>
                   <Box sx={{ px: 1, py: 0.45 }}><TextField size="small" value={row.fieldLabel} onChange={(e) => setRow(index, { fieldLabel: e.target.value })} fullWidth /></Box>
+                  <Box sx={{ px: 1, py: 0.45 }}><TextField size="small" value={row.tableName} onChange={(e) => setRow(index, { tableName: e.target.value })} fullWidth /></Box>
                   <Box sx={{ px: 1, py: 0.45 }}><TextField size="small" value={row.dataType} onChange={(e) => setRow(index, { dataType: e.target.value })} fullWidth /></Box>
                   <Box sx={{ px: 1, py: 0.45 }}><TextField size="small" value={row.length ?? ''} onChange={(e) => setRow(index, { length: e.target.value === '' ? null : Number(e.target.value.replace(/[^0-9]/g, '')) })} fullWidth /></Box>
                   <Box sx={{ px: 1, py: 0.45 }}><TextField size="small" value={row.decimals ?? ''} onChange={(e) => setRow(index, { decimals: e.target.value === '' ? null : Number(e.target.value.replace(/[^0-9]/g, '')) })} fullWidth /></Box>
@@ -124,6 +126,7 @@ const DataDefinitionAiProposalModal: React.FC<DataDefinitionAiProposalModalProps
                 <>
                   <Box sx={{ px: 1, py: 0.75 }}>{row.fieldName || '-'}</Box>
                   <Box sx={{ px: 1, py: 0.75, color: 'text.secondary' }}>{row.fieldLabel || '-'}</Box>
+                  <Box sx={{ px: 1, py: 0.75, color: 'text.secondary' }}>{row.tableName || '-'}</Box>
                   <Box sx={{ px: 1, py: 0.75 }}>{row.dataType || '-'}</Box>
                   <Box sx={{ px: 1, py: 0.75 }}>{row.length ?? '-'}</Box>
                   <Box sx={{ px: 1, py: 0.75 }}>{row.decimals ?? '-'}</Box>

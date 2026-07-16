@@ -153,20 +153,6 @@ const ObjectApplicationsPage: React.FC = () => {
     } catch {
       setCatalogs([]);
     }
-  }, []);
-
-  const loadMetadataSchemas = async (catalog: string) => {
-    if (!catalog) {
-      setSchemas([]);
-      return;
-    }
-    try {
-      const res = await apiClient.get('/api/settings/databricks/schemas', { params: { catalog } });
-      setSchemas(res.data?.data?.schemas || []);
-    } catch {
-      setSchemas([]);
-    }
-  };
 
   const loadMetadataTables = async (catalog: string, schema: string) => {
     if (!catalog || !schema) {
@@ -178,14 +164,15 @@ const ObjectApplicationsPage: React.FC = () => {
       setTables(res.data?.data?.tables || []);
     } catch {
       setTables([]);
-    }
+            const applicationTableName = String(field.tableName || '').trim();
+            const dedupeKey = `${String(field.fieldName || '').trim().toLowerCase()}::${applicationTableName.toLowerCase()}`;
   };
 
   React.useEffect(() => {
     load().catch(() => {
       setApps([]);
       setLinked([]);
-    });
+              tableName: applicationTableName || null,
   }, [load]);
 
   React.useEffect(() => {
@@ -199,7 +186,7 @@ const ObjectApplicationsPage: React.FC = () => {
       setLinked([]);
     });
   }, [selectedSubObjectId, load]);
-
+                  table: applicationTableName || null,
   React.useEffect(() => {
     loadSelectedDefinition(selectedDataDefId).catch(() => {
       setDataDefFields([]);
@@ -214,7 +201,6 @@ const ObjectApplicationsPage: React.FC = () => {
   }, [loadMetadataCatalogs]);
 
   const selectedDefinition = linked.find((row: any) => row.id === selectedDataDefId) || null;
-  const selectedSubObjectFields = dataDefFields;
   const metadataDraft = metadataBySubObject[selectedSubObjectId] || { catalog: '', schema: '', table: '' };
 
   const resolveFieldSource = (field: any): 'application' | 'databricks' => {
@@ -361,26 +347,10 @@ const ObjectApplicationsPage: React.FC = () => {
         [selectedSubObjectId]: payload.syncedAt || new Date().toISOString(),
       }));
       setStatus('Metadata pulled from Databricks and field definitions updated.');
-      await maybePromptCdmUpdate('databricks');
     } catch {
       setStatus('Failed to pull metadata from Databricks. Check your Databricks settings and try again.');
     } finally {
       setIsSyncingMetadata(false);
-    }
-  };
-
-  const maybePromptCdmUpdate = async (reason: 'databricks' | 'ai') => {
-    if (!selectedSubObjectId || !selectedDataDefId) return;
-    const shouldUpdate = window.confirm('Update CDM based on new fields?');
-    if (!shouldUpdate) return;
-
-    try {
-      await apiClient.post(`/api/cdm/${objectId}/ai-proposal`, { subObjectId: selectedSubObjectId });
-      setStatus(reason === 'ai'
-        ? 'AI fields saved. CDM proposal regenerated for this sub-object.'
-        : 'Databricks fields synced. CDM proposal regenerated for this sub-object.');
-    } catch {
-      setStatus('Fields were saved, but CDM auto-update could not be generated.');
     }
   };
 
@@ -409,18 +379,19 @@ const ObjectApplicationsPage: React.FC = () => {
     setIsSavingAiFields(true);
     try {
       const existingKey = new Set(
-        selectedSubObjectFields.map((field: any) => `${String(field.field_name || '').trim().toLowerCase()}::${String(field.table_name || '').trim().toLowerCase()}`)
+        selectedSubObjectFields.map((field: any) => `${String(field.field_name || '').trim().toLowerCase()}::${String(getApplicationTableValue(field) || '').trim().toLowerCase()}`)
       );
 
       for (const field of acceptedFields) {
-        const dedupeKey = `${String(field.fieldName || '').trim().toLowerCase()}::${String(selectedDefinition?.application_name || '').trim().toLowerCase()}`;
+        const applicationTableName = String(field.tableName || '').trim();
+        const dedupeKey = `${String(field.fieldName || '').trim().toLowerCase()}::${applicationTableName.toLowerCase()}`;
         if (existingKey.has(dedupeKey)) {
           continue;
         }
 
         await apiClient.post(`/api/applications/data-definitions/${selectedDataDefId}/fields`, {
           subObjectId: null,
-          tableName: null,
+          tableName: applicationTableName || null,
           fieldName: field.fieldName,
           fieldLabel: field.fieldLabel || null,
           dataType: field.dataType || null,
@@ -434,7 +405,7 @@ const ObjectApplicationsPage: React.FC = () => {
             sourceType: 'application',
             aiGenerated: true,
             application: {
-              table: null,
+              table: applicationTableName || null,
             },
             businessRules: field.businessRules || '',
             databricks: {
@@ -449,7 +420,6 @@ const ObjectApplicationsPage: React.FC = () => {
       await loadSelectedDefinition(selectedDataDefId);
       setAiProposalOpen(false);
       setStatus('AI-generated fields added to Application Fields.');
-      await maybePromptCdmUpdate('ai');
     } catch {
       setStatus('Failed to save AI-generated fields.');
     } finally {
