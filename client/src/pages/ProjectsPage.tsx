@@ -14292,7 +14292,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                     />
 
                     <Box sx={{ overflowX: 'auto' }}>
-                      <Box sx={{ display: 'grid', gridTemplateColumns: '0.95fr 2fr 0.85fr 0.9fr 0.6fr', gap: 0, borderRadius: 1.25, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)' }}>
+                      <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 2fr 1fr 1.6fr', gap: 0, borderRadius: 1.25, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)' }}>
                         {/* Header Row */}
                         <Box sx={{ backgroundColor: 'rgba(255,255,255,0.07)', p: 1, fontWeight: 700, color: 'rgba(255,255,255,0.5)', fontSize: '0.72rem', letterSpacing: '0.4px' }}>
                           OBJECT ID
