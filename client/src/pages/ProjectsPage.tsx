@@ -14190,7 +14190,13 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
               <Box sx={{ display: 'flex', gap: 1, overflow: 'visible' }}>
                 <Button
                   variant={inventorySubTab === 0 ? 'contained' : 'text'}
-                  onClick={() => setInventorySubTab(0)}
+                  onClick={() => {
+                    if (location.pathname === '/object-inventory/project') {
+                      navigate('/object-inventory/catalog');
+                      return;
+                    }
+                    setInventorySubTab(0);
+                  }}
                   startIcon={<ViewListIcon sx={{ fontSize: '0.95rem !important' }} />}
                   sx={{ 
                     textTransform: 'none',
