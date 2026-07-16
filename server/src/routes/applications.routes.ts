@@ -61,7 +61,7 @@ router.delete('/:id', requireAuth, requireRole('analyst', 'admin'), async (req: 
 // List all data definitions for a global object (with application info)
 router.get('/data-definitions/object/:globalObjectId', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const subObjectId = String(req.query.subObjectId || '').trim() || null;
+    const subObjectId = String(req.query.subObjectId || '').trim();
     const result = await db.query(
       `SELECT dd.id, dd.global_object_id, dd.application_id, dd.object_sub_object_id, dd.notes, dd.created_at, dd.updated_at,
               a.name as application_name, a.vendor, a.version,
@@ -70,7 +70,7 @@ router.get('/data-definitions/object/:globalObjectId', requireAuth, async (req: 
        JOIN applications a ON a.id = dd.application_id
        LEFT JOIN object_sub_objects oso ON oso.id = dd.object_sub_object_id
        WHERE dd.global_object_id = $1
-         AND ($2::uuid IS NULL OR dd.object_sub_object_id = $2)
+         AND ($2 = '' OR dd.object_sub_object_id::text = $2)
        ORDER BY a.name ASC`,
       [req.params.globalObjectId, subObjectId]
     );
@@ -82,13 +82,13 @@ router.get('/data-definitions/object/:globalObjectId', requireAuth, async (req: 
 router.post('/data-definitions', requireAuth, requireRole('analyst', 'admin'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { globalObjectId, applicationId, subObjectId, notes } = req.body;
-    if (!globalObjectId || !applicationId || !subObjectId) throw new ApiError(400, 'globalObjectId, applicationId, and subObjectId are required', 'MISSING_FIELD');
+    if (!globalObjectId || !applicationId) throw new ApiError(400, 'globalObjectId and applicationId are required', 'MISSING_FIELD');
 
     const existing = await db.query(
       `SELECT id, global_object_id, application_id, object_sub_object_id, notes, created_at, updated_at
        FROM data_definitions
        WHERE global_object_id = $1 AND application_id = $2 AND object_sub_object_id = $3`,
-      [globalObjectId, applicationId, subObjectId]
+      [globalObjectId, applicationId, subObjectId || null]
     );
 
     if (existing.rows.length) {
@@ -108,7 +108,7 @@ router.post('/data-definitions', requireAuth, requireRole('analyst', 'admin'), a
       `INSERT INTO data_definitions (global_object_id, application_id, object_sub_object_id, notes)
        VALUES ($1, $2, $3, $4)
        RETURNING id, global_object_id, application_id, object_sub_object_id, notes, created_at, updated_at`,
-      [globalObjectId, applicationId, subObjectId, notes || null]
+      [globalObjectId, applicationId, subObjectId || null, notes || null]
     );
     res.status(201).json(formatSingleResponse(result.rows[0]));
   } catch (err) { next(err); }
