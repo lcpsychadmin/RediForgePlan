@@ -170,7 +170,7 @@ router.delete('/data-definitions/fields/:fieldId', requireAuth, requireRole('ana
 
 router.post('/data-definitions/:definitionId/metadata-sync', requireAuth, requireRole('analyst', 'admin'), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { catalog, schema, table } = req.body || {};
+    const { catalog, schema, table, subObjectId } = req.body || {};
     if (!catalog || !schema || !table) {
       throw new ApiError(400, 'catalog, schema, and table are required', 'MISSING_FIELD');
     }
@@ -178,7 +178,14 @@ router.post('/data-definitions/:definitionId/metadata-sync', requireAuth, requir
     const metadata = await databricksMetadataService.fetchTableMetadata(String(catalog), String(schema), String(table));
     const mappedFields = databricksMetadataService.mapMetadataToFieldDefinitions(metadata);
 
-    await db.query('DELETE FROM data_definition_fields WHERE data_definition_id = $1', [req.params.definitionId]);
+    if (subObjectId) {
+      await db.query(
+        'DELETE FROM data_definition_fields WHERE data_definition_id = $1 AND sub_object_id = $2',
+        [req.params.definitionId, subObjectId]
+      );
+    } else {
+      await db.query('DELETE FROM data_definition_fields WHERE data_definition_id = $1 AND sub_object_id IS NULL', [req.params.definitionId]);
+    }
 
     for (const field of mappedFields) {
       await db.query(
@@ -187,7 +194,7 @@ router.post('/data-definitions/:definitionId/metadata-sync', requireAuth, requir
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
         [
           req.params.definitionId,
-          null,
+          subObjectId || null,
           field.tableName,
           field.fieldName,
           field.fieldLabel,
@@ -205,6 +212,7 @@ router.post('/data-definitions/:definitionId/metadata-sync', requireAuth, requir
               catalog: String(catalog),
               schema: String(schema),
               table: String(table),
+              subObjectId: subObjectId || null,
               syncedAt: new Date().toISOString(),
             },
           },
@@ -227,7 +235,7 @@ router.post('/data-definitions/:definitionId/metadata-sync', requireAuth, requir
 
     res.json(formatSingleResponse({
       syncedAt: new Date().toISOString(),
-      source: { catalog: String(catalog), schema: String(schema), table: String(table) },
+      source: { catalog: String(catalog), schema: String(schema), table: String(table), subObjectId: subObjectId || null },
       fields: updatedFields.rows,
     }));
   } catch (err) { next(err); }

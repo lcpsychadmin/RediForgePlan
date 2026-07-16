@@ -56,6 +56,7 @@ const ObjectApplicationsPage: React.FC = () => {
   const [selectedDataDefId, setSelectedDataDefId] = React.useState('');
   const [dataDefSubObjects, setDataDefSubObjects] = React.useState<any[]>([]);
   const [dataDefFields, setDataDefFields] = React.useState<any[]>([]);
+  const [selectedSubObjectId, setSelectedSubObjectId] = React.useState('');
   const [addingSubObj, setAddingSubObj] = React.useState(false);
   const [newSubObjName, setNewSubObjName] = React.useState('');
   const [editingFieldId, setEditingFieldId] = React.useState<string | null>(null);
@@ -63,9 +64,9 @@ const ObjectApplicationsPage: React.FC = () => {
   const [catalogs, setCatalogs] = React.useState<string[]>([]);
   const [schemas, setSchemas] = React.useState<string[]>([]);
   const [tables, setTables] = React.useState<string[]>([]);
-  const [metadataDraft, setMetadataDraft] = React.useState({ catalog: '', schema: '', table: '' });
+  const [metadataBySubObject, setMetadataBySubObject] = React.useState<Record<string, { catalog: string; schema: string; table: string }>>({});
   const [isSyncingMetadata, setIsSyncingMetadata] = React.useState(false);
-  const [lastSyncedAt, setLastSyncedAt] = React.useState('');
+  const [lastSyncedBySubObject, setLastSyncedBySubObject] = React.useState<Record<string, string>>({});
   const [status, setStatus] = React.useState('');
 
   const load = React.useCallback(async (currentSelectedId?: string) => {
@@ -88,7 +89,8 @@ const ObjectApplicationsPage: React.FC = () => {
     if (!definitionId) {
       setDataDefSubObjects([]);
       setDataDefFields([]);
-      setLastSyncedAt('');
+      setSelectedSubObjectId('');
+      setLastSyncedBySubObject({});
       return;
     }
 
@@ -102,15 +104,21 @@ const ObjectApplicationsPage: React.FC = () => {
     setDataDefSubObjects(subObjects);
     setDataDefFields(fields);
 
-    const syncedTimes = fields
-      .map((field: any) => field?.field_metadata?.metadataSync?.syncedAt)
-      .filter(Boolean);
-    if (syncedTimes.length > 0) {
-      const latest = syncedTimes.sort((a: string, b: string) => new Date(b).getTime() - new Date(a).getTime())[0];
-      setLastSyncedAt(latest);
-    } else {
-      setLastSyncedAt('');
+    if (!subObjects.some((sub: any) => sub.id === selectedSubObjectId)) {
+      setSelectedSubObjectId(subObjects[0]?.id || '');
     }
+
+    const perSubSync: Record<string, string> = {};
+    fields.forEach((field: any) => {
+      const sid = field.sub_object_id || '';
+      if (!sid) return;
+      const syncedAt = field?.field_metadata?.metadataSync?.syncedAt;
+      if (!syncedAt) return;
+      if (!perSubSync[sid] || new Date(syncedAt).getTime() > new Date(perSubSync[sid]).getTime()) {
+        perSubSync[sid] = syncedAt;
+      }
+    });
+    setLastSyncedBySubObject(perSubSync);
   }, []);
 
   const loadMetadataCatalogs = React.useCallback(async () => {
@@ -159,7 +167,8 @@ const ObjectApplicationsPage: React.FC = () => {
     loadSelectedDefinition(selectedDataDefId).catch(() => {
       setDataDefSubObjects([]);
       setDataDefFields([]);
-      setLastSyncedAt('');
+      setSelectedSubObjectId('');
+      setLastSyncedBySubObject({});
     });
   }, [selectedDataDefId, loadSelectedDefinition]);
 
@@ -170,6 +179,9 @@ const ObjectApplicationsPage: React.FC = () => {
   }, [loadMetadataCatalogs]);
 
   const selectedDefinition = linked.find((row: any) => row.id === selectedDataDefId) || null;
+  const selectedSubObject = dataDefSubObjects.find((sub: any) => sub.id === selectedSubObjectId) || null;
+  const selectedSubObjectFields = dataDefFields.filter((field: any) => field.sub_object_id === selectedSubObjectId);
+  const metadataDraft = metadataBySubObject[selectedSubObjectId] || { catalog: '', schema: '', table: '' };
 
   const handleLink = async () => {
     if (!linkAppId) return;
@@ -179,9 +191,9 @@ const ObjectApplicationsPage: React.FC = () => {
     await load(selectedDataDefId);
   };
 
-  const startCreateField = (subObjectId: string | null = null) => {
+  const startCreateField = (subObjectId: string) => {
     setEditingFieldId('new');
-    setFieldDraft({ ...emptyFieldDraft(), subObjectId: subObjectId || '' });
+    setFieldDraft({ ...emptyFieldDraft(), subObjectId });
   };
 
   const startEditField = (field: any) => {
@@ -258,11 +270,14 @@ const ObjectApplicationsPage: React.FC = () => {
   const handleDeleteSubObject = async (subObjectId: string) => {
     await apiClient.delete(`/api/applications/data-definitions/sub-objects/${subObjectId}`);
     await loadSelectedDefinition(selectedDataDefId);
+    if (selectedSubObjectId === subObjectId) {
+      setSelectedSubObjectId('');
+    }
     setStatus('Sub-object deleted.');
   };
 
   const handleMetadataSync = async () => {
-    if (!selectedDataDefId || !metadataDraft.catalog || !metadataDraft.schema || !metadataDraft.table) {
+    if (!selectedDataDefId || !selectedSubObjectId || !metadataDraft.catalog || !metadataDraft.schema || !metadataDraft.table) {
       setStatus('Catalog, schema, and table are required for metadata sync.');
       return;
     }
@@ -273,10 +288,14 @@ const ObjectApplicationsPage: React.FC = () => {
         catalog: metadataDraft.catalog,
         schema: metadataDraft.schema,
         table: metadataDraft.table,
+        subObjectId: selectedSubObjectId,
       });
       const payload = response.data?.data || {};
       setDataDefFields(payload.fields || []);
-      setLastSyncedAt(payload.syncedAt || new Date().toISOString());
+      setLastSyncedBySubObject((prev) => ({
+        ...prev,
+        [selectedSubObjectId]: payload.syncedAt || new Date().toISOString(),
+      }));
       setStatus('Metadata pulled from Databricks and field definitions updated.');
     } catch {
       setStatus('Failed to pull metadata from Databricks. Check your Databricks settings and try again.');
@@ -346,6 +365,9 @@ const ObjectApplicationsPage: React.FC = () => {
                           setSelectedDataDefId('');
                           setDataDefSubObjects([]);
                           setDataDefFields([]);
+                          setSelectedSubObjectId('');
+                          setMetadataBySubObject({});
+                          setLastSyncedBySubObject({});
                         }
                       }}
                     >
@@ -368,15 +390,7 @@ const ObjectApplicationsPage: React.FC = () => {
                   <Typography variant="body2" color="text.secondary">
                     {selectedDefinition.application_name}
                   </Typography>
-                  {lastSyncedAt && (
-                    <Typography variant="caption" color="text.secondary">
-                      Last synced: {new Date(lastSyncedAt).toLocaleString()}
-                    </Typography>
-                  )}
                 </Box>
-                <Button size="small" variant="outlined" sx={{ textTransform: 'none' }} onClick={() => startCreateField(null)}>
-                  Add Field
-                </Button>
               </Box>
 
               <Divider sx={{ mb: 1.5 }} />
@@ -385,11 +399,25 @@ const ObjectApplicationsPage: React.FC = () => {
                 <Typography sx={{ fontWeight: 700, fontSize: '0.78rem', color: 'text.secondary', mb: 0.8 }}>Sub-objects</Typography>
                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, mb: 1 }}>
                   {dataDefSubObjects.map((sub: any) => (
-                    <Box key={sub.id} sx={{ display: 'flex', alignItems: 'center', gap: 0.25, px: 0.75, py: 0.35, borderRadius: 1, border: '1px solid rgba(255,255,255,0.18)', backgroundColor: 'rgba(255,255,255,0.03)' }}>
+                    <Box
+                      key={sub.id}
+                      onClick={() => {
+                        setSelectedSubObjectId(sub.id);
+                        cancelFieldEdit();
+                      }}
+                      sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 0.25,
+                        px: 0.75,
+                        py: 0.35,
+                        borderRadius: 1,
+                        border: '1px solid rgba(255,255,255,0.18)',
+                        backgroundColor: selectedSubObjectId === sub.id ? 'rgba(102,126,234,0.2)' : 'rgba(255,255,255,0.03)',
+                        cursor: 'pointer',
+                      }}
+                    >
                       <Typography sx={{ fontSize: '0.75rem', fontWeight: 600 }}>{sub.name}</Typography>
-                      <IconButton size="small" sx={{ p: 0.2 }} onClick={() => startCreateField(sub.id)} title="Add field to sub-object">
-                        <EditIcon sx={{ fontSize: '0.8rem' }} />
-                      </IconButton>
                       <IconButton size="small" sx={{ p: 0.2 }} onClick={() => handleDeleteSubObject(sub.id)} title="Delete sub-object">
                         <DeleteIcon sx={{ fontSize: '0.8rem' }} />
                       </IconButton>
@@ -409,65 +437,93 @@ const ObjectApplicationsPage: React.FC = () => {
                 )}
               </Box>
 
-              <Box sx={{ mb: 2, p: 1.25, borderRadius: 1, border: '1px solid rgba(255,255,255,0.12)', backgroundColor: 'rgba(255,255,255,0.02)' }}>
-                <Typography sx={{ fontWeight: 700, fontSize: '0.78rem', color: 'text.secondary', mb: 1 }}>Pull Metadata from Databricks</Typography>
-                <Stack direction={{ xs: 'column', md: 'row' }} spacing={1}>
-                  <TextField
-                    select
-                    size="small"
-                    label="Catalog"
-                    value={metadataDraft.catalog}
-                    onChange={async (e) => {
-                      const catalog = e.target.value;
-                      setMetadataDraft({ catalog, schema: '', table: '' });
-                      setTables([]);
-                      await loadMetadataSchemas(catalog);
-                    }}
-                    sx={{ minWidth: 170 }}
-                  >
-                    {catalogs.map((catalog) => (
-                      <MenuItem key={`catalog-${catalog}`} value={catalog}>{catalog}</MenuItem>
-                    ))}
-                  </TextField>
-                  <TextField
-                    select
-                    size="small"
-                    label="Schema"
-                    value={metadataDraft.schema}
-                    onChange={async (e) => {
-                      const schema = e.target.value;
-                      setMetadataDraft((prev) => ({ ...prev, schema, table: '' }));
-                      await loadMetadataTables(metadataDraft.catalog, schema);
-                    }}
-                    sx={{ minWidth: 170 }}
-                  >
-                    {schemas.map((schema) => (
-                      <MenuItem key={`schema-${schema}`} value={schema}>{schema}</MenuItem>
-                    ))}
-                  </TextField>
-                  <TextField
-                    select
-                    size="small"
-                    label="Table"
-                    value={metadataDraft.table}
-                    onChange={(e) => setMetadataDraft((prev) => ({ ...prev, table: e.target.value }))}
-                    sx={{ minWidth: 190 }}
-                  >
-                    {tables.map((table) => (
-                      <MenuItem key={`table-${table}`} value={table}>{table}</MenuItem>
-                    ))}
-                  </TextField>
-                  <Button
-                    variant="outlined"
-                    size="small"
-                    onClick={handleMetadataSync}
-                    disabled={isSyncingMetadata}
-                    sx={{ textTransform: 'none', alignSelf: { xs: 'stretch', md: 'center' } }}
-                  >
-                    {isSyncingMetadata ? 'Syncing...' : 'Pull Metadata from Databricks'}
-                  </Button>
-                </Stack>
-              </Box>
+              {!selectedSubObject ? (
+                <Alert severity="info" sx={{ mb: 2 }}>Create and select a sub-object to edit its data definition fields.</Alert>
+              ) : (
+                <>
+                  <Box sx={{ mb: 2, p: 1.25, borderRadius: 1, border: '1px solid rgba(255,255,255,0.12)', backgroundColor: 'rgba(255,255,255,0.02)' }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                      <Typography sx={{ fontWeight: 700, fontSize: '0.9rem' }}>
+                        {selectedSubObject.name} Field Definitions
+                      </Typography>
+                      <Button size="small" variant="outlined" sx={{ textTransform: 'none' }} onClick={() => startCreateField(selectedSubObject.id)}>
+                        Add Field
+                      </Button>
+                    </Box>
+                    {lastSyncedBySubObject[selectedSubObject.id] && (
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+                        Last synced: {new Date(lastSyncedBySubObject[selectedSubObject.id]).toLocaleString()}
+                      </Typography>
+                    )}
+                    <Typography sx={{ fontWeight: 700, fontSize: '0.78rem', color: 'text.secondary', mb: 1 }}>Pull Metadata from Databricks</Typography>
+                    <Stack direction={{ xs: 'column', md: 'row' }} spacing={1}>
+                      <TextField
+                        select
+                        size="small"
+                        label="Catalog"
+                        value={metadataDraft.catalog}
+                        onChange={async (e) => {
+                          const catalog = e.target.value;
+                          setMetadataBySubObject((prev) => ({
+                            ...prev,
+                            [selectedSubObject.id]: { catalog, schema: '', table: '' },
+                          }));
+                          setTables([]);
+                          await loadMetadataSchemas(catalog);
+                        }}
+                        sx={{ minWidth: 170 }}
+                      >
+                        {catalogs.map((catalog) => (
+                          <MenuItem key={`catalog-${catalog}`} value={catalog}>{catalog}</MenuItem>
+                        ))}
+                      </TextField>
+                      <TextField
+                        select
+                        size="small"
+                        label="Schema"
+                        value={metadataDraft.schema}
+                        onChange={async (e) => {
+                          const schema = e.target.value;
+                          setMetadataBySubObject((prev) => ({
+                            ...prev,
+                            [selectedSubObject.id]: { ...metadataDraft, schema, table: '' },
+                          }));
+                          await loadMetadataTables(metadataDraft.catalog, schema);
+                        }}
+                        sx={{ minWidth: 170 }}
+                      >
+                        {schemas.map((schema) => (
+                          <MenuItem key={`schema-${schema}`} value={schema}>{schema}</MenuItem>
+                        ))}
+                      </TextField>
+                      <TextField
+                        select
+                        size="small"
+                        label="Table"
+                        value={metadataDraft.table}
+                        onChange={(e) => setMetadataBySubObject((prev) => ({
+                          ...prev,
+                          [selectedSubObject.id]: { ...metadataDraft, table: e.target.value },
+                        }))}
+                        sx={{ minWidth: 190 }}
+                      >
+                        {tables.map((table) => (
+                          <MenuItem key={`table-${table}`} value={table}>{table}</MenuItem>
+                        ))}
+                      </TextField>
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        onClick={handleMetadataSync}
+                        disabled={isSyncingMetadata}
+                        sx={{ textTransform: 'none', alignSelf: { xs: 'stretch', md: 'center' } }}
+                      >
+                        {isSyncingMetadata ? 'Syncing...' : 'Pull Metadata from Databricks'}
+                      </Button>
+                    </Stack>
+                  </Box>
+                </>
+              )}
 
               {editingFieldId && (
                 <Box sx={{ mb: 2, p: 1.25, borderRadius: 1, border: '1px solid rgba(255,255,255,0.12)', backgroundColor: 'rgba(255,255,255,0.02)' }}>
@@ -480,12 +536,7 @@ const ObjectApplicationsPage: React.FC = () => {
                     <TextField size="small" label="Type" value={fieldDraft.dataType} onChange={(e) => setFieldDraft((prev) => ({ ...prev, dataType: e.target.value }))} />
                     <TextField size="small" label="Length" value={fieldDraft.length} onChange={(e) => setFieldDraft((prev) => ({ ...prev, length: e.target.value.replace(/[^0-9]/g, '') }))} />
                     <TextField size="small" label="Decimal" value={fieldDraft.decimals} onChange={(e) => setFieldDraft((prev) => ({ ...prev, decimals: e.target.value.replace(/[^0-9]/g, '') }))} />
-                    <TextField select size="small" label="Sub-object" value={fieldDraft.subObjectId} onChange={(e) => setFieldDraft((prev) => ({ ...prev, subObjectId: e.target.value }))}>
-                      <MenuItem value=""><em>Root</em></MenuItem>
-                      {dataDefSubObjects.map((sub: any) => (
-                        <MenuItem key={`draft-sub-${sub.id}`} value={sub.id}>{sub.name}</MenuItem>
-                      ))}
-                    </TextField>
+                    <TextField size="small" label="Sub-object" value={selectedSubObject?.name || '-'} disabled />
                   </Box>
                   <TextField
                     sx={{ mt: 1, width: '100%' }}
@@ -531,15 +582,14 @@ const ObjectApplicationsPage: React.FC = () => {
                     </Box>
                   ))}
                 </Box>
-                {dataDefFields.length === 0 ? (
+                {!selectedSubObject ? (
+                  <Box sx={{ p: 1.2 }}><Typography color="text.secondary" variant="body2">Select a sub-object to view fields.</Typography></Box>
+                ) : selectedSubObjectFields.length === 0 ? (
                   <Box sx={{ p: 1.2 }}><Typography color="text.secondary" variant="body2">No field definitions yet.</Typography></Box>
-                ) : dataDefFields.map((field: any, idx: number) => (
+                ) : selectedSubObjectFields.map((field: any, idx: number) => (
                   <Box key={field.id} sx={{ minWidth: 980, display: 'grid', gridTemplateColumns: '1.4fr 1.4fr 0.95fr 0.75fr 0.75fr 0.65fr 0.75fr 2fr 0.9fr', borderTop: idx === 0 ? 'none' : '1px solid rgba(255,255,255,0.08)' }}>
                     <Box sx={{ px: 1, py: 0.8, fontFamily: 'monospace', fontWeight: 700 }}>
                       {field.field_name || '-'}
-                      {field.sub_object_name && (
-                        <Typography variant="caption" sx={{ display: 'block', color: 'text.disabled' }}>{field.sub_object_name}</Typography>
-                      )}
                     </Box>
                     <Box sx={{ px: 1, py: 0.8 }}>{field.field_label || '-'}</Box>
                     <Box sx={{ px: 1, py: 0.8 }}>{field.data_type || '-'}</Box>

@@ -12,7 +12,7 @@ import {
   TableRow,
   Typography,
 } from '@mui/material';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
 import apiClient from '../api/client';
 
@@ -27,9 +27,11 @@ interface GlobalObjectRow {
 
 const ObjectInventoryPage: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [objects, setObjects] = React.useState<GlobalObjectRow[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [error, setError] = React.useState<string>('');
+  const isCatalogView = location.pathname !== '/object-inventory/projects';
 
   React.useEffect(() => {
     let active = true;
@@ -63,6 +65,25 @@ const ObjectInventoryPage: React.FC = () => {
         <Typography variant="h4" sx={{ fontWeight: 700, mb: 2.5 }}>
           Object Inventory
         </Typography>
+
+        <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
+          <Button
+            variant={isCatalogView ? 'contained' : 'outlined'}
+            size="small"
+            sx={{ textTransform: 'none', borderRadius: 10, px: 1.8 }}
+            onClick={() => navigate('/object-inventory/catalog')}
+          >
+            Object Catalog
+          </Button>
+          <Button
+            variant={!isCatalogView ? 'contained' : 'outlined'}
+            size="small"
+            sx={{ textTransform: 'none', borderRadius: 10, px: 1.8 }}
+            onClick={() => navigate('/object-inventory/projects')}
+          >
+            Project Inventory
+          </Button>
+        </Box>
 
         {isLoading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>

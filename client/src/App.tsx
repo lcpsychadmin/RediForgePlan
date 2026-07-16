@@ -191,6 +191,24 @@ const AppRoutes: React.FC = () => {
         path="/object-inventory"
         element={
           <ProtectedRoute>
+            <Navigate to="/object-inventory/catalog" replace />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/object-inventory/catalog"
+        element={
+          <ProtectedRoute>
+            <ObjectInventoryPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/object-inventory/projects"
+        element={
+          <ProtectedRoute>
             <ObjectInventoryPage />
           </ProtectedRoute>
         }
