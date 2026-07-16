@@ -50,7 +50,7 @@ const executionSubNavItems = [
 const planningSubNavItems = [
   { label: 'Plan', icon: <GridViewIcon sx={{ fontSize: '0.95rem' }} />, path: '/planning/plan' },
   { label: 'Strategy', icon: <GridViewIcon sx={{ fontSize: '0.95rem' }} />, path: '/planning/strategy' },
-  { label: 'Object Inventory', icon: <TableChartIcon sx={{ fontSize: '0.95rem' }} />, path: '/planning/inventory' },
+  { label: 'Object Inventory', icon: <TableChartIcon sx={{ fontSize: '0.95rem' }} />, path: '/object-inventory/catalog' },
   { label: 'Structure', icon: <AccountTreeIcon sx={{ fontSize: '0.95rem' }} />, path: '/planning/structure' },
   { label: 'Roadmap', icon: <TimelineIcon sx={{ fontSize: '0.95rem' }} />, path: '/planning/roadmap' },
 ];
