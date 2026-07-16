@@ -4760,6 +4760,17 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
     }
   }, [canAccessInventory, tabValue]);
 
+  useEffect(() => {
+    if (sectionMode !== 'planning' || planningView !== 'inventory') return;
+    if (location.pathname === '/object-inventory/project') {
+      setInventorySubTab(1);
+      return;
+    }
+    if (location.pathname === '/planning/inventory') {
+      setInventorySubTab(0);
+    }
+  }, [sectionMode, planningView, location.pathname]);
+
   // Ensure Priorities tab has a project context so the panel doesn't appear blank.
   useEffect(() => {
     if (tabValue !== 2 || activeProjectId) return;
