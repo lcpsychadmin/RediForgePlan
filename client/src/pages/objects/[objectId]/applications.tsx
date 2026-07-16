@@ -131,7 +131,7 @@ const ObjectApplicationsPage: React.FC = () => {
 
     const perSubSync: Record<string, string> = {};
     fields.forEach((field: any) => {
-      const sid = field.sub_object_id || '';
+      const sid = field.sub_object_id || selectedSubObjectId || '';
       if (!sid) return;
       const syncedAt = field?.field_metadata?.metadataSync?.syncedAt;
       if (!syncedAt) return;
@@ -140,7 +140,7 @@ const ObjectApplicationsPage: React.FC = () => {
       }
     });
     setLastSyncedBySubObject(perSubSync);
-  }, []);
+  }, [selectedSubObjectId]);
 
   const loadMetadataCatalogs = React.useCallback(async () => {
     try {
@@ -210,7 +210,7 @@ const ObjectApplicationsPage: React.FC = () => {
   }, [loadMetadataCatalogs]);
 
   const selectedDefinition = linked.find((row: any) => row.id === selectedDataDefId) || null;
-  const selectedSubObjectFields = dataDefFields.filter((field: any) => (field.sub_object_id || '') === selectedSubObjectId);
+  const selectedSubObjectFields = dataDefFields;
   const metadataDraft = metadataBySubObject[selectedSubObjectId] || { catalog: '', schema: '', table: '' };
 
   const resolveFieldSource = (field: any): 'application' | 'databricks' | 'ai' => {
@@ -236,10 +236,10 @@ const ObjectApplicationsPage: React.FC = () => {
     await load(selectedDataDefId);
   };
 
-  const startCreateField = (subObjectId: string) => {
+  const startCreateField = () => {
     setEditingFieldId('new');
     setFieldMetadataBase({});
-    setFieldDraft({ ...emptyFieldDraft(), subObjectId, sourceType: 'application' });
+    setFieldDraft({ ...emptyFieldDraft(), subObjectId: '', sourceType: 'application' });
   };
 
   const startEditField = (field: any) => {
@@ -270,7 +270,7 @@ const ObjectApplicationsPage: React.FC = () => {
     if (!selectedDataDefId || !fieldDraft.fieldName.trim()) return;
 
     const payload = {
-      subObjectId: fieldDraft.subObjectId || null,
+      subObjectId: null,
       tableName: selectedDefinition?.application_name || null,
       fieldName: fieldDraft.fieldName.trim(),
       fieldLabel: fieldDraft.fieldLabel || null,
@@ -318,7 +318,7 @@ const ObjectApplicationsPage: React.FC = () => {
         catalog: metadataDraft.catalog,
         schema: metadataDraft.schema,
         table: metadataDraft.table,
-        subObjectId: selectedSubObjectId,
+        subObjectId: null,
       });
       const payload = response.data?.data || {};
       setDataDefFields(payload.fields || []);
@@ -385,7 +385,7 @@ const ObjectApplicationsPage: React.FC = () => {
         }
 
         await apiClient.post(`/api/applications/data-definitions/${selectedDataDefId}/fields`, {
-          subObjectId: selectedSubObjectId,
+          subObjectId: null,
           tableName: selectedDefinition?.application_name || null,
           fieldName: field.fieldName,
           fieldLabel: field.fieldLabel || null,
@@ -536,7 +536,7 @@ const ObjectApplicationsPage: React.FC = () => {
                   <Typography sx={{ fontWeight: 700, fontSize: '0.9rem' }}>
                     {selectedSubObject ? `${selectedSubObject.name} Field Definitions` : 'Application Field Definitions'}
                   </Typography>
-                  <Button size="small" variant="outlined" sx={{ textTransform: 'none' }} onClick={() => startCreateField(selectedSubObjectId)}>
+                  <Button size="small" variant="outlined" sx={{ textTransform: 'none' }} onClick={() => startCreateField()}>
                     Add Field
                   </Button>
                 </Box>

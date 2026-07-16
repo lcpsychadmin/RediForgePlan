@@ -60,6 +60,22 @@ const normalizeAiFieldProposal = (row: any, index: number) => ({
   businessRules: String(row?.businessRules || row?.business_rules || '').trim(),
 });
 
+const resolveLegacyFieldSubObjectId = async (definitionId: string, subObjectId: string | null | undefined) => {
+  const trimmed = String(subObjectId || '').trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const result = await db.query(
+    `SELECT id
+     FROM data_definition_sub_objects
+     WHERE id = $1 AND data_definition_id = $2`,
+    [trimmed, definitionId]
+  );
+
+  return result.rows.length ? trimmed : null;
+};
+
 // ── Applications ─────────────────────────────────────────────────────────────
 
 router.get('/', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
@@ -208,12 +224,13 @@ router.post('/data-definitions/:definitionId/fields', requireAuth, requireRole('
   try {
     const { tableName, fieldName, fieldLabel, dataType, length, decimals, isKey, isRequired, businessProcessRequired, description, fieldMetadata, sortOrder, subObjectId } = req.body;
     if (!fieldName?.trim()) throw new ApiError(400, 'fieldName is required', 'MISSING_FIELD');
+    const resolvedSubObjectId = await resolveLegacyFieldSubObjectId(req.params.definitionId, subObjectId);
     const result = await db.query(
       `INSERT INTO data_definition_fields
          (data_definition_id, sub_object_id, table_name, field_name, field_label, data_type, length, decimals, is_key, is_required, business_process_required, description, field_metadata, sort_order)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
        RETURNING *`,
-      [req.params.definitionId, subObjectId || null, tableName || null, fieldName.trim(), fieldLabel || null, dataType || null,
+      [req.params.definitionId, resolvedSubObjectId, tableName || null, fieldName.trim(), fieldLabel || null, dataType || null,
        length || null, decimals || null, isKey || false, isRequired || false, businessProcessRequired || false, description || null, fieldMetadata || {}, sortOrder || 0]
     );
     res.status(201).json(formatSingleResponse(result.rows[0]));
@@ -223,12 +240,20 @@ router.post('/data-definitions/:definitionId/fields', requireAuth, requireRole('
 router.put('/data-definitions/fields/:fieldId', requireAuth, requireRole('analyst', 'admin'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { tableName, fieldName, fieldLabel, dataType, length, decimals, isKey, isRequired, businessProcessRequired, description, fieldMetadata, sortOrder, subObjectId } = req.body;
+    const definitionResult = await db.query(
+      `SELECT data_definition_id FROM data_definition_fields WHERE id = $1`,
+      [req.params.fieldId]
+    );
+    const definitionId = definitionResult.rows[0]?.data_definition_id ? String(definitionResult.rows[0].data_definition_id) : '';
+    const resolvedSubObjectId = definitionId
+      ? await resolveLegacyFieldSubObjectId(definitionId, subObjectId)
+      : null;
     const result = await db.query(
       `UPDATE data_definition_fields
        SET sub_object_id=$1, table_name=$2, field_name=$3, field_label=$4, data_type=$5, length=$6, decimals=$7,
            is_key=$8, is_required=$9, business_process_required=$10, description=$11, field_metadata=$12, sort_order=$13, updated_at=CURRENT_TIMESTAMP
          WHERE id=$14 RETURNING *`,
-      [subObjectId || null, tableName || null, fieldName || '', fieldLabel || null, dataType || null,
+      [resolvedSubObjectId, tableName || null, fieldName || '', fieldLabel || null, dataType || null,
          length || null, decimals || null, isKey || false, isRequired || false, businessProcessRequired || false, description || null, fieldMetadata || {}, sortOrder || 0, req.params.fieldId]
     );
     if (!result.rows.length) throw new ApiError(404, 'Field not found', 'NOT_FOUND');
@@ -252,8 +277,9 @@ router.post('/data-definitions/:definitionId/metadata-sync', requireAuth, requir
 
     const metadata = await databricksMetadataService.fetchTableMetadata(String(catalog), String(schema), String(table));
     const mappedFields = databricksMetadataService.mapMetadataToFieldDefinitions(metadata);
+    const resolvedSubObjectId = await resolveLegacyFieldSubObjectId(req.params.definitionId, subObjectId || null);
 
-    if (subObjectId) {
+    if (resolvedSubObjectId) {
       await db.query(
         `DELETE FROM data_definition_fields
          WHERE data_definition_id = $1
@@ -262,7 +288,7 @@ router.post('/data-definitions/:definitionId/metadata-sync', requireAuth, requir
              field_metadata->>'sourceType' = 'databricks'
              OR field_metadata ? 'metadataSync'
            )`,
-        [req.params.definitionId, subObjectId]
+        [req.params.definitionId, resolvedSubObjectId]
       );
     } else {
       await db.query(
@@ -284,7 +310,7 @@ router.post('/data-definitions/:definitionId/metadata-sync', requireAuth, requir
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
         [
           req.params.definitionId,
-          subObjectId || null,
+          resolvedSubObjectId,
           field.tableName,
           field.fieldName,
           field.fieldLabel,
