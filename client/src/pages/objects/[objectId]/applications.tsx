@@ -20,6 +20,8 @@ import CloseIcon from '@mui/icons-material/Close';
 import { useParams } from 'react-router-dom';
 import Layout from '../../../components/Layout';
 import ObjectWorkspaceHeader from '../../../components/objects/ObjectWorkspaceHeader';
+import ObjectSubObjectSelector from '../../../components/objects/ObjectSubObjectSelector';
+import useObjectSubObjectSelection from '../../../components/objects/useObjectSubObjectSelection';
 import apiClient from '../../../api/client';
 
 interface DataDefinitionFieldDraft {
@@ -54,11 +56,7 @@ const ObjectApplicationsPage: React.FC = () => {
   const [linked, setLinked] = React.useState<any[]>([]);
   const [linkAppId, setLinkAppId] = React.useState('');
   const [selectedDataDefId, setSelectedDataDefId] = React.useState('');
-  const [dataDefSubObjects, setDataDefSubObjects] = React.useState<any[]>([]);
   const [dataDefFields, setDataDefFields] = React.useState<any[]>([]);
-  const [selectedSubObjectId, setSelectedSubObjectId] = React.useState('');
-  const [addingSubObj, setAddingSubObj] = React.useState(false);
-  const [newSubObjName, setNewSubObjName] = React.useState('');
   const [editingFieldId, setEditingFieldId] = React.useState<string | null>(null);
   const [fieldDraft, setFieldDraft] = React.useState<DataDefinitionFieldDraft>(emptyFieldDraft());
   const [catalogs, setCatalogs] = React.useState<string[]>([]);
@@ -69,10 +67,27 @@ const ObjectApplicationsPage: React.FC = () => {
   const [lastSyncedBySubObject, setLastSyncedBySubObject] = React.useState<Record<string, string>>({});
   const [status, setStatus] = React.useState('');
 
+  const {
+    subObjects,
+    selectedSubObject,
+    selectedSubObjectId,
+    setSelectedSubObjectId,
+    isLoading: isLoadingSubObjects,
+  } = useObjectSubObjectSelection(objectId);
+
   const load = React.useCallback(async (currentSelectedId?: string) => {
+    if (!selectedSubObjectId) {
+      setApps([]);
+      setLinked([]);
+      setSelectedDataDefId('');
+      return;
+    }
+
     const [appsRes, linkedRes] = await Promise.all([
       apiClient.get('/api/applications'),
-      apiClient.get(`/api/applications/data-definitions/object/${objectId}`),
+      apiClient.get(`/api/applications/data-definitions/object/${objectId}`, {
+        params: { subObjectId: selectedSubObjectId },
+      }),
     ]);
     const appsPayload = appsRes.data?.data || [];
     const linkedPayload = linkedRes.data?.data || [];
@@ -83,30 +98,18 @@ const ObjectApplicationsPage: React.FC = () => {
     if (!activeId || !linkedPayload.some((row: any) => row.id === activeId)) {
       setSelectedDataDefId(linkedPayload[0]?.id || '');
     }
-  }, [objectId]);
+  }, [objectId, selectedDataDefId, selectedSubObjectId]);
 
   const loadSelectedDefinition = React.useCallback(async (definitionId: string) => {
     if (!definitionId) {
-      setDataDefSubObjects([]);
       setDataDefFields([]);
-      setSelectedSubObjectId('');
       setLastSyncedBySubObject({});
       return;
     }
 
-    const [subRes, fieldsRes] = await Promise.all([
-      apiClient.get(`/api/applications/data-definitions/${definitionId}/sub-objects`),
-      apiClient.get(`/api/applications/data-definitions/${definitionId}/fields`),
-    ]);
-
-    const subObjects = subRes.data?.data || [];
+    const fieldsRes = await apiClient.get(`/api/applications/data-definitions/${definitionId}/fields`);
     const fields = fieldsRes.data?.data || [];
-    setDataDefSubObjects(subObjects);
     setDataDefFields(fields);
-
-    if (!subObjects.some((sub: any) => sub.id === selectedSubObjectId)) {
-      setSelectedSubObjectId(subObjects[0]?.id || '');
-    }
 
     const perSubSync: Record<string, string> = {};
     fields.forEach((field: any) => {
@@ -164,10 +167,20 @@ const ObjectApplicationsPage: React.FC = () => {
   }, [load]);
 
   React.useEffect(() => {
-    loadSelectedDefinition(selectedDataDefId).catch(() => {
-      setDataDefSubObjects([]);
+    if (!selectedSubObjectId) {
+      setSelectedDataDefId('');
       setDataDefFields([]);
-      setSelectedSubObjectId('');
+      return;
+    }
+    load().catch(() => {
+      setApps([]);
+      setLinked([]);
+    });
+  }, [selectedSubObjectId, load]);
+
+  React.useEffect(() => {
+    loadSelectedDefinition(selectedDataDefId).catch(() => {
+      setDataDefFields([]);
       setLastSyncedBySubObject({});
     });
   }, [selectedDataDefId, loadSelectedDefinition]);
@@ -179,13 +192,16 @@ const ObjectApplicationsPage: React.FC = () => {
   }, [loadMetadataCatalogs]);
 
   const selectedDefinition = linked.find((row: any) => row.id === selectedDataDefId) || null;
-  const selectedSubObject = dataDefSubObjects.find((sub: any) => sub.id === selectedSubObjectId) || null;
   const selectedSubObjectFields = dataDefFields.filter((field: any) => (field.sub_object_id || '') === selectedSubObjectId);
   const metadataDraft = metadataBySubObject[selectedSubObjectId] || { catalog: '', schema: '', table: '' };
 
   const handleLink = async () => {
-    if (!linkAppId) return;
-    await apiClient.post('/api/applications/data-definitions', { globalObjectId: objectId, applicationId: linkAppId });
+    if (!linkAppId || !selectedSubObjectId) return;
+    await apiClient.post('/api/applications/data-definitions', {
+      globalObjectId: objectId,
+      applicationId: linkAppId,
+      subObjectId: selectedSubObjectId,
+    });
     setLinkAppId('');
     setStatus('Application linked.');
     await load(selectedDataDefId);
@@ -255,27 +271,6 @@ const ObjectApplicationsPage: React.FC = () => {
     setStatus('Field definition deleted.');
   };
 
-  const handleAddSubObject = async () => {
-    if (!selectedDataDefId || !newSubObjName.trim()) return;
-    await apiClient.post(`/api/applications/data-definitions/${selectedDataDefId}/sub-objects`, {
-      name: newSubObjName.trim(),
-      sortOrder: dataDefSubObjects.length,
-    });
-    setNewSubObjName('');
-    setAddingSubObj(false);
-    await loadSelectedDefinition(selectedDataDefId);
-    setStatus('Sub-object added.');
-  };
-
-  const handleDeleteSubObject = async (subObjectId: string) => {
-    await apiClient.delete(`/api/applications/data-definitions/sub-objects/${subObjectId}`);
-    await loadSelectedDefinition(selectedDataDefId);
-    if (selectedSubObjectId === subObjectId) {
-      setSelectedSubObjectId('');
-    }
-    setStatus('Sub-object deleted.');
-  };
-
   const handleMetadataSync = async () => {
     if (!selectedDataDefId || !metadataDraft.catalog || !metadataDraft.schema || !metadataDraft.table) {
       setStatus('Catalog, schema, and table are required for metadata sync.');
@@ -312,6 +307,22 @@ const ObjectApplicationsPage: React.FC = () => {
         <Card sx={{ backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.12)' }}>
           <CardContent>
             <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1 }}>Linked Applications</Typography>
+
+            {isLoadingSubObjects ? (
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>Loading sub-objects...</Typography>
+            ) : subObjects.length === 0 ? (
+              <Alert severity="info" sx={{ mb: 1.5 }}>
+                Create sub-objects on the Sub Objects tab before linking applications.
+              </Alert>
+            ) : (
+              <ObjectSubObjectSelector
+                subObjects={subObjects}
+                selectedSubObjectId={selectedSubObjectId}
+                onChange={setSelectedSubObjectId}
+                helperText="Only sub-objects created on the Sub Objects tab can be assigned here."
+              />
+            )}
+
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mb: 2 }}>
               <TextField
                 select
@@ -320,12 +331,13 @@ const ObjectApplicationsPage: React.FC = () => {
                 value={linkAppId}
                 onChange={(e) => setLinkAppId(e.target.value)}
                 sx={{ minWidth: 280 }}
+                disabled={!selectedSubObjectId}
               >
                 {apps.map((app) => (
                   <MenuItem key={app.id} value={app.id}>{app.name}</MenuItem>
                 ))}
               </TextField>
-              <Button variant="contained" onClick={handleLink} sx={{ textTransform: 'none' }}>Link Application</Button>
+              <Button variant="contained" onClick={handleLink} sx={{ textTransform: 'none' }} disabled={!selectedSubObjectId || !linkAppId}>Link Application</Button>
             </Stack>
 
             <Box sx={{ border: '1px solid rgba(255,255,255,0.12)', borderRadius: 1, overflow: 'hidden' }}>
@@ -363,9 +375,7 @@ const ObjectApplicationsPage: React.FC = () => {
                         await load(nextSelected);
                         if (selectedDataDefId === deletedId) {
                           setSelectedDataDefId('');
-                          setDataDefSubObjects([]);
                           setDataDefFields([]);
-                          setSelectedSubObjectId('');
                           setMetadataBySubObject({});
                           setLastSyncedBySubObject({});
                         }
@@ -394,48 +404,6 @@ const ObjectApplicationsPage: React.FC = () => {
               </Box>
 
               <Divider sx={{ mb: 1.5 }} />
-
-              <Box sx={{ mb: 2 }}>
-                <Typography sx={{ fontWeight: 700, fontSize: '0.78rem', color: 'text.secondary', mb: 0.8 }}>Sub-objects</Typography>
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, mb: 1 }}>
-                  {dataDefSubObjects.map((sub: any) => (
-                    <Box
-                      key={sub.id}
-                      onClick={() => {
-                        setSelectedSubObjectId(sub.id);
-                        cancelFieldEdit();
-                      }}
-                      sx={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 0.25,
-                        px: 0.75,
-                        py: 0.35,
-                        borderRadius: 1,
-                        border: '1px solid rgba(255,255,255,0.18)',
-                        backgroundColor: selectedSubObjectId === sub.id ? 'rgba(102,126,234,0.2)' : 'rgba(255,255,255,0.03)',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      <Typography sx={{ fontSize: '0.75rem', fontWeight: 600 }}>{sub.name}</Typography>
-                      <IconButton size="small" sx={{ p: 0.2 }} onClick={() => handleDeleteSubObject(sub.id)} title="Delete sub-object">
-                        <DeleteIcon sx={{ fontSize: '0.8rem' }} />
-                      </IconButton>
-                    </Box>
-                  ))}
-                </Box>
-                {addingSubObj ? (
-                  <Stack direction="row" spacing={1}>
-                    <TextField size="small" label="Sub-object name" value={newSubObjName} onChange={(e) => setNewSubObjName(e.target.value)} sx={{ minWidth: 230 }} />
-                    <Button variant="contained" size="small" sx={{ textTransform: 'none' }} onClick={handleAddSubObject}>Save</Button>
-                    <Button variant="text" size="small" sx={{ textTransform: 'none' }} onClick={() => { setAddingSubObj(false); setNewSubObjName(''); }}>Cancel</Button>
-                  </Stack>
-                ) : (
-                  <Button size="small" variant="text" sx={{ textTransform: 'none', px: 0 }} onClick={() => setAddingSubObj(true)}>
-                    + Add Sub-object
-                  </Button>
-                )}
-              </Box>
 
               <Box sx={{ mb: 2, p: 1.25, borderRadius: 1, border: '1px solid rgba(255,255,255,0.12)', backgroundColor: 'rgba(255,255,255,0.02)' }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
