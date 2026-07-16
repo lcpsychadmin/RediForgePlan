@@ -4762,6 +4762,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
 
   useEffect(() => {
     if (sectionMode !== 'planning' || planningView !== 'inventory') return;
+    if (location.pathname === '/object-inventory/catalog') {
+      setInventorySubTab(0);
+      return;
+    }
     if (location.pathname === '/object-inventory/project') {
       setInventorySubTab(1);
       return;

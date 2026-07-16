@@ -25,8 +25,6 @@ import ProjectDefectsPage from './pages/ProjectDefectsPage';
 import SchedulePage from './pages/SchedulePage';
 import MyTasksPage from './pages/MyTasksPage';
 import ReportingDashboardPage from './pages/ReportingDashboardPage';
-import ObjectInventoryPage from './pages/ObjectInventoryPage';
-import ObjectInventoryCatalogPage from './pages/object-inventory/catalog';
 import ObjectIndexPage from './pages/objects/[objectId]/index';
 import ObjectApplicationsPage from './pages/objects/[objectId]/applications';
 import ObjectCdmPage from './pages/objects/[objectId]/cdm';
@@ -192,13 +190,19 @@ const AppRoutes: React.FC = () => {
         path="/object-inventory"
         element={
           <ProtectedRoute>
-            <ObjectInventoryPage />
+            <Navigate to="/object-inventory/catalog" replace />
           </ProtectedRoute>
         }
-      >
-        <Route index element={<Navigate to="catalog" replace />} />
-        <Route path="catalog" element={<ObjectInventoryCatalogPage />} />
-      </Route>
+      />
+
+      <Route
+        path="/object-inventory/catalog"
+        element={
+          <ProtectedRoute>
+            <ProjectsPage sectionMode="planning" planningView="inventory" />
+          </ProtectedRoute>
+        }
+      />
 
       <Route
         path="/object-inventory/project"
