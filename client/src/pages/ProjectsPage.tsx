@@ -91,7 +91,6 @@ import {
   type DesignBuildTaskType,
 } from '../constants/designBuildEstimationDefaults';
 
-const COMMON_DATA_MODEL_APP_NAME = 'Common Data Model';
 
 interface Program {
   id: string;
@@ -1556,7 +1555,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
   const [collapsedSubObjs, setCollapsedSubObjs] = useState<Set<string>>(new Set());
   const [editingSubObjId, setEditingSubObjId] = useState<string | null>(null);
   const [editingSubObjName, setEditingSubObjName] = useState('');
-  const [commonDataModelModalOpen, setCommonDataModelModalOpen] = useState(false);
+  const [, setCommonDataModelModalOpen] = useState(false);
   const [cdmModalObjectId, setCdmModalObjectId] = useState<string | null>(null);
   const [cdmModalObject, setCdmModalObject] = useState<any | null>(null);
   const [commonDataModel, setCommonDataModel] = useState<CommonDataModel | null>(null);
@@ -18172,30 +18171,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ sectionMode = 'execution', 
                   </IconButton>
                 </Box>
               ))}
-              <Box sx={{ borderTop: '1px solid rgba(255,255,255,0.08)', mt: 0.5, pt: 0.5 }}>
-                <Box
-                  sx={{
-                    px: 1.5,
-                    py: 1,
-                    cursor: 'default',
-                    borderBottom: '1px solid rgba(255,255,255,0.04)',
-                    backgroundColor: commonDataModelModalOpen ? 'rgba(109, 180, 255, 0.22)' : 'transparent',
-                    borderLeft: commonDataModelModalOpen ? '3px solid #7bb5ff' : '3px solid transparent',
-                    '&:hover': { backgroundColor: commonDataModelModalOpen ? 'rgba(109, 180, 255, 0.22)' : 'transparent' },
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between'
-                  }}
-                >
-                  <Box sx={{ minWidth: 0 }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.7 }}>
-                      <LayersIcon sx={{ fontSize: '0.95rem', color: 'rgba(207,227,255,0.9)' }} />
-                      <Typography sx={{ fontWeight: 700, fontSize: '0.8rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#cfe3ff' }}>{COMMON_DATA_MODEL_APP_NAME}</Typography>
-                    </Box>
-                    <Typography variant="caption" sx={{ color: 'rgba(207,227,255,0.75)' }}>Use Assign Application in Object Inventory to edit CDM attributes, relationships, and business rules.</Typography>
-                  </Box>
-                </Box>
-              </Box>
             </Box>
           </Box>
 
