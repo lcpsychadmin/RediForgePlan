@@ -225,6 +225,24 @@ const ObjectApplicationsPage: React.FC = () => {
 
   const applicationFields = selectedSubObjectFields.filter((field: any) => resolveFieldSource(field) === 'application');
 
+  const getApplicationTableValue = (field: any): string => {
+    const metadataApplicationTable = String(
+      field?.field_metadata?.application?.table || field?.field_metadata?.applicationTable || ''
+    ).trim();
+    if (metadataApplicationTable) return metadataApplicationTable;
+
+    const rawTableName = String(field?.table_name || '').trim();
+    const appName = String(selectedDefinition?.application_name || '').trim();
+    if (!rawTableName) return '';
+
+    // Legacy rows can carry app name as table_name; hide that fallback in the UI.
+    if (appName && rawTableName.toLowerCase() === appName.toLowerCase()) {
+      return '';
+    }
+
+    return rawTableName;
+  };
+
   const handleLink = async () => {
     if (!linkAppId || !selectedSubObjectId) return;
     await apiClient.post('/api/applications/data-definitions', {
@@ -244,7 +262,7 @@ const ObjectApplicationsPage: React.FC = () => {
       ...emptyFieldDraft(),
       subObjectId: '',
       sourceType: 'application',
-      tableName: selectedDefinition?.application_name || '',
+      tableName: '',
     });
   };
 
@@ -253,7 +271,7 @@ const ObjectApplicationsPage: React.FC = () => {
     setFieldDraft({
       subObjectId: field.sub_object_id || '',
       sourceType: resolveFieldSource(field),
-      tableName: field.table_name || '',
+      tableName: getApplicationTableValue(field),
       databricksTable: field.field_metadata?.databricks?.table || '',
       databricksField: field.field_metadata?.databricks?.field || '',
       fieldName: field.field_name || '',
@@ -280,7 +298,7 @@ const ObjectApplicationsPage: React.FC = () => {
 
     const payload = {
       subObjectId: null,
-      tableName: fieldDraft.tableName || selectedDefinition?.application_name || null,
+      tableName: fieldDraft.tableName || null,
       fieldName: fieldDraft.fieldName.trim(),
       fieldLabel: fieldDraft.fieldLabel || null,
       dataType: fieldDraft.dataType || null,
@@ -294,6 +312,9 @@ const ObjectApplicationsPage: React.FC = () => {
         ...fieldMetadataBase,
         businessRules: fieldDraft.businessRules || '',
         sourceType: 'application',
+        application: {
+          table: fieldDraft.tableName || null,
+        },
         databricks: {
           table: fieldDraft.databricksTable || null,
           field: fieldDraft.databricksField || null,
@@ -399,7 +420,7 @@ const ObjectApplicationsPage: React.FC = () => {
 
         await apiClient.post(`/api/applications/data-definitions/${selectedDataDefId}/fields`, {
           subObjectId: null,
-          tableName: selectedDefinition?.application_name || null,
+          tableName: null,
           fieldName: field.fieldName,
           fieldLabel: field.fieldLabel || null,
           dataType: field.dataType || null,
@@ -412,6 +433,9 @@ const ObjectApplicationsPage: React.FC = () => {
           fieldMetadata: {
             sourceType: 'application',
             aiGenerated: true,
+            application: {
+              table: null,
+            },
             businessRules: field.businessRules || '',
             databricks: {
               table: null,
@@ -717,7 +741,7 @@ const ObjectApplicationsPage: React.FC = () => {
                             {field.field_name || '-'}
                           </Box>
                           <Box sx={{ px: 1, py: 0.8 }}>{field.field_label || '-'}</Box>
-                          <Box sx={{ px: 1, py: 0.8, color: 'text.secondary' }}>{field.table_name || '-'}</Box>
+                          <Box sx={{ px: 1, py: 0.8, color: 'text.secondary' }}>{getApplicationTableValue(field) || '-'}</Box>
                           <Box sx={{ px: 1, py: 0.8 }}>{field.data_type || '-'}</Box>
                           <Box sx={{ px: 1, py: 0.8 }}>{field.length ?? '-'}</Box>
                           <Box sx={{ px: 1, py: 0.8 }}>{field.decimals ?? '-'}</Box>
