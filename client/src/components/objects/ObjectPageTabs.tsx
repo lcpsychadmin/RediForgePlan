@@ -16,7 +16,6 @@ const ObjectPageTabs: React.FC<ObjectPageTabsProps> = ({ objectId, showAiOverrid
     { label: 'Applications', path: `/objects/${objectId}/applications` },
     { label: 'Common Data Model', path: `/objects/${objectId}/cdm` },
     { label: 'Relationships', path: `/objects/${objectId}/relationships` },
-    { label: 'Metadata', path: `/objects/${objectId}/metadata` },
     ...(showAiOverrides ? [{ label: 'AI Overrides', path: `/objects/${objectId}/ai-overrides` }] : []),
   ];
 

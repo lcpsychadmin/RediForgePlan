@@ -43,7 +43,7 @@ const ObjectIndexPage: React.FC = () => {
               Object ID: {objectId}
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-              Use the tabs above to manage applications, data model attributes, relationships, metadata, and optional AI overrides.
+              Use the tabs above to manage linked applications, application data definitions, common data model attributes, relationships, and optional AI overrides.
             </Typography>
             {routingEnabledLoaded && !showAiOverrides && (
               <Alert severity="info" sx={{ mt: 2 }}>

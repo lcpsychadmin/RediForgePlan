@@ -10,6 +10,7 @@ interface ObjectWorkspaceHeaderProps {
   title: string;
   showTabs?: boolean;
   showAiOverrides?: boolean;
+  breadcrumbLabel?: string;
 }
 
 const ObjectWorkspaceHeader: React.FC<ObjectWorkspaceHeaderProps> = ({
@@ -17,6 +18,7 @@ const ObjectWorkspaceHeader: React.FC<ObjectWorkspaceHeaderProps> = ({
   title,
   showTabs = true,
   showAiOverrides = true,
+  breadcrumbLabel,
 }) => {
   const [objectLabel, setObjectLabel] = React.useState(objectId);
 
@@ -67,6 +69,11 @@ const ObjectWorkspaceHeader: React.FC<ObjectWorkspaceHeaderProps> = ({
         <Typography sx={{ color: 'text.primary', fontWeight: 600, fontSize: '0.82rem' }}>
           {objectLabel}
         </Typography>
+        {breadcrumbLabel && (
+          <Typography sx={{ color: 'text.primary', fontWeight: 600, fontSize: '0.82rem' }}>
+            {breadcrumbLabel}
+          </Typography>
+        )}
       </Breadcrumbs>
 
       <Typography variant="h5" sx={{ fontWeight: 700, mb: 1.5 }}>

@@ -30,7 +30,6 @@ import ObjectIndexPage from './pages/objects/[objectId]/index';
 import ObjectApplicationsPage from './pages/objects/[objectId]/applications';
 import ObjectCdmPage from './pages/objects/[objectId]/cdm';
 import ObjectRelationshipsPage from './pages/objects/[objectId]/relationships';
-import ObjectMetadataPage from './pages/objects/[objectId]/metadata';
 import ObjectAiOverridesPage from './pages/objects/[objectId]/ai-overrides';
 
 // Layout
@@ -271,15 +270,6 @@ const AppRoutes: React.FC = () => {
         element={
           <ProtectedRoute>
             <ObjectRelationshipsPage />
-          </ProtectedRoute>
-        }
-      />
-
-      <Route
-        path="/objects/:objectId/metadata"
-        element={
-          <ProtectedRoute>
-            <ObjectMetadataPage />
           </ProtectedRoute>
         }
       />
