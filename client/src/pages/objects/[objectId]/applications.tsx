@@ -1,5 +1,8 @@
 import React from 'react';
 import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
   Alert,
   Box,
   Button,
@@ -17,15 +20,19 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import SaveIcon from '@mui/icons-material/Save';
 import CloseIcon from '@mui/icons-material/Close';
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { useParams } from 'react-router-dom';
 import Layout from '../../../components/Layout';
 import ObjectWorkspaceHeader from '../../../components/objects/ObjectWorkspaceHeader';
 import ObjectSubObjectSelector from '../../../components/objects/ObjectSubObjectSelector';
 import useObjectSubObjectSelection from '../../../components/objects/useObjectSubObjectSelection';
 import apiClient from '../../../api/client';
+import DataDefinitionAiProposalModal, { type AiDataDefinitionProposalField } from '../../../components/objects/DataDefinitionAiProposalModal';
 
 interface DataDefinitionFieldDraft {
   subObjectId: string;
+  sourceType: 'application' | 'databricks' | 'ai';
   fieldName: string;
   fieldLabel: string;
   dataType: string;
@@ -39,6 +46,7 @@ interface DataDefinitionFieldDraft {
 
 const emptyFieldDraft = (): DataDefinitionFieldDraft => ({
   subObjectId: '',
+  sourceType: 'application',
   fieldName: '',
   fieldLabel: '',
   dataType: '',
@@ -66,6 +74,16 @@ const ObjectApplicationsPage: React.FC = () => {
   const [isSyncingMetadata, setIsSyncingMetadata] = React.useState(false);
   const [lastSyncedBySubObject, setLastSyncedBySubObject] = React.useState<Record<string, string>>({});
   const [status, setStatus] = React.useState('');
+  const [fieldMetadataBase, setFieldMetadataBase] = React.useState<Record<string, any>>({});
+  const [isGeneratingAiFields, setIsGeneratingAiFields] = React.useState(false);
+  const [isSavingAiFields, setIsSavingAiFields] = React.useState(false);
+  const [aiProposalOpen, setAiProposalOpen] = React.useState(false);
+  const [aiProposalFields, setAiProposalFields] = React.useState<AiDataDefinitionProposalField[]>([]);
+  const [sourceSectionOpen, setSourceSectionOpen] = React.useState<Record<'application' | 'databricks' | 'ai', boolean>>({
+    application: true,
+    databricks: true,
+    ai: true,
+  });
 
   const {
     subObjects,
@@ -195,6 +213,17 @@ const ObjectApplicationsPage: React.FC = () => {
   const selectedSubObjectFields = dataDefFields.filter((field: any) => (field.sub_object_id || '') === selectedSubObjectId);
   const metadataDraft = metadataBySubObject[selectedSubObjectId] || { catalog: '', schema: '', table: '' };
 
+  const resolveFieldSource = (field: any): 'application' | 'databricks' | 'ai' => {
+    const sourceType = String(field?.field_metadata?.sourceType || '').toLowerCase();
+    if (sourceType === 'ai') return 'ai';
+    if (sourceType === 'databricks' || field?.field_metadata?.metadataSync) return 'databricks';
+    return 'application';
+  };
+
+  const applicationFields = selectedSubObjectFields.filter((field: any) => resolveFieldSource(field) === 'application');
+  const databricksFields = selectedSubObjectFields.filter((field: any) => resolveFieldSource(field) === 'databricks');
+  const aiGeneratedFields = selectedSubObjectFields.filter((field: any) => resolveFieldSource(field) === 'ai');
+
   const handleLink = async () => {
     if (!linkAppId || !selectedSubObjectId) return;
     await apiClient.post('/api/applications/data-definitions', {
@@ -209,13 +238,15 @@ const ObjectApplicationsPage: React.FC = () => {
 
   const startCreateField = (subObjectId: string) => {
     setEditingFieldId('new');
-    setFieldDraft({ ...emptyFieldDraft(), subObjectId });
+    setFieldMetadataBase({});
+    setFieldDraft({ ...emptyFieldDraft(), subObjectId, sourceType: 'application' });
   };
 
   const startEditField = (field: any) => {
     setEditingFieldId(field.id);
     setFieldDraft({
       subObjectId: field.sub_object_id || '',
+      sourceType: resolveFieldSource(field),
       fieldName: field.field_name || '',
       fieldLabel: field.field_label || '',
       dataType: field.data_type || '',
@@ -226,10 +257,12 @@ const ObjectApplicationsPage: React.FC = () => {
       description: field.description || '',
       businessRules: field.field_metadata?.businessRules || '',
     });
+    setFieldMetadataBase((field?.field_metadata && typeof field.field_metadata === 'object') ? field.field_metadata : {});
   };
 
   const cancelFieldEdit = () => {
     setEditingFieldId(null);
+    setFieldMetadataBase({});
     setFieldDraft(emptyFieldDraft());
   };
 
@@ -249,7 +282,9 @@ const ObjectApplicationsPage: React.FC = () => {
       businessProcessRequired: false,
       description: fieldDraft.description || null,
       fieldMetadata: {
+        ...fieldMetadataBase,
         businessRules: fieldDraft.businessRules || '',
+        sourceType: fieldDraft.sourceType || 'application',
       },
       sortOrder: 0,
     };
@@ -292,10 +327,91 @@ const ObjectApplicationsPage: React.FC = () => {
         [selectedSubObjectId]: payload.syncedAt || new Date().toISOString(),
       }));
       setStatus('Metadata pulled from Databricks and field definitions updated.');
+      await maybePromptCdmUpdate('databricks');
     } catch {
       setStatus('Failed to pull metadata from Databricks. Check your Databricks settings and try again.');
     } finally {
       setIsSyncingMetadata(false);
+    }
+  };
+
+  const maybePromptCdmUpdate = async (reason: 'databricks' | 'ai') => {
+    if (!selectedSubObjectId || !selectedDataDefId) return;
+    const shouldUpdate = window.confirm('Update CDM based on new fields?');
+    if (!shouldUpdate) return;
+
+    try {
+      await apiClient.post(`/api/cdm/${objectId}/ai-proposal`, { subObjectId: selectedSubObjectId });
+      setStatus(reason === 'ai'
+        ? 'AI fields saved. CDM proposal regenerated for this sub-object.'
+        : 'Databricks fields synced. CDM proposal regenerated for this sub-object.');
+    } catch {
+      setStatus('Fields were saved, but CDM auto-update could not be generated.');
+    }
+  };
+
+  const handleGenerateAiFields = async () => {
+    if (!selectedDataDefId || !selectedSubObjectId) {
+      setStatus('Select a sub-object and linked application before generating AI fields.');
+      return;
+    }
+
+    setIsGeneratingAiFields(true);
+    try {
+      const response = await apiClient.post(`/api/applications/data-definitions/${selectedDataDefId}/ai-generate-fields`);
+      const payload = response.data?.data || {};
+      setAiProposalFields(Array.isArray(payload.proposals) ? payload.proposals : []);
+      setAiProposalOpen(true);
+    } catch (error: any) {
+      setStatus(error?.response?.data?.error?.message || 'Failed to generate AI data definition fields.');
+    } finally {
+      setIsGeneratingAiFields(false);
+    }
+  };
+
+  const handleAcceptAiFields = async (acceptedFields: AiDataDefinitionProposalField[]) => {
+    if (!selectedDataDefId || !selectedSubObjectId || acceptedFields.length === 0) return;
+
+    setIsSavingAiFields(true);
+    try {
+      const existingKey = new Set(
+        selectedSubObjectFields.map((field: any) => `${String(field.field_name || '').trim().toLowerCase()}::${String(field.table_name || '').trim().toLowerCase()}`)
+      );
+
+      for (const field of acceptedFields) {
+        const dedupeKey = `${String(field.fieldName || '').trim().toLowerCase()}::${String(selectedDefinition?.application_name || '').trim().toLowerCase()}`;
+        if (existingKey.has(dedupeKey)) {
+          continue;
+        }
+
+        await apiClient.post(`/api/applications/data-definitions/${selectedDataDefId}/fields`, {
+          subObjectId: selectedSubObjectId,
+          tableName: selectedDefinition?.application_name || null,
+          fieldName: field.fieldName,
+          fieldLabel: field.fieldLabel || null,
+          dataType: field.dataType || null,
+          length: field.length ?? null,
+          decimals: field.decimals ?? null,
+          isKey: !!field.isKey,
+          isRequired: !!field.isRequired,
+          businessProcessRequired: false,
+          description: field.description || null,
+          fieldMetadata: {
+            sourceType: 'ai',
+            businessRules: field.businessRules || '',
+          },
+          sortOrder: 0,
+        });
+      }
+
+      await loadSelectedDefinition(selectedDataDefId);
+      setAiProposalOpen(false);
+      setStatus('AI-generated fields added.');
+      await maybePromptCdmUpdate('ai');
+    } catch {
+      setStatus('Failed to save AI-generated fields.');
+    } finally {
+      setIsSavingAiFields(false);
     }
   };
 
@@ -401,6 +517,16 @@ const ObjectApplicationsPage: React.FC = () => {
                     {selectedDefinition.application_name}
                   </Typography>
                 </Box>
+                <Button
+                  variant="contained"
+                  size="small"
+                  startIcon={<AutoAwesomeIcon />}
+                  onClick={handleGenerateAiFields}
+                  disabled={isGeneratingAiFields}
+                  sx={{ textTransform: 'none' }}
+                >
+                  {isGeneratingAiFields ? 'Generating...' : 'Generate Data Definition (AI)'}
+                </Button>
               </Box>
 
               <Divider sx={{ mb: 1.5 }} />
@@ -536,49 +662,83 @@ const ObjectApplicationsPage: React.FC = () => {
                 </Box>
               )}
 
-              <Box sx={{ border: '1px solid rgba(255,255,255,0.12)', borderRadius: 1, overflowX: 'auto' }}>
-                <Box sx={{ minWidth: 980, display: 'grid', gridTemplateColumns: '1.4fr 1.4fr 0.95fr 0.75fr 0.75fr 0.65fr 0.75fr 2fr 0.9fr', backgroundColor: 'rgba(255,255,255,0.06)' }}>
-                  {['Field Name', 'Label', 'Type', 'Length', 'Decimal', 'Key', 'Required', 'Description', 'Actions'].map((header) => (
-                    <Box key={header} sx={{ px: 1, py: 0.8, fontSize: '0.72rem', fontWeight: 700, color: 'text.secondary', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-                      {header}
+              {[
+                { key: 'application' as const, title: 'Application Fields', rows: applicationFields },
+                { key: 'databricks' as const, title: 'Databricks Fields', rows: databricksFields },
+                { key: 'ai' as const, title: 'AI-Generated Fields', rows: aiGeneratedFields },
+              ].map((section) => (
+                <Accordion
+                  key={`field-section-${section.key}`}
+                  expanded={sourceSectionOpen[section.key]}
+                  onChange={(_e, expanded) => setSourceSectionOpen((prev) => ({ ...prev, [section.key]: expanded }))}
+                  sx={{
+                    mb: 1,
+                    border: '1px solid rgba(255,255,255,0.12)',
+                    backgroundColor: 'rgba(255,255,255,0.02)',
+                    '&:before': { display: 'none' },
+                  }}
+                >
+                  <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                    <Typography sx={{ fontWeight: 700, fontSize: '0.84rem' }}>{section.title} ({section.rows.length})</Typography>
+                  </AccordionSummary>
+                  <AccordionDetails>
+                    <Box sx={{ border: '1px solid rgba(255,255,255,0.12)', borderRadius: 1, overflowX: 'auto' }}>
+                      <Box sx={{ minWidth: 980, display: 'grid', gridTemplateColumns: '1.4fr 1.4fr 0.95fr 0.75fr 0.75fr 0.65fr 0.75fr 2fr 0.9fr', backgroundColor: 'rgba(255,255,255,0.06)' }}>
+                        {['Field Name', 'Label', 'Type', 'Length', 'Decimal', 'Key', 'Required', 'Description', 'Actions'].map((header) => (
+                          <Box key={`${section.key}-${header}`} sx={{ px: 1, py: 0.8, fontSize: '0.72rem', fontWeight: 700, color: 'text.secondary', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                            {header}
+                          </Box>
+                        ))}
+                      </Box>
+                      {section.rows.length === 0 ? (
+                        <Box sx={{ p: 1.2 }}><Typography color="text.secondary" variant="body2">No fields in this section.</Typography></Box>
+                      ) : section.rows.map((field: any, idx: number) => (
+                        <Box key={field.id} sx={{ minWidth: 980, display: 'grid', gridTemplateColumns: '1.4fr 1.4fr 0.95fr 0.75fr 0.75fr 0.65fr 0.75fr 2fr 0.9fr', borderTop: idx === 0 ? 'none' : '1px solid rgba(255,255,255,0.08)' }}>
+                          <Box sx={{ px: 1, py: 0.8, fontFamily: 'monospace', fontWeight: 700 }}>
+                            {field.field_name || '-'}
+                          </Box>
+                          <Box sx={{ px: 1, py: 0.8 }}>{field.field_label || '-'}</Box>
+                          <Box sx={{ px: 1, py: 0.8 }}>{field.data_type || '-'}</Box>
+                          <Box sx={{ px: 1, py: 0.8 }}>{field.length ?? '-'}</Box>
+                          <Box sx={{ px: 1, py: 0.8 }}>{field.decimals ?? '-'}</Box>
+                          <Box sx={{ px: 1, py: 0.8, textAlign: 'center', color: field.is_key ? '#ffca28' : 'text.disabled' }}>{field.is_key ? '●' : '○'}</Box>
+                          <Box sx={{ px: 1, py: 0.8, textAlign: 'center', color: field.is_required ? '#ef5350' : 'text.disabled' }}>{field.is_required ? '●' : '○'}</Box>
+                          <Box sx={{ px: 1, py: 0.8, color: 'text.secondary' }}>
+                            <Typography variant="body2" sx={{ fontSize: '0.79rem' }}>{field.description || '-'}</Typography>
+                            {field.field_metadata?.businessRules && (
+                              <Typography variant="caption" sx={{ color: 'rgba(144,202,249,0.95)' }}>
+                                Rules: {field.field_metadata.businessRules}
+                              </Typography>
+                            )}
+                          </Box>
+                          <Box sx={{ px: 1, py: 0.5, display: 'flex', alignItems: 'center', gap: 0.4 }}>
+                            <IconButton size="small" onClick={() => startEditField(field)} title="Edit field">
+                              <EditIcon sx={{ fontSize: '0.9rem' }} />
+                            </IconButton>
+                            <IconButton size="small" onClick={() => handleDeleteField(field.id)} title="Delete field">
+                              <DeleteIcon sx={{ fontSize: '0.9rem' }} />
+                            </IconButton>
+                          </Box>
+                        </Box>
+                      ))}
                     </Box>
-                  ))}
-                </Box>
-                {selectedSubObjectFields.length === 0 ? (
-                  <Box sx={{ p: 1.2 }}><Typography color="text.secondary" variant="body2">No field definitions yet.</Typography></Box>
-                ) : selectedSubObjectFields.map((field: any, idx: number) => (
-                  <Box key={field.id} sx={{ minWidth: 980, display: 'grid', gridTemplateColumns: '1.4fr 1.4fr 0.95fr 0.75fr 0.75fr 0.65fr 0.75fr 2fr 0.9fr', borderTop: idx === 0 ? 'none' : '1px solid rgba(255,255,255,0.08)' }}>
-                    <Box sx={{ px: 1, py: 0.8, fontFamily: 'monospace', fontWeight: 700 }}>
-                      {field.field_name || '-'}
-                    </Box>
-                    <Box sx={{ px: 1, py: 0.8 }}>{field.field_label || '-'}</Box>
-                    <Box sx={{ px: 1, py: 0.8 }}>{field.data_type || '-'}</Box>
-                    <Box sx={{ px: 1, py: 0.8 }}>{field.length ?? '-'}</Box>
-                    <Box sx={{ px: 1, py: 0.8 }}>{field.decimals ?? '-'}</Box>
-                    <Box sx={{ px: 1, py: 0.8, textAlign: 'center', color: field.is_key ? '#ffca28' : 'text.disabled' }}>{field.is_key ? '●' : '○'}</Box>
-                    <Box sx={{ px: 1, py: 0.8, textAlign: 'center', color: field.is_required ? '#ef5350' : 'text.disabled' }}>{field.is_required ? '●' : '○'}</Box>
-                    <Box sx={{ px: 1, py: 0.8, color: 'text.secondary' }}>
-                      <Typography variant="body2" sx={{ fontSize: '0.79rem' }}>{field.description || '-'}</Typography>
-                      {field.field_metadata?.businessRules && (
-                        <Typography variant="caption" sx={{ color: 'rgba(144,202,249,0.95)' }}>
-                          Rules: {field.field_metadata.businessRules}
-                        </Typography>
-                      )}
-                    </Box>
-                    <Box sx={{ px: 1, py: 0.5, display: 'flex', alignItems: 'center', gap: 0.4 }}>
-                      <IconButton size="small" onClick={() => startEditField(field)} title="Edit field">
-                        <EditIcon sx={{ fontSize: '0.9rem' }} />
-                      </IconButton>
-                      <IconButton size="small" onClick={() => handleDeleteField(field.id)} title="Delete field">
-                        <DeleteIcon sx={{ fontSize: '0.9rem' }} />
-                      </IconButton>
-                    </Box>
-                  </Box>
-                ))}
-              </Box>
+                  </AccordionDetails>
+                </Accordion>
+              ))}
             </CardContent>
           </Card>
         )}
+
+        <DataDefinitionAiProposalModal
+          open={aiProposalOpen}
+          proposals={aiProposalFields}
+          onClose={() => {
+            if (isSavingAiFields) return;
+            setAiProposalOpen(false);
+          }}
+          onAccept={handleAcceptAiFields}
+          saving={isSavingAiFields}
+        />
       </Box>
     </Layout>
   );

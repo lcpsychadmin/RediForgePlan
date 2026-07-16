@@ -6,8 +6,59 @@ import db from '../db.js';
 import { ApiError } from '../middleware/errorHandler.js';
 import { formatListResponse, formatSingleResponse } from '../utils/responseFormatter.js';
 import databricksMetadataService from '../services/databricksMetadataService.js';
+import aiExecutionService from '../services/aiExecutionService.js';
 
 const router = Router();
+
+const extractAiText = (executionResult: any): string => {
+  const content = executionResult?.result?.response?.choices?.[0]?.message?.content;
+  if (typeof content === 'string') {
+    return content;
+  }
+  if (Array.isArray(content)) {
+    return content
+      .map((part: any) => (typeof part?.text === 'string' ? part.text : ''))
+      .filter(Boolean)
+      .join('\n')
+      .trim();
+  }
+  if (typeof executionResult?.result?.message === 'string') {
+    return executionResult.result.message;
+  }
+  return '';
+};
+
+const parseAiJson = (text: string) => {
+  const trimmed = String(text || '').trim();
+  if (!trimmed) {
+    throw new ApiError(502, 'AI response did not contain any content', 'AI_EMPTY_RESPONSE');
+  }
+
+  const fenced = trimmed.match(/```json\s*([\s\S]*?)```/i) || trimmed.match(/```\s*([\s\S]*?)```/i);
+  const candidate = fenced?.[1] || trimmed.slice(trimmed.indexOf('['), trimmed.lastIndexOf(']') + 1) || trimmed;
+  if (!candidate || !candidate.trim().startsWith('[')) {
+    throw new ApiError(502, 'AI response did not contain valid JSON array', 'AI_INVALID_JSON');
+  }
+
+  try {
+    return JSON.parse(candidate);
+  } catch {
+    throw new ApiError(502, 'AI response JSON could not be parsed', 'AI_INVALID_JSON');
+  }
+};
+
+const normalizeAiFieldProposal = (row: any, index: number) => ({
+  id: String(row?.id || `ai-field-${index}`),
+  fieldName: String(row?.fieldName || row?.field_name || '').trim(),
+  fieldLabel: String(row?.fieldLabel || row?.field_label || '').trim(),
+  dataType: String(row?.dataType || row?.data_type || '').trim(),
+  length: row?.length === '' || row?.length == null ? null : Number(row.length),
+  decimals: row?.decimals === '' || row?.decimals == null ? null : Number(row.decimals),
+  isKey: !!row?.isKey,
+  isRequired: !!row?.isRequired,
+  description: String(row?.description || '').trim(),
+  businessRules: String(row?.businessRules || row?.business_rules || '').trim(),
+});
 
 // ── Applications ─────────────────────────────────────────────────────────────
 
@@ -204,11 +255,26 @@ router.post('/data-definitions/:definitionId/metadata-sync', requireAuth, requir
 
     if (subObjectId) {
       await db.query(
-        'DELETE FROM data_definition_fields WHERE data_definition_id = $1 AND sub_object_id = $2',
+        `DELETE FROM data_definition_fields
+         WHERE data_definition_id = $1
+           AND sub_object_id = $2
+           AND (
+             field_metadata->>'sourceType' = 'databricks'
+             OR field_metadata ? 'metadataSync'
+           )`,
         [req.params.definitionId, subObjectId]
       );
     } else {
-      await db.query('DELETE FROM data_definition_fields WHERE data_definition_id = $1 AND sub_object_id IS NULL', [req.params.definitionId]);
+      await db.query(
+        `DELETE FROM data_definition_fields
+         WHERE data_definition_id = $1
+           AND sub_object_id IS NULL
+           AND (
+             field_metadata->>'sourceType' = 'databricks'
+             OR field_metadata ? 'metadataSync'
+           )`,
+        [req.params.definitionId]
+      );
     }
 
     for (const field of mappedFields) {
@@ -231,6 +297,7 @@ router.post('/data-definitions/:definitionId/metadata-sync', requireAuth, requir
           field.description,
           {
             ...(field.fieldMetadata || {}),
+            sourceType: 'databricks',
             metadataSync: {
               source: 'databricks',
               catalog: String(catalog),
@@ -261,6 +328,118 @@ router.post('/data-definitions/:definitionId/metadata-sync', requireAuth, requir
       syncedAt: new Date().toISOString(),
       source: { catalog: String(catalog), schema: String(schema), table: String(table), subObjectId: subObjectId || null },
       fields: updatedFields.rows,
+    }));
+  } catch (err) { next(err); }
+});
+
+router.post('/data-definitions/:definitionId/ai-generate-fields', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const definitionResult = await db.query(
+      `SELECT dd.id, dd.global_object_id, dd.application_id, dd.object_sub_object_id,
+              go.object_id, go.description AS object_description, go.process_area,
+              go.default_gateway_id, go.default_router_id,
+              app.name AS application_name, app.vendor, app.version,
+              so.name AS sub_object_name,
+              cdm.id AS cdm_id
+       FROM data_definitions dd
+       JOIN global_objects go ON go.id = dd.global_object_id
+       JOIN applications app ON app.id = dd.application_id
+       LEFT JOIN object_sub_objects so ON so.id = dd.object_sub_object_id
+       LEFT JOIN common_data_model cdm
+         ON cdm.global_object_id = dd.global_object_id
+        AND ((dd.object_sub_object_id IS NULL AND cdm.object_sub_object_id IS NULL) OR cdm.object_sub_object_id = dd.object_sub_object_id)
+       WHERE dd.id = $1`,
+      [req.params.definitionId]
+    );
+
+    if (!definitionResult.rows.length) {
+      throw new ApiError(404, 'Data definition not found', 'NOT_FOUND');
+    }
+
+    const definition = definitionResult.rows[0];
+    const fieldsResult = await db.query(
+      `SELECT id, field_name, field_label, data_type, length, decimals, is_key, is_required, description, field_metadata, sort_order
+       FROM data_definition_fields
+       WHERE data_definition_id = $1
+       ORDER BY sort_order ASC, field_name ASC`,
+      [req.params.definitionId]
+    );
+
+    let cdmAttributes: any[] = [];
+    let cdmRelationships: any[] = [];
+    if (definition.cdm_id) {
+      const [attrResult, relResult] = await Promise.all([
+        db.query(
+          `SELECT attribute_name, attribute_description, data_type, length, business_rules, sort_order
+           FROM cdm_attributes
+           WHERE common_data_model_id = $1
+           ORDER BY sort_order ASC, attribute_name ASC`,
+          [definition.cdm_id]
+        ),
+        db.query(
+          `SELECT source_attribute_name, target_object_name, target_attribute_name, relationship_type, business_rules, sort_order
+           FROM cdm_relationships
+           WHERE common_data_model_id = $1
+           ORDER BY sort_order ASC, target_object_name ASC`,
+          [definition.cdm_id]
+        ),
+      ]);
+      cdmAttributes = attrResult.rows;
+      cdmRelationships = relResult.rows;
+    }
+
+    const systemPrompt = [
+      'You are an enterprise data architect generating application-specific data definition fields.',
+      'Respect this hierarchy: Data Object -> Sub Object -> Application -> Data Definition.',
+      'Use context from CDM attributes, relationships, and existing fields.',
+      'Incorporate industry-standard schema conventions for ERP applications such as SAP, JDE, and Workday when relevant.',
+      'Return JSON only as an array of fields with keys:',
+      '[{"fieldName":string,"fieldLabel":string,"dataType":string,"length":number|null,"decimals":number|null,"isKey":boolean,"isRequired":boolean,"description":string,"businessRules":string}]',
+      'Do not include markdown or commentary.',
+      'Return between 8 and 25 high-value fields.',
+    ].join('\n');
+
+    const userPrompt = [
+      `Data Object: ${definition.object_id}`,
+      `Sub Object: ${definition.sub_object_name || 'Root'}`,
+      `Application: ${definition.application_name}`,
+      `Application Vendor: ${definition.vendor || ''}`,
+      `Application Version: ${definition.version || ''}`,
+      `Process Area: ${definition.process_area || ''}`,
+      `Data Object Description: ${definition.object_description || ''}`,
+      '',
+      'Existing Data Definition Fields:',
+      JSON.stringify(fieldsResult.rows, null, 2),
+      '',
+      'Existing CDM Attributes:',
+      JSON.stringify(cdmAttributes, null, 2),
+      '',
+      'Existing CDM Relationships:',
+      JSON.stringify(cdmRelationships, null, 2),
+    ].join('\n');
+
+    const executionResult = await aiExecutionService.execute({
+      gatewayId: definition.default_gateway_id || undefined,
+      routerId: definition.default_router_id || undefined,
+      payload: {
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        temperature: 0.2,
+      },
+    });
+
+    const aiText = extractAiText(executionResult);
+    const parsed = parseAiJson(aiText);
+    const proposals = Array.isArray(parsed)
+      ? parsed.map((row: any, index: number) => normalizeAiFieldProposal(row, index)).filter((row: any) => row.fieldName)
+      : [];
+
+    res.json(formatSingleResponse({
+      proposals,
+      usage: executionResult?.usage || null,
+      selection: executionResult?.selection || null,
     }));
   } catch (err) { next(err); }
 });
