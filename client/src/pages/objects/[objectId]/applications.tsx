@@ -33,6 +33,9 @@ import DataDefinitionAiProposalModal, { type AiDataDefinitionProposalField } fro
 interface DataDefinitionFieldDraft {
   subObjectId: string;
   sourceType: 'application' | 'databricks' | 'ai';
+  tableName: string;
+  databricksTable: string;
+  databricksField: string;
   fieldName: string;
   fieldLabel: string;
   dataType: string;
@@ -47,6 +50,9 @@ interface DataDefinitionFieldDraft {
 const emptyFieldDraft = (): DataDefinitionFieldDraft => ({
   subObjectId: '',
   sourceType: 'application',
+  tableName: '',
+  databricksTable: '',
+  databricksField: '',
   fieldName: '',
   fieldLabel: '',
   dataType: '',
@@ -79,10 +85,8 @@ const ObjectApplicationsPage: React.FC = () => {
   const [isSavingAiFields, setIsSavingAiFields] = React.useState(false);
   const [aiProposalOpen, setAiProposalOpen] = React.useState(false);
   const [aiProposalFields, setAiProposalFields] = React.useState<AiDataDefinitionProposalField[]>([]);
-  const [sourceSectionOpen, setSourceSectionOpen] = React.useState<Record<'application' | 'databricks' | 'ai', boolean>>({
+  const [sourceSectionOpen, setSourceSectionOpen] = React.useState<Record<'application', boolean>>({
     application: true,
-    databricks: true,
-    ai: true,
   });
 
   const {
@@ -213,16 +217,13 @@ const ObjectApplicationsPage: React.FC = () => {
   const selectedSubObjectFields = dataDefFields;
   const metadataDraft = metadataBySubObject[selectedSubObjectId] || { catalog: '', schema: '', table: '' };
 
-  const resolveFieldSource = (field: any): 'application' | 'databricks' | 'ai' => {
+  const resolveFieldSource = (field: any): 'application' | 'databricks' => {
     const sourceType = String(field?.field_metadata?.sourceType || '').toLowerCase();
-    if (sourceType === 'ai') return 'ai';
     if (sourceType === 'databricks' || field?.field_metadata?.metadataSync) return 'databricks';
     return 'application';
   };
 
   const applicationFields = selectedSubObjectFields.filter((field: any) => resolveFieldSource(field) === 'application');
-  const databricksFields = selectedSubObjectFields.filter((field: any) => resolveFieldSource(field) === 'databricks');
-  const aiGeneratedFields = selectedSubObjectFields.filter((field: any) => resolveFieldSource(field) === 'ai');
 
   const handleLink = async () => {
     if (!linkAppId || !selectedSubObjectId) return;
@@ -239,7 +240,12 @@ const ObjectApplicationsPage: React.FC = () => {
   const startCreateField = () => {
     setEditingFieldId('new');
     setFieldMetadataBase({});
-    setFieldDraft({ ...emptyFieldDraft(), subObjectId: '', sourceType: 'application' });
+    setFieldDraft({
+      ...emptyFieldDraft(),
+      subObjectId: '',
+      sourceType: 'application',
+      tableName: selectedDefinition?.application_name || '',
+    });
   };
 
   const startEditField = (field: any) => {
@@ -247,6 +253,9 @@ const ObjectApplicationsPage: React.FC = () => {
     setFieldDraft({
       subObjectId: field.sub_object_id || '',
       sourceType: resolveFieldSource(field),
+      tableName: field.table_name || '',
+      databricksTable: field.field_metadata?.databricks?.table || '',
+      databricksField: field.field_metadata?.databricks?.field || '',
       fieldName: field.field_name || '',
       fieldLabel: field.field_label || '',
       dataType: field.data_type || '',
@@ -271,7 +280,7 @@ const ObjectApplicationsPage: React.FC = () => {
 
     const payload = {
       subObjectId: null,
-      tableName: selectedDefinition?.application_name || null,
+      tableName: fieldDraft.tableName || selectedDefinition?.application_name || null,
       fieldName: fieldDraft.fieldName.trim(),
       fieldLabel: fieldDraft.fieldLabel || null,
       dataType: fieldDraft.dataType || null,
@@ -284,7 +293,11 @@ const ObjectApplicationsPage: React.FC = () => {
       fieldMetadata: {
         ...fieldMetadataBase,
         businessRules: fieldDraft.businessRules || '',
-        sourceType: fieldDraft.sourceType || 'application',
+        sourceType: 'application',
+        databricks: {
+          table: fieldDraft.databricksTable || null,
+          field: fieldDraft.databricksField || null,
+        },
       },
       sortOrder: 0,
     };
@@ -397,8 +410,13 @@ const ObjectApplicationsPage: React.FC = () => {
           businessProcessRequired: false,
           description: field.description || null,
           fieldMetadata: {
-            sourceType: 'ai',
+            sourceType: 'application',
+            aiGenerated: true,
             businessRules: field.businessRules || '',
+            databricks: {
+              table: null,
+              field: null,
+            },
           },
           sortOrder: 0,
         });
@@ -406,7 +424,7 @@ const ObjectApplicationsPage: React.FC = () => {
 
       await loadSelectedDefinition(selectedDataDefId);
       setAiProposalOpen(false);
-      setStatus('AI-generated fields added.');
+      setStatus('AI-generated fields added to Application Fields.');
       await maybePromptCdmUpdate('ai');
     } catch {
       setStatus('Failed to save AI-generated fields.');
@@ -621,9 +639,12 @@ const ObjectApplicationsPage: React.FC = () => {
                   <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1.2fr 1.2fr 0.9fr 0.7fr 0.7fr 1fr' }, gap: 1 }}>
                     <TextField size="small" label="Field Name" value={fieldDraft.fieldName} onChange={(e) => setFieldDraft((prev) => ({ ...prev, fieldName: e.target.value }))} />
                     <TextField size="small" label="Label" value={fieldDraft.fieldLabel} onChange={(e) => setFieldDraft((prev) => ({ ...prev, fieldLabel: e.target.value }))} />
+                    <TextField size="small" label="Table" value={fieldDraft.tableName} onChange={(e) => setFieldDraft((prev) => ({ ...prev, tableName: e.target.value }))} />
                     <TextField size="small" label="Type" value={fieldDraft.dataType} onChange={(e) => setFieldDraft((prev) => ({ ...prev, dataType: e.target.value }))} />
                     <TextField size="small" label="Length" value={fieldDraft.length} onChange={(e) => setFieldDraft((prev) => ({ ...prev, length: e.target.value.replace(/[^0-9]/g, '') }))} />
                     <TextField size="small" label="Decimal" value={fieldDraft.decimals} onChange={(e) => setFieldDraft((prev) => ({ ...prev, decimals: e.target.value.replace(/[^0-9]/g, '') }))} />
+                    <TextField size="small" label="Databricks Table" value={fieldDraft.databricksTable} onChange={(e) => setFieldDraft((prev) => ({ ...prev, databricksTable: e.target.value }))} sx={{ display: 'none' }} />
+                    <TextField size="small" label="Databricks Field" value={fieldDraft.databricksField} onChange={(e) => setFieldDraft((prev) => ({ ...prev, databricksField: e.target.value }))} sx={{ display: 'none' }} />
                     <TextField size="small" label="Sub-object" value={selectedSubObject?.name || 'Root'} disabled />
                   </Box>
                   <TextField
@@ -664,8 +685,6 @@ const ObjectApplicationsPage: React.FC = () => {
 
               {[
                 { key: 'application' as const, title: 'Application Fields', rows: applicationFields },
-                { key: 'databricks' as const, title: 'Databricks Fields', rows: databricksFields },
-                { key: 'ai' as const, title: 'AI-Generated Fields', rows: aiGeneratedFields },
               ].map((section) => (
                 <Accordion
                   key={`field-section-${section.key}`}
@@ -683,8 +702,8 @@ const ObjectApplicationsPage: React.FC = () => {
                   </AccordionSummary>
                   <AccordionDetails>
                     <Box sx={{ border: '1px solid rgba(255,255,255,0.12)', borderRadius: 1, overflowX: 'auto' }}>
-                      <Box sx={{ minWidth: 980, display: 'grid', gridTemplateColumns: '1.4fr 1.4fr 0.95fr 0.75fr 0.75fr 0.65fr 0.75fr 2fr 0.9fr', backgroundColor: 'rgba(255,255,255,0.06)' }}>
-                        {['Field Name', 'Label', 'Type', 'Length', 'Decimal', 'Key', 'Required', 'Description', 'Actions'].map((header) => (
+                      <Box sx={{ minWidth: 1110, display: 'grid', gridTemplateColumns: '1.25fr 1.15fr 1.35fr 0.9fr 0.7fr 0.7fr 0.62fr 0.72fr 1.9fr 0.85fr', backgroundColor: 'rgba(255,255,255,0.06)' }}>
+                        {['Field Name', 'Label', 'Table', 'Type', 'Length', 'Decimal', 'Key', 'Required', 'Description', 'Actions'].map((header) => (
                           <Box key={`${section.key}-${header}`} sx={{ px: 1, py: 0.8, fontSize: '0.72rem', fontWeight: 700, color: 'text.secondary', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
                             {header}
                           </Box>
@@ -693,11 +712,12 @@ const ObjectApplicationsPage: React.FC = () => {
                       {section.rows.length === 0 ? (
                         <Box sx={{ p: 1.2 }}><Typography color="text.secondary" variant="body2">No fields in this section.</Typography></Box>
                       ) : section.rows.map((field: any, idx: number) => (
-                        <Box key={field.id} sx={{ minWidth: 980, display: 'grid', gridTemplateColumns: '1.4fr 1.4fr 0.95fr 0.75fr 0.75fr 0.65fr 0.75fr 2fr 0.9fr', borderTop: idx === 0 ? 'none' : '1px solid rgba(255,255,255,0.08)' }}>
+                        <Box key={field.id} sx={{ minWidth: 1110, display: 'grid', gridTemplateColumns: '1.25fr 1.15fr 1.35fr 0.9fr 0.7fr 0.7fr 0.62fr 0.72fr 1.9fr 0.85fr', borderTop: idx === 0 ? 'none' : '1px solid rgba(255,255,255,0.08)' }}>
                           <Box sx={{ px: 1, py: 0.8, fontFamily: 'monospace', fontWeight: 700 }}>
                             {field.field_name || '-'}
                           </Box>
                           <Box sx={{ px: 1, py: 0.8 }}>{field.field_label || '-'}</Box>
+                          <Box sx={{ px: 1, py: 0.8, color: 'text.secondary' }}>{field.table_name || '-'}</Box>
                           <Box sx={{ px: 1, py: 0.8 }}>{field.data_type || '-'}</Box>
                           <Box sx={{ px: 1, py: 0.8 }}>{field.length ?? '-'}</Box>
                           <Box sx={{ px: 1, py: 0.8 }}>{field.decimals ?? '-'}</Box>
