@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Button, Typography } from '@mui/material';
+import { Box, Button } from '@mui/material';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
 
@@ -11,10 +11,6 @@ const ObjectInventoryPage: React.FC = () => {
   return (
     <Layout>
       <Box sx={{ p: 3 }}>
-        <Typography variant="h4" sx={{ fontWeight: 700, mb: 2.5 }}>
-          Object Inventory
-        </Typography>
-
         <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
           <Button
             variant={isCatalogView ? 'contained' : 'outlined'}
