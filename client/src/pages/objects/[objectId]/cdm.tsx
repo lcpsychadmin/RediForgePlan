@@ -7,6 +7,8 @@ import IconButton from '@mui/material/IconButton';
 import { useParams } from 'react-router-dom';
 import Layout from '../../../components/Layout';
 import ObjectWorkspaceHeader from '../../../components/objects/ObjectWorkspaceHeader';
+import ObjectSubObjectSelector from '../../../components/objects/ObjectSubObjectSelector';
+import useObjectSubObjectSelection from '../../../components/objects/useObjectSubObjectSelection';
 import apiClient from '../../../api/client';
 import AddEditCdmAttributeModal from '../../../components/objects/AddEditCdmAttributeModal';
 import CdmAiProposalModal from '../../../components/objects/CdmAiProposalModal';
@@ -67,6 +69,13 @@ const relationshipKey = (relationship: {
 
 const ObjectCdmPage: React.FC = () => {
   const { objectId = '' } = useParams();
+  const {
+    subObjects,
+    selectedSubObject,
+    selectedSubObjectId,
+    setSelectedSubObjectId,
+    isLoading: isLoadingSubObjects,
+  } = useObjectSubObjectSelection(objectId);
   const [attributes, setAttributes] = React.useState<CDMAttribute[]>([]);
   const [relationships, setRelationships] = React.useState<CDMRelationship[]>([]);
   const [attributeModalOpen, setAttributeModalOpen] = React.useState(false);
@@ -81,11 +90,19 @@ const ObjectCdmPage: React.FC = () => {
   const [saveError, setSaveError] = React.useState('');
 
   const load = React.useCallback(async () => {
-    const res = await apiClient.get(`/api/cdm/${objectId}`);
+    if (!selectedSubObjectId) {
+      setAttributes([]);
+      setRelationships([]);
+      return;
+    }
+
+    const res = await apiClient.get(`/api/cdm/${objectId}`, {
+      params: { subObjectId: selectedSubObjectId },
+    });
     const payload = res.data?.data || {};
     setAttributes(Array.isArray(payload.attributes) ? payload.attributes.map(mapCDMAttribute) : []);
     setRelationships(Array.isArray(payload.relationships) ? payload.relationships.map(mapCDMRelationship) : []);
-  }, [objectId]);
+  }, [objectId, selectedSubObjectId]);
 
   React.useEffect(() => {
     load().catch(() => {
@@ -95,8 +112,13 @@ const ObjectCdmPage: React.FC = () => {
   }, [load]);
 
   const persistModel = async (nextAttributes: CDMAttribute[], nextRelationships: CDMRelationship[]) => {
+    if (!selectedSubObjectId) {
+      throw new Error('No sub-object selected');
+    }
+
     const response = await apiClient.post(`/api/cdm/${objectId}`, {
       objectName: objectId,
+      subObjectId: selectedSubObjectId,
       attributes: nextAttributes.map((attribute, index) => ({
         attributeName: attribute.attributeName,
         attributeDescription: attribute.attributeDescription || null,
@@ -170,10 +192,17 @@ const ObjectCdmPage: React.FC = () => {
   };
 
   const handleAutoBuild = async () => {
+    if (!selectedSubObjectId) {
+      setSaveError('Select a sub-object before running Auto-Build CDM.');
+      return;
+    }
+
     setIsGeneratingProposal(true);
     setSaveError('');
     try {
-      const response = await apiClient.post(`/api/cdm/${objectId}/ai-proposal`);
+      const response = await apiClient.post(`/api/cdm/${objectId}/ai-proposal`, {
+        subObjectId: selectedSubObjectId,
+      });
       const payload = response.data?.data || {};
       setProposalAttributes(Array.isArray(payload.attributes) ? payload.attributes : []);
       setProposalRelationships(Array.isArray(payload.relationships) ? payload.relationships : []);
@@ -243,6 +272,19 @@ const ObjectCdmPage: React.FC = () => {
         <ObjectWorkspaceHeader objectId={objectId} title="Common Data Model" />
 
         <Stack spacing={2}>
+          {isLoadingSubObjects ? (
+            <Typography color="text.secondary" variant="body2">Loading sub-objects...</Typography>
+          ) : subObjects.length === 0 ? (
+            <Alert severity="info">Create sub-objects on the Sub Objects tab before editing CDM.</Alert>
+          ) : (
+            <ObjectSubObjectSelector
+              subObjects={subObjects}
+              selectedSubObjectId={selectedSubObjectId}
+              onChange={setSelectedSubObjectId}
+              helperText={selectedSubObject ? `Editing CDM for sub-object: ${selectedSubObject.name}` : 'Select a sub-object to edit CDM.'}
+            />
+          )}
+
           {(saveStatus || saveError) && (
             <Alert severity={saveError ? 'error' : 'success'}>
               {saveError || saveStatus}
@@ -260,6 +302,7 @@ const ObjectCdmPage: React.FC = () => {
                       setEditingAttribute(null);
                       setAttributeModalOpen(true);
                     }}
+                    disabled={!selectedSubObjectId}
                     sx={{ textTransform: 'none' }}
                   >
                     + Add Attribute
@@ -268,7 +311,7 @@ const ObjectCdmPage: React.FC = () => {
                     variant="contained"
                     startIcon={<AutoAwesomeIcon />}
                     onClick={handleAutoBuild}
-                    disabled={isGeneratingProposal}
+                    disabled={isGeneratingProposal || !selectedSubObjectId}
                     sx={{ textTransform: 'none' }}
                   >
                     {isGeneratingProposal ? 'Analyzing...' : 'Auto-Build CDM (AI)'}

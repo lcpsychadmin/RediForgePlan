@@ -67,12 +67,12 @@ const normalizeProposalRelationship = (row: any, index: number) => ({
 
 router.get('/:objectId', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const subObjectId = String(req.query.subObjectId || '').trim() || null;
+    const subObjectId = String(req.query.subObjectId || '').trim();
     const modelResult = await db.query(
       `SELECT id, global_object_id, object_sub_object_id, object_name, notes, created_at, updated_at
        FROM common_data_model
        WHERE global_object_id = $1
-         AND (($2::uuid IS NULL AND object_sub_object_id IS NULL) OR object_sub_object_id = $2)`,
+         AND (($2 = '' AND object_sub_object_id IS NULL) OR object_sub_object_id::text = $2)`,
       [req.params.objectId, subObjectId]
     );
 
@@ -114,7 +114,7 @@ router.get('/:objectId', requireAuth, async (req: Request, res: Response, next: 
 router.post('/:objectId', requireAuth, requireRole('analyst', 'admin'), async (req: Request, res: Response, next: NextFunction) => {
   const client = await db.connect();
   try {
-    const subObjectId = String(req.body?.subObjectId || req.query?.subObjectId || '').trim() || null;
+    const subObjectId = String(req.body?.subObjectId || req.query?.subObjectId || '').trim();
     const notes = req.body?.notes || null;
     const objectName = req.body?.objectName || null;
     const attributes = Array.isArray(req.body?.attributes) ? req.body.attributes : [];
@@ -126,7 +126,7 @@ router.post('/:objectId', requireAuth, requireRole('analyst', 'admin'), async (r
       `SELECT id, global_object_id, object_sub_object_id, object_name, notes, created_at, updated_at
        FROM common_data_model
        WHERE global_object_id = $1
-         AND (($2::uuid IS NULL AND object_sub_object_id IS NULL) OR object_sub_object_id = $2)`,
+         AND (($2 = '' AND object_sub_object_id IS NULL) OR object_sub_object_id::text = $2)`,
       [req.params.objectId, subObjectId]
     );
 
@@ -147,7 +147,7 @@ router.post('/:objectId', requireAuth, requireRole('analyst', 'admin'), async (r
         `INSERT INTO common_data_model (global_object_id, object_sub_object_id, object_name, notes)
          VALUES ($1, $2, $3, $4)
          RETURNING id, global_object_id, object_sub_object_id, object_name, notes, created_at, updated_at`,
-        [req.params.objectId, subObjectId, objectName, notes]
+        [req.params.objectId, subObjectId || null, objectName, notes]
       );
       model = insertedModel.rows[0];
     }
