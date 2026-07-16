@@ -10,12 +10,15 @@ interface ObjectPageTabsProps {
 const ObjectPageTabs: React.FC<ObjectPageTabsProps> = ({ objectId, showAiOverrides = true }) => {
   const location = useLocation();
   const navigate = useNavigate();
+  const search = location.search || '';
 
   const tabs = [
     { label: 'Overview', path: `/objects/${objectId}` },
+    { label: 'Sub Objects', path: `/objects/${objectId}/sub-objects` },
     { label: 'Applications', path: `/objects/${objectId}/applications` },
     { label: 'Common Data Model', path: `/objects/${objectId}/cdm` },
     { label: 'Relationships', path: `/objects/${objectId}/relationships` },
+    { label: 'Metadata', path: `/objects/${objectId}/metadata` },
     ...(showAiOverrides ? [{ label: 'AI Overrides', path: `/objects/${objectId}/ai-overrides` }] : []),
   ];
 
@@ -25,7 +28,7 @@ const ObjectPageTabs: React.FC<ObjectPageTabsProps> = ({ objectId, showAiOverrid
     <Box sx={{ borderBottom: '1px solid rgba(255,255,255,0.12)', mb: 2 }}>
       <Tabs
         value={activePath}
-        onChange={(_e, path) => navigate(path)}
+        onChange={(_e, path) => navigate(`${path}${search}`)}
         variant="scrollable"
         scrollButtons="auto"
       >

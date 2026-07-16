@@ -4,6 +4,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { requireAuth, requireRole } from '../middleware/authMiddleware.js';
 import globalObjectService from '../services/globalObjectService.js';
+import db from '../db.js';
 import { ApiError } from '../middleware/errorHandler.js';
 import { formatListResponse, formatSingleResponse } from '../utils/responseFormatter.js';
 
@@ -99,6 +100,97 @@ router.delete(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       await globalObjectService.deleteGlobalObject(req.params.globalObjectId);
+      res.json({ success: true });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.get(
+  '/:globalObjectId/sub-objects',
+  requireAuth,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const result = await db.query(
+        `SELECT id, global_object_id, name, description, sort_order, created_at, updated_at
+         FROM object_sub_objects
+         WHERE global_object_id = $1
+         ORDER BY sort_order ASC, name ASC`,
+        [req.params.globalObjectId]
+      );
+      res.json(formatListResponse(result.rows, result.rows.length));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.post(
+  '/:globalObjectId/sub-objects',
+  requireAuth,
+  requireRole('analyst', 'admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { name, description, sortOrder } = req.body || {};
+      if (!String(name || '').trim()) {
+        throw new ApiError(400, 'Sub-object name is required', 'MISSING_FIELD');
+      }
+
+      const result = await db.query(
+        `INSERT INTO object_sub_objects (global_object_id, name, description, sort_order)
+         VALUES ($1, $2, $3, $4)
+         RETURNING id, global_object_id, name, description, sort_order, created_at, updated_at`,
+        [req.params.globalObjectId, String(name).trim(), description || null, Number(sortOrder || 0)]
+      );
+
+      res.status(201).json(formatSingleResponse(result.rows[0]));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.put(
+  '/sub-objects/:subObjectId',
+  requireAuth,
+  requireRole('analyst', 'admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { name, description, sortOrder } = req.body || {};
+      if (!String(name || '').trim()) {
+        throw new ApiError(400, 'Sub-object name is required', 'MISSING_FIELD');
+      }
+
+      const result = await db.query(
+        `UPDATE object_sub_objects
+         SET name = $1,
+             description = $2,
+             sort_order = $3,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $4
+         RETURNING id, global_object_id, name, description, sort_order, created_at, updated_at`,
+        [String(name).trim(), description || null, Number(sortOrder || 0), req.params.subObjectId]
+      );
+
+      if (!result.rows.length) {
+        throw new ApiError(404, 'Sub-object not found', 'NOT_FOUND');
+      }
+
+      res.json(formatSingleResponse(result.rows[0]));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.delete(
+  '/sub-objects/:subObjectId',
+  requireAuth,
+  requireRole('analyst', 'admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      await db.query('DELETE FROM object_sub_objects WHERE id = $1', [req.params.subObjectId]);
       res.json({ success: true });
     } catch (error) {
       next(error);

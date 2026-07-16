@@ -67,11 +67,13 @@ const normalizeProposalRelationship = (row: any, index: number) => ({
 
 router.get('/:objectId', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const subObjectId = String(req.query.subObjectId || '').trim() || null;
     const modelResult = await db.query(
-      `SELECT id, global_object_id, object_name, notes, created_at, updated_at
+      `SELECT id, global_object_id, object_sub_object_id, object_name, notes, created_at, updated_at
        FROM common_data_model
-       WHERE global_object_id = $1`,
-      [req.params.objectId]
+       WHERE global_object_id = $1
+         AND (($2::uuid IS NULL AND object_sub_object_id IS NULL) OR object_sub_object_id = $2)`,
+      [req.params.objectId, subObjectId]
     );
 
     const model = modelResult.rows[0] || null;
@@ -112,6 +114,7 @@ router.get('/:objectId', requireAuth, async (req: Request, res: Response, next: 
 router.post('/:objectId', requireAuth, requireRole('analyst', 'admin'), async (req: Request, res: Response, next: NextFunction) => {
   const client = await db.connect();
   try {
+    const subObjectId = String(req.body?.subObjectId || req.query?.subObjectId || '').trim() || null;
     const notes = req.body?.notes || null;
     const objectName = req.body?.objectName || null;
     const attributes = Array.isArray(req.body?.attributes) ? req.body.attributes : [];
@@ -119,18 +122,35 @@ router.post('/:objectId', requireAuth, requireRole('analyst', 'admin'), async (r
 
     await client.query('BEGIN');
 
-    const modelResult = await client.query(
-      `INSERT INTO common_data_model (global_object_id, object_name, notes)
-       VALUES ($1, $2, $3)
-       ON CONFLICT (global_object_id)
-       DO UPDATE SET object_name = EXCLUDED.object_name,
-                     notes = EXCLUDED.notes,
-                     updated_at = CURRENT_TIMESTAMP
-       RETURNING id, global_object_id, object_name, notes, created_at, updated_at`,
-      [req.params.objectId, objectName, notes]
+    const existingModel = await client.query(
+      `SELECT id, global_object_id, object_sub_object_id, object_name, notes, created_at, updated_at
+       FROM common_data_model
+       WHERE global_object_id = $1
+         AND (($2::uuid IS NULL AND object_sub_object_id IS NULL) OR object_sub_object_id = $2)`,
+      [req.params.objectId, subObjectId]
     );
 
-    const model = modelResult.rows[0];
+    let model: any;
+    if (existingModel.rows.length) {
+      const updatedModel = await client.query(
+        `UPDATE common_data_model
+         SET object_name = $1,
+             notes = $2,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $3
+         RETURNING id, global_object_id, object_sub_object_id, object_name, notes, created_at, updated_at`,
+        [objectName, notes, existingModel.rows[0].id]
+      );
+      model = updatedModel.rows[0];
+    } else {
+      const insertedModel = await client.query(
+        `INSERT INTO common_data_model (global_object_id, object_sub_object_id, object_name, notes)
+         VALUES ($1, $2, $3, $4)
+         RETURNING id, global_object_id, object_sub_object_id, object_name, notes, created_at, updated_at`,
+        [req.params.objectId, subObjectId, objectName, notes]
+      );
+      model = insertedModel.rows[0];
+    }
 
     await client.query('DELETE FROM cdm_relationships WHERE common_data_model_id = $1', [model.id]);
     await client.query('DELETE FROM cdm_attributes WHERE common_data_model_id = $1', [model.id]);
@@ -240,6 +260,11 @@ router.post('/:objectId', requireAuth, requireRole('analyst', 'admin'), async (r
 
 router.post('/:objectId/ai-proposal', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const subObjectId = String(req.body?.subObjectId || req.query?.subObjectId || '').trim() || null;
+    if (!subObjectId) {
+      throw new ApiError(400, 'subObjectId is required', 'MISSING_FIELD');
+    }
+
     const objectResult = await db.query(
       `SELECT id, object_id, description, process_area, default_gateway_id, default_router_id
        FROM global_objects
@@ -252,13 +277,14 @@ router.post('/:objectId/ai-proposal', requireAuth, async (req: Request, res: Res
     }
 
     const linkedDefinitionsResult = await db.query(
-      `SELECT dd.id, dd.application_id, dd.global_object_id, dd.notes,
+      `SELECT dd.id, dd.application_id, dd.global_object_id, dd.object_sub_object_id, dd.notes,
               a.name AS application_name, a.vendor, a.version
        FROM data_definitions dd
        JOIN applications a ON a.id = dd.application_id
        WHERE dd.global_object_id = $1
+         AND dd.object_sub_object_id = $2
        ORDER BY a.name ASC`,
-      [req.params.objectId]
+      [req.params.objectId, subObjectId]
     );
 
     if (!linkedDefinitionsResult.rows.length) {

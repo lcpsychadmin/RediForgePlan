@@ -61,14 +61,18 @@ router.delete('/:id', requireAuth, requireRole('analyst', 'admin'), async (req: 
 // List all data definitions for a global object (with application info)
 router.get('/data-definitions/object/:globalObjectId', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const subObjectId = String(req.query.subObjectId || '').trim() || null;
     const result = await db.query(
-      `SELECT dd.id, dd.global_object_id, dd.application_id, dd.notes, dd.created_at, dd.updated_at,
-              a.name as application_name, a.vendor, a.version
+      `SELECT dd.id, dd.global_object_id, dd.application_id, dd.object_sub_object_id, dd.notes, dd.created_at, dd.updated_at,
+              a.name as application_name, a.vendor, a.version,
+              oso.name as sub_object_name
        FROM data_definitions dd
        JOIN applications a ON a.id = dd.application_id
+       LEFT JOIN object_sub_objects oso ON oso.id = dd.object_sub_object_id
        WHERE dd.global_object_id = $1
+         AND ($2::uuid IS NULL OR dd.object_sub_object_id = $2)
        ORDER BY a.name ASC`,
-      [req.params.globalObjectId]
+      [req.params.globalObjectId, subObjectId]
     );
     res.json(formatListResponse(result.rows, result.rows.length));
   } catch (err) { next(err); }
@@ -77,14 +81,34 @@ router.get('/data-definitions/object/:globalObjectId', requireAuth, async (req: 
 // Create a data definition (link object to application)
 router.post('/data-definitions', requireAuth, requireRole('analyst', 'admin'), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { globalObjectId, applicationId, notes } = req.body;
-    if (!globalObjectId || !applicationId) throw new ApiError(400, 'globalObjectId and applicationId are required', 'MISSING_FIELD');
+    const { globalObjectId, applicationId, subObjectId, notes } = req.body;
+    if (!globalObjectId || !applicationId || !subObjectId) throw new ApiError(400, 'globalObjectId, applicationId, and subObjectId are required', 'MISSING_FIELD');
+
+    const existing = await db.query(
+      `SELECT id, global_object_id, application_id, object_sub_object_id, notes, created_at, updated_at
+       FROM data_definitions
+       WHERE global_object_id = $1 AND application_id = $2 AND object_sub_object_id = $3`,
+      [globalObjectId, applicationId, subObjectId]
+    );
+
+    if (existing.rows.length) {
+      const updated = await db.query(
+        `UPDATE data_definitions
+         SET notes = $1,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $2
+         RETURNING id, global_object_id, application_id, object_sub_object_id, notes, created_at, updated_at`,
+        [notes || null, existing.rows[0].id]
+      );
+      res.status(201).json(formatSingleResponse(updated.rows[0]));
+      return;
+    }
+
     const result = await db.query(
-      `INSERT INTO data_definitions (global_object_id, application_id, notes)
-       VALUES ($1, $2, $3)
-       ON CONFLICT (global_object_id, application_id) DO UPDATE SET notes=EXCLUDED.notes, updated_at=CURRENT_TIMESTAMP
-       RETURNING id, global_object_id, application_id, notes, created_at, updated_at`,
-      [globalObjectId, applicationId, notes || null]
+      `INSERT INTO data_definitions (global_object_id, application_id, object_sub_object_id, notes)
+       VALUES ($1, $2, $3, $4)
+       RETURNING id, global_object_id, application_id, object_sub_object_id, notes, created_at, updated_at`,
+      [globalObjectId, applicationId, subObjectId, notes || null]
     );
     res.status(201).json(formatSingleResponse(result.rows[0]));
   } catch (err) { next(err); }
@@ -92,11 +116,11 @@ router.post('/data-definitions', requireAuth, requireRole('analyst', 'admin'), a
 
 router.put('/data-definitions/:id', requireAuth, requireRole('analyst', 'admin'), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { notes } = req.body;
+    const { notes, subObjectId } = req.body;
     const result = await db.query(
-      `UPDATE data_definitions SET notes=$1, updated_at=CURRENT_TIMESTAMP WHERE id=$2
-       RETURNING id, global_object_id, application_id, notes, created_at, updated_at`,
-      [notes || null, req.params.id]
+      `UPDATE data_definitions SET notes=$1, object_sub_object_id=$2, updated_at=CURRENT_TIMESTAMP WHERE id=$3
+       RETURNING id, global_object_id, application_id, object_sub_object_id, notes, created_at, updated_at`,
+      [notes || null, subObjectId || null, req.params.id]
     );
     if (!result.rows.length) throw new ApiError(404, 'Data definition not found', 'NOT_FOUND');
     res.json(formatSingleResponse(result.rows[0]));

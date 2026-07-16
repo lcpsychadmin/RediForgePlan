@@ -26,9 +26,11 @@ import SchedulePage from './pages/SchedulePage';
 import MyTasksPage from './pages/MyTasksPage';
 import ReportingDashboardPage from './pages/ReportingDashboardPage';
 import ObjectIndexPage from './pages/objects/[objectId]/index';
+import ObjectSubObjectsPage from './pages/objects/[objectId]/sub-objects';
 import ObjectApplicationsPage from './pages/objects/[objectId]/applications';
 import ObjectCdmPage from './pages/objects/[objectId]/cdm';
 import ObjectRelationshipsPage from './pages/objects/[objectId]/relationships';
+import ObjectMetadataPage from './pages/objects/[objectId]/metadata';
 import ObjectAiOverridesPage from './pages/objects/[objectId]/ai-overrides';
 
 // Layout
@@ -265,6 +267,15 @@ const AppRoutes: React.FC = () => {
       />
 
       <Route
+        path="/objects/:objectId/sub-objects"
+        element={
+          <ProtectedRoute>
+            <ObjectSubObjectsPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
         path="/objects/:objectId/applications"
         element={
           <ProtectedRoute>
@@ -287,6 +298,15 @@ const AppRoutes: React.FC = () => {
         element={
           <ProtectedRoute>
             <ObjectRelationshipsPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/objects/:objectId/metadata"
+        element={
+          <ProtectedRoute>
+            <ObjectMetadataPage />
           </ProtectedRoute>
         }
       />
