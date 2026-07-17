@@ -1,74 +1,106 @@
 import React from 'react';
-import { Alert, Box, Button, Card, CardContent, Stack, Typography } from '@mui/material';
-import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
-import DeleteIcon from '@mui/icons-material/Delete';
-import EditIcon from '@mui/icons-material/Edit';
-import IconButton from '@mui/material/IconButton';
+import { Alert, Box, Card, CardContent, Chip, Typography } from '@mui/material';
 import { useParams } from 'react-router-dom';
 import Layout from '../../../components/Layout';
 import ObjectWorkspaceHeader from '../../../components/objects/ObjectWorkspaceHeader';
 import ObjectSubObjectSelector from '../../../components/objects/ObjectSubObjectSelector';
 import useObjectSubObjectSelection from '../../../components/objects/useObjectSubObjectSelection';
 import apiClient from '../../../api/client';
-import AddEditCdmAttributeModal from '../../../components/objects/AddEditCdmAttributeModal';
-import CdmAiProposalModal from '../../../components/objects/CdmAiProposalModal';
-import type {
-  CDMAttribute,
-  CDMRelationship,
-  CdmAiProposalAttribute,
-  CdmAiProposalRelationship,
-  CdmAttributeFormValues,
-} from '../../../types/commonDataModel';
 
-const mapCDMAttribute = (row: any): CDMAttribute => ({
-  id: String(row.id || ''),
-  commonDataModelId: String(row.common_data_model_id || row.commonDataModelId || ''),
-  attributeName: String(row.attribute_name || row.attributeName || ''),
-  attributeDescription: row.attribute_description ?? row.attributeDescription ?? null,
-  dataType: row.data_type ?? row.dataType ?? null,
-  length: row.length ?? null,
-  businessRules: row.business_rules ?? row.businessRules ?? null,
-  sortOrder: Number(row.sort_order ?? row.sortOrder ?? 0),
-  createdAt: row.created_at || row.createdAt,
-  updatedAt: row.updated_at || row.updatedAt,
-});
+type FieldRow = {
+  id: string;
+  definitionId: string;
+  applicationId: string;
+  applicationName: string;
+  vendor?: string | null;
+  version?: string | null;
+  field_name?: string;
+  field_label?: string;
+  table_name?: string;
+  data_type?: string;
+  length?: number | null;
+  decimals?: number | null;
+  is_key?: boolean;
+  is_required?: boolean;
+  business_process_required?: boolean;
+  description?: string | null;
+  field_metadata?: any;
+};
 
-const mapCDMRelationship = (row: any): CDMRelationship => ({
-  id: String(row.id || ''),
-  commonDataModelId: String(row.common_data_model_id || row.commonDataModelId || ''),
-  sourceAttributeId: row.source_attribute_id ?? row.sourceAttributeId ?? null,
-  sourceAttributeName: row.source_attribute_name ?? row.sourceAttributeName ?? null,
-  targetObjectName: String(row.target_object_name || row.targetObjectName || ''),
-  targetAttributeName: row.target_attribute_name ?? row.targetAttributeName ?? null,
-  relationshipType: row.relationship_type ?? row.relationshipType ?? null,
-  businessRules: row.business_rules ?? row.businessRules ?? null,
-  sortOrder: Number(row.sort_order ?? row.sortOrder ?? 0),
-  createdAt: row.created_at || row.createdAt,
-  updatedAt: row.updated_at || row.updatedAt,
-});
+type CdmAttributeRow = {
+  attributeName: string;
+  description: string;
+  dataType: string;
+  requiredPct: number;
+  sourceCount: number;
+  sourceTables: string[];
+};
 
-const mapAttributeToFormValues = (attribute: CDMAttribute): CdmAttributeFormValues => ({
-  attributeName: attribute.attributeName,
-  attributeDescription: attribute.attributeDescription || '',
-  dataType: attribute.dataType || '',
-  length: attribute.length == null ? '' : String(attribute.length),
-  businessRules: attribute.businessRules || '',
-});
+const toDisplayName = (value: string) => {
+  const cleaned = String(value || '')
+    .replace(/_/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!cleaned) return '';
+  return cleaned
+    .split(' ')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(' ');
+};
 
-const relationshipKey = (relationship: {
-  sourceAttributeName?: string | null;
-  targetObjectName?: string | null;
-  targetAttributeName?: string | null;
-  relationshipType?: string | null;
-}) => [
-  String(relationship.sourceAttributeName || '').trim().toLowerCase(),
-  String(relationship.targetObjectName || '').trim().toLowerCase(),
-  String(relationship.targetAttributeName || '').trim().toLowerCase(),
-  String(relationship.relationshipType || '').trim().toLowerCase(),
-].join('::');
+const resolveSourceType = (field: any): 'application' | 'databricks' | 'other' => {
+  const sourceType = String(field?.field_metadata?.sourceType || '').toLowerCase();
+  if (sourceType === 'application') return 'application';
+  if (sourceType === 'databricks' || field?.field_metadata?.metadataSync) return 'databricks';
+  return 'other';
+};
+
+const getMetaText = (field: any, key: string): string => {
+  const metadata = field?.field_metadata && typeof field.field_metadata === 'object' ? field.field_metadata : {};
+  return String(metadata[key] || '').trim();
+};
+
+const getApplicationTable = (field: any): string => {
+  const value = String(
+    field?.field_metadata?.application?.table
+    || field?.field_metadata?.applicationTable
+    || field?.table_name
+    || ''
+  ).trim();
+  return value;
+};
+
+const getAttributeKey = (field: FieldRow): string => {
+  const definition = getMetaText(field, 'businessDefinition');
+  const label = String(field.field_label || '').trim();
+  const fieldName = String(field.field_name || '').trim();
+  return (definition || label || fieldName).toLowerCase();
+};
+
+const getAttributeName = (field: FieldRow): string => {
+  const definition = getMetaText(field, 'businessDefinition');
+  const label = String(field.field_label || '').trim();
+  const fieldName = String(field.field_name || '').trim();
+  return toDisplayName(definition || label || fieldName) || 'Unnamed Attribute';
+};
+
+const getAttributeDescription = (field: FieldRow): string => {
+  return (
+    getMetaText(field, 'businessDefinition')
+    || getMetaText(field, 'fieldDescription')
+    || String(field.description || '').trim()
+    || 'No definition provided.'
+  );
+};
 
 const ObjectCdmPage: React.FC = () => {
   const { objectId = '' } = useParams();
+  const [objectSummary, setObjectSummary] = React.useState<any>(null);
+  const [linkedDefs, setLinkedDefs] = React.useState<any[]>([]);
+  const [allFields, setAllFields] = React.useState<FieldRow[]>([]);
+  const [loadError, setLoadError] = React.useState('');
+  const [isLoading, setIsLoading] = React.useState(true);
+
   const {
     subObjects,
     hasSubObjects,
@@ -77,339 +109,380 @@ const ObjectCdmPage: React.FC = () => {
     setSelectedSubObjectId,
     isLoading: isLoadingSubObjects,
   } = useObjectSubObjectSelection(objectId);
+
   const scopeSubObjectId = hasSubObjects ? selectedSubObjectId : '';
-  const [attributes, setAttributes] = React.useState<CDMAttribute[]>([]);
-  const [relationships, setRelationships] = React.useState<CDMRelationship[]>([]);
-  const [attributeModalOpen, setAttributeModalOpen] = React.useState(false);
-  const [editingAttribute, setEditingAttribute] = React.useState<CDMAttribute | null>(null);
-  const [proposalModalOpen, setProposalModalOpen] = React.useState(false);
-  const [proposalAttributes, setProposalAttributes] = React.useState<CdmAiProposalAttribute[]>([]);
-  const [proposalRelationships, setProposalRelationships] = React.useState<CdmAiProposalRelationship[]>([]);
-  const [isSavingAttribute, setIsSavingAttribute] = React.useState(false);
-  const [isSavingProposal, setIsSavingProposal] = React.useState(false);
-  const [isGeneratingProposal, setIsGeneratingProposal] = React.useState(false);
-  const [saveStatus, setSaveStatus] = React.useState('');
-  const [saveError, setSaveError] = React.useState('');
 
   const load = React.useCallback(async () => {
+    if (!objectId) return;
     if (hasSubObjects && !scopeSubObjectId) {
-      setAttributes([]);
-      setRelationships([]);
+      setLinkedDefs([]);
+      setAllFields([]);
+      setIsLoading(false);
       return;
     }
 
-    const res = await apiClient.get(`/api/cdm/${objectId}`, {
-      params: { subObjectId: scopeSubObjectId },
-    });
-    const payload = res.data?.data || {};
-    setAttributes(Array.isArray(payload.attributes) ? payload.attributes.map(mapCDMAttribute) : []);
-    setRelationships(Array.isArray(payload.relationships) ? payload.relationships.map(mapCDMRelationship) : []);
+    setIsLoading(true);
+    setLoadError('');
+
+    try {
+      const [objectRes, linkedRes] = await Promise.all([
+        apiClient.get(`/api/global-objects/${objectId}`),
+        apiClient.get(`/api/applications/data-definitions/object/${objectId}`, {
+          params: { subObjectId: scopeSubObjectId },
+        }),
+      ]);
+
+      const objectData = objectRes.data?.data || null;
+      const definitions = Array.isArray(linkedRes.data?.data) ? linkedRes.data.data : [];
+
+      setObjectSummary(objectData);
+      setLinkedDefs(definitions);
+
+      const fieldResults = await Promise.all(
+        definitions.map((definition: any) =>
+          apiClient.get(`/api/applications/data-definitions/${definition.id}/fields`)
+            .then((response) => ({ definition, rows: Array.isArray(response.data?.data) ? response.data.data : [] }))
+            .catch(() => ({ definition, rows: [] }))
+        )
+      );
+
+      const flattened: FieldRow[] = [];
+      fieldResults.forEach(({ definition, rows }) => {
+        rows.forEach((field: any) => {
+          flattened.push({
+            ...field,
+            definitionId: definition.id,
+            applicationId: definition.application_id,
+            applicationName: definition.application_name,
+            vendor: definition.vendor,
+            version: definition.version,
+          });
+        });
+      });
+
+      setAllFields(flattened);
+    } catch {
+      setLoadError('Failed to load Common Data Model Builder data.');
+      setObjectSummary(null);
+      setLinkedDefs([]);
+      setAllFields([]);
+    } finally {
+      setIsLoading(false);
+    }
   }, [hasSubObjects, objectId, scopeSubObjectId]);
 
   React.useEffect(() => {
     load().catch(() => {
-      setAttributes([]);
-      setRelationships([]);
+      setLoadError('Failed to load Common Data Model Builder data.');
+      setIsLoading(false);
     });
   }, [load]);
 
-  const persistModel = async (nextAttributes: CDMAttribute[], nextRelationships: CDMRelationship[]) => {
-    if (hasSubObjects && !scopeSubObjectId) {
-      throw new Error('No sub-object selected');
-    }
+  const mappingFields = React.useMemo(
+    () => allFields.filter((field) => resolveSourceType(field) === 'application'),
+    [allFields]
+  );
 
-    const response = await apiClient.post(`/api/cdm/${objectId}`, {
-      objectName: objectId,
-      subObjectId: scopeSubObjectId,
-      attributes: nextAttributes.map((attribute, index) => ({
-        attributeName: attribute.attributeName,
-        attributeDescription: attribute.attributeDescription || null,
-        dataType: attribute.dataType || null,
-        length: attribute.length ?? null,
-        businessRules: attribute.businessRules || null,
-        sortOrder: index,
-      })),
-      relationships: nextRelationships.map((relationship, index) => ({
-        sourceAttributeId: relationship.sourceAttributeId || null,
-        sourceAttributeName: relationship.sourceAttributeName || null,
-        targetObjectName: relationship.targetObjectName,
-        targetAttributeName: relationship.targetAttributeName || null,
-        relationshipType: relationship.relationshipType || null,
-        businessRules: relationship.businessRules || null,
-        sortOrder: index,
-      })),
+  const schemaFields = React.useMemo(
+    () => allFields.filter((field) => resolveSourceType(field) === 'databricks'),
+    [allFields]
+  );
+
+  const cdmAttributes = React.useMemo<CdmAttributeRow[]>(() => {
+    const grouped = new Map<string, {
+      attributeName: string;
+      descriptions: string[];
+      dataTypes: string[];
+      requiredCount: number;
+      total: number;
+      sourceTables: Set<string>;
+    }>();
+
+    mappingFields.forEach((field) => {
+      const key = getAttributeKey(field);
+      if (!key) return;
+
+      const existing = grouped.get(key) || {
+        attributeName: getAttributeName(field),
+        descriptions: [],
+        dataTypes: [],
+        requiredCount: 0,
+        total: 0,
+        sourceTables: new Set<string>(),
+      };
+
+      const description = getAttributeDescription(field);
+      const dataType = getMetaText(field, 'fieldType') || String(field.data_type || '').trim();
+      const tableName = getApplicationTable(field) || String(field.table_name || '').trim();
+
+      if (description) existing.descriptions.push(description);
+      if (dataType) existing.dataTypes.push(dataType);
+      if (tableName) existing.sourceTables.add(tableName);
+      if (field.is_required || field.business_process_required) existing.requiredCount += 1;
+      existing.total += 1;
+
+      grouped.set(key, existing);
     });
 
-    const payload = response.data?.data || {};
-    setAttributes(Array.isArray(payload.attributes) ? payload.attributes.map(mapCDMAttribute) : []);
-    setRelationships(Array.isArray(payload.relationships) ? payload.relationships.map(mapCDMRelationship) : []);
-  };
+    return Array.from(grouped.values()).map((entry) => ({
+      attributeName: entry.attributeName,
+      description: entry.descriptions[0] || 'No definition provided.',
+      dataType: entry.dataTypes[0] || 'unspecified',
+      requiredPct: entry.total ? Math.round((entry.requiredCount / entry.total) * 100) : 0,
+      sourceCount: entry.total,
+      sourceTables: Array.from(entry.sourceTables),
+    })).sort((a, b) => a.attributeName.localeCompare(b.attributeName));
+  }, [mappingFields]);
 
-  const handleSaveAttribute = async (values: CdmAttributeFormValues) => {
-    const nextAttribute: CDMAttribute = {
-      id: editingAttribute?.id || `local-${Date.now()}`,
-      commonDataModelId: editingAttribute?.commonDataModelId || '',
-      attributeName: values.attributeName,
-      attributeDescription: values.attributeDescription || null,
-      dataType: values.dataType || null,
-      length: values.length === '' ? null : Number(values.length),
-      businessRules: values.businessRules || null,
-      sortOrder: editingAttribute?.sortOrder || attributes.length,
+  const governanceRows = React.useMemo(() => {
+    return cdmAttributes.map((row) => {
+      const key = row.attributeName.toLowerCase();
+      const related = mappingFields.filter((field) => getAttributeName(field).toLowerCase() === key);
+      const classifications = Array.from(new Set(related.map((field) => getMetaText(field, 'securityClassification')).filter(Boolean)));
+      const piiTypes = Array.from(new Set(related.map((field) => getMetaText(field, 'piiType')).filter(Boolean)));
+      return {
+        attributeName: row.attributeName,
+        classifications,
+        piiTypes,
+        requiredPct: row.requiredPct,
+      };
+    });
+  }, [cdmAttributes, mappingFields]);
+
+  const securityRows = React.useMemo(() => {
+    return cdmAttributes.map((row) => {
+      const key = row.attributeName.toLowerCase();
+      const related = mappingFields.filter((field) => getAttributeName(field).toLowerCase() === key);
+      const controls = Array.from(new Set(related.map((field) => getMetaText(field, 'securityControls')).filter(Boolean)));
+      return {
+        attributeName: row.attributeName,
+        controls,
+      };
+    });
+  }, [cdmAttributes, mappingFields]);
+
+  const validationRows = React.useMemo(() => {
+    return cdmAttributes.map((row) => {
+      const key = row.attributeName.toLowerCase();
+      const related = mappingFields.filter((field) => getAttributeName(field).toLowerCase() === key);
+      const rules = Array.from(new Set(related.map((field) => getMetaText(field, 'businessRules')).filter(Boolean)));
+      const keyFlags = related.filter((field) => field.is_key).length;
+      return {
+        attributeName: row.attributeName,
+        rules,
+        keyCoverage: `${keyFlags}/${related.length || 0}`,
+      };
+    });
+  }, [cdmAttributes, mappingFields]);
+
+  const crossAppRows = React.useMemo(() => {
+    const appNames = Array.from(new Set(linkedDefs.map((definition: any) => definition.application_name))).sort();
+    const mapByAttribute = new Map<string, Map<string, { count: number; type: string }>>();
+
+    mappingFields.forEach((field) => {
+      const attributeName = getAttributeName(field);
+      const appName = String(field.applicationName || '').trim();
+      const dataType = getMetaText(field, 'fieldType') || String(field.data_type || '').trim() || '-';
+      if (!attributeName || !appName) return;
+
+      const appMap = mapByAttribute.get(attributeName) || new Map<string, { count: number; type: string }>();
+      const current = appMap.get(appName) || { count: 0, type: dataType };
+      appMap.set(appName, { count: current.count + 1, type: current.type || dataType });
+      mapByAttribute.set(attributeName, appMap);
+    });
+
+    const rows = Array.from(mapByAttribute.entries())
+      .map(([attributeName, appMap]) => {
+        const appCoverage = appNames.map((appName) => {
+          const value = appMap.get(appName);
+          if (!value) return `${appName}: n/a`;
+          return `${appName}: ${value.type}`;
+        });
+        return {
+          attributeName,
+          coverage: appCoverage,
+          appCount: appMap.size,
+        };
+      })
+      .sort((a, b) => a.attributeName.localeCompare(b.attributeName));
+
+    return {
+      appNames,
+      rows,
     };
-
-    const nextAttributes = editingAttribute
-      ? attributes.map((attribute) => attribute.id === editingAttribute.id ? nextAttribute : attribute)
-      : [...attributes, nextAttribute];
-
-    setIsSavingAttribute(true);
-    setSaveError('');
-    try {
-      await persistModel(nextAttributes, relationships);
-      setSaveStatus(editingAttribute ? 'Attribute updated.' : 'Attribute added.');
-      setAttributeModalOpen(false);
-      setEditingAttribute(null);
-    } catch {
-      setSaveError('Failed to save attribute. Please try again.');
-    } finally {
-      setIsSavingAttribute(false);
-    }
-  };
-
-  const handleDeleteAttribute = async (attributeId: string) => {
-    const targetAttribute = attributes.find((attribute) => attribute.id === attributeId);
-    if (!targetAttribute) {
-      return;
-    }
-
-    const nextAttributes = attributes.filter((attribute) => attribute.id !== attributeId);
-    const nextRelationships = relationships.filter((relationship) => String(relationship.sourceAttributeName || '').trim().toLowerCase() !== targetAttribute.attributeName.trim().toLowerCase());
-
-    setSaveError('');
-    try {
-      await persistModel(nextAttributes, nextRelationships);
-      setSaveStatus('Attribute deleted.');
-    } catch {
-      setSaveError('Failed to delete attribute. Please try again.');
-    }
-  };
-
-  const handleAutoBuild = async () => {
-    if (hasSubObjects && !scopeSubObjectId) {
-      setSaveError('Select a sub-object before running Auto-Build CDM.');
-      return;
-    }
-
-    setIsGeneratingProposal(true);
-    setSaveError('');
-    try {
-      const response = await apiClient.post(`/api/cdm/${objectId}/ai-proposal`, {
-        subObjectId: scopeSubObjectId,
-      });
-      const payload = response.data?.data || {};
-      setProposalAttributes(Array.isArray(payload.attributes) ? payload.attributes : []);
-      setProposalRelationships(Array.isArray(payload.relationships) ? payload.relationships : []);
-      setProposalModalOpen(true);
-    } catch (error: any) {
-      setSaveError(error?.response?.data?.error?.message || error?.response?.data?.message || 'Failed to generate AI CDM proposal.');
-    } finally {
-      setIsGeneratingProposal(false);
-    }
-  };
-
-  const handleSaveProposal = async (proposal: {
-    attributes: CdmAiProposalAttribute[];
-    relationships: CdmAiProposalRelationship[];
-  }) => {
-    const attributeMap = new Map<string, CDMAttribute>();
-    attributes.forEach((attribute) => {
-      attributeMap.set(attribute.attributeName.trim().toLowerCase(), attribute);
-    });
-    proposal.attributes.forEach((attribute, index) => {
-      attributeMap.set(attribute.attributeName.trim().toLowerCase(), {
-        id: attribute.id || `proposal-attribute-${index}`,
-        commonDataModelId: '',
-        attributeName: attribute.attributeName,
-        attributeDescription: attribute.attributeDescription || null,
-        dataType: attribute.dataType || null,
-        length: attribute.length ?? null,
-        businessRules: attribute.businessRules || null,
-        sortOrder: index,
-      });
-    });
-
-    const relationshipMap = new Map<string, CDMRelationship>();
-    relationships.forEach((relationship) => {
-      relationshipMap.set(relationshipKey(relationship), relationship);
-    });
-    proposal.relationships.forEach((relationship, index) => {
-      relationshipMap.set(relationshipKey(relationship), {
-        id: relationship.id || `proposal-relationship-${index}`,
-        commonDataModelId: '',
-        sourceAttributeId: relationship.sourceAttributeId || null,
-        sourceAttributeName: relationship.sourceAttributeName,
-        targetObjectName: relationship.targetObjectName,
-        targetAttributeName: relationship.targetAttributeName || null,
-        relationshipType: relationship.relationshipType || null,
-        businessRules: relationship.businessRules || null,
-        sortOrder: index,
-      });
-    });
-
-    setIsSavingProposal(true);
-    setSaveError('');
-    try {
-      await persistModel(Array.from(attributeMap.values()), Array.from(relationshipMap.values()));
-      setSaveStatus('AI CDM proposal saved.');
-      setProposalModalOpen(false);
-    } catch {
-      setSaveError('Failed to save AI CDM proposal. Please try again.');
-    } finally {
-      setIsSavingProposal(false);
-    }
-  };
+  }, [linkedDefs, mappingFields]);
 
   return (
     <Layout>
       <Box sx={{ p: 3 }}>
-        <ObjectWorkspaceHeader objectId={objectId} title="Common Data Model" />
+        <ObjectWorkspaceHeader objectId={objectId} title="Common Data Model Builder" breadcrumbLabel="CDM Builder" />
 
-        <Stack spacing={2}>
-          {isLoadingSubObjects ? (
-            <Typography color="text.secondary" variant="body2">Loading sub-objects...</Typography>
-          ) : !hasSubObjects ? (
-            <Alert severity="info">This object has no sub-objects. CDM edits apply to the object root.</Alert>
-          ) : subObjects.length === 0 ? (
-            <Alert severity="info">Create sub-objects on the Sub Objects tab before editing CDM.</Alert>
-          ) : (
-            <ObjectSubObjectSelector
-              subObjects={subObjects}
-              selectedSubObjectId={selectedSubObjectId}
-              onChange={setSelectedSubObjectId}
-              helperText={selectedSubObject ? `Editing CDM for sub-object: ${selectedSubObject.name}` : 'Select a sub-object to edit CDM.'}
-            />
-          )}
+        <Card sx={{ mb: 2, backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.12)' }}>
+          <CardContent>
+            <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1.2 }}>
+              Layer 5: Common Data Model Builder
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+              CDM output is generated from Object Inventory, Application Schema, and Object/Application Mapping.
+            </Typography>
 
-          {(saveStatus || saveError) && (
-            <Alert severity={saveError ? 'error' : 'success'}>
-              {saveError || saveStatus}
-            </Alert>
-          )}
+            {isLoadingSubObjects ? (
+              <Typography variant="body2" color="text.secondary">Loading sub-objects...</Typography>
+            ) : hasSubObjects ? (
+              <ObjectSubObjectSelector
+                subObjects={subObjects}
+                selectedSubObjectId={selectedSubObjectId}
+                onChange={setSelectedSubObjectId}
+                helperText="CDM Builder is scoped by selected sub-object."
+              />
+            ) : (
+              <Alert severity="info">This object has no sub-objects. CDM Builder runs at object scope.</Alert>
+            )}
 
-          <Card sx={{ backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.12)' }}>
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1.5, mb: 1.5, flexWrap: 'wrap' }}>
-                <Typography sx={{ fontWeight: 700 }}>Attributes</Typography>
-                <Stack direction="row" spacing={1}>
-                  <Button
-                    variant="outlined"
-                    onClick={() => {
-                      setEditingAttribute(null);
-                      setAttributeModalOpen(true);
-                    }}
-                    disabled={hasSubObjects && !scopeSubObjectId}
-                    sx={{ textTransform: 'none' }}
-                  >
-                    + Add Attribute
-                  </Button>
-                  <Button
-                    variant="contained"
-                    startIcon={<AutoAwesomeIcon />}
-                    onClick={handleAutoBuild}
-                    disabled={isGeneratingProposal || (hasSubObjects && !scopeSubObjectId)}
-                    sx={{ textTransform: 'none' }}
-                  >
-                    {isGeneratingProposal ? 'Analyzing...' : 'Auto-Build CDM (AI)'}
-                  </Button>
-                </Stack>
+            {loadError && <Alert severity="error" sx={{ mt: 1.5 }}>{loadError}</Alert>}
+
+            {!loadError && (
+              <Box sx={{ mt: 1.5, display: 'flex', flexWrap: 'wrap', gap: 0.8 }}>
+                <Chip size="small" label={`Object: ${objectSummary?.objectId || objectSummary?.object_id || objectId}`} />
+                <Chip size="small" label={`Process Area: ${objectSummary?.processArea || objectSummary?.process_area || '-'}`} />
+                <Chip size="small" label={`Linked Applications: ${linkedDefs.length}`} />
+                <Chip size="small" label={`Schema Fields: ${schemaFields.length}`} />
+                <Chip size="small" label={`Mapped Fields: ${mappingFields.length}`} />
+                <Chip size="small" label={`CDM Attributes: ${cdmAttributes.length}`} />
               </Box>
-              <Box sx={{ border: '1px solid rgba(255,255,255,0.12)', borderRadius: 1, overflow: 'hidden' }}>
-                <Box sx={{ minWidth: 980, display: 'grid', gridTemplateColumns: '1.1fr 1.6fr 0.9fr 0.6fr 1.5fr 0.8fr', backgroundColor: 'rgba(255,255,255,0.06)' }}>
-                  {['Attribute Name', 'Description', 'Data Type', 'Length', 'Business Rules', 'Actions'].map((header) => (
-                    <Box key={header} sx={{ px: 1, py: 0.8, fontSize: '0.72rem', fontWeight: 700, color: 'text.secondary' }}>{header}</Box>
-                  ))}
-                </Box>
-                {attributes.length === 0 ? (
-                  <Box sx={{ p: 1.2 }}><Typography color="text.secondary" variant="body2">No attributes defined.</Typography></Box>
-                ) : attributes.map((row) => (
-                  <Box key={row.id} sx={{ minWidth: 980, display: 'grid', gridTemplateColumns: '1.1fr 1.6fr 0.9fr 0.6fr 1.5fr 0.8fr', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
-                    <Box sx={{ px: 1, py: 0.8 }}>{row.attributeName || '-'}</Box>
-                    <Box sx={{ px: 1, py: 0.8, color: 'text.secondary' }}>{row.attributeDescription || '-'}</Box>
-                    <Box sx={{ px: 1, py: 0.8 }}>{row.dataType || '-'}</Box>
-                    <Box sx={{ px: 1, py: 0.8 }}>{row.length ?? '-'}</Box>
-                    <Box sx={{ px: 1, py: 0.8, color: 'text.secondary' }}>{row.businessRules || '-'}</Box>
-                    <Box sx={{ px: 1, py: 0.5, display: 'flex', alignItems: 'center', gap: 0.4 }}>
-                      <IconButton
-                        size="small"
-                        onClick={() => {
-                          setEditingAttribute(row);
-                          setAttributeModalOpen(true);
-                        }}
-                        title="Edit attribute"
-                      >
-                        <EditIcon sx={{ fontSize: '0.95rem' }} />
-                      </IconButton>
-                      <IconButton size="small" onClick={() => handleDeleteAttribute(row.id)} title="Delete attribute">
-                        <DeleteIcon sx={{ fontSize: '0.95rem' }} />
-                      </IconButton>
-                    </Box>
-                  </Box>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card sx={{ mb: 2, backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.12)' }}>
+          <CardContent>
+            <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>CDM Attributes</Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.2 }}>
+              Generated from mapped fields. Application-specific field columns are excluded.
+            </Typography>
+            <Box sx={{ border: '1px solid rgba(255,255,255,0.12)', borderRadius: 1, overflowX: 'auto' }}>
+              <Box sx={{ minWidth: 980, display: 'grid', gridTemplateColumns: '1.2fr 1.8fr 0.9fr 0.8fr 1fr 1.3fr', backgroundColor: 'rgba(255,255,255,0.06)' }}>
+                {['Attribute Name', 'CDM Definition', 'Data Type', 'Required %', 'Source Count', 'Source Tables'].map((header) => (
+                  <Box key={header} sx={{ px: 1, py: 0.8, fontWeight: 700, fontSize: '0.72rem', color: 'text.secondary' }}>{header}</Box>
                 ))}
               </Box>
-            </CardContent>
-          </Card>
-
-          <Card sx={{ backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.12)' }}>
-            <CardContent>
-              <Typography sx={{ fontWeight: 700, mb: 1 }}>Relationships</Typography>
-              <Box sx={{ border: '1px solid rgba(255,255,255,0.12)', borderRadius: 1, overflow: 'hidden' }}>
-                <Box sx={{ minWidth: 980, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 0.9fr 1.6fr', backgroundColor: 'rgba(255,255,255,0.06)' }}>
-                  {['Source Attribute', 'Target Object', 'Target Attribute', 'Relationship Type', 'Business Rules'].map((header) => (
-                    <Box key={header} sx={{ px: 1, py: 0.8, fontSize: '0.72rem', fontWeight: 700, color: 'text.secondary' }}>{header}</Box>
-                  ))}
+              {isLoading ? (
+                <Box sx={{ p: 1.2 }}><Typography color="text.secondary" variant="body2">Generating CDM attributes...</Typography></Box>
+              ) : cdmAttributes.length === 0 ? (
+                <Box sx={{ p: 1.2 }}><Typography color="text.secondary" variant="body2">No mapped field data available for CDM attribute generation.</Typography></Box>
+              ) : cdmAttributes.map((row, idx) => (
+                <Box key={`${row.attributeName}-${idx}`} sx={{ minWidth: 980, display: 'grid', gridTemplateColumns: '1.2fr 1.8fr 0.9fr 0.8fr 1fr 1.3fr', borderTop: idx === 0 ? 'none' : '1px solid rgba(255,255,255,0.08)' }}>
+                  <Box sx={{ px: 1, py: 0.8, fontWeight: 700 }}>{row.attributeName}</Box>
+                  <Box sx={{ px: 1, py: 0.8, color: 'text.secondary' }}>{row.description}</Box>
+                  <Box sx={{ px: 1, py: 0.8 }}>{row.dataType}</Box>
+                  <Box sx={{ px: 1, py: 0.8 }}>{row.requiredPct}%</Box>
+                  <Box sx={{ px: 1, py: 0.8 }}>{row.sourceCount}</Box>
+                  <Box sx={{ px: 1, py: 0.8, color: 'text.secondary' }}>{row.sourceTables.join(', ') || '-'}</Box>
                 </Box>
-                {relationships.length === 0 ? (
-                  <Box sx={{ p: 1.2 }}><Typography color="text.secondary" variant="body2">No relationships defined.</Typography></Box>
-                ) : relationships.map((relationship) => (
-                  <Box key={relationship.id} sx={{ minWidth: 980, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 0.9fr 1.6fr', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
-                    <Box sx={{ px: 1, py: 0.8 }}>{relationship.sourceAttributeName || '-'}</Box>
-                    <Box sx={{ px: 1, py: 0.8 }}>{relationship.targetObjectName || '-'}</Box>
-                    <Box sx={{ px: 1, py: 0.8 }}>{relationship.targetAttributeName || '-'}</Box>
-                    <Box sx={{ px: 1, py: 0.8 }}>{relationship.relationshipType || '-'}</Box>
-                    <Box sx={{ px: 1, py: 0.8, color: 'text.secondary' }}>{relationship.businessRules || '-'}</Box>
-                  </Box>
+              ))}
+            </Box>
+          </CardContent>
+        </Card>
+
+        <Card sx={{ mb: 2, backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.12)' }}>
+          <CardContent>
+            <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>CDM Definitions</Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.2 }}>
+              Canonical business definitions normalized from mapped field definitions.
+            </Typography>
+            <Box sx={{ display: 'grid', gap: 0.75 }}>
+              {cdmAttributes.slice(0, 40).map((row) => (
+                <Box key={`definition-${row.attributeName}`} sx={{ p: 1, borderRadius: 1, border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'rgba(255,255,255,0.02)' }}>
+                  <Typography sx={{ fontWeight: 700, fontSize: '0.84rem' }}>{row.attributeName}</Typography>
+                  <Typography variant="body2" color="text.secondary">{row.description}</Typography>
+                </Box>
+              ))}
+              {cdmAttributes.length === 0 && <Typography color="text.secondary" variant="body2">No definitions generated yet.</Typography>}
+            </Box>
+          </CardContent>
+        </Card>
+
+        <Card sx={{ mb: 2, backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.12)' }}>
+          <CardContent>
+            <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>CDM Governance</Typography>
+            <Box sx={{ border: '1px solid rgba(255,255,255,0.12)', borderRadius: 1, overflowX: 'auto' }}>
+              <Box sx={{ minWidth: 900, display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr 0.8fr', backgroundColor: 'rgba(255,255,255,0.06)' }}>
+                {['Attribute', 'Security Classification', 'PII Type', 'Required %'].map((header) => (
+                  <Box key={header} sx={{ px: 1, py: 0.8, fontWeight: 700, fontSize: '0.72rem', color: 'text.secondary' }}>{header}</Box>
                 ))}
               </Box>
-            </CardContent>
-          </Card>
-        </Stack>
+              {governanceRows.map((row, idx) => (
+                <Box key={`governance-${row.attributeName}`} sx={{ minWidth: 900, display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr 0.8fr', borderTop: idx === 0 ? 'none' : '1px solid rgba(255,255,255,0.08)' }}>
+                  <Box sx={{ px: 1, py: 0.8 }}>{row.attributeName}</Box>
+                  <Box sx={{ px: 1, py: 0.8, color: 'text.secondary' }}>{row.classifications.join(', ') || '-'}</Box>
+                  <Box sx={{ px: 1, py: 0.8, color: 'text.secondary' }}>{row.piiTypes.join(', ') || '-'}</Box>
+                  <Box sx={{ px: 1, py: 0.8 }}>{row.requiredPct}%</Box>
+                </Box>
+              ))}
+              {!governanceRows.length && <Box sx={{ p: 1.2 }}><Typography color="text.secondary" variant="body2">No governance rows generated.</Typography></Box>}
+            </Box>
+          </CardContent>
+        </Card>
 
-        <AddEditCdmAttributeModal
-          open={attributeModalOpen}
-          initialValues={editingAttribute ? mapAttributeToFormValues(editingAttribute) : undefined}
-          onClose={() => {
-            if (isSavingAttribute) {
-              return;
-            }
-            setAttributeModalOpen(false);
-            setEditingAttribute(null);
-          }}
-          onSave={handleSaveAttribute}
-          saving={isSavingAttribute}
-        />
+        <Card sx={{ mb: 2, backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.12)' }}>
+          <CardContent>
+            <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>CDM Security</Typography>
+            <Box sx={{ display: 'grid', gap: 0.75 }}>
+              {securityRows.map((row) => (
+                <Box key={`security-${row.attributeName}`} sx={{ p: 1, borderRadius: 1, border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'rgba(255,255,255,0.02)' }}>
+                  <Typography sx={{ fontWeight: 700, fontSize: '0.83rem' }}>{row.attributeName}</Typography>
+                  <Typography variant="body2" color="text.secondary">Controls: {row.controls.join(', ') || 'No controls specified.'}</Typography>
+                </Box>
+              ))}
+              {!securityRows.length && <Typography color="text.secondary" variant="body2">No security data generated.</Typography>}
+            </Box>
+          </CardContent>
+        </Card>
 
-        <CdmAiProposalModal
-          open={proposalModalOpen}
-          attributes={proposalAttributes}
-          relationships={proposalRelationships}
-          onClose={() => {
-            if (isSavingProposal) {
-              return;
-            }
-            setProposalModalOpen(false);
-          }}
-          onSave={handleSaveProposal}
-          saving={isSavingProposal}
-        />
+        <Card sx={{ mb: 2, backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.12)' }}>
+          <CardContent>
+            <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>CDM Validation Rules</Typography>
+            <Box sx={{ border: '1px solid rgba(255,255,255,0.12)', borderRadius: 1, overflowX: 'auto' }}>
+              <Box sx={{ minWidth: 900, display: 'grid', gridTemplateColumns: '1.2fr 2fr 0.8fr', backgroundColor: 'rgba(255,255,255,0.06)' }}>
+                {['Attribute', 'Validation Rules', 'Key Coverage'].map((header) => (
+                  <Box key={header} sx={{ px: 1, py: 0.8, fontWeight: 700, fontSize: '0.72rem', color: 'text.secondary' }}>{header}</Box>
+                ))}
+              </Box>
+              {validationRows.map((row, idx) => (
+                <Box key={`validation-${row.attributeName}`} sx={{ minWidth: 900, display: 'grid', gridTemplateColumns: '1.2fr 2fr 0.8fr', borderTop: idx === 0 ? 'none' : '1px solid rgba(255,255,255,0.08)' }}>
+                  <Box sx={{ px: 1, py: 0.8 }}>{row.attributeName}</Box>
+                  <Box sx={{ px: 1, py: 0.8, color: 'text.secondary' }}>{row.rules.join('; ') || '-'}</Box>
+                  <Box sx={{ px: 1, py: 0.8 }}>{row.keyCoverage}</Box>
+                </Box>
+              ))}
+              {!validationRows.length && <Box sx={{ p: 1.2 }}><Typography color="text.secondary" variant="body2">No validation rules generated.</Typography></Box>}
+            </Box>
+          </CardContent>
+        </Card>
+
+        <Card sx={{ backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.12)' }}>
+          <CardContent>
+            <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>Cross-application Comparison</Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.2 }}>
+              Compare normalized CDM attributes across linked applications.
+            </Typography>
+            <Box sx={{ border: '1px solid rgba(255,255,255,0.12)', borderRadius: 1, overflowX: 'auto' }}>
+              <Box sx={{ minWidth: 900, display: 'grid', gridTemplateColumns: '1.2fr 2.4fr 0.8fr', backgroundColor: 'rgba(255,255,255,0.06)' }}>
+                {['Attribute', 'Application Coverage', 'Applications'].map((header) => (
+                  <Box key={header} sx={{ px: 1, py: 0.8, fontWeight: 700, fontSize: '0.72rem', color: 'text.secondary' }}>{header}</Box>
+                ))}
+              </Box>
+              {crossAppRows.rows.map((row, idx) => (
+                <Box key={`comparison-${row.attributeName}`} sx={{ minWidth: 900, display: 'grid', gridTemplateColumns: '1.2fr 2.4fr 0.8fr', borderTop: idx === 0 ? 'none' : '1px solid rgba(255,255,255,0.08)' }}>
+                  <Box sx={{ px: 1, py: 0.8 }}>{row.attributeName}</Box>
+                  <Box sx={{ px: 1, py: 0.8, color: 'text.secondary' }}>{row.coverage.join(' | ')}</Box>
+                  <Box sx={{ px: 1, py: 0.8 }}>{row.appCount}</Box>
+                </Box>
+              ))}
+              {!crossAppRows.rows.length && <Box sx={{ p: 1.2 }}><Typography color="text.secondary" variant="body2">No cross-application comparison data available.</Typography></Box>}
+            </Box>
+          </CardContent>
+        </Card>
       </Box>
     </Layout>
   );
