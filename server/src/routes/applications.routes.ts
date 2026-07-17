@@ -265,32 +265,111 @@ const mergeUniqueProposals = (first: any[], second: any[]) => {
   return merged;
 };
 
-const SAP_TABLE_FALLBACK_FIELDS: Record<string, string[]> = {
+type SapFallbackField = {
+  fieldName: string;
+  label?: string;
+  fieldType?: string;
+  fieldLength?: number | null;
+  decimalPlaces?: number | null;
+  fieldDescription?: string;
+};
+
+const SAP_TABLE_FALLBACK_FIELDS: Record<string, SapFallbackField[]> = {
   KNA1: [
-    'KUNNR', 'LAND1', 'NAME1', 'NAME2', 'ORT01', 'PSTLZ', 'STRAS', 'REGIO', 'SPRAS', 'SORTL',
-    'TELF1', 'TELFX', 'SMTP_ADDR', 'STCD1', 'STCD2', 'KTOKD', 'KUKLA', 'KONZS', 'BRSCH', 'BRAN1',
-    'BRAN2', 'BRAN3', 'BAHNE', 'BAHNS', 'LIFNR', 'LOEVM', 'SPERR', 'AUFSD', 'BAPIZIP', 'ADRNR',
+    { fieldName: 'KUNNR', label: 'Customer Number', fieldType: 'CHAR', fieldLength: 10 },
+    { fieldName: 'LAND1', label: 'Country Key', fieldType: 'CHAR', fieldLength: 3 },
+    { fieldName: 'NAME1', label: 'Name 1', fieldType: 'CHAR', fieldLength: 35 },
+    { fieldName: 'NAME2', label: 'Name 2', fieldType: 'CHAR', fieldLength: 35 },
+    { fieldName: 'NAME3', label: 'Name 3', fieldType: 'CHAR', fieldLength: 35 },
+    { fieldName: 'NAME4', label: 'Name 4', fieldType: 'CHAR', fieldLength: 35 },
+    { fieldName: 'ORT01', label: 'City', fieldType: 'CHAR', fieldLength: 35 },
+    { fieldName: 'ORT02', label: 'District', fieldType: 'CHAR', fieldLength: 35 },
+    { fieldName: 'PSTLZ', label: 'Postal Code', fieldType: 'CHAR', fieldLength: 10 },
+    { fieldName: 'STRAS', label: 'Street', fieldType: 'CHAR', fieldLength: 35 },
+    { fieldName: 'REGIO', label: 'Region', fieldType: 'CHAR', fieldLength: 3 },
+    { fieldName: 'SPRAS', label: 'Language Key', fieldType: 'LANG', fieldLength: 1 },
+    { fieldName: 'SORTL', label: 'Search Term', fieldType: 'CHAR', fieldLength: 10 },
+    { fieldName: 'TELF1', label: 'Telephone 1', fieldType: 'CHAR', fieldLength: 16 },
+    { fieldName: 'TELF2', label: 'Telephone 2', fieldType: 'CHAR', fieldLength: 16 },
+    { fieldName: 'TELFX', label: 'Fax', fieldType: 'CHAR', fieldLength: 31 },
+    { fieldName: 'SMTP_ADDR', label: 'Email Address', fieldType: 'CHAR', fieldLength: 241 },
+    { fieldName: 'ADRNR', label: 'Address Number', fieldType: 'CHAR', fieldLength: 10 },
+    { fieldName: 'STCD1', label: 'Tax Number 1', fieldType: 'CHAR', fieldLength: 16 },
+    { fieldName: 'STCD2', label: 'Tax Number 2', fieldType: 'CHAR', fieldLength: 11 },
+    { fieldName: 'STCD3', label: 'Tax Number 3', fieldType: 'CHAR', fieldLength: 18 },
+    { fieldName: 'STCD4', label: 'Tax Number 4', fieldType: 'CHAR', fieldLength: 18 },
+    { fieldName: 'STCEG', label: 'VAT Registration Number', fieldType: 'CHAR', fieldLength: 20 },
+    { fieldName: 'KTOKD', label: 'Account Group', fieldType: 'CHAR', fieldLength: 4 },
+    { fieldName: 'KUKLA', label: 'Customer Classification', fieldType: 'CHAR', fieldLength: 2 },
+    { fieldName: 'KONZS', label: 'Group Key', fieldType: 'CHAR', fieldLength: 10 },
+    { fieldName: 'BRSCH', label: 'Industry Key', fieldType: 'CHAR', fieldLength: 4 },
+    { fieldName: 'BRAN1', label: 'Industry 1', fieldType: 'CHAR', fieldLength: 10 },
+    { fieldName: 'BRAN2', label: 'Industry 2', fieldType: 'CHAR', fieldLength: 10 },
+    { fieldName: 'BRAN3', label: 'Industry 3', fieldType: 'CHAR', fieldLength: 10 },
+    { fieldName: 'BAHNE', label: 'Express Station', fieldType: 'CHAR', fieldLength: 25 },
+    { fieldName: 'BAHNS', label: 'Train Station', fieldType: 'CHAR', fieldLength: 25 },
+    { fieldName: 'LIFNR', label: 'Vendor Number', fieldType: 'CHAR', fieldLength: 10 },
+    { fieldName: 'PERIV', label: 'Fiscal Year Variant', fieldType: 'CHAR', fieldLength: 2 },
+    { fieldName: 'LOEVM', label: 'Deletion Flag', fieldType: 'CHAR', fieldLength: 1 },
+    { fieldName: 'SPERR', label: 'Central Blocking Flag', fieldType: 'CHAR', fieldLength: 1 },
+    { fieldName: 'AUFSD', label: 'Order Block', fieldType: 'CHAR', fieldLength: 2 },
+    { fieldName: 'NIELS', label: 'Natural Person', fieldType: 'CHAR', fieldLength: 1 },
+    { fieldName: 'FISKN', label: 'Fiscal Address', fieldType: 'CHAR', fieldLength: 10 },
+    { fieldName: 'BAPIZIP', label: 'BAPI Postal Code', fieldType: 'CHAR', fieldLength: 10 },
+    { fieldName: 'XCPDK', label: 'One-Time Account', fieldType: 'CHAR', fieldLength: 1 },
+    { fieldName: 'XZEMP', label: 'Alternative Payer Flag', fieldType: 'CHAR', fieldLength: 1 },
   ],
   KNB1: [
-    'KUNNR', 'BUKRS', 'AKONT', 'ZTERM', 'ZWELS', 'ZAHLS', 'ALTKN', 'FDGRV', 'VZSKZ', 'BUSAB',
-    'ZUAWA', 'TOGRU', 'LOEVM', 'SPERR', 'XZAHL', 'REPRF', 'HBKID', 'HZUOR', 'MGRUP', 'BEGRU',
-    'EDIKG', 'PERNR', 'NODEL', 'FRGRP', 'CIVVE', 'FDLEV',
+    { fieldName: 'KUNNR', label: 'Customer Number', fieldType: 'CHAR', fieldLength: 10 },
+    { fieldName: 'BUKRS', label: 'Company Code', fieldType: 'CHAR', fieldLength: 4 },
+    { fieldName: 'AKONT', label: 'Reconciliation Account', fieldType: 'CHAR', fieldLength: 10 },
+    { fieldName: 'ZTERM', label: 'Payment Terms', fieldType: 'CHAR', fieldLength: 4 },
+    { fieldName: 'ZWELS', label: 'Payment Methods', fieldType: 'CHAR', fieldLength: 10 },
+    { fieldName: 'ZAHLS', label: 'Payment Block', fieldType: 'CHAR', fieldLength: 1 },
+    { fieldName: 'ALTKN', label: 'Previous Account Number', fieldType: 'CHAR', fieldLength: 10 },
+    { fieldName: 'FDGRV', label: 'Planning Group', fieldType: 'CHAR', fieldLength: 10 },
+    { fieldName: 'VZSKZ', label: 'Interest Indicator', fieldType: 'CHAR', fieldLength: 2 },
+    { fieldName: 'BUSAB', label: 'Accounting Clerk', fieldType: 'CHAR', fieldLength: 2 },
+    { fieldName: 'ZUAWA', label: 'Sort Key', fieldType: 'CHAR', fieldLength: 3 },
+    { fieldName: 'TOGRU', label: 'Tolerance Group', fieldType: 'CHAR', fieldLength: 4 },
+    { fieldName: 'LOEVM', label: 'Deletion Flag', fieldType: 'CHAR', fieldLength: 1 },
+    { fieldName: 'SPERR', label: 'Posting Block', fieldType: 'CHAR', fieldLength: 1 },
+    { fieldName: 'XZAHL', label: 'Payment History Record', fieldType: 'CHAR', fieldLength: 1 },
+    { fieldName: 'REPRF', label: 'Check Double Invoice', fieldType: 'CHAR', fieldLength: 1 },
+    { fieldName: 'HBKID', label: 'House Bank', fieldType: 'CHAR', fieldLength: 5 },
+    { fieldName: 'HZUOR', label: 'Assignment Number', fieldType: 'CHAR', fieldLength: 3 },
+    { fieldName: 'MGRUP', label: 'Dunning Group', fieldType: 'CHAR', fieldLength: 2 },
+    { fieldName: 'BEGRU', label: 'Authorization Group', fieldType: 'CHAR', fieldLength: 4 },
+    { fieldName: 'EDIKG', label: 'EDI Group', fieldType: 'CHAR', fieldLength: 4 },
+    { fieldName: 'PERNR', label: 'Personnel Number', fieldType: 'NUMC', fieldLength: 8 },
+    { fieldName: 'NODEL', label: 'Dunning Block', fieldType: 'CHAR', fieldLength: 1 },
+    { fieldName: 'FRGRP', label: 'Release Group', fieldType: 'CHAR', fieldLength: 4 },
+    { fieldName: 'CIVVE', label: 'Credit Segment', fieldType: 'CHAR', fieldLength: 10 },
+    { fieldName: 'FDLEV', label: 'Clearing Between Cust/Vend', fieldType: 'CHAR', fieldLength: 1 },
+    { fieldName: 'KNRZE', label: 'Head Office Account', fieldType: 'CHAR', fieldLength: 10 },
+    { fieldName: 'DUEFL', label: 'Due Date Calculation', fieldType: 'CHAR', fieldLength: 1 },
+    { fieldName: 'XDEZV', label: 'Memo Record Flag', fieldType: 'CHAR', fieldLength: 1 },
+    { fieldName: 'WAKON', label: 'Collection Group', fieldType: 'CHAR', fieldLength: 2 },
+    { fieldName: 'XVERR', label: 'Record Payment History', fieldType: 'CHAR', fieldLength: 1 },
+    { fieldName: 'KVERM', label: 'Account Memo', fieldType: 'CHAR', fieldLength: 30 },
+    { fieldName: 'KLIMK', label: 'Credit Limit', fieldType: 'CURR', fieldLength: 15, decimalPlaces: 2 },
+    { fieldName: 'CRBLB', label: 'Credit Exposure', fieldType: 'CURR', fieldLength: 15, decimalPlaces: 2 },
   ],
 };
 
-const buildFallbackProposal = (tableName: string, fieldName: string, index: number) => ({
-  id: `fallback-${tableName}-${fieldName}-${index}`,
-  fieldName,
-  label: fieldName,
+const buildFallbackProposal = (tableName: string, field: SapFallbackField, index: number) => ({
+  id: `fallback-${tableName}-${field.fieldName}-${index}`,
+  fieldName: field.fieldName,
+  label: field.label || field.fieldName,
   table: tableName,
   tableName,
-  fieldDescription: `Fallback SAP field for ${tableName}.`,
+  fieldDescription: field.fieldDescription || `Fallback SAP field for ${tableName}.`,
   applicationUsage: '',
   businessDefinition: '',
   businessRules: '',
-  fieldType: '',
-  fieldLength: null,
-  decimalPlaces: null,
+  fieldType: field.fieldType || '',
+  fieldLength: field.fieldLength ?? null,
+  decimalPlaces: field.decimalPlaces ?? null,
   systemRequired: false,
   businessProcessRequired: false,
   suppressedField: false,
@@ -319,16 +398,51 @@ const applySapFallbackCoverage = (rows: any[]) => {
         .filter(Boolean)
     );
 
-    const missing = fallbackFields.filter((fieldName) => !existing.has(fieldName));
+    const missing = fallbackFields.filter((field) => !existing.has(field.fieldName.toUpperCase()));
     if (!missing.length) {
       return;
     }
 
-    const fallbackRows = missing.map((fieldName, index) => buildFallbackProposal(tableName, fieldName, index));
+    const fallbackRows = missing.map((field, index) => buildFallbackProposal(tableName, field, index));
     proposals = mergeUniqueProposals(proposals, fallbackRows);
   });
 
   return proposals;
+};
+
+const enrichIncompleteMetadataFromFallback = (rows: any[]) => {
+  const lookup = new Map<string, SapFallbackField>();
+  Object.entries(SAP_TABLE_FALLBACK_FIELDS).forEach(([tableName, fields]) => {
+    fields.forEach((field) => {
+      lookup.set(`${tableName}::${field.fieldName.toUpperCase()}`, field);
+    });
+  });
+
+  return (rows || []).map((row: any) => {
+    const tableName = String(row?.tableName || row?.table || '').trim().toUpperCase();
+    const fieldName = String(row?.fieldName || '').trim().toUpperCase();
+    if (!tableName || !fieldName) {
+      return row;
+    }
+
+    const match = lookup.get(`${tableName}::${fieldName}`);
+    if (!match) {
+      return row;
+    }
+
+    const hasType = String(row?.fieldType || '').trim().length > 0;
+    const hasLength = row?.fieldLength != null && row?.fieldLength !== '';
+    const hasLabel = String(row?.label || '').trim().length > 0;
+
+    return {
+      ...row,
+      label: hasLabel ? row.label : (match.label || fieldName),
+      fieldType: hasType ? row.fieldType : (match.fieldType || ''),
+      fieldLength: hasLength ? row.fieldLength : (match.fieldLength ?? null),
+      decimalPlaces: row?.decimalPlaces == null ? (match.decimalPlaces ?? null) : row.decimalPlaces,
+      fieldDescription: String(row?.fieldDescription || '').trim() || match.fieldDescription || row?.fieldDescription || '',
+    };
+  });
 };
 
 const countByTable = (rows: any[]) => {
@@ -917,6 +1031,7 @@ router.post('/data-definitions/:definitionId/ai-generate-fields', requireAuth, a
 
     // Deterministic safety net for key SAP customer master tables when AI depth is constrained.
     proposals = applySapFallbackCoverage(proposals);
+    proposals = enrichIncompleteMetadataFromFallback(proposals);
 
     res.json(formatSingleResponse({
       proposals,
