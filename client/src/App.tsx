@@ -28,6 +28,9 @@ import ReportingDashboardPage from './pages/ReportingDashboardPage';
 import ObjectIndexPage from './pages/objects/[objectId]/index';
 import ObjectSubObjectsPage from './pages/objects/[objectId]/sub-objects';
 import ObjectApplicationsPage from './pages/objects/[objectId]/applications';
+import ObjectApplicationAssignmentPage from './pages/objects/[objectId]/application-assignment';
+import ObjectApplicationSchemaPage from './pages/objects/[objectId]/application-schema';
+import ObjectApplicationMappingPage from './pages/objects/[objectId]/application-mapping';
 import ObjectCdmPage from './pages/objects/[objectId]/cdm';
 import ObjectRelationshipsPage from './pages/objects/[objectId]/relationships';
 import ObjectMetadataPage from './pages/objects/[objectId]/metadata';
@@ -280,6 +283,33 @@ const AppRoutes: React.FC = () => {
         element={
           <ProtectedRoute>
             <ObjectApplicationsPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/objects/:objectId/application-assignment"
+        element={
+          <ProtectedRoute>
+            <ObjectApplicationAssignmentPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/objects/:objectId/application-schema"
+        element={
+          <ProtectedRoute>
+            <ObjectApplicationSchemaPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/objects/:objectId/application-mapping"
+        element={
+          <ProtectedRoute>
+            <ObjectApplicationMappingPage />
           </ProtectedRoute>
         }
       />

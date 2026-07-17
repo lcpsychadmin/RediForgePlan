@@ -13,10 +13,12 @@ const ObjectPageTabs: React.FC<ObjectPageTabsProps> = ({ objectId, showAiOverrid
   const search = location.search || '';
 
   const tabs = [
-    { label: 'Overview', path: `/objects/${objectId}` },
+    { label: 'Object Inventory', path: `/objects/${objectId}` },
     { label: 'Sub Objects', path: `/objects/${objectId}/sub-objects` },
-    { label: 'Applications', path: `/objects/${objectId}/applications` },
-    { label: 'Common Data Model', path: `/objects/${objectId}/cdm` },
+    { label: 'Application Assignment', path: `/objects/${objectId}/application-assignment` },
+    { label: 'Application Schema', path: `/objects/${objectId}/application-schema` },
+    { label: 'Object ↔ App Mapping', path: `/objects/${objectId}/application-mapping` },
+    { label: 'CDM Builder', path: `/objects/${objectId}/cdm` },
     { label: 'Relationships', path: `/objects/${objectId}/relationships` },
     { label: 'Metadata', path: `/objects/${objectId}/metadata` },
     ...(showAiOverrides ? [{ label: 'AI Overrides', path: `/objects/${objectId}/ai-overrides` }] : []),
