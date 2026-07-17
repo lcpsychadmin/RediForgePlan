@@ -174,7 +174,7 @@ const ObjectApplicationSchemaPage: React.FC = () => {
               Layer 3: Application Schema
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              Pull and review source tables and fields from Databricks for the selected assigned application scope.
+              Review source tables and fields for the selected assigned application scope.
             </Typography>
 
             {isLoadingSubObjects ? (
@@ -190,7 +190,7 @@ const ObjectApplicationSchemaPage: React.FC = () => {
               <Alert severity="info" sx={{ mb: 2 }}>This object has no sub-objects. Schema scope is object-level.</Alert>
             )}
 
-            <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} sx={{ mt: 2, mb: 2 }}>
+            <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} sx={{ mt: 2, mb: 1.2 }}>
               <TextField
                 select
                 size="small"
@@ -203,74 +203,11 @@ const ObjectApplicationSchemaPage: React.FC = () => {
                   <MenuItem key={row.id} value={row.id}>{row.application_name}</MenuItem>
                 ))}
               </TextField>
-
-              <TextField
-                select
-                size="small"
-                label="Catalog"
-                value={metadataDraft.catalog}
-                onChange={async (e) => {
-                  const catalog = e.target.value;
-                  setMetadataBySubObject((prev) => ({
-                    ...prev,
-                    [selectedSubObjectId]: { catalog, schema: '', table: '' },
-                  }));
-                  setTables([]);
-                  await loadMetadataSchemas(catalog);
-                }}
-                sx={{ minWidth: 170 }}
-              >
-                {catalogs.map((catalog) => (
-                  <MenuItem key={`catalog-${catalog}`} value={catalog}>{catalog}</MenuItem>
-                ))}
-              </TextField>
-
-              <TextField
-                select
-                size="small"
-                label="Schema"
-                value={metadataDraft.schema}
-                onChange={async (e) => {
-                  const schema = e.target.value;
-                  setMetadataBySubObject((prev) => ({
-                    ...prev,
-                    [selectedSubObjectId]: { ...metadataDraft, schema, table: '' },
-                  }));
-                  await loadMetadataTables(metadataDraft.catalog, schema);
-                }}
-                sx={{ minWidth: 170 }}
-              >
-                {schemas.map((schema) => (
-                  <MenuItem key={`schema-${schema}`} value={schema}>{schema}</MenuItem>
-                ))}
-              </TextField>
-
-              <TextField
-                select
-                size="small"
-                label="Table"
-                value={metadataDraft.table}
-                onChange={(e) => setMetadataBySubObject((prev) => ({
-                  ...prev,
-                  [selectedSubObjectId]: { ...metadataDraft, table: e.target.value },
-                }))}
-                sx={{ minWidth: 180 }}
-              >
-                {tables.map((table) => (
-                  <MenuItem key={`table-${table}`} value={table}>{table}</MenuItem>
-                ))}
-              </TextField>
-
-              <Button
-                variant="outlined"
-                size="small"
-                onClick={handleMetadataSync}
-                disabled={isSyncingMetadata || !selectedDataDefId}
-                sx={{ textTransform: 'none', alignSelf: { xs: 'stretch', md: 'center' } }}
-              >
-                {isSyncingMetadata ? 'Syncing...' : 'Pull Schema'}
-              </Button>
             </Stack>
+
+            <Alert severity="info" sx={{ mb: 2 }}>
+              Table and field metadata inputs are managed on the Applications settings page under Schema Source, Tables, and Fields.
+            </Alert>
 
             {selectedDefinition && (
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.2 }}>

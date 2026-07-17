@@ -630,10 +630,27 @@ const resolveLegacyFieldSubObjectId = async (definitionId: string, subObjectId: 
 
 // ── Applications ─────────────────────────────────────────────────────────────
 
+const normalizeSchemaSourceType = (value: any): 'databricks' | 'jdbc' | 'api' => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === 'jdbc') return 'jdbc';
+  if (normalized === 'api') return 'api';
+  return 'databricks';
+};
+
+const normalizeSchemaSourceConfig = (value: any) => {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+};
+
+const normalizeArrayMetadata = (value: any) => {
+  return Array.isArray(value) ? value : [];
+};
+
 router.get('/', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const result = await db.query(
-      `SELECT id, name, description, vendor, version, is_active, created_at, updated_at
+      `SELECT id, name, description, vendor, version, is_active,
+              schema_source_type, schema_source_config, tables_metadata, fields_metadata,
+              created_at, updated_at
        FROM applications ORDER BY name ASC`
     );
     res.json(formatListResponse(result.rows, result.rows.length));
@@ -643,12 +660,19 @@ router.get('/', requireAuth, async (req: Request, res: Response, next: NextFunct
 router.post('/', requireAuth, requireRole('analyst', 'admin'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { name, description, vendor, version } = req.body;
+    const schemaSourceType = normalizeSchemaSourceType(req.body?.schemaSourceType ?? req.body?.schema_source_type);
+    const schemaSourceConfig = normalizeSchemaSourceConfig(req.body?.schemaSourceConfig ?? req.body?.schema_source_config);
+    const tablesMetadata = normalizeArrayMetadata(req.body?.tablesMetadata ?? req.body?.tables_metadata);
+    const fieldsMetadata = normalizeArrayMetadata(req.body?.fieldsMetadata ?? req.body?.fields_metadata);
+
     if (!name?.trim()) throw new ApiError(400, 'Application name is required', 'MISSING_FIELD');
     const result = await db.query(
-      `INSERT INTO applications (name, description, vendor, version)
-       VALUES ($1, $2, $3, $4)
-       RETURNING id, name, description, vendor, version, is_active, created_at, updated_at`,
-      [name.trim(), description || null, vendor || null, version || null]
+      `INSERT INTO applications (name, description, vendor, version, schema_source_type, schema_source_config, tables_metadata, fields_metadata)
+       VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8::jsonb)
+       RETURNING id, name, description, vendor, version, is_active,
+                 schema_source_type, schema_source_config, tables_metadata, fields_metadata,
+                 created_at, updated_at`,
+      [name.trim(), description || null, vendor || null, version || null, schemaSourceType, JSON.stringify(schemaSourceConfig), JSON.stringify(tablesMetadata), JSON.stringify(fieldsMetadata)]
     );
     res.status(201).json(formatSingleResponse(result.rows[0]));
   } catch (err) { next(err); }
@@ -657,11 +681,39 @@ router.post('/', requireAuth, requireRole('analyst', 'admin'), async (req: Reque
 router.put('/:id', requireAuth, requireRole('analyst', 'admin'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { name, description, vendor, version, isActive } = req.body;
+    const schemaSourceType = normalizeSchemaSourceType(req.body?.schemaSourceType ?? req.body?.schema_source_type);
+    const schemaSourceConfig = normalizeSchemaSourceConfig(req.body?.schemaSourceConfig ?? req.body?.schema_source_config);
+    const tablesMetadata = normalizeArrayMetadata(req.body?.tablesMetadata ?? req.body?.tables_metadata);
+    const fieldsMetadata = normalizeArrayMetadata(req.body?.fieldsMetadata ?? req.body?.fields_metadata);
+
     const result = await db.query(
-      `UPDATE applications SET name=$1, description=$2, vendor=$3, version=$4, is_active=$5, updated_at=CURRENT_TIMESTAMP
-       WHERE id=$6
-       RETURNING id, name, description, vendor, version, is_active, created_at, updated_at`,
-      [name?.trim() || '', description || null, vendor || null, version || null, isActive !== false, req.params.id]
+      `UPDATE applications
+       SET name=$1,
+           description=$2,
+           vendor=$3,
+           version=$4,
+           is_active=$5,
+           schema_source_type=$6,
+           schema_source_config=$7::jsonb,
+           tables_metadata=$8::jsonb,
+           fields_metadata=$9::jsonb,
+           updated_at=CURRENT_TIMESTAMP
+      WHERE id=$10
+       RETURNING id, name, description, vendor, version, is_active,
+                 schema_source_type, schema_source_config, tables_metadata, fields_metadata,
+                 created_at, updated_at`,
+      [
+        name?.trim() || '',
+        description || null,
+        vendor || null,
+        version || null,
+        isActive !== false,
+        schemaSourceType,
+        JSON.stringify(schemaSourceConfig),
+        JSON.stringify(tablesMetadata),
+        JSON.stringify(fieldsMetadata),
+        req.params.id,
+      ]
     );
     if (!result.rows.length) throw new ApiError(404, 'Application not found', 'NOT_FOUND');
     res.json(formatSingleResponse(result.rows[0]));

@@ -569,15 +569,6 @@ const ObjectApplicationMappingPage: React.FC = () => {
                   </Box>
                   <Stack direction="row" spacing={1}>
                     <Button
-                      size="small"
-                      variant="outlined"
-                      sx={{ textTransform: 'none' }}
-                      onClick={() => startCreateField()}
-                      disabled={!selectedDataDefId}
-                    >
-                      Add Field
-                    </Button>
-                    <Button
                       variant="contained"
                       size="small"
                       startIcon={<AutoAwesomeIcon />}
@@ -592,15 +583,15 @@ const ObjectApplicationMappingPage: React.FC = () => {
               </Box>
 
               <Box sx={{ border: '1px solid rgba(255,255,255,0.12)', borderRadius: 1, overflowX: 'auto' }}>
-                <Box sx={{ minWidth: 3200, display: 'grid', gridTemplateColumns: '1.3fr 1.1fr 1.1fr 1.1fr 1.6fr 1.3fr 1.7fr 1.6fr 0.95fr 0.8fr 0.9fr 0.7fr 0.95fr 0.8fr 1.4fr 1.1fr 1.0fr 1.0fr 1.0fr 1.5fr 0.8fr', backgroundColor: 'rgba(255,255,255,0.06)' }}>
-                  {['Field Name', 'Label', 'Table', 'Table Name', 'Field Description', 'Application Usage', 'Business Definition', 'Business Rules', 'Field Type', 'Field Length', 'Decimal Places', 'System Req', 'Bus Proc Req', 'Suppressed', 'Legal/Regulatory Implications', 'Security Classification', 'Reference Table', 'Grouping/Tab', 'PII Type', 'Security Controls', 'Actions'].map((header) => (
+                <Box sx={{ minWidth: 3200, display: 'grid', gridTemplateColumns: '1.3fr 1.1fr 1.1fr 1.1fr 1.6fr 1.3fr 1.7fr 1.6fr 0.95fr 0.8fr 0.9fr 0.7fr 0.95fr 0.8fr 1.4fr 1.1fr 1.0fr 1.0fr 1.0fr 1.5fr', backgroundColor: 'rgba(255,255,255,0.06)' }}>
+                  {['Field Name', 'Label', 'Table', 'Table Name', 'Field Description', 'Application Usage', 'Business Definition', 'Business Rules', 'Field Type', 'Field Length', 'Decimal Places', 'System Req', 'Bus Proc Req', 'Suppressed', 'Legal/Regulatory Implications', 'Security Classification', 'Reference Table', 'Grouping/Tab', 'PII Type', 'Security Controls'].map((header) => (
                     <Box key={header} sx={{ px: 1, py: 0.8, fontSize: '0.72rem', fontWeight: 700, color: 'text.secondary', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>{header}</Box>
                   ))}
                 </Box>
                 {applicationFields.length === 0 ? (
                   <Box sx={{ p: 1.2 }}><Typography color="text.secondary" variant="body2">No fields defined.</Typography></Box>
                 ) : applicationFields.map((field: any, idx: number) => (
-                  <Box key={field.id} sx={{ minWidth: 3200, display: 'grid', gridTemplateColumns: '1.3fr 1.1fr 1.1fr 1.1fr 1.6fr 1.3fr 1.7fr 1.6fr 0.95fr 0.8fr 0.9fr 0.7fr 0.95fr 0.8fr 1.4fr 1.1fr 1.0fr 1.0fr 1.0fr 1.5fr 0.8fr', borderTop: idx === 0 ? 'none' : '1px solid rgba(255,255,255,0.08)' }}>
+                  <Box key={field.id} sx={{ minWidth: 3200, display: 'grid', gridTemplateColumns: '1.3fr 1.1fr 1.1fr 1.1fr 1.6fr 1.3fr 1.7fr 1.6fr 0.95fr 0.8fr 0.9fr 0.7fr 0.95fr 0.8fr 1.4fr 1.1fr 1.0fr 1.0fr 1.0fr 1.5fr', borderTop: idx === 0 ? 'none' : '1px solid rgba(255,255,255,0.08)' }}>
                     <Box sx={{ px: 1, py: 0.8, fontFamily: 'monospace', fontWeight: 700 }}>{field.field_name || '-'}</Box>
                     <Box sx={{ px: 1, py: 0.8, color: 'text.secondary' }}>{field.field_label || '-'}</Box>
                     <Box sx={{ px: 1, py: 0.8, color: 'text.secondary' }}>{getApplicationTableValue(field) || '-'}</Box>
@@ -621,29 +612,12 @@ const ObjectApplicationMappingPage: React.FC = () => {
                     <Box sx={{ px: 1, py: 0.8, color: 'text.secondary' }}>{getFieldMetaText(field, 'groupingTab') || '-'}</Box>
                     <Box sx={{ px: 1, py: 0.8, color: 'text.secondary' }}>{getFieldMetaText(field, 'piiType') || '-'}</Box>
                     <Box sx={{ px: 1, py: 0.8, color: 'text.secondary' }}>{getFieldMetaText(field, 'securityControls') || '-'}</Box>
-                    <Box sx={{ px: 1, py: 0.5, display: 'flex', alignItems: 'center', gap: 0.4 }}>
-                      <IconButton size="small" onClick={() => startEditField(field)} title="Edit field">
-                        <EditIcon sx={{ fontSize: '0.9rem' }} />
-                      </IconButton>
-                      <IconButton size="small" onClick={() => handleDeleteField(field.id)} title="Delete field">
-                        <DeleteIcon sx={{ fontSize: '0.9rem' }} />
-                      </IconButton>
-                    </Box>
                   </Box>
                 ))}
               </Box>
             </CardContent>
           </Card>
         )}
-
-        <DataDefinitionFieldModal
-          open={editingFieldId != null}
-          initialValues={editingFieldId ? fieldDraft : undefined}
-          onClose={cancelFieldEdit}
-          onSave={saveField}
-          saving={isSavingField}
-          title={editingFieldId === 'new' ? 'Add Field Definition' : 'Edit Field Definition'}
-        />
 
         <DataDefinitionAiProposalModal
           open={aiProposalOpen}

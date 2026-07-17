@@ -30,6 +30,8 @@ import {
   InputLabel,
   Snackbar,
   Alert,
+  Tab,
+  Tabs,
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
@@ -83,6 +85,84 @@ interface Picklist {
   name: string;
   values: string[];
 }
+
+type SchemaSourceType = 'databricks' | 'jdbc' | 'api';
+
+interface ApplicationTableMetadata {
+  id: string;
+  table: string;
+  tableName: string;
+  description: string;
+  databricksTable: string;
+  jdbcTable: string;
+  apiResource: string;
+}
+
+interface ApplicationFieldMetadata {
+  id: string;
+  table: string;
+  tableName: string;
+  fieldName: string;
+  fieldLabel: string;
+  fieldDescription: string;
+  applicationUsage: string;
+  businessDefinition: string;
+  businessRules: string;
+  fieldType: string;
+  fieldLength: string;
+  decimalPlaces: string;
+  isKey: boolean;
+  systemRequired: boolean;
+  businessProcessRequired: boolean;
+  suppressedField: boolean;
+  legalRegulatoryImplications: string;
+  securityClassification: string;
+  referenceTable: string;
+  groupingTab: string;
+  piiType: string;
+  securityControls: string;
+  databricksTable: string;
+  databricksField: string;
+}
+
+const createMetadataId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+const emptyTableDraft = (): ApplicationTableMetadata => ({
+  id: '',
+  table: '',
+  tableName: '',
+  description: '',
+  databricksTable: '',
+  jdbcTable: '',
+  apiResource: '',
+});
+
+const emptyFieldDraft = (): ApplicationFieldMetadata => ({
+  id: '',
+  table: '',
+  tableName: '',
+  fieldName: '',
+  fieldLabel: '',
+  fieldDescription: '',
+  applicationUsage: '',
+  businessDefinition: '',
+  businessRules: '',
+  fieldType: '',
+  fieldLength: '',
+  decimalPlaces: '',
+  isKey: false,
+  systemRequired: false,
+  businessProcessRequired: false,
+  suppressedField: false,
+  legalRegulatoryImplications: '',
+  securityClassification: '',
+  referenceTable: '',
+  groupingTab: '',
+  piiType: '',
+  securityControls: '',
+  databricksTable: '',
+  databricksField: '',
+});
 
 const SETTINGS_PROCESS_AREA_DESCRIPTIONS_KEY = 'rf-settings-process-area-descriptions';
 
@@ -269,6 +349,18 @@ const SettingsPage: React.FC = () => {
   const [editingApp, setEditingApp] = useState<any | null>(null);
   const [addAppOpen, setAddAppOpen] = useState(false);
   const [newApp, setNewApp] = useState({ name: '', description: '', vendor: '', version: '' });
+  const [selectedApplicationId, setSelectedApplicationId] = useState('');
+  const [applicationSchemaTab, setApplicationSchemaTab] = useState<'tables' | 'fields'>('tables');
+  const [isSavingAppSchema, setIsSavingAppSchema] = useState(false);
+  const [schemaStatus, setSchemaStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [schemaSourceType, setSchemaSourceType] = useState<SchemaSourceType>('databricks');
+  const [schemaSourceConfig, setSchemaSourceConfig] = useState<Record<string, any>>({});
+  const [tablesMetadataDraft, setTablesMetadataDraft] = useState<ApplicationTableMetadata[]>([]);
+  const [fieldsMetadataDraft, setFieldsMetadataDraft] = useState<ApplicationFieldMetadata[]>([]);
+  const [tableEditorDraft, setTableEditorDraft] = useState<ApplicationTableMetadata>(emptyTableDraft());
+  const [fieldEditorDraft, setFieldEditorDraft] = useState<ApplicationFieldMetadata>(emptyFieldDraft());
+  const [editingTableId, setEditingTableId] = useState<string | null>(null);
+  const [editingFieldId, setEditingFieldId] = useState<string | null>(null);
   const [settingsProjects, setSettingsProjects] = useState<SettingsProjectOption[]>([]);
   const [databricksSettings, setDatabricksSettings] = useState<DatabricksIntegrationSettings>(DEFAULT_DATABRICKS_SETTINGS);
   const [databricksProjectOverrides, setDatabricksProjectOverrides] = useState<Record<string, Partial<DatabricksIntegrationSettings>>>({});
@@ -407,6 +499,119 @@ const SettingsPage: React.FC = () => {
   const isAiGatewaysMode = selectedMenuItem === 'aiGateways';
   const isAiRoutersMode = selectedMenuItem === 'aiRouters';
   const isAiRoutingRulesMode = selectedMenuItem === 'aiRoutingRules';
+
+  const normalizeSourceType = (value: any): SchemaSourceType => {
+    const normalized = String(value || '').trim().toLowerCase();
+    if (normalized === 'jdbc') return 'jdbc';
+    if (normalized === 'api') return 'api';
+    return 'databricks';
+  };
+
+  const normalizeTableRows = (rows: any): ApplicationTableMetadata[] => {
+    if (!Array.isArray(rows)) return [];
+    return rows.map((row: any, index: number) => ({
+      id: String(row?.id || `table-${index}-${createMetadataId()}`),
+      table: String(row?.table || '').trim(),
+      tableName: String(row?.tableName || row?.table_name || '').trim(),
+      description: String(row?.description || '').trim(),
+      databricksTable: String(row?.databricksTable || row?.databricks_table || '').trim(),
+      jdbcTable: String(row?.jdbcTable || row?.jdbc_table || '').trim(),
+      apiResource: String(row?.apiResource || row?.api_resource || '').trim(),
+    }));
+  };
+
+  const normalizeFieldRows = (rows: any): ApplicationFieldMetadata[] => {
+    if (!Array.isArray(rows)) return [];
+    return rows.map((row: any, index: number) => ({
+      id: String(row?.id || `field-${index}-${createMetadataId()}`),
+      table: String(row?.table || '').trim(),
+      tableName: String(row?.tableName || row?.table_name || '').trim(),
+      fieldName: String(row?.fieldName || row?.field_name || '').trim(),
+      fieldLabel: String(row?.fieldLabel || row?.field_label || '').trim(),
+      fieldDescription: String(row?.fieldDescription || row?.field_description || '').trim(),
+      applicationUsage: String(row?.applicationUsage || row?.application_usage || '').trim(),
+      businessDefinition: String(row?.businessDefinition || row?.business_definition || '').trim(),
+      businessRules: String(row?.businessRules || row?.business_rules || '').trim(),
+      fieldType: String(row?.fieldType || row?.field_type || '').trim(),
+      fieldLength: String(row?.fieldLength ?? row?.field_length ?? '').trim(),
+      decimalPlaces: String(row?.decimalPlaces ?? row?.decimal_places ?? '').trim(),
+      isKey: !!row?.isKey,
+      systemRequired: !!row?.systemRequired,
+      businessProcessRequired: !!row?.businessProcessRequired,
+      suppressedField: !!row?.suppressedField,
+      legalRegulatoryImplications: String(row?.legalRegulatoryImplications || '').trim(),
+      securityClassification: String(row?.securityClassification || '').trim(),
+      referenceTable: String(row?.referenceTable || '').trim(),
+      groupingTab: String(row?.groupingTab || '').trim(),
+      piiType: String(row?.piiType || '').trim(),
+      securityControls: String(row?.securityControls || '').trim(),
+      databricksTable: String(row?.databricksTable || '').trim(),
+      databricksField: String(row?.databricksField || '').trim(),
+    }));
+  };
+
+  const selectedApplication = applications.find((app) => app.id === selectedApplicationId) || null;
+
+  useEffect(() => {
+    if (!applications.length) {
+      setSelectedApplicationId('');
+      return;
+    }
+    if (!selectedApplicationId || !applications.some((app) => app.id === selectedApplicationId)) {
+      setSelectedApplicationId(applications[0].id);
+    }
+  }, [applications, selectedApplicationId]);
+
+  useEffect(() => {
+    if (!selectedApplication) {
+      setSchemaSourceType('databricks');
+      setSchemaSourceConfig({});
+      setTablesMetadataDraft([]);
+      setFieldsMetadataDraft([]);
+      setEditingTableId(null);
+      setEditingFieldId(null);
+      setTableEditorDraft(emptyTableDraft());
+      setFieldEditorDraft(emptyFieldDraft());
+      return;
+    }
+
+    setSchemaSourceType(normalizeSourceType(selectedApplication.schema_source_type || selectedApplication.schemaSourceType));
+    setSchemaSourceConfig(
+      selectedApplication.schema_source_config
+      || selectedApplication.schemaSourceConfig
+      || {}
+    );
+    setTablesMetadataDraft(normalizeTableRows(selectedApplication.tables_metadata || selectedApplication.tablesMetadata));
+    setFieldsMetadataDraft(normalizeFieldRows(selectedApplication.fields_metadata || selectedApplication.fieldsMetadata));
+    setEditingTableId(null);
+    setEditingFieldId(null);
+    setTableEditorDraft(emptyTableDraft());
+    setFieldEditorDraft(emptyFieldDraft());
+  }, [selectedApplication]);
+
+  const saveSelectedApplicationSchema = async () => {
+    if (!selectedApplication) return;
+
+    setSchemaStatus(null);
+    setIsSavingAppSchema(true);
+    try {
+      const payload = {
+        ...selectedApplication,
+        schemaSourceType,
+        schemaSourceConfig,
+        tablesMetadata: tablesMetadataDraft,
+        fieldsMetadata: fieldsMetadataDraft,
+      };
+      const res = await apiClient.put(`/api/applications/${selectedApplication.id}`, payload);
+      const updated = res.data?.data;
+      setApplications((prev) => prev.map((app) => app.id === selectedApplication.id ? updated : app));
+      setSchemaStatus({ type: 'success', message: 'Application schema settings saved.' });
+    } catch {
+      setSchemaStatus({ type: 'error', message: 'Failed to save schema settings.' });
+    } finally {
+      setIsSavingAppSchema(false);
+    }
+  };
 
   const handleAddValue = () => {
     if (!selectedPicklist) return;
@@ -1427,7 +1632,7 @@ const SettingsPage: React.FC = () => {
                   <Box>
                     <Typography variant="h6" sx={{ fontWeight: 600 }}>Applications</Typography>
                     <Typography variant="body2" color="text.secondary">
-                      Define the source/target applications that objects can be linked to for data definition management.
+                      Define source and target applications, schema source, and managed table/field metadata.
                     </Typography>
                   </Box>
                   <Button size="small" variant="contained" startIcon={<AddIcon />} onClick={() => { setNewApp({ name: '', description: '', vendor: '', version: '' }); setAddAppOpen(true); }} sx={{ textTransform: 'none', flexShrink: 0 }}>Add Application</Button>
@@ -1435,7 +1640,7 @@ const SettingsPage: React.FC = () => {
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
                   {applications.length === 0 && <Typography variant="body2" color="text.secondary">No applications yet. Add one to get started.</Typography>}
                   {applications.map(app => (
-                    <Box key={app.id} sx={{ display: 'flex', alignItems: 'center', gap: 2, py: 1, px: 1.5, borderRadius: 1, backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
+                    <Box key={app.id} sx={{ display: 'flex', alignItems: 'center', gap: 2, py: 1, px: 1.5, borderRadius: 1, backgroundColor: selectedApplicationId === app.id ? 'rgba(102,126,234,0.16)' : 'rgba(255,255,255,0.04)', border: selectedApplicationId === app.id ? '1px solid rgba(102,126,234,0.5)' : '1px solid rgba(255,255,255,0.07)' }}>
                       <Box sx={{ flex: 1, minWidth: 0 }}>
                         <Typography variant="body2" sx={{ fontWeight: 700 }}>{app.name}</Typography>
                         {(app.vendor || app.version) && (
@@ -1457,6 +1662,7 @@ const SettingsPage: React.FC = () => {
                         </Box>
                       ) : (
                         <Box sx={{ display: 'flex', gap: 0.5, flexShrink: 0 }}>
+                          <Button size="small" variant={selectedApplicationId === app.id ? 'contained' : 'outlined'} sx={{ textTransform: 'none', minWidth: 0 }} onClick={() => setSelectedApplicationId(app.id)}>Select</Button>
                           <Button size="small" sx={{ textTransform: 'none', minWidth: 0 }} onClick={() => setEditingApp({ ...app })}>Edit</Button>
                           <IconButton size="small" onClick={async () => {
                             await apiClient.delete(`/api/applications/${app.id}`);
@@ -1467,6 +1673,252 @@ const SettingsPage: React.FC = () => {
                     </Box>
                   ))}
                 </Box>
+
+                <Box sx={{ mt: 2.5, p: 1.5, borderRadius: 1.25, border: '1px solid rgba(255,255,255,0.12)', backgroundColor: 'rgba(255,255,255,0.02)' }}>
+                  {!selectedApplication ? (
+                    <Typography variant="body2" color="text.secondary">Select an application to configure schema source, tables, and fields.</Typography>
+                  ) : (
+                    <>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>Schema Source</Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+                        Define where this application schema is sourced from.
+                      </Typography>
+
+                      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr 1fr' }, gap: 1, mb: 1.5 }}>
+                        <TextField
+                          select
+                          size="small"
+                          label="Schema Source"
+                          value={schemaSourceType}
+                          onChange={(e) => setSchemaSourceType(normalizeSourceType(e.target.value))}
+                        >
+                          <MenuItem value="databricks">Databricks</MenuItem>
+                          <MenuItem value="jdbc">JDBC</MenuItem>
+                          <MenuItem value="api">API</MenuItem>
+                        </TextField>
+
+                        {schemaSourceType === 'databricks' && (
+                          <>
+                            <TextField
+                              size="small"
+                              label="Catalog"
+                              value={String(schemaSourceConfig.catalog || '')}
+                              onChange={(e) => setSchemaSourceConfig((prev) => ({ ...prev, catalog: e.target.value }))}
+                            />
+                            <TextField
+                              size="small"
+                              label="Schema"
+                              value={String(schemaSourceConfig.schema || '')}
+                              onChange={(e) => setSchemaSourceConfig((prev) => ({ ...prev, schema: e.target.value }))}
+                            />
+                          </>
+                        )}
+
+                        {schemaSourceType === 'jdbc' && (
+                          <>
+                            <TextField
+                              size="small"
+                              label="JDBC URL"
+                              value={String(schemaSourceConfig.jdbcUrl || '')}
+                              onChange={(e) => setSchemaSourceConfig((prev) => ({ ...prev, jdbcUrl: e.target.value }))}
+                            />
+                            <TextField
+                              size="small"
+                              label="Driver"
+                              value={String(schemaSourceConfig.driver || '')}
+                              onChange={(e) => setSchemaSourceConfig((prev) => ({ ...prev, driver: e.target.value }))}
+                            />
+                          </>
+                        )}
+
+                        {schemaSourceType === 'api' && (
+                          <>
+                            <TextField
+                              size="small"
+                              label="Base URL"
+                              value={String(schemaSourceConfig.baseUrl || '')}
+                              onChange={(e) => setSchemaSourceConfig((prev) => ({ ...prev, baseUrl: e.target.value }))}
+                            />
+                            <TextField
+                              size="small"
+                              label="Resource Path"
+                              value={String(schemaSourceConfig.resourcePath || '')}
+                              onChange={(e) => setSchemaSourceConfig((prev) => ({ ...prev, resourcePath: e.target.value }))}
+                            />
+                          </>
+                        )}
+                      </Box>
+
+                      <Tabs
+                        value={applicationSchemaTab}
+                        onChange={(_e, v) => setApplicationSchemaTab(v)}
+                        sx={{ borderBottom: '1px solid rgba(255,255,255,0.12)', mb: 1.2 }}
+                      >
+                        <Tab value="tables" label="Tables" sx={{ textTransform: 'none' }} />
+                        <Tab value="fields" label="Fields" sx={{ textTransform: 'none' }} />
+                      </Tabs>
+
+                      {applicationSchemaTab === 'tables' && (
+                        <>
+                          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr 1fr' }, gap: 1, mb: 1.2 }}>
+                            <TextField size="small" label="Table" value={tableEditorDraft.table} onChange={(e) => setTableEditorDraft((prev) => ({ ...prev, table: e.target.value }))} />
+                            <TextField size="small" label="Table Name" value={tableEditorDraft.tableName} onChange={(e) => setTableEditorDraft((prev) => ({ ...prev, tableName: e.target.value }))} />
+                            <TextField size="small" label="Description" value={tableEditorDraft.description} onChange={(e) => setTableEditorDraft((prev) => ({ ...prev, description: e.target.value }))} />
+                            <TextField size="small" label="Databricks Table" value={tableEditorDraft.databricksTable} onChange={(e) => setTableEditorDraft((prev) => ({ ...prev, databricksTable: e.target.value }))} />
+                            <TextField size="small" label="JDBC Table" value={tableEditorDraft.jdbcTable} onChange={(e) => setTableEditorDraft((prev) => ({ ...prev, jdbcTable: e.target.value }))} />
+                            <TextField size="small" label="API Resource" value={tableEditorDraft.apiResource} onChange={(e) => setTableEditorDraft((prev) => ({ ...prev, apiResource: e.target.value }))} />
+                          </Box>
+
+                          <Box sx={{ display: 'flex', gap: 1, mb: 1.2 }}>
+                            <Button
+                              size="small"
+                              variant="contained"
+                              sx={{ textTransform: 'none' }}
+                              disabled={!tableEditorDraft.table.trim() && !tableEditorDraft.tableName.trim()}
+                              onClick={() => {
+                                const row: ApplicationTableMetadata = {
+                                  ...tableEditorDraft,
+                                  id: editingTableId || createMetadataId(),
+                                };
+                                setTablesMetadataDraft((prev) => editingTableId
+                                  ? prev.map((entry) => entry.id === editingTableId ? row : entry)
+                                  : [...prev, row]);
+                                setEditingTableId(null);
+                                setTableEditorDraft(emptyTableDraft());
+                              }}
+                            >
+                              {editingTableId ? 'Update Table' : 'Add Table'}
+                            </Button>
+                            {editingTableId && (
+                              <Button size="small" sx={{ textTransform: 'none' }} onClick={() => { setEditingTableId(null); setTableEditorDraft(emptyTableDraft()); }}>
+                                Cancel
+                              </Button>
+                            )}
+                          </Box>
+
+                          <Box sx={{ border: '1px solid rgba(255,255,255,0.12)', borderRadius: 1, overflow: 'hidden' }}>
+                            <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 0.8fr', backgroundColor: 'rgba(255,255,255,0.06)' }}>
+                              {['Table', 'Table Name', 'Databricks', 'JDBC/API', 'Actions'].map((header) => (
+                                <Box key={header} sx={{ px: 1, py: 0.7, fontWeight: 700, fontSize: '0.72rem', color: 'text.secondary' }}>{header}</Box>
+                              ))}
+                            </Box>
+                            {tablesMetadataDraft.length === 0 ? (
+                              <Box sx={{ p: 1 }}><Typography variant="body2" color="text.secondary">No table metadata defined.</Typography></Box>
+                            ) : tablesMetadataDraft.map((row) => (
+                              <Box key={row.id} sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 0.8fr', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+                                <Box sx={{ px: 1, py: 0.7 }}>{row.table || '-'}</Box>
+                                <Box sx={{ px: 1, py: 0.7 }}>{row.tableName || '-'}</Box>
+                                <Box sx={{ px: 1, py: 0.7, color: 'text.secondary' }}>{row.databricksTable || '-'}</Box>
+                                <Box sx={{ px: 1, py: 0.7, color: 'text.secondary' }}>{row.jdbcTable || row.apiResource || '-'}</Box>
+                                <Box sx={{ px: 1, py: 0.7, display: 'flex', gap: 0.5 }}>
+                                  <Button size="small" sx={{ textTransform: 'none' }} onClick={() => { setEditingTableId(row.id); setTableEditorDraft(row); }}>Edit</Button>
+                                  <Button size="small" color="error" sx={{ textTransform: 'none' }} onClick={() => setTablesMetadataDraft((prev) => prev.filter((entry) => entry.id !== row.id))}>Delete</Button>
+                                </Box>
+                              </Box>
+                            ))}
+                          </Box>
+                        </>
+                      )}
+
+                      {applicationSchemaTab === 'fields' && (
+                        <>
+                          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr 1fr' }, gap: 1, mb: 1.2 }}>
+                            <TextField size="small" label="Table" value={fieldEditorDraft.table} onChange={(e) => setFieldEditorDraft((prev) => ({ ...prev, table: e.target.value }))} />
+                            <TextField size="small" label="Table Name" value={fieldEditorDraft.tableName} onChange={(e) => setFieldEditorDraft((prev) => ({ ...prev, tableName: e.target.value }))} />
+                            <TextField size="small" label="Field Name" value={fieldEditorDraft.fieldName} onChange={(e) => setFieldEditorDraft((prev) => ({ ...prev, fieldName: e.target.value }))} />
+                            <TextField size="small" label="Label" value={fieldEditorDraft.fieldLabel} onChange={(e) => setFieldEditorDraft((prev) => ({ ...prev, fieldLabel: e.target.value }))} />
+                            <TextField size="small" label="Field Description" value={fieldEditorDraft.fieldDescription} onChange={(e) => setFieldEditorDraft((prev) => ({ ...prev, fieldDescription: e.target.value }))} />
+                            <TextField size="small" label="Application Usage" value={fieldEditorDraft.applicationUsage} onChange={(e) => setFieldEditorDraft((prev) => ({ ...prev, applicationUsage: e.target.value }))} />
+                            <TextField size="small" label="Business Definition" value={fieldEditorDraft.businessDefinition} onChange={(e) => setFieldEditorDraft((prev) => ({ ...prev, businessDefinition: e.target.value }))} />
+                            <TextField size="small" label="Business Rules" value={fieldEditorDraft.businessRules} onChange={(e) => setFieldEditorDraft((prev) => ({ ...prev, businessRules: e.target.value }))} />
+                            <TextField size="small" label="Field Type" value={fieldEditorDraft.fieldType} onChange={(e) => setFieldEditorDraft((prev) => ({ ...prev, fieldType: e.target.value }))} />
+                            <TextField size="small" label="Field Length" value={fieldEditorDraft.fieldLength} onChange={(e) => setFieldEditorDraft((prev) => ({ ...prev, fieldLength: e.target.value.replace(/[^0-9]/g, '') }))} />
+                            <TextField size="small" label="Decimal Places" value={fieldEditorDraft.decimalPlaces} onChange={(e) => setFieldEditorDraft((prev) => ({ ...prev, decimalPlaces: e.target.value.replace(/[^0-9]/g, '') }))} />
+                            <TextField size="small" label="Legal/Regulatory" value={fieldEditorDraft.legalRegulatoryImplications} onChange={(e) => setFieldEditorDraft((prev) => ({ ...prev, legalRegulatoryImplications: e.target.value }))} />
+                            <TextField size="small" label="Security Classification" value={fieldEditorDraft.securityClassification} onChange={(e) => setFieldEditorDraft((prev) => ({ ...prev, securityClassification: e.target.value }))} />
+                            <TextField size="small" label="Reference Table" value={fieldEditorDraft.referenceTable} onChange={(e) => setFieldEditorDraft((prev) => ({ ...prev, referenceTable: e.target.value }))} />
+                            <TextField size="small" label="Grouping/Tab" value={fieldEditorDraft.groupingTab} onChange={(e) => setFieldEditorDraft((prev) => ({ ...prev, groupingTab: e.target.value }))} />
+                            <TextField size="small" label="PII Type" value={fieldEditorDraft.piiType} onChange={(e) => setFieldEditorDraft((prev) => ({ ...prev, piiType: e.target.value }))} />
+                            <TextField size="small" label="Security Controls" value={fieldEditorDraft.securityControls} onChange={(e) => setFieldEditorDraft((prev) => ({ ...prev, securityControls: e.target.value }))} />
+                            <TextField size="small" label="Databricks Table" value={fieldEditorDraft.databricksTable} onChange={(e) => setFieldEditorDraft((prev) => ({ ...prev, databricksTable: e.target.value }))} />
+                            <TextField size="small" label="Databricks Field" value={fieldEditorDraft.databricksField} onChange={(e) => setFieldEditorDraft((prev) => ({ ...prev, databricksField: e.target.value }))} />
+                          </Box>
+
+                          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(160px, 1fr))', gap: 1, mb: 1.2 }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}><Switch size="small" checked={fieldEditorDraft.isKey} onChange={(e) => setFieldEditorDraft((prev) => ({ ...prev, isKey: e.target.checked }))} /><Typography variant="body2">Key Field</Typography></Box>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}><Switch size="small" checked={fieldEditorDraft.systemRequired} onChange={(e) => setFieldEditorDraft((prev) => ({ ...prev, systemRequired: e.target.checked }))} /><Typography variant="body2">System Required</Typography></Box>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}><Switch size="small" checked={fieldEditorDraft.businessProcessRequired} onChange={(e) => setFieldEditorDraft((prev) => ({ ...prev, businessProcessRequired: e.target.checked }))} /><Typography variant="body2">Business Process Required</Typography></Box>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}><Switch size="small" checked={fieldEditorDraft.suppressedField} onChange={(e) => setFieldEditorDraft((prev) => ({ ...prev, suppressedField: e.target.checked }))} /><Typography variant="body2">Suppressed Field</Typography></Box>
+                          </Box>
+
+                          <Box sx={{ display: 'flex', gap: 1, mb: 1.2 }}>
+                            <Button
+                              size="small"
+                              variant="contained"
+                              sx={{ textTransform: 'none' }}
+                              disabled={!fieldEditorDraft.fieldName.trim()}
+                              onClick={() => {
+                                const row: ApplicationFieldMetadata = {
+                                  ...fieldEditorDraft,
+                                  id: editingFieldId || createMetadataId(),
+                                };
+                                setFieldsMetadataDraft((prev) => editingFieldId
+                                  ? prev.map((entry) => entry.id === editingFieldId ? row : entry)
+                                  : [...prev, row]);
+                                setEditingFieldId(null);
+                                setFieldEditorDraft(emptyFieldDraft());
+                              }}
+                            >
+                              {editingFieldId ? 'Update Field' : 'Add Field'}
+                            </Button>
+                            {editingFieldId && (
+                              <Button size="small" sx={{ textTransform: 'none' }} onClick={() => { setEditingFieldId(null); setFieldEditorDraft(emptyFieldDraft()); }}>
+                                Cancel
+                              </Button>
+                            )}
+                          </Box>
+
+                          <Box sx={{ border: '1px solid rgba(255,255,255,0.12)', borderRadius: 1, overflow: 'hidden' }}>
+                            <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 0.8fr', backgroundColor: 'rgba(255,255,255,0.06)' }}>
+                              {['Field', 'Label', 'Table', 'Type', 'Actions'].map((header) => (
+                                <Box key={header} sx={{ px: 1, py: 0.7, fontWeight: 700, fontSize: '0.72rem', color: 'text.secondary' }}>{header}</Box>
+                              ))}
+                            </Box>
+                            {fieldsMetadataDraft.length === 0 ? (
+                              <Box sx={{ p: 1 }}><Typography variant="body2" color="text.secondary">No field metadata defined.</Typography></Box>
+                            ) : fieldsMetadataDraft.map((row) => (
+                              <Box key={row.id} sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 0.8fr', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+                                <Box sx={{ px: 1, py: 0.7, fontFamily: 'monospace' }}>{row.fieldName}</Box>
+                                <Box sx={{ px: 1, py: 0.7 }}>{row.fieldLabel || '-'}</Box>
+                                <Box sx={{ px: 1, py: 0.7, color: 'text.secondary' }}>{row.tableName || row.table || '-'}</Box>
+                                <Box sx={{ px: 1, py: 0.7, color: 'text.secondary' }}>{row.fieldType || '-'}</Box>
+                                <Box sx={{ px: 1, py: 0.7, display: 'flex', gap: 0.5 }}>
+                                  <Button size="small" sx={{ textTransform: 'none' }} onClick={() => { setEditingFieldId(row.id); setFieldEditorDraft(row); }}>Edit</Button>
+                                  <Button size="small" color="error" sx={{ textTransform: 'none' }} onClick={() => setFieldsMetadataDraft((prev) => prev.filter((entry) => entry.id !== row.id))}>Delete</Button>
+                                </Box>
+                              </Box>
+                            ))}
+                          </Box>
+                        </>
+                      )}
+
+                      <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1.25 }}>
+                        <Button
+                          size="small"
+                          variant="contained"
+                          sx={{ textTransform: 'none' }}
+                          onClick={saveSelectedApplicationSchema}
+                          disabled={isSavingAppSchema}
+                        >
+                          {isSavingAppSchema ? 'Saving...' : 'Save Application Schema'}
+                        </Button>
+                      </Box>
+
+                      {schemaStatus && <Alert severity={schemaStatus.type} sx={{ mt: 1 }}>{schemaStatus.message}</Alert>}
+                    </>
+                  )}
+                </Box>
+
                 {addAppOpen && (
                   <Box sx={{ mt: 2, p: 1.5, border: '1px solid rgba(255,255,255,0.12)', borderRadius: 1, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
                     <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>New Application</Typography>
