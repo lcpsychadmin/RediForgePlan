@@ -28,6 +28,75 @@ const extractAiText = (executionResult: any): string => {
   return '';
 };
 
+const extractBalancedSegment = (input: string, openChar: '[' | '{', closeChar: ']' | '}') => {
+  const start = input.indexOf(openChar);
+  if (start < 0) {
+    return '';
+  }
+
+  let depth = 0;
+  let inString = false;
+  let isEscaped = false;
+
+  for (let i = start; i < input.length; i += 1) {
+    const ch = input[i];
+
+    if (inString) {
+      if (isEscaped) {
+        isEscaped = false;
+      } else if (ch === '\\') {
+        isEscaped = true;
+      } else if (ch === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (ch === '"') {
+      inString = true;
+      continue;
+    }
+
+    if (ch === openChar) {
+      depth += 1;
+    } else if (ch === closeChar) {
+      depth -= 1;
+      if (depth === 0) {
+        return input.slice(start, i + 1);
+      }
+    }
+  }
+
+  return '';
+};
+
+const unwrapProposalEnvelope = (parsed: any) => {
+  if (Array.isArray(parsed)) {
+    return parsed;
+  }
+
+  if (!parsed || typeof parsed !== 'object') {
+    return null;
+  }
+
+  const directKeys = ['proposals', 'fields', 'data', 'results', 'items'];
+  for (const key of directKeys) {
+    if (Array.isArray((parsed as any)[key])) {
+      return (parsed as any)[key];
+    }
+  }
+
+  if (parsed.data && typeof parsed.data === 'object') {
+    for (const key of directKeys) {
+      if (Array.isArray((parsed.data as any)[key])) {
+        return (parsed.data as any)[key];
+      }
+    }
+  }
+
+  return null;
+};
+
 const parseAiJson = (text: string) => {
   const trimmed = String(text || '').trim();
   if (!trimmed) {
@@ -35,16 +104,30 @@ const parseAiJson = (text: string) => {
   }
 
   const fenced = trimmed.match(/```json\s*([\s\S]*?)```/i) || trimmed.match(/```\s*([\s\S]*?)```/i);
-  const candidate = fenced?.[1] || trimmed.slice(trimmed.indexOf('['), trimmed.lastIndexOf(']') + 1) || trimmed;
-  if (!candidate || !candidate.trim().startsWith('[')) {
-    throw new ApiError(502, 'AI response did not contain valid JSON array', 'AI_INVALID_JSON');
+  const normalizedFenced = fenced?.[1] ? String(fenced[1]).replace(/^json\s*/i, '').trim() : '';
+
+  const candidates = [
+    trimmed,
+    normalizedFenced,
+    extractBalancedSegment(trimmed, '[', ']'),
+    extractBalancedSegment(normalizedFenced, '[', ']'),
+    extractBalancedSegment(trimmed, '{', '}'),
+    extractBalancedSegment(normalizedFenced, '{', '}'),
+  ].filter((value, index, list) => Boolean(value) && list.indexOf(value) === index);
+
+  for (const candidate of candidates) {
+    try {
+      const parsed = JSON.parse(candidate);
+      const unwrapped = unwrapProposalEnvelope(parsed);
+      if (Array.isArray(unwrapped)) {
+        return unwrapped;
+      }
+    } catch {
+      // Try the next candidate form.
+    }
   }
 
-  try {
-    return JSON.parse(candidate);
-  } catch {
-    throw new ApiError(502, 'AI response JSON could not be parsed', 'AI_INVALID_JSON');
-  }
+  throw new ApiError(502, 'AI response JSON could not be parsed', 'AI_INVALID_JSON');
 };
 
 const normalizeAiFieldProposal = (row: any, index: number) => ({
