@@ -65,6 +65,29 @@ const normalizeProposalRelationship = (row: any, index: number) => ({
   sortOrder: Number(row?.sortOrder ?? row?.sort_order ?? index),
 });
 
+const parseJsonObject = (value: any) => (value && typeof value === 'object' && !Array.isArray(value) ? value : {});
+const parseJsonArray = (value: any) => (Array.isArray(value) ? value : []);
+
+const formatCdmAttributeModel = (row: any, objectId?: string) => ({
+  id: row?.id,
+  objectId: objectId || row?.global_object_id || null,
+  name: row?.attribute_name,
+  definition: row?.attribute_description || null,
+  governance: parseJsonObject(row?.governance),
+  security: parseJsonObject(row?.security),
+  validationRules: parseJsonArray(row?.validation_rules),
+  // compatibility fields
+  commonDataModelId: row?.common_data_model_id,
+  attributeName: row?.attribute_name,
+  attributeDescription: row?.attribute_description,
+  dataType: row?.data_type,
+  length: row?.length,
+  businessRules: row?.business_rules,
+  sortOrder: row?.sort_order,
+  createdAt: row?.created_at,
+  updatedAt: row?.updated_at,
+});
+
 router.get('/:objectId', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const subObjectId = String(req.query.subObjectId || '').trim();
@@ -84,7 +107,8 @@ router.get('/:objectId', requireAuth, async (req: Request, res: Response, next: 
 
     const attributesResult = await db.query(
       `SELECT id, common_data_model_id, attribute_name, attribute_description,
-              data_type, length, business_rules, sort_order, created_at, updated_at
+              data_type, length, business_rules, governance, security, validation_rules,
+              sort_order, created_at, updated_at
        FROM cdm_attributes
        WHERE common_data_model_id = $1
        ORDER BY sort_order ASC, attribute_name ASC`,
@@ -103,7 +127,7 @@ router.get('/:objectId', requireAuth, async (req: Request, res: Response, next: 
 
     res.json(formatSingleResponse({
       model,
-      attributes: attributesResult.rows,
+      attributes: attributesResult.rows.map((row) => formatCdmAttributeModel(row, model.global_object_id)),
       relationships: relationshipsResult.rows,
     }));
   } catch (error) {
@@ -170,9 +194,12 @@ router.post('/:objectId', requireAuth, requireRole('analyst', 'admin'), async (r
             data_type,
             length,
             business_rules,
+            governance,
+            security,
+            validation_rules,
             sort_order
           )
-         VALUES ($1,$2,$3,$4,$5,$6,$7)
+         VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8::jsonb,$9::jsonb,$10)
          RETURNING id, attribute_name`,
         [
           model.id,
@@ -181,6 +208,9 @@ router.post('/:objectId', requireAuth, requireRole('analyst', 'admin'), async (r
           row.dataType || null,
           row.length || null,
           row.businessRules || null,
+          JSON.stringify(parseJsonObject(row.governance)),
+          JSON.stringify(parseJsonObject(row.security)),
+          JSON.stringify(parseJsonArray(row.validationRules)),
           Number(row.sortOrder ?? i) || i,
         ]
       );
@@ -226,7 +256,8 @@ router.post('/:objectId', requireAuth, requireRole('analyst', 'admin'), async (r
 
     const refreshAttributes = await client.query(
       `SELECT id, common_data_model_id, attribute_name, attribute_description,
-              data_type, length, business_rules, sort_order, created_at, updated_at
+              data_type, length, business_rules, governance, security, validation_rules,
+              sort_order, created_at, updated_at
        FROM cdm_attributes
        WHERE common_data_model_id = $1
        ORDER BY sort_order ASC, attribute_name ASC`,
@@ -247,7 +278,7 @@ router.post('/:objectId', requireAuth, requireRole('analyst', 'admin'), async (r
 
     res.status(201).json(formatSingleResponse({
       model,
-      attributes: refreshAttributes.rows,
+      attributes: refreshAttributes.rows.map((row) => formatCdmAttributeModel(row, model.global_object_id)),
       relationships: refreshRelationships.rows,
     }));
   } catch (error) {
@@ -444,17 +475,24 @@ router.put('/:objectId/attribute/:attributeId', requireAuth, requireRole('analys
            data_type = $3,
            length = $4,
            business_rules = $5,
-           sort_order = $6,
+           governance = $6::jsonb,
+           security = $7::jsonb,
+           validation_rules = $8::jsonb,
+           sort_order = $9,
            updated_at = CURRENT_TIMESTAMP
-       WHERE id = $7
+       WHERE id = $10
        RETURNING id, common_data_model_id, attribute_name, attribute_description,
-                 data_type, length, business_rules, sort_order, created_at, updated_at`,
+                 data_type, length, business_rules, governance, security, validation_rules,
+                 sort_order, created_at, updated_at`,
       [
         attributeName,
         req.body?.attributeDescription || null,
         req.body?.dataType || null,
         req.body?.length || null,
         req.body?.businessRules || null,
+        JSON.stringify(parseJsonObject(req.body?.governance)),
+        JSON.stringify(parseJsonObject(req.body?.security)),
+        JSON.stringify(parseJsonArray(req.body?.validationRules)),
         req.body?.sortOrder || 0,
         req.params.attributeId,
       ]
@@ -464,7 +502,7 @@ router.put('/:objectId/attribute/:attributeId', requireAuth, requireRole('analys
       throw new ApiError(404, 'CDM attribute not found', 'NOT_FOUND');
     }
 
-    res.json(formatSingleResponse(result.rows[0]));
+    res.json(formatSingleResponse(formatCdmAttributeModel(result.rows[0], req.params.objectId)));
   } catch (error) {
     next(error);
   }

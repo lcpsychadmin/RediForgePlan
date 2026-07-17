@@ -138,6 +138,7 @@ export class GlobalObjectService {
   private formatGlobalObject(row: any) {
     return {
       id: row.id,
+      name: row.object_id,
       objectId: row.object_id,
       description: row.description,
       processArea: row.process_area,

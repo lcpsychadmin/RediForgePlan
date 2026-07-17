@@ -645,15 +645,81 @@ const normalizeArrayMetadata = (value: any) => {
   return Array.isArray(value) ? value : [];
 };
 
+const parseJsonArray = (value: any) => (Array.isArray(value) ? value : []);
+const parseJsonObject = (value: any) => (value && typeof value === 'object' && !Array.isArray(value) ? value : {});
+
+const formatApplicationSchemaModel = (row: any) => {
+  const applicationId = String(row?.application_id || row?.id || '');
+  const tables = parseJsonArray(row?.tables ?? row?.tables_metadata);
+  const fields = parseJsonArray(row?.fields ?? row?.fields_metadata);
+  return {
+    applicationId,
+    tables,
+    fields,
+  };
+};
+
+const formatApplicationModel = (row: any) => {
+  const schemaSourceType = normalizeSchemaSourceType(row?.schema_source_type ?? row?.schemaSourceType);
+  const schemaSourceConfig = parseJsonObject(row?.schema_source_config ?? row?.schemaSourceConfig);
+  const applicationSchema = formatApplicationSchemaModel({
+    application_id: row?.id,
+    tables: row?.schema_tables,
+    fields: row?.schema_fields,
+    tables_metadata: row?.tables_metadata,
+    fields_metadata: row?.fields_metadata,
+  });
+
+  return {
+    id: row?.id,
+    name: row?.name,
+    vendor: row?.vendor,
+    version: row?.version,
+    applicationSchema,
+    // compatibility fields
+    description: row?.description,
+    isActive: row?.is_active,
+    schemaSourceType,
+    schemaSourceConfig,
+    tablesMetadata: parseJsonArray(row?.tables_metadata),
+    fieldsMetadata: parseJsonArray(row?.fields_metadata),
+    createdAt: row?.created_at,
+    updatedAt: row?.updated_at,
+  };
+};
+
+const formatMappingModel = (row: any) => ({
+  id: row?.id,
+  objectId: row?.global_object_id,
+  applicationId: row?.application_id,
+  mappedTables: parseJsonArray(row?.mapped_tables),
+  mappedFields: parseJsonArray(row?.mapped_fields),
+  applicationUsage: row?.application_usage || null,
+  businessRules: row?.business_rules || null,
+  // compatibility fields
+  objectSubObjectId: row?.object_sub_object_id || null,
+  notes: row?.notes || null,
+  applicationName: row?.application_name,
+  vendor: row?.vendor,
+  version: row?.version,
+  subObjectName: row?.sub_object_name,
+  createdAt: row?.created_at,
+  updatedAt: row?.updated_at,
+});
+
 router.get('/', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const result = await db.query(
-      `SELECT id, name, description, vendor, version, is_active,
-              schema_source_type, schema_source_config, tables_metadata, fields_metadata,
-              created_at, updated_at
-       FROM applications ORDER BY name ASC`
+      `SELECT a.id, a.name, a.description, a.vendor, a.version, a.is_active,
+              a.schema_source_type, a.schema_source_config, a.tables_metadata, a.fields_metadata,
+              s.tables AS schema_tables, s.fields AS schema_fields,
+              a.created_at, a.updated_at
+       FROM applications a
+       LEFT JOIN application_schemas s ON s.application_id = a.id
+       ORDER BY a.name ASC`
     );
-    res.json(formatListResponse(result.rows, result.rows.length));
+    const rows = result.rows.map((row) => formatApplicationModel(row));
+    res.json(formatListResponse(rows, rows.length));
   } catch (err) { next(err); }
 });
 
@@ -674,7 +740,26 @@ router.post('/', requireAuth, requireRole('analyst', 'admin'), async (req: Reque
                  created_at, updated_at`,
       [name.trim(), description || null, vendor || null, version || null, schemaSourceType, JSON.stringify(schemaSourceConfig), JSON.stringify(tablesMetadata), JSON.stringify(fieldsMetadata)]
     );
-    res.status(201).json(formatSingleResponse(result.rows[0]));
+
+    const created = result.rows[0];
+    await db.query(
+      `INSERT INTO application_schemas (application_id, tables, fields)
+       VALUES ($1, $2::jsonb, $3::jsonb)
+       ON CONFLICT (application_id)
+       DO UPDATE SET tables = EXCLUDED.tables, fields = EXCLUDED.fields, updated_at = CURRENT_TIMESTAMP`,
+      [created.id, JSON.stringify(tablesMetadata), JSON.stringify(fieldsMetadata)]
+    );
+
+    const schemaResult = await db.query(
+      `SELECT application_id, tables, fields FROM application_schemas WHERE application_id = $1`,
+      [created.id]
+    );
+
+    res.status(201).json(formatSingleResponse(formatApplicationModel({
+      ...created,
+      schema_tables: schemaResult.rows[0]?.tables || [],
+      schema_fields: schemaResult.rows[0]?.fields || [],
+    })));
   } catch (err) { next(err); }
 });
 
@@ -716,7 +801,26 @@ router.put('/:id', requireAuth, requireRole('analyst', 'admin'), async (req: Req
       ]
     );
     if (!result.rows.length) throw new ApiError(404, 'Application not found', 'NOT_FOUND');
-    res.json(formatSingleResponse(result.rows[0]));
+
+    const updated = result.rows[0];
+    await db.query(
+      `INSERT INTO application_schemas (application_id, tables, fields)
+       VALUES ($1, $2::jsonb, $3::jsonb)
+       ON CONFLICT (application_id)
+       DO UPDATE SET tables = EXCLUDED.tables, fields = EXCLUDED.fields, updated_at = CURRENT_TIMESTAMP`,
+      [updated.id, JSON.stringify(tablesMetadata), JSON.stringify(fieldsMetadata)]
+    );
+
+    const schemaResult = await db.query(
+      `SELECT application_id, tables, fields FROM application_schemas WHERE application_id = $1`,
+      [updated.id]
+    );
+
+    res.json(formatSingleResponse(formatApplicationModel({
+      ...updated,
+      schema_tables: schemaResult.rows[0]?.tables || [],
+      schema_fields: schemaResult.rows[0]?.fields || [],
+    })));
   } catch (err) { next(err); }
 });
 
@@ -727,6 +831,56 @@ router.delete('/:id', requireAuth, requireRole('analyst', 'admin'), async (req: 
   } catch (err) { next(err); }
 });
 
+router.get('/:id/schema', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const result = await db.query(
+      `SELECT application_id, tables, fields, created_at, updated_at
+       FROM application_schemas
+       WHERE application_id = $1`,
+      [req.params.id]
+    );
+
+    if (!result.rows.length) {
+      const exists = await db.query(`SELECT id FROM applications WHERE id = $1`, [req.params.id]);
+      if (!exists.rows.length) throw new ApiError(404, 'Application not found', 'NOT_FOUND');
+      res.json(formatSingleResponse({ applicationId: req.params.id, tables: [], fields: [] }));
+      return;
+    }
+
+    res.json(formatSingleResponse(formatApplicationSchemaModel(result.rows[0])));
+  } catch (err) { next(err); }
+});
+
+router.put('/:id/schema', requireAuth, requireRole('analyst', 'admin'), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const tables = normalizeArrayMetadata(req.body?.tables);
+    const fields = normalizeArrayMetadata(req.body?.fields);
+
+    const appResult = await db.query(`SELECT id FROM applications WHERE id = $1`, [req.params.id]);
+    if (!appResult.rows.length) throw new ApiError(404, 'Application not found', 'NOT_FOUND');
+
+    const result = await db.query(
+      `INSERT INTO application_schemas (application_id, tables, fields)
+       VALUES ($1, $2::jsonb, $3::jsonb)
+       ON CONFLICT (application_id)
+       DO UPDATE SET tables = EXCLUDED.tables, fields = EXCLUDED.fields, updated_at = CURRENT_TIMESTAMP
+       RETURNING application_id, tables, fields, created_at, updated_at`,
+      [req.params.id, JSON.stringify(tables), JSON.stringify(fields)]
+    );
+
+    await db.query(
+      `UPDATE applications
+       SET tables_metadata = $2::jsonb,
+           fields_metadata = $3::jsonb,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1`,
+      [req.params.id, JSON.stringify(tables), JSON.stringify(fields)]
+    );
+
+    res.json(formatSingleResponse(formatApplicationSchemaModel(result.rows[0])));
+  } catch (err) { next(err); }
+});
+
 // ── Data Definitions (object ↔ application) ───────────────────────────────────
 
 // List all data definitions for a global object (with application info)
@@ -734,7 +888,9 @@ router.get('/data-definitions/object/:globalObjectId', requireAuth, async (req: 
   try {
     const subObjectId = String(req.query.subObjectId || '').trim();
     const result = await db.query(
-      `SELECT dd.id, dd.global_object_id, dd.application_id, dd.object_sub_object_id, dd.notes, dd.created_at, dd.updated_at,
+      `SELECT dd.id, dd.global_object_id, dd.application_id, dd.object_sub_object_id,
+              dd.notes, dd.mapped_tables, dd.mapped_fields, dd.application_usage, dd.business_rules,
+              dd.created_at, dd.updated_at,
               a.name as application_name, a.vendor, a.version,
               oso.name as sub_object_name
        FROM data_definitions dd
@@ -745,14 +901,15 @@ router.get('/data-definitions/object/:globalObjectId', requireAuth, async (req: 
        ORDER BY a.name ASC`,
       [req.params.globalObjectId, subObjectId]
     );
-    res.json(formatListResponse(result.rows, result.rows.length));
+    const rows = result.rows.map((row) => formatMappingModel(row));
+    res.json(formatListResponse(rows, rows.length));
   } catch (err) { next(err); }
 });
 
 // Create a data definition (link object to application)
 router.post('/data-definitions', requireAuth, requireRole('analyst', 'admin'), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { globalObjectId, applicationId, subObjectId, notes } = req.body;
+    const { globalObjectId, applicationId, subObjectId, notes, mappedTables, mappedFields, applicationUsage, businessRules } = req.body;
     if (!globalObjectId || !applicationId) throw new ApiError(400, 'globalObjectId and applicationId are required', 'MISSING_FIELD');
 
     const existing = await db.query(
@@ -766,35 +923,53 @@ router.post('/data-definitions', requireAuth, requireRole('analyst', 'admin'), a
       const updated = await db.query(
         `UPDATE data_definitions
          SET notes = $1,
+             mapped_tables = $2::jsonb,
+             mapped_fields = $3::jsonb,
+             application_usage = $4,
+             business_rules = $5,
              updated_at = CURRENT_TIMESTAMP
-         WHERE id = $2
-         RETURNING id, global_object_id, application_id, object_sub_object_id, notes, created_at, updated_at`,
-        [notes || null, existing.rows[0].id]
+         WHERE id = $6
+         RETURNING id, global_object_id, application_id, object_sub_object_id,
+                   notes, mapped_tables, mapped_fields, application_usage, business_rules,
+                   created_at, updated_at`,
+        [notes || null, JSON.stringify(normalizeArrayMetadata(mappedTables)), JSON.stringify(normalizeArrayMetadata(mappedFields)), applicationUsage || null, businessRules || null, existing.rows[0].id]
       );
-      res.status(201).json(formatSingleResponse(updated.rows[0]));
+      res.status(201).json(formatSingleResponse(formatMappingModel(updated.rows[0])));
       return;
     }
 
     const result = await db.query(
-      `INSERT INTO data_definitions (global_object_id, application_id, object_sub_object_id, notes)
-       VALUES ($1, $2, $3, $4)
-       RETURNING id, global_object_id, application_id, object_sub_object_id, notes, created_at, updated_at`,
-      [globalObjectId, applicationId, subObjectId || null, notes || null]
+      `INSERT INTO data_definitions (global_object_id, application_id, object_sub_object_id, notes, mapped_tables, mapped_fields, application_usage, business_rules)
+       VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7, $8)
+       RETURNING id, global_object_id, application_id, object_sub_object_id,
+                 notes, mapped_tables, mapped_fields, application_usage, business_rules,
+                 created_at, updated_at`,
+      [globalObjectId, applicationId, subObjectId || null, notes || null, JSON.stringify(normalizeArrayMetadata(mappedTables)), JSON.stringify(normalizeArrayMetadata(mappedFields)), applicationUsage || null, businessRules || null]
     );
-    res.status(201).json(formatSingleResponse(result.rows[0]));
+    res.status(201).json(formatSingleResponse(formatMappingModel(result.rows[0])));
   } catch (err) { next(err); }
 });
 
 router.put('/data-definitions/:id', requireAuth, requireRole('analyst', 'admin'), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { notes, subObjectId } = req.body;
+    const { notes, subObjectId, mappedTables, mappedFields, applicationUsage, businessRules } = req.body;
     const result = await db.query(
-      `UPDATE data_definitions SET notes=$1, object_sub_object_id=$2, updated_at=CURRENT_TIMESTAMP WHERE id=$3
-       RETURNING id, global_object_id, application_id, object_sub_object_id, notes, created_at, updated_at`,
-      [notes || null, subObjectId || null, req.params.id]
+      `UPDATE data_definitions
+       SET notes=$1,
+           object_sub_object_id=$2,
+           mapped_tables=$3::jsonb,
+           mapped_fields=$4::jsonb,
+           application_usage=$5,
+           business_rules=$6,
+           updated_at=CURRENT_TIMESTAMP
+       WHERE id=$7
+       RETURNING id, global_object_id, application_id, object_sub_object_id,
+                 notes, mapped_tables, mapped_fields, application_usage, business_rules,
+                 created_at, updated_at`,
+      [notes || null, subObjectId || null, JSON.stringify(normalizeArrayMetadata(mappedTables)), JSON.stringify(normalizeArrayMetadata(mappedFields)), applicationUsage || null, businessRules || null, req.params.id]
     );
     if (!result.rows.length) throw new ApiError(404, 'Data definition not found', 'NOT_FOUND');
-    res.json(formatSingleResponse(result.rows[0]));
+    res.json(formatSingleResponse(formatMappingModel(result.rows[0])));
   } catch (err) { next(err); }
 });
 

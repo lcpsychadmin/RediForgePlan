@@ -65,7 +65,23 @@ router.get(
         throw new ApiError(404, 'Global object not found', 'NOT_FOUND');
       }
 
-      res.json(formatSingleResponse(object));
+      const subObjectsResult = await db.query(
+        `SELECT id, global_object_id, name, description, sort_order, created_at, updated_at
+         FROM object_sub_objects
+         WHERE global_object_id = $1
+         ORDER BY sort_order ASC, name ASC`,
+        [req.params.globalObjectId]
+      );
+
+      res.json(formatSingleResponse({
+        ...object,
+        subobjects: subObjectsResult.rows.map((row: any) => ({
+          id: row.id,
+          name: row.name,
+          description: row.description,
+          sortOrder: row.sort_order,
+        })),
+      }));
     } catch (error) {
       next(error);
     }
