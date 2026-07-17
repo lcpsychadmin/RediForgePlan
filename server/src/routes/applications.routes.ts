@@ -973,6 +973,7 @@ router.post('/data-definitions/:definitionId/ai-generate-fields', requireAuth, a
     const systemPrompt = [
       'You are enhancing the data definition for the selected Data Object, Sub-object, and Application inside RediForge.',
       'Return the FULL physical table definition for the selected application and sub-object, including ALL relevant fields from ALL relevant tables.',
+      'For each included table, return ALL available physical columns you can identify for that application table, not a representative subset.',
       '',
       'Required quality rules for every field object:',
       '1. Replace generic descriptions with application-specific detail.',
@@ -989,6 +990,7 @@ router.post('/data-definitions/:definitionId/ai-generate-fields', requireAuth, a
       'Grounding rules:',
       '- Use the provided object/sub-object/application/process-area context.',
       '- Use provided metadata and CDM artifacts as grounding.',
+      '- If a table is provided (for example JDE F0101 or SAP KNA1), maximize field coverage for that table.',
       '- Include technical, audit, system, reference, and relationship fields.',
       '- Keep fieldName unique per tableName where possible.',
       '- Do not invent impossible table names; prefer grounded tables from context.',
@@ -1130,7 +1132,7 @@ router.post('/data-definitions/:definitionId/ai-generate-fields', requireAuth, a
 
     // Table-level enrichment pass: if important tables still have thin coverage, request additional missing fields per table.
     const tableCounts = countByTable(proposals);
-    const minFieldsPerTable = 24;
+    const minFieldsPerTable = sapApplication ? 24 : 40;
     const thinTables = discoveredTables
       .map((table) => String(table || '').trim().toUpperCase())
       .filter(Boolean)
@@ -1138,60 +1140,75 @@ router.post('/data-definitions/:definitionId/ai-generate-fields', requireAuth, a
       .slice(0, 1);
 
     for (const tableName of thinTables) {
-      if (remainingBudgetMs() <= 7000) {
-        break;
-      }
+      let tablePasses = 0;
+      while (remainingBudgetMs() > 7000 && tablePasses < 2) {
+        const existingForTable = proposals
+          .filter((row: any) => String(row.tableName || row.table || '').trim().toUpperCase() === tableName)
+          .map((row: any) => String(row.fieldName || '').trim())
+          .filter(Boolean);
 
-      const existingForTable = proposals
-        .filter((row: any) => String(row.tableName || row.table || '').trim().toUpperCase() === tableName)
-        .map((row: any) => String(row.fieldName || '').trim())
-        .filter(Boolean);
-
-      const needed = Math.max(10, minFieldsPerTable - existingForTable.length);
-      const tableExpansionPrompt = [
-        `Data Object: ${definition.object_id}`,
-        `Application: ${definition.application_name}`,
-        `Target table: ${tableName}`,
-        `Need at least ${needed} ADDITIONAL missing fields for this table.`,
-        'Strict Scope Rule: include ONLY the selected application and this target table.',
-        '',
-        'Existing fields already captured for this table (do not repeat):',
-        JSON.stringify(existingForTable, null, 2),
-        '',
-        'Return only additional fields for this table.',
-        'Do not use generic placeholder narratives. Each narrative field must be specific to this table/field and process usage.',
-        'Include regulatory, security classification, PII, security controls, reference table, and grouping metadata for each returned field.',
-      ].join('\n');
-
-      try {
-        const tableResult = await aiExecutionService.execute({
-          gatewayId: definition.default_gateway_id || undefined,
-          routerId: definition.default_router_id || undefined,
-          payload: {
-            messages: [
-              { role: 'system', content: systemPrompt },
-              { role: 'user', content: tableExpansionPrompt },
-            ],
-            temperature: 0.1,
-            maxTokens: 460,
-            timeoutMs: Math.min(5000, Math.max(2500, remainingBudgetMs() - 1500)),
-          },
-        });
-
-        const tableParsed = parseAiJson(extractAiText(tableResult));
-        const tableProposals = Array.isArray(tableParsed)
-          ? tableParsed
-            .map((row: any, index: number) => normalizeAiFieldProposal(row, index + proposals.length))
-            .filter((row: any) => row.fieldName)
-            .map((row: any) => ({ ...row, tableName: row.tableName || tableName, table: row.table || tableName }))
-          : [];
-
-        proposals = mergeUniqueProposals(proposals, tableProposals);
-      } catch (error) {
-        if (!isProviderTimeoutError(error)) {
-          throw error;
+        const needed = Math.max(10, minFieldsPerTable - existingForTable.length);
+        if (needed <= 0) {
+          break;
         }
-        // Keep current proposals if table-level enrichment times out.
+
+        const tableExpansionPrompt = [
+          `Data Object: ${definition.object_id}`,
+          `Application: ${definition.application_name}`,
+          `Target table: ${tableName}`,
+          `Need at least ${needed} ADDITIONAL missing fields for this table.`,
+          'Strict Scope Rule: include ONLY the selected application and this target table.',
+          '',
+          'Existing fields already captured for this table (do not repeat):',
+          JSON.stringify(existingForTable, null, 2),
+          '',
+          'Return only additional fields for this table.',
+          'Maximize field coverage for this table and continue until as complete as possible.',
+          'If needed to fit more rows, keep narrative attributes concise and concrete.',
+          'Do not output fields from other tables or applications.',
+        ].join('\n');
+
+        try {
+          const tableResult = await aiExecutionService.execute({
+            gatewayId: definition.default_gateway_id || undefined,
+            routerId: definition.default_router_id || undefined,
+            payload: {
+              messages: [
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: tableExpansionPrompt },
+              ],
+              temperature: 0.1,
+              maxTokens: 620,
+              timeoutMs: Math.min(6000, Math.max(2500, remainingBudgetMs() - 1500)),
+            },
+          });
+
+          const beforeCount = existingForTable.length;
+          const tableParsed = parseAiJson(extractAiText(tableResult));
+          const tableProposals = Array.isArray(tableParsed)
+            ? tableParsed
+              .map((row: any, index: number) => normalizeAiFieldProposal(row, index + proposals.length))
+              .filter((row: any) => row.fieldName)
+              .map((row: any) => ({ ...row, tableName: row.tableName || tableName, table: row.table || tableName }))
+            : [];
+
+          proposals = mergeUniqueProposals(proposals, tableProposals);
+
+          const afterCount = proposals
+            .filter((row: any) => String(row.tableName || row.table || '').trim().toUpperCase() === tableName)
+            .length;
+
+          tablePasses += 1;
+          if (afterCount <= beforeCount) {
+            break;
+          }
+        } catch (error) {
+          if (!isProviderTimeoutError(error)) {
+            throw error;
+          }
+          // Keep current proposals if table-level enrichment times out.
+          break;
+        }
       }
     }
 
