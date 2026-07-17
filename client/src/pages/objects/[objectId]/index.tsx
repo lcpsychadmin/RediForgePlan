@@ -1,12 +1,15 @@
 import React from 'react';
-import { Alert, Box, Button, Card, CardContent, MenuItem, Stack, TextField, Typography } from '@mui/material';
-import { useParams } from 'react-router-dom';
+import { Alert, Box, Button, Card, CardContent, MenuItem, Stack, Typography } from '@mui/material';
+import { useNavigate, useParams } from 'react-router-dom';
 import Layout from '../../../components/Layout';
 import ObjectWorkspaceHeader from '../../../components/objects/ObjectWorkspaceHeader';
+import ObjectSubObjectSelector from '../../../components/objects/ObjectSubObjectSelector';
+import useObjectSubObjectSelection from '../../../components/objects/useObjectSubObjectSelection';
 import apiClient from '../../../api/client';
 
 const ObjectIndexPage: React.FC = () => {
   const { objectId = '' } = useParams();
+  const navigate = useNavigate();
   const [showAiOverrides, setShowAiOverrides] = React.useState(false);
   const [routingEnabledLoaded, setRoutingEnabledLoaded] = React.useState(false);
   const [objectDraft, setObjectDraft] = React.useState({ objectId: '', description: '', processArea: '' });
@@ -14,7 +17,15 @@ const ObjectIndexPage: React.FC = () => {
   const [isSavingObject, setIsSavingObject] = React.useState(false);
   const [saveStatus, setSaveStatus] = React.useState('');
   const [saveError, setSaveError] = React.useState('');
-  const [processAreaOptions, setProcessAreaOptions] = React.useState<string[]>([]);
+
+  const {
+    subObjects,
+    hasSubObjects,
+    selectedSubObject,
+    selectedSubObjectId,
+    setSelectedSubObjectId,
+    isLoading: isLoadingSubObjects,
+  } = useObjectSubObjectSelection(objectId);
 
   React.useEffect(() => {
     let active = true;
@@ -58,27 +69,6 @@ const ObjectIndexPage: React.FC = () => {
       active = false;
     };
   }, [objectId]);
-
-  React.useEffect(() => {
-    let active = true;
-
-    apiClient.get('/api/hierarchy-preferences/state')
-      .then((res) => {
-        if (!active) return;
-        const values = res.data?.data?.picklistValues?.processArea;
-        if (Array.isArray(values) && values.length > 0) {
-          setProcessAreaOptions(values.filter((v: any) => typeof v === 'string' && v.trim()));
-        }
-      })
-      .catch(() => {
-        if (!active) return;
-        setProcessAreaOptions([]);
-      });
-
-    return () => {
-      active = false;
-    };
-  }, []);
 
   const handleSaveOverview = async () => {
     setSaveStatus('');
@@ -124,32 +114,45 @@ const ObjectIndexPage: React.FC = () => {
                 Loading object details...
               </Typography>
             ) : (
-              <Stack spacing={1.2} sx={{ mt: 1.2, maxWidth: 720 }}>
-                <TextField
-                  size="small"
-                  label="Object ID"
-                  value={objectDraft.objectId}
-                  onChange={(e) => setObjectDraft((prev) => ({ ...prev, objectId: e.target.value }))}
-                />
-                <TextField
-                  size="small"
-                  label="Description"
-                  value={objectDraft.description}
-                  onChange={(e) => setObjectDraft((prev) => ({ ...prev, description: e.target.value }))}
-                />
-                <TextField
-                  select
-                  size="small"
-                  label="Process Area"
-                  value={objectDraft.processArea}
-                  onChange={(e) => setObjectDraft((prev) => ({ ...prev, processArea: e.target.value }))}
-                >
-                  <MenuItem value="">Select process area</MenuItem>
-                  {processAreaOptions.map((option) => (
-                    <MenuItem key={`process-area-${option}`} value={option}>{option}</MenuItem>
-                  ))}
-                </TextField>
-                <Box>
+              <Stack spacing={2} sx={{ mt: 1.2, maxWidth: 900 }}>
+                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 1.2 }}>
+                  <Box sx={{ p: 1.25, borderRadius: 1, border: '1px solid rgba(255,255,255,0.12)', backgroundColor: 'rgba(255,255,255,0.02)' }}>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                      Object Definition
+                    </Typography>
+                    <Typography sx={{ fontWeight: 700, fontFamily: 'monospace' }}>{objectDraft.objectId || '-'}</Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.6 }}>{objectDraft.description || 'No description provided.'}</Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.8 }}>
+                      Process Area: {objectDraft.processArea || '-'}
+                    </Typography>
+                  </Box>
+
+                  <Box sx={{ p: 1.25, borderRadius: 1, border: '1px solid rgba(255,255,255,0.12)', backgroundColor: 'rgba(255,255,255,0.02)' }}>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                      Sub-Object Definitions
+                    </Typography>
+
+                    {isLoadingSubObjects ? (
+                      <Typography variant="body2" color="text.secondary">Loading sub-objects...</Typography>
+                    ) : hasSubObjects ? (
+                      <>
+                        <ObjectSubObjectSelector
+                          subObjects={subObjects}
+                          selectedSubObjectId={selectedSubObjectId}
+                          onChange={setSelectedSubObjectId}
+                          helperText="Use Sub Objects tab to create or edit definitions."
+                        />
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.8 }}>
+                          Selected definition: {selectedSubObject?.name || '-'}
+                        </Typography>
+                      </>
+                    ) : (
+                      <Typography variant="body2" color="text.secondary">No sub-object definitions yet.</Typography>
+                    )}
+                  </Box>
+                </Box>
+
+                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
                   <Button
                     size="small"
                     variant="contained"
@@ -157,7 +160,15 @@ const ObjectIndexPage: React.FC = () => {
                     onClick={handleSaveOverview}
                     disabled={isSavingObject}
                   >
-                    {isSavingObject ? 'Saving...' : 'Save Overview'}
+                    {isSavingObject ? 'Saving...' : 'Save Definitions'}
+                  </Button>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    sx={{ textTransform: 'none' }}
+                    onClick={() => navigate(`/objects/${objectId}/application-assignment`)}
+                  >
+                    Assign Applications
                   </Button>
                 </Box>
               </Stack>

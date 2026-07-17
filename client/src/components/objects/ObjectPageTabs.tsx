@@ -15,7 +15,7 @@ const ObjectPageTabs: React.FC<ObjectPageTabsProps> = ({ objectId, showAiOverrid
   const tabs = [
     { label: 'Object Inventory', path: `/objects/${objectId}` },
     { label: 'Sub Objects', path: `/objects/${objectId}/sub-objects` },
-    { label: 'Application Assignment', path: `/objects/${objectId}/application-assignment` },
+    { label: 'Assigned Applications', path: `/objects/${objectId}/application-assignment` },
     { label: 'Application Schema', path: `/objects/${objectId}/application-schema` },
     { label: 'Object ↔ App Mapping', path: `/objects/${objectId}/application-mapping` },
     { label: 'CDM Builder', path: `/objects/${objectId}/cdm` },
