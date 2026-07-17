@@ -66,6 +66,11 @@ const isModelEquivalent = (expected: string | null | undefined, actual: string |
   return expectedNorm.startsWith(`${actualNorm}-`) || actualNorm.startsWith(`${expectedNorm}-`);
 };
 
+const isSupportedProvider = (provider: string | null | undefined) => {
+  const normalized = String(provider || '').trim().toLowerCase();
+  return normalized === 'openai' || normalized === 'anthropic' || normalized === 'databricks';
+};
+
 class AiExecutionService {
   private async loadModelById(modelId: string) {
     const result = await db.query(
@@ -375,7 +380,29 @@ class AiExecutionService {
     const requestedCapabilities = context.capabilityKeys?.length ? context.capabilityKeys : requiredCapabilities;
 
     const allModels = await this.loadAllActiveModels();
-    let activeModels = allModels.filter((row) => !allowedModelIds.size || allowedModelIds.has(String(row.id)));
+    const executableModels = allModels.filter((row) => Boolean(row.api_key) && isSupportedProvider(row.provider));
+
+    const gatewayModelIds = new Set<string>(
+      [gateway?.default_model_id, gateway?.failover_model_id]
+        .map((value) => String(value || '').trim())
+        .filter(Boolean)
+    );
+
+    let activeModels = executableModels;
+
+    if (gateway && gatewayModelIds.size > 0) {
+      activeModels = activeModels.filter((row) => gatewayModelIds.has(String(row.id)));
+      if (!activeModels.length) {
+        throw new ApiError(400, 'No active executable AI models found for the configured gateway', 'GATEWAY_MODEL_UNAVAILABLE');
+      }
+    }
+
+    if (allowedModelIds.size > 0) {
+      activeModels = activeModels.filter((row) => allowedModelIds.has(String(row.id)));
+      if (!activeModels.length) {
+        throw new ApiError(400, 'No active executable AI models match router allowed models', 'ROUTER_MODEL_UNAVAILABLE');
+      }
+    }
 
     if (requestedCapabilities.length) {
       activeModels = activeModels.filter((row) =>
@@ -414,7 +441,7 @@ class AiExecutionService {
 
     const fallbackModelIds = parseIdList(router?.fallback_model_ids);
     if (fallbackModelIds.length) {
-      const fallbackPool = allModels.filter((row) => fallbackModelIds.includes(String(row.id)));
+      const fallbackPool = executableModels.filter((row) => fallbackModelIds.includes(String(row.id)));
       if (fallbackPool.length > 0) {
         return { model: fallbackPool[0], gateway, router };
       }

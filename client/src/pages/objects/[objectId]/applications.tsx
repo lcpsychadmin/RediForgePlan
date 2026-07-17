@@ -411,7 +411,11 @@ const ObjectApplicationsPage: React.FC = () => {
 
     setIsGeneratingAiFields(true);
     try {
-      const response = await apiClient.post(`/api/applications/data-definitions/${selectedDataDefId}/ai-generate-fields`);
+      const response = await apiClient.post(
+        `/api/applications/data-definitions/${selectedDataDefId}/ai-generate-fields`,
+        {},
+        { timeout: 120000 }
+      );
       const payload = response.data?.data || {};
       setAiProposalFields(Array.isArray(payload.proposals) ? payload.proposals : []);
       setAiProposalOpen(true);
