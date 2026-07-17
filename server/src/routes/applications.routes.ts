@@ -242,6 +242,29 @@ const compactMetadataContext = (fields: any[]) => {
   }));
 };
 
+const proposalKey = (row: any) => {
+  const tableName = String(row?.tableName || row?.table || '').trim().toLowerCase();
+  const fieldName = String(row?.fieldName || row?.field_name || '').trim().toLowerCase();
+  return `${tableName}::${fieldName}`;
+};
+
+const mergeUniqueProposals = (first: any[], second: any[]) => {
+  const merged: any[] = [];
+  const seen = new Set<string>();
+  for (const row of [...(first || []), ...(second || [])]) {
+    const key = proposalKey(row);
+    if (!key || key.endsWith('::')) {
+      continue;
+    }
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    merged.push(row);
+  }
+  return merged;
+};
+
 const resolveLegacyFieldSubObjectId = async (definitionId: string, subObjectId: string | null | undefined) => {
   const trimmed = String(subObjectId || '').trim();
   if (!trimmed) {
@@ -657,16 +680,60 @@ router.post('/data-definitions/:definitionId/ai-generate-fields', requireAuth, a
           { role: 'user', content: userPrompt },
         ],
         temperature: 0.1,
-        maxTokens: 1200,
-        timeoutMs: 22000,
+        maxTokens: 900,
+        timeoutMs: 16000,
       },
     });
 
     const aiText = extractAiText(executionResult);
     const parsed = parseAiJson(aiText);
-    const proposals = Array.isArray(parsed)
+    const firstPassProposals = Array.isArray(parsed)
       ? parsed.map((row: any, index: number) => normalizeAiFieldProposal(row, index)).filter((row: any) => row.fieldName)
       : [];
+
+    const discoveredTables = Array.from(new Set([
+      ...firstPassProposals.map((row: any) => String(row.tableName || row.table || '').trim()).filter(Boolean),
+      ...compactFields.map((row: any) => String(row.table_name || '').trim()).filter(Boolean),
+    ])).slice(0, 8);
+
+    let proposals = firstPassProposals;
+
+    if (discoveredTables.length > 0 && firstPassProposals.length < 30) {
+      const expansionUserPrompt = [
+        `Data Object: ${definition.object_id}`,
+        `Sub-object: ${definition.sub_object_name || definition.object_id}`,
+        `Application: ${definition.application_name}`,
+        `Target tables: ${discoveredTables.join(', ')}`,
+        '',
+        'Existing fields already proposed (do not repeat these):',
+        JSON.stringify(firstPassProposals.map((row: any) => ({ tableName: row.tableName || row.table || '', fieldName: row.fieldName })), null, 2),
+        '',
+        'Return ADDITIONAL missing fields only for the target tables.',
+        'Prioritize standard operational, status, address, tax, credit, sales area, company code, audit, and integration fields.',
+        'Keep descriptions concise so you can return many fields.',
+      ].join('\n');
+
+      const expansionResult = await aiExecutionService.execute({
+        gatewayId: definition.default_gateway_id || undefined,
+        routerId: definition.default_router_id || undefined,
+        payload: {
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: expansionUserPrompt },
+          ],
+          temperature: 0.1,
+          maxTokens: 900,
+          timeoutMs: 9000,
+        },
+      });
+
+      const expansionParsed = parseAiJson(extractAiText(expansionResult));
+      const secondPassProposals = Array.isArray(expansionParsed)
+        ? expansionParsed.map((row: any, index: number) => normalizeAiFieldProposal(row, index + firstPassProposals.length)).filter((row: any) => row.fieldName)
+        : [];
+
+      proposals = mergeUniqueProposals(firstPassProposals, secondPassProposals);
+    }
 
     res.json(formatSingleResponse({
       proposals,
