@@ -581,6 +581,10 @@ router.post('/data-definitions/:definitionId/metadata-sync', requireAuth, requir
 
 router.post('/data-definitions/:definitionId/ai-generate-fields', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const routeStartedAt = Date.now();
+    const routeBudgetMs = 26000;
+    const remainingBudgetMs = () => routeBudgetMs - (Date.now() - routeStartedAt);
+
     const definitionResult = await db.query(
       `SELECT dd.id, dd.global_object_id, dd.application_id, dd.object_sub_object_id,
               go.object_id, go.description AS object_description, go.process_area,
@@ -689,7 +693,15 @@ router.post('/data-definitions/:definitionId/ai-generate-fields', requireAuth, a
       'Instruction: Return the COMPLETE field list for all relevant tables in this application/sub-object scope.',
     ].join('\n');
 
-    const runAiProposal = async (maxTokens: number, timeoutMs: number) => aiExecutionService.execute({
+    const runAiProposal = async (maxTokens: number, requestedTimeoutMs: number) => {
+      const remaining = remainingBudgetMs();
+      // Keep a small reserve for parse/merge/response write before Heroku's 30s cap.
+      const timeoutMs = Math.min(requestedTimeoutMs, Math.max(2500, remaining - 1500));
+      if (timeoutMs < 2500 || remaining < 3500) {
+        throw new ApiError(504, 'AI provider request timed out before completion', 'AI_PROVIDER_TIMEOUT');
+      }
+
+      return aiExecutionService.execute({
       gatewayId: definition.default_gateway_id || undefined,
       routerId: definition.default_router_id || undefined,
       payload: {
@@ -701,16 +713,17 @@ router.post('/data-definitions/:definitionId/ai-generate-fields', requireAuth, a
         maxTokens,
         timeoutMs,
       },
-    });
+      });
+    };
 
     let executionResult;
     try {
-      executionResult = await runAiProposal(800, 20000);
+      executionResult = await runAiProposal(700, 13000);
     } catch (error) {
       if (!isProviderTimeoutError(error)) {
         throw error;
       }
-      executionResult = await runAiProposal(450, 12000);
+      executionResult = await runAiProposal(380, 7000);
     }
 
     const aiText = extractAiText(executionResult);
@@ -726,7 +739,7 @@ router.post('/data-definitions/:definitionId/ai-generate-fields', requireAuth, a
 
     let proposals = firstPassProposals;
 
-    if (discoveredTables.length > 0 && firstPassProposals.length < 30) {
+    if (discoveredTables.length > 0 && firstPassProposals.length < 30 && remainingBudgetMs() > 9000) {
       const expansionUserPrompt = [
         `Data Object: ${definition.object_id}`,
         `Sub-object: ${definition.sub_object_name || definition.object_id}`,
@@ -751,8 +764,8 @@ router.post('/data-definitions/:definitionId/ai-generate-fields', requireAuth, a
               { role: 'user', content: expansionUserPrompt },
             ],
             temperature: 0.1,
-            maxTokens: 650,
-            timeoutMs: 7000,
+            maxTokens: 520,
+            timeoutMs: Math.min(6000, Math.max(2500, remainingBudgetMs() - 1500)),
           },
         });
 
@@ -777,9 +790,13 @@ router.post('/data-definitions/:definitionId/ai-generate-fields', requireAuth, a
       .map((table) => String(table || '').trim().toUpperCase())
       .filter(Boolean)
       .filter((table) => (tableCounts.get(table) || 0) < minFieldsPerTable)
-      .slice(0, 2);
+      .slice(0, 1);
 
     for (const tableName of thinTables) {
+      if (remainingBudgetMs() <= 7000) {
+        break;
+      }
+
       const existingForTable = proposals
         .filter((row: any) => String(row.tableName || row.table || '').trim().toUpperCase() === tableName)
         .map((row: any) => String(row.fieldName || '').trim())
@@ -810,8 +827,8 @@ router.post('/data-definitions/:definitionId/ai-generate-fields', requireAuth, a
               { role: 'user', content: tableExpansionPrompt },
             ],
             temperature: 0.1,
-            maxTokens: 650,
-            timeoutMs: 6500,
+            maxTokens: 460,
+            timeoutMs: Math.min(5000, Math.max(2500, remainingBudgetMs() - 1500)),
           },
         });
 
