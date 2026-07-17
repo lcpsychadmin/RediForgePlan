@@ -507,18 +507,133 @@ class AiExecutionService {
     };
   }
 
-  async executeRequest(model: ModelWithCapabilities, payload: Record<string, unknown>) {
-    if ((model.provider || '').toLowerCase() === 'openai') {
-      return this.executeOpenAiChatCompletion(model, payload);
+  private async executeAnthropicMessages(model: ModelWithCapabilities, payload: Record<string, unknown>) {
+    const apiKey = model.api_key;
+    if (!apiKey) {
+      throw new ApiError(400, 'Anthropic model is missing API key configuration', 'ANTHROPIC_KEY_MISSING');
+    }
+
+    const endpoint = model.endpoint_url || 'https://api.anthropic.com/v1/messages';
+    const messages = Array.isArray(payload.messages) ? payload.messages : [];
+    const body: Record<string, unknown> = {
+      model: model.model_key,
+      max_tokens: model.max_tokens || 2048,
+      messages,
+    };
+
+    if (typeof payload.temperature === 'number') {
+      body.temperature = payload.temperature;
+    }
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify(body),
+    });
+
+    const responseJson: any = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new ApiError(
+        response.status,
+        `Anthropic request failed: ${responseJson?.error?.message || responseJson?.message || response.statusText}`,
+        'ANTHROPIC_REQUEST_FAILED'
+      );
+    }
+
+    const providerModel = responseJson?.model ? String(responseJson.model) : null;
+    if (!isModelEquivalent(model.model_key, providerModel)) {
+      throw new ApiError(
+        409,
+        `Anthropic provider model mismatch. Expected ${model.model_key}, got ${providerModel || 'unknown'}.`,
+        'MODEL_PROVIDER_MISMATCH'
+      );
     }
 
     return {
-      simulated: true,
-      message: 'Provider adapter is not implemented yet; routed successfully.',
-      modelKey: model.model_key,
-      provider: model.provider || null,
-      payload,
+      provider: 'anthropic',
+      endpoint,
+      model: model.model_key,
+      response: responseJson,
+      usage: responseJson?.usage || null,
     };
+  }
+
+  private async executeDatabricksChatCompletion(model: ModelWithCapabilities, payload: Record<string, unknown>) {
+    const apiKey = model.api_key;
+    if (!apiKey) {
+      throw new ApiError(400, 'Databricks model is missing API key configuration', 'DATABRICKS_KEY_MISSING');
+    }
+
+    const baseEndpoint = (model.endpoint_url || '').replace(/\/+$/, '');
+    if (!baseEndpoint) {
+      throw new ApiError(400, 'Databricks endpoint URL is required', 'DATABRICKS_ENDPOINT_MISSING');
+    }
+
+    const endpoint = baseEndpoint.includes('/serving-endpoints/')
+      ? (baseEndpoint.endsWith('/invocations') ? baseEndpoint : `${baseEndpoint}/invocations`)
+      : `${baseEndpoint}/serving-endpoints/${encodeURIComponent(model.model_key)}/invocations`;
+
+    const body: Record<string, unknown> = {
+      messages: Array.isArray(payload.messages) ? payload.messages : [],
+    };
+
+    if (typeof payload.temperature === 'number') {
+      body.temperature = payload.temperature;
+    }
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify(body),
+    });
+
+    const responseJson: any = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new ApiError(
+        response.status,
+        `Databricks request failed: ${responseJson?.error?.message || responseJson?.message || response.statusText}`,
+        'DATABRICKS_REQUEST_FAILED'
+      );
+    }
+
+    const providerModel = responseJson?.metadata?.model_name ? String(responseJson.metadata.model_name) : null;
+    if (providerModel && !isModelEquivalent(model.model_key, providerModel)) {
+      throw new ApiError(
+        409,
+        `Databricks provider model mismatch. Expected ${model.model_key}, got ${providerModel || 'unknown'}.`,
+        'MODEL_PROVIDER_MISMATCH'
+      );
+    }
+
+    return {
+      provider: 'databricks',
+      endpoint,
+      model: model.model_key,
+      response: responseJson,
+      usage: responseJson?.usage || null,
+    };
+  }
+
+  async executeRequest(model: ModelWithCapabilities, payload: Record<string, unknown>) {
+    const provider = (model.provider || '').toLowerCase();
+    if (provider === 'openai') {
+      return this.executeOpenAiChatCompletion(model, payload);
+    }
+    if (provider === 'anthropic') {
+      return this.executeAnthropicMessages(model, payload);
+    }
+    if (provider === 'databricks') {
+      return this.executeDatabricksChatCompletion(model, payload);
+    }
+
+    throw new ApiError(501, `Provider ${model.provider || 'unknown'} is not implemented`, 'PROVIDER_NOT_IMPLEMENTED');
   }
 
   async logUsage(entry: {

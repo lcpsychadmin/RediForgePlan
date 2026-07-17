@@ -416,7 +416,12 @@ const ObjectApplicationsPage: React.FC = () => {
       setAiProposalFields(Array.isArray(payload.proposals) ? payload.proposals : []);
       setAiProposalOpen(true);
     } catch (error: any) {
-      setStatus(error?.response?.data?.error?.message || 'Failed to generate AI data definition fields.');
+      setStatus(
+        error?.response?.data?.error
+        || error?.response?.data?.message
+        || error?.message
+        || 'Failed to generate AI data definition fields.'
+      );
     } finally {
       setIsGeneratingAiFields(false);
     }
