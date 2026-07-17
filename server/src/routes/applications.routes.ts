@@ -363,7 +363,7 @@ const buildFallbackProposal = (tableName: string, field: SapFallbackField, index
   label: field.label || field.fieldName,
   table: tableName,
   tableName,
-  fieldDescription: field.fieldDescription || `Fallback SAP field for ${tableName}.`,
+  fieldDescription: field.fieldDescription || `${field.label || field.fieldName} field in SAP ${tableName}.`,
   applicationUsage: '',
   businessDefinition: '',
   businessRules: '',
@@ -470,8 +470,11 @@ const hydrateProposalMetadata = (rows: any[]) => {
     const tableName = String(row?.tableName || row?.table || '').trim().toUpperCase();
     const fieldName = String(row?.fieldName || '').trim().toUpperCase();
     const label = String(row?.label || '').trim() || fieldName;
-    const fieldDescription = String(row?.fieldDescription || '').trim()
-      || `${label} field from SAP ${tableName || 'table'}.`;
+    const existingDescription = String(row?.fieldDescription || '').trim();
+    const isGenericFallbackDescription = /^fallback sap field for\s+[a-z0-9_]+\.?$/i.test(existingDescription);
+    const fieldDescription = (existingDescription && !isGenericFallbackDescription)
+      ? existingDescription
+      : `${label} field from SAP ${tableName || 'table'}.`;
 
     const fieldType = String(row?.fieldType || '').trim() || 'CHAR';
     const fieldLength = row?.fieldLength == null || row?.fieldLength === ''
