@@ -1,85 +1,41 @@
 import React from 'react';
 import {
-  Accordion,
-  AccordionDetails,
-  AccordionSummary,
   Alert,
   Box,
   Button,
   Card,
   CardContent,
-  Checkbox,
   Divider,
-  IconButton,
   MenuItem,
   Stack,
+  Tab,
+  Tabs,
   TextField,
   Typography,
 } from '@mui/material';
-import DeleteIcon from '@mui/icons-material/Delete';
-import EditIcon from '@mui/icons-material/Edit';
-import SaveIcon from '@mui/icons-material/Save';
-import CloseIcon from '@mui/icons-material/Close';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { useParams } from 'react-router-dom';
 import Layout from '../../../components/Layout';
 import ObjectWorkspaceHeader from '../../../components/objects/ObjectWorkspaceHeader';
 import ObjectSubObjectSelector from '../../../components/objects/ObjectSubObjectSelector';
 import useObjectSubObjectSelection from '../../../components/objects/useObjectSubObjectSelection';
 import apiClient from '../../../api/client';
-import DataDefinitionFieldModal from '../../../components/objects/DataDefinitionFieldModal';
 import DataDefinitionAiProposalModal from '../../../components/objects/DataDefinitionAiProposalModal';
-import type { AiDataDefinitionProposalField, DataDefinitionFieldFormValues } from '../../../types/dataDefinitions';
+import type { AiDataDefinitionProposalField } from '../../../types/dataDefinitions';
 
-const emptyFieldDraft = (): DataDefinitionFieldFormValues => ({
-  fieldName: '',
-  label: '',
-  table: '',
-  tableName: '',
-  fieldDescription: '',
-  applicationUsage: '',
-  businessDefinition: '',
-  businessRules: '',
-  fieldType: '',
-  fieldLength: '',
-  decimalPlaces: '',
-  isKey: false,
-  systemRequired: false,
-  businessProcessRequired: false,
-  suppressedField: false,
-  legalRegulatoryImplications: '',
-  securityClassification: '',
-  referenceTable: '',
-  groupingTab: '',
-  piiType: '',
-  securityControls: '',
-  databricksTable: '',
-  databricksField: '',
-});
+type MappingTab = 'object-table' | 'field-object';
 
 const ObjectApplicationMappingPage: React.FC = () => {
   const { objectId = '' } = useParams();
-  const [apps, setApps] = React.useState<any[]>([]);
   const [linked, setLinked] = React.useState<any[]>([]);
-  const [linkAppId, setLinkAppId] = React.useState('');
   const [selectedDataDefId, setSelectedDataDefId] = React.useState('');
   const [dataDefFields, setDataDefFields] = React.useState<any[]>([]);
-  const [editingFieldId, setEditingFieldId] = React.useState<string | null>(null);
-  const [fieldDraft, setFieldDraft] = React.useState<DataDefinitionFieldFormValues>(emptyFieldDraft());
-  const [isSavingField, setIsSavingField] = React.useState(false);
-  const [catalogs, setCatalogs] = React.useState<string[]>([]);
-  const [schemas, setSchemas] = React.useState<string[]>([]);
-  const [tables, setTables] = React.useState<string[]>([]);
-  const [metadataBySubObject, setMetadataBySubObject] = React.useState<Record<string, { catalog: string; schema: string; table: string }>>({});
-  const [isSyncingMetadata, setIsSyncingMetadata] = React.useState(false);
-  const [lastSyncedBySubObject, setLastSyncedBySubObject] = React.useState<Record<string, string>>({});
   const [status, setStatus] = React.useState('');
-  const [fieldMetadataBase, setFieldMetadataBase] = React.useState<Record<string, any>>({});
   const [isGeneratingAiFields, setIsGeneratingAiFields] = React.useState(false);
   const [isSavingAiFields, setIsSavingAiFields] = React.useState(false);
   const [aiProposalOpen, setAiProposalOpen] = React.useState(false);
   const [aiProposalFields, setAiProposalFields] = React.useState<AiDataDefinitionProposalField[]>([]);
+  const [mappingTab, setMappingTab] = React.useState<MappingTab>('object-table');
 
   const {
     subObjects,
@@ -94,21 +50,17 @@ const ObjectApplicationMappingPage: React.FC = () => {
 
   const load = React.useCallback(async (currentSelectedId?: string) => {
     if (hasSubObjects && !scopedSubObjectId) {
-      setApps([]);
       setLinked([]);
       setSelectedDataDefId('');
+      setDataDefFields([]);
       return;
     }
 
-    const [appsRes, linkedRes] = await Promise.all([
-      apiClient.get('/api/applications'),
-      apiClient.get(`/api/applications/data-definitions/object/${objectId}`, {
-        params: { subObjectId: scopedSubObjectId },
-      }),
-    ]);
-    const appsPayload = appsRes.data?.data || [];
+    const linkedRes = await apiClient.get(`/api/applications/data-definitions/object/${objectId}`, {
+      params: { subObjectId: scopedSubObjectId },
+    });
+
     const linkedPayload = linkedRes.data?.data || [];
-    setApps(appsPayload);
     setLinked(linkedPayload);
 
     const activeId = currentSelectedId || selectedDataDefId;
@@ -120,66 +72,17 @@ const ObjectApplicationMappingPage: React.FC = () => {
   const loadSelectedDefinition = React.useCallback(async (definitionId: string) => {
     if (!definitionId) {
       setDataDefFields([]);
-      setLastSyncedBySubObject({});
       return;
     }
 
     const fieldsRes = await apiClient.get(`/api/applications/data-definitions/${definitionId}/fields`);
-    const fields = fieldsRes.data?.data || [];
-    setDataDefFields(fields);
-
-    const perSubSync: Record<string, string> = {};
-    fields.forEach((field: any) => {
-      const sid = field.sub_object_id || scopedSubObjectId || '';
-      if (!sid) return;
-      const syncedAt = field?.field_metadata?.metadataSync?.syncedAt;
-      if (!syncedAt) return;
-      if (!perSubSync[sid] || new Date(syncedAt).getTime() > new Date(perSubSync[sid]).getTime()) {
-        perSubSync[sid] = syncedAt;
-      }
-    });
-    setLastSyncedBySubObject(perSubSync);
-  }, [scopedSubObjectId]);
-
-  const loadMetadataCatalogs = React.useCallback(async () => {
-    try {
-      const res = await apiClient.get('/api/settings/databricks/catalogs');
-      setCatalogs(res.data?.data?.catalogs || []);
-    } catch {
-      setCatalogs([]);
-    }
+    setDataDefFields(fieldsRes.data?.data || []);
   }, []);
-
-  const loadMetadataSchemas = async (catalog: string) => {
-    if (!catalog) {
-      setSchemas([]);
-      return;
-    }
-    try {
-      const res = await apiClient.get('/api/settings/databricks/schemas', { params: { catalog } });
-      setSchemas(res.data?.data?.schemas || []);
-    } catch {
-      setSchemas([]);
-    }
-  };
-
-  const loadMetadataTables = async (catalog: string, schema: string) => {
-    if (!catalog || !schema) {
-      setTables([]);
-      return;
-    }
-    try {
-      const res = await apiClient.get('/api/settings/databricks/tables', { params: { catalog, schema } });
-      setTables(res.data?.data?.tables || []);
-    } catch {
-      setTables([]);
-    }
-  };
 
   React.useEffect(() => {
     load().catch(() => {
-      setApps([]);
       setLinked([]);
+      setDataDefFields([]);
     });
   }, [load]);
 
@@ -190,34 +93,24 @@ const ObjectApplicationMappingPage: React.FC = () => {
       return;
     }
     load().catch(() => {
-      setApps([]);
       setLinked([]);
+      setDataDefFields([]);
     });
   }, [hasSubObjects, selectedSubObjectId, load]);
 
   React.useEffect(() => {
     loadSelectedDefinition(selectedDataDefId).catch(() => {
       setDataDefFields([]);
-      setLastSyncedBySubObject({});
     });
   }, [selectedDataDefId, loadSelectedDefinition]);
 
-  React.useEffect(() => {
-    loadMetadataCatalogs().catch(() => {
-      setCatalogs([]);
-    });
-  }, [loadMetadataCatalogs]);
-
   const selectedDefinition = linked.find((row: any) => row.id === selectedDataDefId) || null;
-  const selectedSubObjectFields = dataDefFields;
-  const metadataDraft = metadataBySubObject[selectedSubObjectId] || { catalog: '', schema: '', table: '' };
-  const resolveFieldSource = (field: any): 'application' | 'databricks' => {
-    const sourceType = String(field?.field_metadata?.sourceType || '').toLowerCase();
-    if (sourceType === 'databricks' || field?.field_metadata?.metadataSync) return 'databricks';
-    return 'application';
-  };
 
-  const applicationFields = selectedSubObjectFields.filter((field: any) => resolveFieldSource(field) === 'application');
+  const getFieldMetadata = (field: any) => (
+    field?.field_metadata && typeof field.field_metadata === 'object' ? field.field_metadata : {}
+  );
+
+  const getFieldMetaText = (field: any, key: string) => String(getFieldMetadata(field)?.[key] || '').trim();
 
   const getApplicationTableValue = (field: any): string => {
     const metadataApplicationTable = String(
@@ -229,7 +122,6 @@ const ObjectApplicationMappingPage: React.FC = () => {
     const appName = String(selectedDefinition?.application_name || '').trim();
     if (!rawTableName) return '';
 
-    // Legacy rows can carry app name as table_name; hide that fallback in the UI.
     if (appName && rawTableName.toLowerCase() === appName.toLowerCase()) {
       return '';
     }
@@ -237,164 +129,29 @@ const ObjectApplicationMappingPage: React.FC = () => {
     return rawTableName;
   };
 
-  const getFieldMetadata = (field: any) => (field?.field_metadata && typeof field.field_metadata === 'object' ? field.field_metadata : {});
-  const getFieldMetaText = (field: any, key: string) => String(getFieldMetadata(field)?.[key] || '').trim();
-  const getFieldMetaBoolean = (field: any, key: string) => Boolean(getFieldMetadata(field)?.[key]);
-
-  const handleLink = async () => {
-    if (!linkAppId) return;
-    await apiClient.post('/api/applications/data-definitions', {
-      globalObjectId: objectId,
-      applicationId: linkAppId,
-      subObjectId: hasSubObjects ? selectedSubObjectId : null,
-    });
-    setLinkAppId('');
-    setStatus('Application linked.');
-    await load(selectedDataDefId);
+  const resolveFieldSource = (field: any): 'application' | 'databricks' => {
+    const sourceType = String(field?.field_metadata?.sourceType || '').toLowerCase();
+    if (sourceType === 'databricks' || field?.field_metadata?.metadataSync) return 'databricks';
+    return 'application';
   };
 
-  const startCreateField = () => {
-    setEditingFieldId('new');
-    setFieldMetadataBase({});
-    setFieldDraft(emptyFieldDraft());
-  };
+  const applicationFields = dataDefFields.filter((field: any) => resolveFieldSource(field) === 'application');
 
-  const startEditField = (field: any) => {
-    setEditingFieldId(field.id);
-    setFieldDraft({
-      fieldName: field.field_name || '',
-      label: field.field_label || '',
-      table: String(field.field_metadata?.application?.table || field.field_metadata?.applicationTable || field.table_name || '').trim(),
-      tableName: String(field.table_name || '').trim(),
-      fieldDescription: String(field.field_metadata?.fieldDescription || field.description || '').trim(),
-      applicationUsage: String(field.field_metadata?.applicationUsage || '').trim(),
-      businessDefinition: String(field.field_metadata?.businessDefinition || '').trim(),
-      businessRules: String(field.field_metadata?.businessRules || field.field_metadata?.business_rules || '').trim(),
-      fieldType: String(field.field_metadata?.fieldType || field.data_type || '').trim(),
-      fieldLength: field.field_metadata?.fieldLength != null ? String(field.field_metadata.fieldLength) : (field.length != null ? String(field.length) : ''),
-      decimalPlaces: field.field_metadata?.decimalPlaces != null ? String(field.field_metadata.decimalPlaces) : (field.decimals != null ? String(field.decimals) : ''),
-      isKey: !!field.is_key,
-      systemRequired: !!field.is_required,
-      businessProcessRequired: !!field.business_process_required,
-      suppressedField: !!field.field_metadata?.suppressedField,
-      legalRegulatoryImplications: String(field.field_metadata?.legalRegulatoryImplications || '').trim(),
-      securityClassification: String(field.field_metadata?.securityClassification || '').trim(),
-      referenceTable: String(field.field_metadata?.referenceTable || '').trim(),
-      groupingTab: String(field.field_metadata?.groupingTab || '').trim(),
-      piiType: String(field.field_metadata?.piiType || '').trim(),
-      securityControls: String(field.field_metadata?.securityControls || '').trim(),
-      databricksTable: String(field.field_metadata?.databricks?.table || '').trim(),
-      databricksField: String(field.field_metadata?.databricks?.field || '').trim(),
-    });
-    setFieldMetadataBase((field?.field_metadata && typeof field.field_metadata === 'object') ? field.field_metadata : {});
-  };
-
-  const cancelFieldEdit = () => {
-    setEditingFieldId(null);
-    setFieldMetadataBase({});
-    setFieldDraft(emptyFieldDraft());
-  };
-
-  const saveField = async (values: DataDefinitionFieldFormValues) => {
-    if (!selectedDataDefId || !values.fieldName.trim()) return;
-
-    setIsSavingField(true);
-    try {
-      const fieldLength = values.fieldLength ? Number(values.fieldLength) : null;
-      const decimalPlaces = values.decimalPlaces ? Number(values.decimalPlaces) : null;
-
-      const payload = {
-        subObjectId: hasSubObjects ? selectedSubObjectId : null,
-        tableName: values.tableName || values.table || null,
-        fieldName: values.fieldName.trim(),
-        fieldLabel: values.label || null,
-        dataType: values.fieldType || null,
-        length: fieldLength,
-        decimals: decimalPlaces,
-        isKey: values.isKey,
-        isRequired: values.systemRequired,
-        businessProcessRequired: values.businessProcessRequired,
-        description: values.fieldDescription || null,
-        fieldMetadata: {
-          ...fieldMetadataBase,
-          table: values.table || null,
-          tableName: values.tableName || null,
-          fieldDescription: values.fieldDescription || '',
-          applicationUsage: values.applicationUsage || '',
-          businessDefinition: values.businessDefinition || '',
-          businessRules: values.businessRules || '',
-          fieldType: values.fieldType || '',
-          fieldLength: values.fieldLength || null,
-          decimalPlaces: values.decimalPlaces || null,
-          isKey: values.isKey,
-          systemRequired: values.systemRequired,
-          businessProcessRequired: values.businessProcessRequired,
-          suppressedField: values.suppressedField,
-          legalRegulatoryImplications: values.legalRegulatoryImplications || '',
-          securityClassification: values.securityClassification || '',
-          referenceTable: values.referenceTable || '',
-          groupingTab: values.groupingTab || '',
-          piiType: values.piiType || '',
-          securityControls: values.securityControls || '',
-          sourceType: 'application',
-          application: {
-            table: values.table || null,
-          },
-          databricks: {
-            table: values.databricksTable || null,
-            field: values.databricksField || null,
-          },
-        },
-        sortOrder: 0,
-      };
-
-      if (editingFieldId === 'new') {
-        await apiClient.post(`/api/applications/data-definitions/${selectedDataDefId}/fields`, payload);
-      } else if (editingFieldId) {
-        await apiClient.put(`/api/applications/data-definitions/fields/${editingFieldId}`, payload);
+  const objectTableRows = React.useMemo(() => {
+    const grouped = new Map<string, { table: string; tableName: string; fieldCount: number }>();
+    applicationFields.forEach((field: any) => {
+      const table = getApplicationTableValue(field);
+      const tableName = String(field?.table_name || '').trim();
+      const key = `${table.toLowerCase()}::${tableName.toLowerCase()}`;
+      const existing = grouped.get(key);
+      if (existing) {
+        existing.fieldCount += 1;
+      } else {
+        grouped.set(key, { table, tableName, fieldCount: 1 });
       }
-
-      await loadSelectedDefinition(selectedDataDefId);
-      setStatus('Field definition saved.');
-      cancelFieldEdit();
-    } finally {
-      setIsSavingField(false);
-    }
-  };
-
-  const handleDeleteField = async (fieldId: string) => {
-    await apiClient.delete(`/api/applications/data-definitions/fields/${fieldId}`);
-    await loadSelectedDefinition(selectedDataDefId);
-    setStatus('Field definition deleted.');
-  };
-
-  const handleMetadataSync = async () => {
-    if (!selectedDataDefId || !metadataDraft.catalog || !metadataDraft.schema || !metadataDraft.table) {
-      setStatus('Catalog, schema, and table are required for metadata sync.');
-      return;
-    }
-
-    setIsSyncingMetadata(true);
-    try {
-      const response = await apiClient.post(`/api/applications/data-definitions/${selectedDataDefId}/metadata-sync`, {
-        catalog: metadataDraft.catalog,
-        schema: metadataDraft.schema,
-        table: metadataDraft.table,
-        subObjectId: hasSubObjects ? selectedSubObjectId : null,
-      });
-      const payload = response.data?.data || {};
-      setDataDefFields(payload.fields || []);
-      setLastSyncedBySubObject((prev) => ({
-        ...prev,
-        [selectedSubObjectId]: payload.syncedAt || new Date().toISOString(),
-      }));
-      setStatus('Metadata pulled from Databricks and field definitions updated.');
-    } catch {
-      setStatus('Failed to pull metadata from Databricks. Check your Databricks settings and try again.');
-    } finally {
-      setIsSyncingMetadata(false);
-    }
-  };
+    });
+    return Array.from(grouped.values()).sort((a, b) => `${a.table}|${a.tableName}`.localeCompare(`${b.table}|${b.tableName}`));
+  }, [applicationFields]);
 
   const handleGenerateAiFields = async () => {
     if (!selectedDataDefId || (hasSubObjects && !selectedSubObjectId)) {
@@ -432,7 +189,7 @@ const ObjectApplicationMappingPage: React.FC = () => {
     setIsSavingAiFields(true);
     try {
       const existingKey = new Set(
-        selectedSubObjectFields.map((field: any) => `${String(field.field_name || '').trim().toLowerCase()}::${String(getApplicationTableValue(field) || '').trim().toLowerCase()}`)
+        applicationFields.map((field: any) => `${String(field.field_name || '').trim().toLowerCase()}::${String(getApplicationTableValue(field) || '').trim().toLowerCase()}`)
       );
 
       for (const field of acceptedFields) {
@@ -489,7 +246,7 @@ const ObjectApplicationMappingPage: React.FC = () => {
 
       await loadSelectedDefinition(selectedDataDefId);
       setAiProposalOpen(false);
-      setStatus('AI-generated fields added to Application Fields.');
+      setStatus('AI-generated fields added to Field → Object Mapping.');
     } catch {
       setStatus('Failed to save AI-generated fields.');
     } finally {
@@ -506,7 +263,7 @@ const ObjectApplicationMappingPage: React.FC = () => {
           <CardContent>
             <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1.2 }}>Layer 4: Object ↔ Application Mapping</Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-              Map application schema fields to object-level business meaning and run AI-assisted mapping proposals.
+              Map selected object scope to application tables and fields.
             </Typography>
 
             <Stack spacing={1.5}>
@@ -526,7 +283,7 @@ const ObjectApplicationMappingPage: React.FC = () => {
               <TextField
                 select
                 size="small"
-                label="Assigned Application"
+                label="Selected Application"
                 value={selectedDataDefId}
                 onChange={(e) => setSelectedDataDefId(e.target.value)}
                 sx={{ maxWidth: 360 }}
@@ -546,75 +303,85 @@ const ObjectApplicationMappingPage: React.FC = () => {
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 2, mb: 1.5 }}>
                 <Box>
-                  <Typography variant="h6" sx={{ fontWeight: 700 }}>Application Details</Typography>
+                  <Typography variant="h6" sx={{ fontWeight: 700 }}>Mapping Context</Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                    Selected Object: {objectId}{selectedSubObject ? ` / ${selectedSubObject.name}` : ''}
+                  </Typography>
                   <Typography variant="body2" color="text.secondary">
-                    {selectedDefinition.application_name}
+                    Selected Application: {selectedDefinition.application_name}
                   </Typography>
                 </Box>
+                <Button
+                  variant="contained"
+                  size="small"
+                  startIcon={<AutoAwesomeIcon />}
+                  onClick={handleGenerateAiFields}
+                  disabled={isGeneratingAiFields || !selectedDataDefId}
+                  sx={{ textTransform: 'none', mt: 0.25 }}
+                >
+                  {isGeneratingAiFields ? 'Generating...' : 'Generate Data Definition (AI)'}
+                </Button>
               </Box>
 
-              <Divider sx={{ mb: 1.5 }} />
+              <Divider sx={{ mb: 1.25 }} />
 
-              <Box sx={{ mb: 2, p: 1.25, borderRadius: 1, border: '1px solid rgba(255,255,255,0.12)', backgroundColor: 'rgba(255,255,255,0.02)' }}>
-                <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems={{ md: 'center' }} justifyContent="space-between">
-                  <Box>
-                    <Typography sx={{ fontWeight: 700, fontSize: '0.9rem' }}>
-                      {hasSubObjects && selectedSubObject ? `${selectedSubObject.name} Field Definitions` : 'Application Field Definitions'}
-                    </Typography>
-                    {selectedDataDefId && lastSyncedBySubObject[scopedSubObjectId] && (
-                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                        Last synced: {new Date(lastSyncedBySubObject[scopedSubObjectId]).toLocaleString()}
-                      </Typography>
-                    )}
+              <Tabs
+                value={mappingTab}
+                onChange={(_event, value) => setMappingTab(value as MappingTab)}
+                sx={{ borderBottom: '1px solid rgba(255,255,255,0.12)', mb: 1.25 }}
+              >
+                <Tab value="object-table" label="Object → Table Mapping" sx={{ textTransform: 'none' }} />
+                <Tab value="field-object" label="Field → Object Mapping" sx={{ textTransform: 'none' }} />
+              </Tabs>
+
+              {mappingTab === 'object-table' && (
+                <Box sx={{ border: '1px solid rgba(255,255,255,0.12)', borderRadius: 1, overflowX: 'auto' }}>
+                  <Box sx={{ minWidth: 900, display: 'grid', gridTemplateColumns: '1.4fr 1.6fr 1.3fr 1.3fr 0.8fr', backgroundColor: 'rgba(255,255,255,0.06)' }}>
+                    {['Object Scope', 'Application', 'Mapped Table', 'Table Name', 'Field Count'].map((header) => (
+                      <Box key={header} sx={{ px: 1, py: 0.8, fontSize: '0.72rem', fontWeight: 700, color: 'text.secondary' }}>{header}</Box>
+                    ))}
                   </Box>
-                  <Stack direction="row" spacing={1}>
-                    <Button
-                      variant="contained"
-                      size="small"
-                      startIcon={<AutoAwesomeIcon />}
-                      onClick={handleGenerateAiFields}
-                      disabled={isGeneratingAiFields || !selectedDataDefId}
-                      sx={{ textTransform: 'none' }}
-                    >
-                      {isGeneratingAiFields ? 'Generating...' : 'Generate Data Definition (AI)'}
-                    </Button>
-                  </Stack>
-                </Stack>
-              </Box>
-
-              <Box sx={{ border: '1px solid rgba(255,255,255,0.12)', borderRadius: 1, overflowX: 'auto' }}>
-                <Box sx={{ minWidth: 3200, display: 'grid', gridTemplateColumns: '1.3fr 1.1fr 1.1fr 1.1fr 1.6fr 1.3fr 1.7fr 1.6fr 0.95fr 0.8fr 0.9fr 0.7fr 0.95fr 0.8fr 1.4fr 1.1fr 1.0fr 1.0fr 1.0fr 1.5fr', backgroundColor: 'rgba(255,255,255,0.06)' }}>
-                  {['Field Name', 'Label', 'Table', 'Table Name', 'Field Description', 'Application Usage', 'Business Definition', 'Business Rules', 'Field Type', 'Field Length', 'Decimal Places', 'System Req', 'Bus Proc Req', 'Suppressed', 'Legal/Regulatory Implications', 'Security Classification', 'Reference Table', 'Grouping/Tab', 'PII Type', 'Security Controls'].map((header) => (
-                    <Box key={header} sx={{ px: 1, py: 0.8, fontSize: '0.72rem', fontWeight: 700, color: 'text.secondary', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>{header}</Box>
+                  {objectTableRows.length === 0 ? (
+                    <Box sx={{ p: 1.2 }}><Typography color="text.secondary" variant="body2">No table mappings available for this scope.</Typography></Box>
+                  ) : objectTableRows.map((row, idx) => (
+                    <Box key={`${row.table}-${row.tableName}-${idx}`} sx={{ minWidth: 900, display: 'grid', gridTemplateColumns: '1.4fr 1.6fr 1.3fr 1.3fr 0.8fr', borderTop: idx === 0 ? 'none' : '1px solid rgba(255,255,255,0.08)' }}>
+                      <Box sx={{ px: 1, py: 0.8 }}>{objectId}{selectedSubObject ? ` / ${selectedSubObject.name}` : ''}</Box>
+                      <Box sx={{ px: 1, py: 0.8, color: 'text.secondary' }}>{selectedDefinition.application_name}</Box>
+                      <Box sx={{ px: 1, py: 0.8, fontFamily: 'monospace', fontWeight: 700 }}>{row.table || '-'}</Box>
+                      <Box sx={{ px: 1, py: 0.8, color: 'text.secondary' }}>{row.tableName || '-'}</Box>
+                      <Box sx={{ px: 1, py: 0.8 }}>{row.fieldCount}</Box>
+                    </Box>
                   ))}
                 </Box>
-                {applicationFields.length === 0 ? (
-                  <Box sx={{ p: 1.2 }}><Typography color="text.secondary" variant="body2">No fields defined.</Typography></Box>
-                ) : applicationFields.map((field: any, idx: number) => (
-                  <Box key={field.id} sx={{ minWidth: 3200, display: 'grid', gridTemplateColumns: '1.3fr 1.1fr 1.1fr 1.1fr 1.6fr 1.3fr 1.7fr 1.6fr 0.95fr 0.8fr 0.9fr 0.7fr 0.95fr 0.8fr 1.4fr 1.1fr 1.0fr 1.0fr 1.0fr 1.5fr', borderTop: idx === 0 ? 'none' : '1px solid rgba(255,255,255,0.08)' }}>
-                    <Box sx={{ px: 1, py: 0.8, fontFamily: 'monospace', fontWeight: 700 }}>{field.field_name || '-'}</Box>
-                    <Box sx={{ px: 1, py: 0.8, color: 'text.secondary' }}>{field.field_label || '-'}</Box>
-                    <Box sx={{ px: 1, py: 0.8, color: 'text.secondary' }}>{getApplicationTableValue(field) || '-'}</Box>
-                    <Box sx={{ px: 1, py: 0.8, color: 'text.secondary' }}>{field.table_name || '-'}</Box>
-                    <Box sx={{ px: 1, py: 0.8, color: 'text.secondary' }}>{getFieldMetaText(field, 'fieldDescription') || field.description || '-'}</Box>
-                    <Box sx={{ px: 1, py: 0.8, color: 'text.secondary' }}>{getFieldMetaText(field, 'applicationUsage') || '-'}</Box>
-                    <Box sx={{ px: 1, py: 0.8, color: 'text.secondary' }}>{getFieldMetaText(field, 'businessDefinition') || '-'}</Box>
-                    <Box sx={{ px: 1, py: 0.8, color: 'text.secondary' }}>{getFieldMetaText(field, 'businessRules') || '-'}</Box>
-                    <Box sx={{ px: 1, py: 0.8 }}>{getFieldMetaText(field, 'fieldType') || field.data_type || '-'}</Box>
-                    <Box sx={{ px: 1, py: 0.8 }}>{getFieldMetaText(field, 'fieldLength') || (field.length ?? '-')}</Box>
-                    <Box sx={{ px: 1, py: 0.8 }}>{getFieldMetaText(field, 'decimalPlaces') || (field.decimals ?? '-')}</Box>
-                    <Box sx={{ px: 1, py: 0.8, textAlign: 'center', color: getFieldMetaBoolean(field, 'systemRequired') || field.is_required ? '#ffca28' : 'text.disabled' }}>{getFieldMetaBoolean(field, 'systemRequired') || field.is_required ? '●' : '○'}</Box>
-                    <Box sx={{ px: 1, py: 0.8, textAlign: 'center', color: getFieldMetaBoolean(field, 'businessProcessRequired') || field.business_process_required ? '#ef5350' : 'text.disabled' }}>{getFieldMetaBoolean(field, 'businessProcessRequired') || field.business_process_required ? '●' : '○'}</Box>
-                    <Box sx={{ px: 1, py: 0.8, textAlign: 'center', color: getFieldMetaBoolean(field, 'suppressedField') ? '#ff9800' : 'text.disabled' }}>{getFieldMetaBoolean(field, 'suppressedField') ? '●' : '○'}</Box>
-                    <Box sx={{ px: 1, py: 0.8, color: 'text.secondary' }}>{getFieldMetaText(field, 'legalRegulatoryImplications') || '-'}</Box>
-                    <Box sx={{ px: 1, py: 0.8, color: 'text.secondary' }}>{getFieldMetaText(field, 'securityClassification') || '-'}</Box>
-                    <Box sx={{ px: 1, py: 0.8, color: 'text.secondary' }}>{getFieldMetaText(field, 'referenceTable') || '-'}</Box>
-                    <Box sx={{ px: 1, py: 0.8, color: 'text.secondary' }}>{getFieldMetaText(field, 'groupingTab') || '-'}</Box>
-                    <Box sx={{ px: 1, py: 0.8, color: 'text.secondary' }}>{getFieldMetaText(field, 'piiType') || '-'}</Box>
-                    <Box sx={{ px: 1, py: 0.8, color: 'text.secondary' }}>{getFieldMetaText(field, 'securityControls') || '-'}</Box>
+              )}
+
+              {mappingTab === 'field-object' && (
+                <Box sx={{ border: '1px solid rgba(255,255,255,0.12)', borderRadius: 1, overflowX: 'auto' }}>
+                  <Box sx={{ minWidth: 1600, display: 'grid', gridTemplateColumns: '1.2fr 1fr 1.2fr 1.2fr 1.4fr 1.4fr 1.4fr 1.2fr', backgroundColor: 'rgba(255,255,255,0.06)' }}>
+                    {['Field Name', 'Label', 'Mapped Object Scope', 'Mapped Table', 'Field Description', 'Application Usage', 'Business Rules', 'Data Type'].map((header) => (
+                      <Box key={header} sx={{ px: 1, py: 0.8, fontSize: '0.72rem', fontWeight: 700, color: 'text.secondary' }}>{header}</Box>
+                    ))}
                   </Box>
-                ))}
-              </Box>
+                  {applicationFields.length === 0 ? (
+                    <Box sx={{ p: 1.2 }}><Typography color="text.secondary" variant="body2">No field mappings available for this scope.</Typography></Box>
+                  ) : applicationFields.map((field: any, idx: number) => (
+                    <Box key={field.id} sx={{ minWidth: 1600, display: 'grid', gridTemplateColumns: '1.2fr 1fr 1.2fr 1.2fr 1.4fr 1.4fr 1.4fr 1.2fr', borderTop: idx === 0 ? 'none' : '1px solid rgba(255,255,255,0.08)' }}>
+                      <Box sx={{ px: 1, py: 0.8, fontFamily: 'monospace', fontWeight: 700 }}>{field.field_name || '-'}</Box>
+                      <Box sx={{ px: 1, py: 0.8, color: 'text.secondary' }}>{field.field_label || '-'}</Box>
+                      <Box sx={{ px: 1, py: 0.8 }}>{objectId}{selectedSubObject ? ` / ${selectedSubObject.name}` : ''}</Box>
+                      <Box sx={{ px: 1, py: 0.8, color: 'text.secondary' }}>{getApplicationTableValue(field) || '-'}</Box>
+                      <Box sx={{ px: 1, py: 0.8, color: 'text.secondary' }}>{getFieldMetaText(field, 'fieldDescription') || field.description || '-'}</Box>
+                      <Box sx={{ px: 1, py: 0.8, color: 'text.secondary' }}>{getFieldMetaText(field, 'applicationUsage') || '-'}</Box>
+                      <Box sx={{ px: 1, py: 0.8, color: 'text.secondary' }}>{getFieldMetaText(field, 'businessRules') || '-'}</Box>
+                      <Box sx={{ px: 1, py: 0.8 }}>{getFieldMetaText(field, 'fieldType') || field.data_type || '-'}</Box>
+                    </Box>
+                  ))}
+                </Box>
+              )}
+
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1.1 }}>
+                Table and field metadata input is not editable on this page.
+              </Typography>
             </CardContent>
           </Card>
         )}
