@@ -445,6 +445,76 @@ const enrichIncompleteMetadataFromFallback = (rows: any[]) => {
   });
 };
 
+const inferSecurityClassification = (fieldName: string) => {
+  const upper = fieldName.toUpperCase();
+  if (/NAME|TEL|SMTP|EMAIL|STRAS|PSTLZ|ORT|ADR|STCD|TAX|VAT/.test(upper)) {
+    return 'Confidential';
+  }
+  if (/KUNNR|BUKRS|AKONT|KTOKD|ZTERM|LOEVM|SPERR/.test(upper)) {
+    return 'Internal';
+  }
+  return 'Internal';
+};
+
+const inferPiiType = (fieldName: string) => {
+  const upper = fieldName.toUpperCase();
+  if (/NAME/.test(upper)) return 'Name';
+  if (/TEL|SMTP|EMAIL/.test(upper)) return 'Contact';
+  if (/STRAS|ORT|PSTLZ|REGIO|ADR/.test(upper)) return 'Address';
+  if (/STCD|TAX|VAT/.test(upper)) return 'Government ID';
+  return '';
+};
+
+const hydrateProposalMetadata = (rows: any[]) => {
+  return (rows || []).map((row: any) => {
+    const tableName = String(row?.tableName || row?.table || '').trim().toUpperCase();
+    const fieldName = String(row?.fieldName || '').trim().toUpperCase();
+    const label = String(row?.label || '').trim() || fieldName;
+    const fieldDescription = String(row?.fieldDescription || '').trim()
+      || `${label} field from SAP ${tableName || 'table'}.`;
+
+    const fieldType = String(row?.fieldType || '').trim() || 'CHAR';
+    const fieldLength = row?.fieldLength == null || row?.fieldLength === ''
+      ? (fieldType === 'CHAR' ? 40 : null)
+      : row.fieldLength;
+
+    const securityClassification = String(row?.securityClassification || '').trim()
+      || inferSecurityClassification(fieldName);
+    const piiType = String(row?.piiType || '').trim() || inferPiiType(fieldName);
+
+    const isCoreKey = fieldName === 'KUNNR' || fieldName === 'BUKRS';
+
+    return {
+      ...row,
+      label,
+      table: row?.table || tableName,
+      tableName: row?.tableName || tableName,
+      fieldDescription,
+      applicationUsage: String(row?.applicationUsage || '').trim()
+        || `Used in SAP S/4HANA customer master processing for ${tableName || 'the source table'}.`,
+      businessDefinition: String(row?.businessDefinition || '').trim()
+        || `${label} business attribute captured in ${tableName || 'the source table'}.`,
+      businessRules: String(row?.businessRules || '').trim()
+        || `Maintain according to SAP ${tableName || 'table'} domain and validation rules.`,
+      fieldType,
+      fieldLength,
+      decimalPlaces: row?.decimalPlaces == null || row?.decimalPlaces === '' ? null : row.decimalPlaces,
+      systemRequired: typeof row?.systemRequired === 'boolean' ? row.systemRequired : isCoreKey,
+      businessProcessRequired: typeof row?.businessProcessRequired === 'boolean' ? row.businessProcessRequired : isCoreKey,
+      suppressedField: !!row?.suppressedField,
+      legalRegulatoryImplications: String(row?.legalRegulatoryImplications || '').trim()
+        || (/STCD|TAX|VAT/.test(fieldName) ? 'May have tax/regulatory reporting impact.' : 'Review based on process and compliance context.'),
+      securityClassification,
+      referenceTable: String(row?.referenceTable || '').trim()
+        || (fieldName === 'KUNNR' ? 'KNA1' : ''),
+      groupingTab: String(row?.groupingTab || '').trim() || (tableName || 'General'),
+      piiType,
+      securityControls: String(row?.securityControls || '').trim()
+        || 'Role-based access, logging, and change audit controls.',
+    };
+  });
+};
+
 const countByTable = (rows: any[]) => {
   const counts = new Map<string, number>();
   for (const row of rows || []) {
@@ -1032,6 +1102,7 @@ router.post('/data-definitions/:definitionId/ai-generate-fields', requireAuth, a
     // Deterministic safety net for key SAP customer master tables when AI depth is constrained.
     proposals = applySapFallbackCoverage(proposals);
     proposals = enrichIncompleteMetadataFromFallback(proposals);
+    proposals = hydrateProposalMetadata(proposals);
 
     res.json(formatSingleResponse({
       proposals,
