@@ -71,11 +71,13 @@ const ObjectCdmPage: React.FC = () => {
   const { objectId = '' } = useParams();
   const {
     subObjects,
+    hasSubObjects,
     selectedSubObject,
     selectedSubObjectId,
     setSelectedSubObjectId,
     isLoading: isLoadingSubObjects,
   } = useObjectSubObjectSelection(objectId);
+  const scopeSubObjectId = hasSubObjects ? selectedSubObjectId : '';
   const [attributes, setAttributes] = React.useState<CDMAttribute[]>([]);
   const [relationships, setRelationships] = React.useState<CDMRelationship[]>([]);
   const [attributeModalOpen, setAttributeModalOpen] = React.useState(false);
@@ -90,19 +92,19 @@ const ObjectCdmPage: React.FC = () => {
   const [saveError, setSaveError] = React.useState('');
 
   const load = React.useCallback(async () => {
-    if (!selectedSubObjectId) {
+    if (hasSubObjects && !scopeSubObjectId) {
       setAttributes([]);
       setRelationships([]);
       return;
     }
 
     const res = await apiClient.get(`/api/cdm/${objectId}`, {
-      params: { subObjectId: selectedSubObjectId },
+      params: { subObjectId: scopeSubObjectId },
     });
     const payload = res.data?.data || {};
     setAttributes(Array.isArray(payload.attributes) ? payload.attributes.map(mapCDMAttribute) : []);
     setRelationships(Array.isArray(payload.relationships) ? payload.relationships.map(mapCDMRelationship) : []);
-  }, [objectId, selectedSubObjectId]);
+  }, [hasSubObjects, objectId, scopeSubObjectId]);
 
   React.useEffect(() => {
     load().catch(() => {
@@ -112,13 +114,13 @@ const ObjectCdmPage: React.FC = () => {
   }, [load]);
 
   const persistModel = async (nextAttributes: CDMAttribute[], nextRelationships: CDMRelationship[]) => {
-    if (!selectedSubObjectId) {
+    if (hasSubObjects && !scopeSubObjectId) {
       throw new Error('No sub-object selected');
     }
 
     const response = await apiClient.post(`/api/cdm/${objectId}`, {
       objectName: objectId,
-      subObjectId: selectedSubObjectId,
+      subObjectId: scopeSubObjectId,
       attributes: nextAttributes.map((attribute, index) => ({
         attributeName: attribute.attributeName,
         attributeDescription: attribute.attributeDescription || null,
@@ -192,7 +194,7 @@ const ObjectCdmPage: React.FC = () => {
   };
 
   const handleAutoBuild = async () => {
-    if (!selectedSubObjectId) {
+    if (hasSubObjects && !scopeSubObjectId) {
       setSaveError('Select a sub-object before running Auto-Build CDM.');
       return;
     }
@@ -201,7 +203,7 @@ const ObjectCdmPage: React.FC = () => {
     setSaveError('');
     try {
       const response = await apiClient.post(`/api/cdm/${objectId}/ai-proposal`, {
-        subObjectId: selectedSubObjectId,
+        subObjectId: scopeSubObjectId,
       });
       const payload = response.data?.data || {};
       setProposalAttributes(Array.isArray(payload.attributes) ? payload.attributes : []);
@@ -274,6 +276,8 @@ const ObjectCdmPage: React.FC = () => {
         <Stack spacing={2}>
           {isLoadingSubObjects ? (
             <Typography color="text.secondary" variant="body2">Loading sub-objects...</Typography>
+          ) : !hasSubObjects ? (
+            <Alert severity="info">This object has no sub-objects. CDM edits apply to the object root.</Alert>
           ) : subObjects.length === 0 ? (
             <Alert severity="info">Create sub-objects on the Sub Objects tab before editing CDM.</Alert>
           ) : (
@@ -302,7 +306,7 @@ const ObjectCdmPage: React.FC = () => {
                       setEditingAttribute(null);
                       setAttributeModalOpen(true);
                     }}
-                    disabled={!selectedSubObjectId}
+                    disabled={hasSubObjects && !scopeSubObjectId}
                     sx={{ textTransform: 'none' }}
                   >
                     + Add Attribute
@@ -311,7 +315,7 @@ const ObjectCdmPage: React.FC = () => {
                     variant="contained"
                     startIcon={<AutoAwesomeIcon />}
                     onClick={handleAutoBuild}
-                    disabled={isGeneratingProposal || !selectedSubObjectId}
+                    disabled={isGeneratingProposal || (hasSubObjects && !scopeSubObjectId)}
                     sx={{ textTransform: 'none' }}
                   >
                     {isGeneratingProposal ? 'Analyzing...' : 'Auto-Build CDM (AI)'}

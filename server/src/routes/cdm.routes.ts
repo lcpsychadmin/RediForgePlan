@@ -261,9 +261,6 @@ router.post('/:objectId', requireAuth, requireRole('analyst', 'admin'), async (r
 router.post('/:objectId/ai-proposal', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const subObjectId = String(req.body?.subObjectId || req.query?.subObjectId || '').trim() || null;
-    if (!subObjectId) {
-      throw new ApiError(400, 'subObjectId is required', 'MISSING_FIELD');
-    }
 
     const objectResult = await db.query(
       `SELECT id, object_id, description, process_area, default_gateway_id, default_router_id
@@ -282,7 +279,7 @@ router.post('/:objectId/ai-proposal', requireAuth, async (req: Request, res: Res
        FROM data_definitions dd
        JOIN applications a ON a.id = dd.application_id
        WHERE dd.global_object_id = $1
-         AND dd.object_sub_object_id = $2
+        AND (($2 IS NULL AND dd.object_sub_object_id IS NULL) OR dd.object_sub_object_id = $2)
        ORDER BY a.name ASC`,
       [req.params.objectId, subObjectId]
     );

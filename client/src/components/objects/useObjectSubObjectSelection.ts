@@ -75,6 +75,7 @@ const useObjectSubObjectSelection = (objectId: string) => {
 
   return {
     subObjects,
+    hasSubObjects: subObjects.length > 0,
     isLoading,
     reloadSubObjects: loadSubObjects,
     selectedSubObjectId,

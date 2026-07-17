@@ -10,6 +10,7 @@ const ObjectMetadataPage: React.FC = () => {
   const { objectId = '' } = useParams();
   const {
     subObjects,
+    hasSubObjects,
     selectedSubObject,
     selectedSubObjectId,
     setSelectedSubObjectId,
@@ -27,6 +28,8 @@ const ObjectMetadataPage: React.FC = () => {
 
             {isLoading ? (
               <Typography color="text.secondary" variant="body2">Loading sub-objects...</Typography>
+            ) : !hasSubObjects ? (
+              <Alert severity="info">This object has no sub-objects. Metadata sync can be run from the Applications tab at object scope.</Alert>
             ) : subObjects.length === 0 ? (
               <Alert severity="info">Create a sub-object before running metadata sync.</Alert>
             ) : (

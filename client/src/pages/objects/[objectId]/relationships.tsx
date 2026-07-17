@@ -11,25 +11,27 @@ const ObjectRelationshipsPage: React.FC = () => {
   const { objectId = '' } = useParams();
   const {
     subObjects,
+    hasSubObjects,
     selectedSubObject,
     selectedSubObjectId,
     setSelectedSubObjectId,
     isLoading: isLoadingSubObjects,
   } = useObjectSubObjectSelection(objectId);
   const [relationships, setRelationships] = React.useState<any[]>([]);
+  const scopeSubObjectId = hasSubObjects ? selectedSubObjectId : '';
 
   React.useEffect(() => {
-    if (!selectedSubObjectId) {
+    if (hasSubObjects && !scopeSubObjectId) {
       setRelationships([]);
       return;
     }
 
-    apiClient.get(`/api/cdm/${objectId}`, { params: { subObjectId: selectedSubObjectId } })
+    apiClient.get(`/api/cdm/${objectId}`, { params: { subObjectId: scopeSubObjectId } })
       .then((res) => {
         setRelationships(res.data?.data?.relationships || []);
       })
       .catch(() => setRelationships([]));
-  }, [objectId, selectedSubObjectId]);
+  }, [hasSubObjects, objectId, scopeSubObjectId]);
 
   return (
     <Layout>
@@ -38,6 +40,8 @@ const ObjectRelationshipsPage: React.FC = () => {
 
         {isLoadingSubObjects ? (
           <Typography color="text.secondary" variant="body2" sx={{ mb: 2 }}>Loading sub-objects...</Typography>
+        ) : !hasSubObjects ? (
+          <Alert severity="info" sx={{ mb: 2 }}>This object has no sub-objects. Relationships are shown at object root scope.</Alert>
         ) : subObjects.length === 0 ? (
           <Alert severity="info" sx={{ mb: 2 }}>Create sub-objects on the Sub Objects tab before defining relationships.</Alert>
         ) : (
