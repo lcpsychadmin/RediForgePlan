@@ -465,6 +465,38 @@ const inferPiiType = (fieldName: string) => {
   return '';
 };
 
+const inferBusinessDomain = (fieldName: string) => {
+  const upper = fieldName.toUpperCase();
+  if (/KUNNR|KTOKD|AKONT|BUKRS|ALTKN|KNRZE/.test(upper)) return 'customer-accounting integration and postings';
+  if (/ZTERM|ZWELS|ZAHLS|FDGRV|DUEFL|XVERR|WAKON/.test(upper)) return 'payment processing and collections';
+  if (/SPERR|LOEVM|AUFSD|NODEL|TOGRU/.test(upper)) return 'lifecycle status and transaction controls';
+  if (/KLIMK|CRBLB|CIVVE|FDLEV/.test(upper)) return 'credit and risk management';
+  if (/NAME|SORTL|TITLE|ANRED/.test(upper)) return 'customer identification and search';
+  if (/STRAS|ORT|PSTLZ|REGIO|LAND|ADR/.test(upper)) return 'address validation and correspondence';
+  if (/TEL|SMTP|EMAIL|FAX/.test(upper)) return 'customer communications';
+  if (/STCD|STCEG|TAX|VAT/.test(upper)) return 'tax determination and statutory reporting';
+  if (/BRAN|BRSCH|KUKLA|KONZS/.test(upper)) return 'customer segmentation and analytics';
+  return 'customer master processing';
+};
+
+const isGenericApplicationUsage = (value: string) => {
+  const normalized = value.trim();
+  if (!normalized) return true;
+  return /^used in sap s\/4hana customer master processing for\s+[a-z0-9_]+\.?$/i.test(normalized);
+};
+
+const isGenericBusinessDefinition = (value: string) => {
+  const normalized = value.trim();
+  if (!normalized) return true;
+  return /business attribute captured in\s+[a-z0-9_]+\.?$/i.test(normalized);
+};
+
+const isGenericBusinessRules = (value: string) => {
+  const normalized = value.trim();
+  if (!normalized) return true;
+  return /^maintain according to sap\s+[a-z0-9_]+\s+domain and validation rules\.?$/i.test(normalized);
+};
+
 const hydrateProposalMetadata = (rows: any[]) => {
   return (rows || []).map((row: any) => {
     const tableName = String(row?.tableName || row?.table || '').trim().toUpperCase();
@@ -486,6 +518,20 @@ const hydrateProposalMetadata = (rows: any[]) => {
     const piiType = String(row?.piiType || '').trim() || inferPiiType(fieldName);
 
     const isCoreKey = fieldName === 'KUNNR' || fieldName === 'BUKRS';
+    const businessDomain = inferBusinessDomain(fieldName);
+    const applicationUsageExisting = String(row?.applicationUsage || '');
+    const businessDefinitionExisting = String(row?.businessDefinition || '');
+    const businessRulesExisting = String(row?.businessRules || '');
+
+    const applicationUsage = isGenericApplicationUsage(applicationUsageExisting)
+      ? `${label} is used in ${tableName || 'SAP'} for ${businessDomain}.`
+      : applicationUsageExisting.trim();
+    const businessDefinition = isGenericBusinessDefinition(businessDefinitionExisting)
+      ? `${label} represents a ${businessDomain} attribute in ${tableName || 'the SAP source table'}.`
+      : businessDefinitionExisting.trim();
+    const businessRules = isGenericBusinessRules(businessRulesExisting)
+      ? `${label} must comply with SAP domain constraints, required-field checks, and integration validation for ${businessDomain}.`
+      : businessRulesExisting.trim();
 
     return {
       ...row,
@@ -493,12 +539,9 @@ const hydrateProposalMetadata = (rows: any[]) => {
       table: row?.table || tableName,
       tableName: row?.tableName || tableName,
       fieldDescription,
-      applicationUsage: String(row?.applicationUsage || '').trim()
-        || `Used in SAP S/4HANA customer master processing for ${tableName || 'the source table'}.`,
-      businessDefinition: String(row?.businessDefinition || '').trim()
-        || `${label} business attribute captured in ${tableName || 'the source table'}.`,
-      businessRules: String(row?.businessRules || '').trim()
-        || `Maintain according to SAP ${tableName || 'table'} domain and validation rules.`,
+      applicationUsage,
+      businessDefinition,
+      businessRules,
       fieldType,
       fieldLength,
       decimalPlaces: row?.decimalPlaces == null || row?.decimalPlaces === '' ? null : row.decimalPlaces,
