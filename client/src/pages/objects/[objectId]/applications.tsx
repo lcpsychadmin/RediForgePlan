@@ -738,8 +738,8 @@ const ObjectApplicationsPage: React.FC = () => {
                     <Box sx={{ px: 1, py: 0.8, color: 'text.secondary' }}>{getFieldMetaText(field, 'businessDefinition') || '-'}</Box>
                     <Box sx={{ px: 1, py: 0.8, color: 'text.secondary' }}>{getFieldMetaText(field, 'businessRules') || '-'}</Box>
                     <Box sx={{ px: 1, py: 0.8 }}>{getFieldMetaText(field, 'fieldType') || field.data_type || '-'}</Box>
-                    <Box sx={{ px: 1, py: 0.8 }}>{getFieldMetaText(field, 'fieldLength') || field.length ?? '-'}</Box>
-                    <Box sx={{ px: 1, py: 0.8 }}>{getFieldMetaText(field, 'decimalPlaces') || field.decimals ?? '-'}</Box>
+                    <Box sx={{ px: 1, py: 0.8 }}>{getFieldMetaText(field, 'fieldLength') || (field.length ?? '-')}</Box>
+                    <Box sx={{ px: 1, py: 0.8 }}>{getFieldMetaText(field, 'decimalPlaces') || (field.decimals ?? '-')}</Box>
                     <Box sx={{ px: 1, py: 0.8, textAlign: 'center', color: getFieldMetaBoolean(field, 'systemRequired') || field.is_required ? '#ffca28' : 'text.disabled' }}>{getFieldMetaBoolean(field, 'systemRequired') || field.is_required ? '●' : '○'}</Box>
                     <Box sx={{ px: 1, py: 0.8, textAlign: 'center', color: getFieldMetaBoolean(field, 'businessProcessRequired') || field.business_process_required ? '#ef5350' : 'text.disabled' }}>{getFieldMetaBoolean(field, 'businessProcessRequired') || field.business_process_required ? '●' : '○'}</Box>
                     <Box sx={{ px: 1, py: 0.8, textAlign: 'center', color: getFieldMetaBoolean(field, 'suppressedField') ? '#ff9800' : 'text.disabled' }}>{getFieldMetaBoolean(field, 'suppressedField') ? '●' : '○'}</Box>
