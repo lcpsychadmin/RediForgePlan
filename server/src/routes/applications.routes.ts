@@ -265,6 +265,72 @@ const mergeUniqueProposals = (first: any[], second: any[]) => {
   return merged;
 };
 
+const SAP_TABLE_FALLBACK_FIELDS: Record<string, string[]> = {
+  KNA1: [
+    'KUNNR', 'LAND1', 'NAME1', 'NAME2', 'ORT01', 'PSTLZ', 'STRAS', 'REGIO', 'SPRAS', 'SORTL',
+    'TELF1', 'TELFX', 'SMTP_ADDR', 'STCD1', 'STCD2', 'KTOKD', 'KUKLA', 'KONZS', 'BRSCH', 'BRAN1',
+    'BRAN2', 'BRAN3', 'BAHNE', 'BAHNS', 'LIFNR', 'LOEVM', 'SPERR', 'AUFSD', 'BAPIZIP', 'ADRNR',
+  ],
+  KNB1: [
+    'KUNNR', 'BUKRS', 'AKONT', 'ZTERM', 'ZWELS', 'ZAHLS', 'ALTKN', 'FDGRV', 'VZSKZ', 'BUSAB',
+    'ZUAWA', 'TOGRU', 'LOEVM', 'SPERR', 'XZAHL', 'REPRF', 'HBKID', 'HZUOR', 'MGRUP', 'BEGRU',
+    'EDIKG', 'PERNR', 'NODEL', 'FRGRP', 'CIVVE', 'FDLEV',
+  ],
+};
+
+const buildFallbackProposal = (tableName: string, fieldName: string, index: number) => ({
+  id: `fallback-${tableName}-${fieldName}-${index}`,
+  fieldName,
+  label: fieldName,
+  table: tableName,
+  tableName,
+  fieldDescription: `Fallback SAP field for ${tableName}.`,
+  applicationUsage: '',
+  businessDefinition: '',
+  businessRules: '',
+  fieldType: '',
+  fieldLength: null,
+  decimalPlaces: null,
+  systemRequired: false,
+  businessProcessRequired: false,
+  suppressedField: false,
+  legalRegulatoryImplications: '',
+  securityClassification: '',
+  referenceTable: '',
+  groupingTab: '',
+  piiType: '',
+  securityControls: '',
+});
+
+const applySapFallbackCoverage = (rows: any[]) => {
+  let proposals = Array.isArray(rows) ? rows : [];
+  const counts = countByTable(proposals);
+
+  Object.entries(SAP_TABLE_FALLBACK_FIELDS).forEach(([tableName, fallbackFields]) => {
+    const currentCount = counts.get(tableName) || 0;
+    if (currentCount >= 20) {
+      return;
+    }
+
+    const existing = new Set(
+      proposals
+        .filter((row) => String(row?.tableName || row?.table || '').trim().toUpperCase() === tableName)
+        .map((row) => String(row?.fieldName || '').trim().toUpperCase())
+        .filter(Boolean)
+    );
+
+    const missing = fallbackFields.filter((fieldName) => !existing.has(fieldName));
+    if (!missing.length) {
+      return;
+    }
+
+    const fallbackRows = missing.map((fieldName, index) => buildFallbackProposal(tableName, fieldName, index));
+    proposals = mergeUniqueProposals(proposals, fallbackRows);
+  });
+
+  return proposals;
+};
+
 const countByTable = (rows: any[]) => {
   const counts = new Map<string, number>();
   for (const row of rows || []) {
@@ -848,6 +914,9 @@ router.post('/data-definitions/:definitionId/ai-generate-fields', requireAuth, a
         // Keep current proposals if table-level enrichment times out.
       }
     }
+
+    // Deterministic safety net for key SAP customer master tables when AI depth is constrained.
+    proposals = applySapFallbackCoverage(proposals);
 
     res.json(formatSingleResponse({
       proposals,
