@@ -265,6 +265,18 @@ const mergeUniqueProposals = (first: any[], second: any[]) => {
   return merged;
 };
 
+const countByTable = (rows: any[]) => {
+  const counts = new Map<string, number>();
+  for (const row of rows || []) {
+    const table = String(row?.tableName || row?.table || '').trim().toUpperCase();
+    if (!table) {
+      continue;
+    }
+    counts.set(table, (counts.get(table) || 0) + 1);
+  }
+  return counts;
+};
+
 const isProviderTimeoutError = (error: any) => {
   return error instanceof ApiError && error.code === 'AI_PROVIDER_TIMEOUT';
 };
@@ -648,6 +660,8 @@ router.post('/data-definitions/:definitionId/ai-generate-fields', requireAuth, a
       'Do not include markdown, prose, comments, or extra wrapper keys.',
       'Prefer grounded tableName values from provided metadata; when unknown, return an empty string for tableName.',
       'Keep fieldName unique per tableName when possible.',
+      'Prioritize field coverage over verbose descriptions.',
+      'Keep narrative fields concise; if uncertain, return empty strings for optional narrative attributes.',
     ].join('\n');
 
     const compactFields = compactMetadataContext(fieldsResult.rows);
@@ -753,6 +767,68 @@ router.post('/data-definitions/:definitionId/ai-generate-fields', requireAuth, a
           throw error;
         }
         // If enrichment times out, still return first-pass proposals.
+      }
+    }
+
+    // Table-level enrichment pass: if important tables still have thin coverage, request additional missing fields per table.
+    const tableCounts = countByTable(proposals);
+    const minFieldsPerTable = 24;
+    const thinTables = discoveredTables
+      .map((table) => String(table || '').trim().toUpperCase())
+      .filter(Boolean)
+      .filter((table) => (tableCounts.get(table) || 0) < minFieldsPerTable)
+      .slice(0, 2);
+
+    for (const tableName of thinTables) {
+      const existingForTable = proposals
+        .filter((row: any) => String(row.tableName || row.table || '').trim().toUpperCase() === tableName)
+        .map((row: any) => String(row.fieldName || '').trim())
+        .filter(Boolean);
+
+      const needed = Math.max(10, minFieldsPerTable - existingForTable.length);
+      const tableExpansionPrompt = [
+        `Data Object: ${definition.object_id}`,
+        `Application: ${definition.application_name}`,
+        `Target table: ${tableName}`,
+        `Need at least ${needed} ADDITIONAL missing fields for this table.`,
+        '',
+        'Existing fields already captured for this table (do not repeat):',
+        JSON.stringify(existingForTable, null, 2),
+        '',
+        'Return only additional fields for this table.',
+        'Use concise output to maximize field count.',
+        'Allowed brevity rule: keep label = fieldName and optional narrative fields empty when needed.',
+      ].join('\n');
+
+      try {
+        const tableResult = await aiExecutionService.execute({
+          gatewayId: definition.default_gateway_id || undefined,
+          routerId: definition.default_router_id || undefined,
+          payload: {
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: tableExpansionPrompt },
+            ],
+            temperature: 0.1,
+            maxTokens: 650,
+            timeoutMs: 6500,
+          },
+        });
+
+        const tableParsed = parseAiJson(extractAiText(tableResult));
+        const tableProposals = Array.isArray(tableParsed)
+          ? tableParsed
+            .map((row: any, index: number) => normalizeAiFieldProposal(row, index + proposals.length))
+            .filter((row: any) => row.fieldName)
+            .map((row: any) => ({ ...row, tableName: row.tableName || tableName, table: row.table || tableName }))
+          : [];
+
+        proposals = mergeUniqueProposals(proposals, tableProposals);
+      } catch (error) {
+        if (!isProviderTimeoutError(error)) {
+          throw error;
+        }
+        // Keep current proposals if table-level enrichment times out.
       }
     }
 
