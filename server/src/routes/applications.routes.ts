@@ -936,32 +936,32 @@ router.post('/data-definitions/:definitionId/ai-generate-fields', requireAuth, a
     }
 
     const systemPrompt = [
-      'You are enhancing the AI prompt for the data definition for the selected Data Object, Sub-object, and Application inside RediForge.',
-      'Your task: Return the FULL physical table definition for the selected application and sub-object, including ALL fields from ALL relevant tables.',
+      'You are enhancing the data definition for the selected Data Object, Sub-object, and Application inside RediForge.',
+      'Return the FULL physical table definition for the selected application and sub-object, including ALL relevant fields from ALL relevant tables.',
       '',
-      'Context you must use:',
-      '- Data Object',
-      '- Sub-object (if null, treat the Data Object as the sub-object)',
-      '- Application',
-      '- Process Area',
-      '- Include ALL fields from ALL tables related to this sub-object/application',
-      '- Include technical, audit, system, reference, and relationship fields',
-      '- Include fields even if rarely used',
-      '- Do NOT invent table names; infer from application conventions or industry documentation',
-      '- If Databricks metadata is available, use it as grounding',
-      '- If application-native metadata exists, use it as grounding',
-      '- If CDM attributes exist, use them to infer missing fields',
+      'Required quality rules for every field object:',
+      '1. Replace generic descriptions with application-specific detail.',
+      '2. Replace generic business rules with rules that match the application validation logic.',
+      '3. Replace generic application usage with usage tied to actual application processes.',
+      '4. Add regulatory implications based on process area (for example SOX, GDPR, HIPAA, PCI, IRS, SEC) when relevant.',
+      '5. Add security classifications aligned to enterprise data governance standards.',
+      '6. Add PII classifications based on field sensitivity.',
+      '7. Add security controls aligned to IAM, RBAC, audit, and logging requirements.',
+      '8. Add reference tables and relationship context where applicable.',
+      '9. Add grouping/tab metadata.',
+      '10. Expand to enterprise-grade detail while staying concise and concrete.',
+      '',
+      'Grounding rules:',
+      '- Use the provided object/sub-object/application/process-area context.',
+      '- Use provided metadata and CDM artifacts as grounding.',
+      '- Include technical, audit, system, reference, and relationship fields.',
+      '- Keep fieldName unique per tableName where possible.',
+      '- Do not invent impossible table names; prefer grounded tables from context.',
       '',
       'Output format:',
-      'Return JSON only as an array of field objects with this exact shape:',
+      'Return ONLY JSON as an array of objects with this exact shape:',
       '[{"fieldName":string,"label":string,"tableName":string,"fieldDescription":string,"applicationUsage":string,"businessDefinition":string,"businessRules":string,"fieldType":string,"fieldLength":number|null,"decimalPlaces":number|null,"systemRequired":boolean,"businessProcessRequired":boolean,"suppressedField":boolean,"legalRegulatoryImplications":string,"securityClassification":string,"referenceTable":string,"groupingTab":string,"piiType":string,"securityControls":string}]',
-      '',
-      'Goal: Return the COMPLETE list of fields for this application/sub-object, not a semantic subset.',
-      'Do not include markdown, prose, comments, or extra wrapper keys.',
-      'Prefer grounded tableName values from provided metadata; when unknown, return an empty string for tableName.',
-      'Keep fieldName unique per tableName when possible.',
-      'Prioritize field coverage over verbose descriptions.',
-      'Keep narrative fields concise; if uncertain, return empty strings for optional narrative attributes.',
+      'Do not include markdown, prose, comments, or wrapper keys.',
     ].join('\n');
 
     const compactFields = compactMetadataContext(fieldsResult.rows);
@@ -1046,8 +1046,8 @@ router.post('/data-definitions/:definitionId/ai-generate-fields', requireAuth, a
         JSON.stringify(firstPassProposals.map((row: any) => ({ tableName: row.tableName || row.table || '', fieldName: row.fieldName })), null, 2),
         '',
         'Return ADDITIONAL missing fields only for the target tables.',
-        'Prioritize standard operational, status, address, tax, credit, sales area, company code, audit, and integration fields.',
-        'Keep descriptions concise so you can return many fields.',
+        'Ensure all narrative and governance attributes are application-specific and non-generic.',
+        'Prioritize operational, status, address, tax, credit, company code, audit, integration, and control fields.',
       ].join('\n');
 
       try {
@@ -1109,8 +1109,8 @@ router.post('/data-definitions/:definitionId/ai-generate-fields', requireAuth, a
         JSON.stringify(existingForTable, null, 2),
         '',
         'Return only additional fields for this table.',
-        'Use concise output to maximize field count.',
-        'Allowed brevity rule: keep label = fieldName and optional narrative fields empty when needed.',
+        'Do not use generic placeholder narratives. Each narrative field must be specific to this table/field and process usage.',
+        'Include regulatory, security classification, PII, security controls, reference table, and grouping metadata for each returned field.',
       ].join('\n');
 
       try {
