@@ -265,6 +265,10 @@ const mergeUniqueProposals = (first: any[], second: any[]) => {
   return merged;
 };
 
+const isProviderTimeoutError = (error: any) => {
+  return error instanceof ApiError && error.code === 'AI_PROVIDER_TIMEOUT';
+};
+
 const resolveLegacyFieldSubObjectId = async (definitionId: string, subObjectId: string | null | undefined) => {
   const trimmed = String(subObjectId || '').trim();
   if (!trimmed) {
@@ -671,7 +675,7 @@ router.post('/data-definitions/:definitionId/ai-generate-fields', requireAuth, a
       'Instruction: Return the COMPLETE field list for all relevant tables in this application/sub-object scope.',
     ].join('\n');
 
-    const executionResult = await aiExecutionService.execute({
+    const runAiProposal = async (maxTokens: number, timeoutMs: number) => aiExecutionService.execute({
       gatewayId: definition.default_gateway_id || undefined,
       routerId: definition.default_router_id || undefined,
       payload: {
@@ -680,10 +684,20 @@ router.post('/data-definitions/:definitionId/ai-generate-fields', requireAuth, a
           { role: 'user', content: userPrompt },
         ],
         temperature: 0.1,
-        maxTokens: 900,
-        timeoutMs: 16000,
+        maxTokens,
+        timeoutMs,
       },
     });
+
+    let executionResult;
+    try {
+      executionResult = await runAiProposal(800, 20000);
+    } catch (error) {
+      if (!isProviderTimeoutError(error)) {
+        throw error;
+      }
+      executionResult = await runAiProposal(450, 12000);
+    }
 
     const aiText = extractAiText(executionResult);
     const parsed = parseAiJson(aiText);
@@ -713,26 +727,33 @@ router.post('/data-definitions/:definitionId/ai-generate-fields', requireAuth, a
         'Keep descriptions concise so you can return many fields.',
       ].join('\n');
 
-      const expansionResult = await aiExecutionService.execute({
-        gatewayId: definition.default_gateway_id || undefined,
-        routerId: definition.default_router_id || undefined,
-        payload: {
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: expansionUserPrompt },
-          ],
-          temperature: 0.1,
-          maxTokens: 900,
-          timeoutMs: 9000,
-        },
-      });
+      try {
+        const expansionResult = await aiExecutionService.execute({
+          gatewayId: definition.default_gateway_id || undefined,
+          routerId: definition.default_router_id || undefined,
+          payload: {
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: expansionUserPrompt },
+            ],
+            temperature: 0.1,
+            maxTokens: 650,
+            timeoutMs: 7000,
+          },
+        });
 
-      const expansionParsed = parseAiJson(extractAiText(expansionResult));
-      const secondPassProposals = Array.isArray(expansionParsed)
-        ? expansionParsed.map((row: any, index: number) => normalizeAiFieldProposal(row, index + firstPassProposals.length)).filter((row: any) => row.fieldName)
-        : [];
+        const expansionParsed = parseAiJson(extractAiText(expansionResult));
+        const secondPassProposals = Array.isArray(expansionParsed)
+          ? expansionParsed.map((row: any, index: number) => normalizeAiFieldProposal(row, index + firstPassProposals.length)).filter((row: any) => row.fieldName)
+          : [];
 
-      proposals = mergeUniqueProposals(firstPassProposals, secondPassProposals);
+        proposals = mergeUniqueProposals(firstPassProposals, secondPassProposals);
+      } catch (error) {
+        if (!isProviderTimeoutError(error)) {
+          throw error;
+        }
+        // If enrichment times out, still return first-pass proposals.
+      }
     }
 
     res.json(formatSingleResponse({
