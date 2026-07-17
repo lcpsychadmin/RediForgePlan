@@ -97,6 +97,73 @@ const unwrapProposalEnvelope = (parsed: any) => {
   return null;
 };
 
+const recoverPartialArray = (input: string) => {
+  const source = String(input || '').trim();
+  if (!source.startsWith('[')) {
+    return null;
+  }
+
+  let inString = false;
+  let escaped = false;
+  let braceDepth = 0;
+  let bracketDepth = 0;
+  let lastTopLevelObjectEnd = -1;
+
+  for (let i = 0; i < source.length; i += 1) {
+    const ch = source[i];
+
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (ch === '\\') {
+        escaped = true;
+      } else if (ch === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (ch === '"') {
+      inString = true;
+      continue;
+    }
+
+    if (ch === '[') {
+      bracketDepth += 1;
+      continue;
+    }
+
+    if (ch === ']') {
+      bracketDepth -= 1;
+      continue;
+    }
+
+    if (ch === '{') {
+      braceDepth += 1;
+      continue;
+    }
+
+    if (ch === '}') {
+      braceDepth -= 1;
+      if (braceDepth === 0 && bracketDepth === 1) {
+        lastTopLevelObjectEnd = i;
+      }
+    }
+  }
+
+  if (lastTopLevelObjectEnd < 0) {
+    return null;
+  }
+
+  const recovered = `${source.slice(0, lastTopLevelObjectEnd + 1)}]`;
+  try {
+    const parsed = JSON.parse(recovered);
+    return Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+};
+
 const parseAiJson = (text: string) => {
   const trimmed = String(text || '').trim();
   if (!trimmed) {
@@ -124,6 +191,11 @@ const parseAiJson = (text: string) => {
       }
     } catch {
       // Try the next candidate form.
+    }
+
+    const recovered = recoverPartialArray(candidate);
+    if (Array.isArray(recovered) && recovered.length > 0) {
+      return recovered;
     }
   }
 
