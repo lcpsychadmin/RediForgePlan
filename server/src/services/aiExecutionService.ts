@@ -12,6 +12,16 @@ type AiExecutionContext = {
   payload?: Record<string, unknown>;
 };
 
+const getPayloadNumber = (payload: Record<string, unknown>, ...keys: string[]) => {
+  for (const key of keys) {
+    const value = payload[key];
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return value;
+    }
+  }
+  return null;
+};
+
 type AiSelectionResult = {
   model: any;
   gateway: any | null;
@@ -484,28 +494,44 @@ class AiExecutionService {
       throw new ApiError(400, 'OpenAI model is missing API key configuration', 'OPENAI_KEY_MISSING');
     }
 
+    const payloadMaxTokens = getPayloadNumber(payload, 'maxTokens', 'max_tokens');
+    const payloadTimeoutMs = getPayloadNumber(payload, 'timeoutMs', 'timeout_ms');
+    const effectiveMaxTokens = payloadMaxTokens
+      ? Math.max(1, Math.floor(model.max_tokens ? Math.min(payloadMaxTokens, model.max_tokens) : payloadMaxTokens))
+      : model.max_tokens;
+    const timeoutMs = payloadTimeoutMs ? Math.max(5000, Math.floor(payloadTimeoutMs)) : 22000;
+
     const endpoint = model.endpoint_url || 'https://api.openai.com/v1/chat/completions';
     const body: Record<string, unknown> = {
       model: model.model_key,
       messages: Array.isArray(payload.messages) ? payload.messages : [],
     };
 
-    if (model.max_tokens) {
-      body.max_tokens = model.max_tokens;
+    if (effectiveMaxTokens) {
+      body.max_tokens = effectiveMaxTokens;
     }
 
     if (typeof payload.temperature === 'number') {
       body.temperature = payload.temperature;
     }
 
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify(body),
-    });
+    let response: globalThis.Response;
+    try {
+      response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+    } catch (error: any) {
+      if (error?.name === 'TimeoutError' || error?.name === 'AbortError') {
+        throw new ApiError(504, 'AI provider request timed out before completion', 'AI_PROVIDER_TIMEOUT');
+      }
+      throw error;
+    }
 
     const responseJson: any = await response.json().catch(() => ({}));
     if (!response.ok) {
@@ -540,11 +566,18 @@ class AiExecutionService {
       throw new ApiError(400, 'Anthropic model is missing API key configuration', 'ANTHROPIC_KEY_MISSING');
     }
 
+    const payloadMaxTokens = getPayloadNumber(payload, 'maxTokens', 'max_tokens');
+    const payloadTimeoutMs = getPayloadNumber(payload, 'timeoutMs', 'timeout_ms');
+    const effectiveMaxTokens = payloadMaxTokens
+      ? Math.max(1, Math.floor(model.max_tokens ? Math.min(payloadMaxTokens, model.max_tokens) : payloadMaxTokens))
+      : (model.max_tokens || 2048);
+    const timeoutMs = payloadTimeoutMs ? Math.max(5000, Math.floor(payloadTimeoutMs)) : 22000;
+
     const endpoint = model.endpoint_url || 'https://api.anthropic.com/v1/messages';
     const messages = Array.isArray(payload.messages) ? payload.messages : [];
     const body: Record<string, unknown> = {
       model: model.model_key,
-      max_tokens: model.max_tokens || 2048,
+      max_tokens: effectiveMaxTokens,
       messages,
     };
 
@@ -552,15 +585,24 @@ class AiExecutionService {
       body.temperature = payload.temperature;
     }
 
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify(body),
-    });
+    let response: globalThis.Response;
+    try {
+      response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+    } catch (error: any) {
+      if (error?.name === 'TimeoutError' || error?.name === 'AbortError') {
+        throw new ApiError(504, 'AI provider request timed out before completion', 'AI_PROVIDER_TIMEOUT');
+      }
+      throw error;
+    }
 
     const responseJson: any = await response.json().catch(() => ({}));
     if (!response.ok) {
@@ -590,6 +632,9 @@ class AiExecutionService {
   }
 
   private async executeDatabricksChatCompletion(model: ModelWithCapabilities, payload: Record<string, unknown>) {
+      const payloadTimeoutMs = getPayloadNumber(payload, 'timeoutMs', 'timeout_ms');
+      const timeoutMs = payloadTimeoutMs ? Math.max(5000, Math.floor(payloadTimeoutMs)) : 22000;
+
     const apiKey = model.api_key;
     if (!apiKey) {
       throw new ApiError(400, 'Databricks model is missing API key configuration', 'DATABRICKS_KEY_MISSING');
@@ -612,14 +657,23 @@ class AiExecutionService {
       body.temperature = payload.temperature;
     }
 
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify(body),
-    });
+    let response: globalThis.Response;
+    try {
+      response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+    } catch (error: any) {
+      if (error?.name === 'TimeoutError' || error?.name === 'AbortError') {
+        throw new ApiError(504, 'AI provider request timed out before completion', 'AI_PROVIDER_TIMEOUT');
+      }
+      throw error;
+    }
 
     const responseJson: any = await response.json().catch(() => ({}));
     if (!response.ok) {

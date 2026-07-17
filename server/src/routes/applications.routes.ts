@@ -71,6 +71,22 @@ const normalizeAiFieldProposal = (row: any, index: number) => ({
   securityControls: String(row?.securityControls || row?.security_controls || '').trim(),
 });
 
+const compactMetadataContext = (fields: any[]) => {
+  const limited = Array.isArray(fields) ? fields.slice(0, 120) : [];
+  return limited.map((field) => ({
+    field_name: field?.field_name || null,
+    field_label: field?.field_label || null,
+    data_type: field?.data_type || null,
+    length: field?.length ?? null,
+    decimals: field?.decimals ?? null,
+    is_key: !!field?.is_key,
+    is_required: !!field?.is_required,
+    table_name: field?.field_metadata?.tableName || field?.field_metadata?.table || null,
+    source_type: field?.field_metadata?.sourceType || null,
+    sort_order: field?.sort_order ?? null,
+  }));
+};
+
 const resolveLegacyFieldSubObjectId = async (definitionId: string, subObjectId: string | null | undefined) => {
   const trimmed = String(subObjectId || '').trim();
   if (!trimmed) {
@@ -452,6 +468,10 @@ router.post('/data-definitions/:definitionId/ai-generate-fields', requireAuth, a
       'Keep fieldName unique per tableName when possible.',
     ].join('\n');
 
+    const compactFields = compactMetadataContext(fieldsResult.rows);
+    const compactCdmAttributes = (cdmAttributes || []).slice(0, 80);
+    const compactCdmRelationships = (cdmRelationships || []).slice(0, 80);
+
     const userPrompt = [
       `Data Object: ${definition.object_id}`,
       `Sub-object: ${definition.sub_object_name || 'null'} (if null, treat Data Object "${definition.object_id}" as the sub-object)`,
@@ -461,14 +481,14 @@ router.post('/data-definitions/:definitionId/ai-generate-fields', requireAuth, a
       `Application Version: ${definition.version || ''}`,
       `Data Object Description: ${definition.object_description || ''}`,
       '',
-      'Databricks/Application-native grounded metadata (from existing data definition fields and metadata):',
-      JSON.stringify(fieldsResult.rows, null, 2),
+      'Grounded metadata sample (existing data definition fields):',
+      JSON.stringify(compactFields, null, 2),
       '',
       'CDM attributes for inference of missing fields:',
-      JSON.stringify(cdmAttributes, null, 2),
+      JSON.stringify(compactCdmAttributes, null, 2),
       '',
       'CDM relationships for reference and relationship field inference:',
-      JSON.stringify(cdmRelationships, null, 2),
+      JSON.stringify(compactCdmRelationships, null, 2),
       '',
       'Instruction: Return the COMPLETE field list for all relevant tables in this application/sub-object scope.',
     ].join('\n');
@@ -481,7 +501,9 @@ router.post('/data-definitions/:definitionId/ai-generate-fields', requireAuth, a
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt },
         ],
-        temperature: 0.2,
+        temperature: 0.1,
+        maxTokens: 1200,
+        timeoutMs: 22000,
       },
     });
 
