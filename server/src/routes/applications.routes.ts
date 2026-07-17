@@ -465,6 +465,41 @@ const inferPiiType = (fieldName: string) => {
   return '';
 };
 
+const isSapApplication = (applicationName: string, vendor: string, version: string) => {
+  const composite = `${applicationName} ${vendor} ${version}`.toLowerCase();
+  return /\bsap\b|s\/4|s4hana|s4|ecc/.test(composite);
+};
+
+const filterToSelectedApplicationScope = (
+  rows: any[],
+  options: { isSap: boolean; groundedTables: Set<string> }
+) => {
+  const sapPrefixes = ['KNA', 'KNB', 'KNV', 'LFA', 'MARA', 'BKPF', 'BSEG', 'T001', 'ADRC'];
+  const grounded = options.groundedTables;
+
+  return (rows || []).filter((row: any) => {
+    const rawTable = String(row?.tableName || row?.table || '').trim();
+    if (!rawTable) {
+      return true;
+    }
+
+    const table = rawTable.toUpperCase();
+
+    // If we already have grounded tables for this selected application, keep only grounded tables.
+    if (grounded.size > 0) {
+      return grounded.has(table);
+    }
+
+    if (options.isSap) {
+      // SAP transparent/master tables are typically uppercase alphanumeric identifiers.
+      return /^[A-Z][A-Z0-9_]{2,}$/.test(table);
+    }
+
+    // For non-SAP applications, remove common SAP table families.
+    return !sapPrefixes.some((prefix) => table.startsWith(prefix));
+  });
+};
+
 const inferBusinessDomain = (fieldName: string) => {
   const upper = fieldName.toUpperCase();
   if (/KUNNR|KTOKD|AKONT|BUKRS|ALTKN|KNRZE/.test(upper)) return 'customer-accounting integration and postings';
@@ -965,6 +1000,16 @@ router.post('/data-definitions/:definitionId/ai-generate-fields', requireAuth, a
     ].join('\n');
 
     const compactFields = compactMetadataContext(fieldsResult.rows);
+    const groundedTableSet = new Set(
+      compactFields
+        .map((row: any) => String(row?.table_name || '').trim().toUpperCase())
+        .filter(Boolean)
+    );
+    const sapApplication = isSapApplication(
+      String(definition.application_name || ''),
+      String(definition.vendor || ''),
+      String(definition.version || '')
+    );
     const compactCdmAttributes = (cdmAttributes || []).slice(0, 80);
     const compactCdmRelationships = (cdmRelationships || []).slice(0, 80);
 
@@ -976,6 +1021,9 @@ router.post('/data-definitions/:definitionId/ai-generate-fields', requireAuth, a
       `Application Vendor: ${definition.vendor || ''}`,
       `Application Version: ${definition.version || ''}`,
       `Data Object Description: ${definition.object_description || ''}`,
+      '',
+      'Strict Scope Rule: include ONLY tables and fields belonging to the selected application above.',
+      'Exclude tables/fields that belong to any other application or platform.',
       '',
       'Grounded metadata sample (existing data definition fields):',
       JSON.stringify(compactFields, null, 2),
@@ -1041,6 +1089,7 @@ router.post('/data-definitions/:definitionId/ai-generate-fields', requireAuth, a
         `Sub-object: ${definition.sub_object_name || definition.object_id}`,
         `Application: ${definition.application_name}`,
         `Target tables: ${discoveredTables.join(', ')}`,
+        'Strict Scope Rule: include ONLY tables/fields for the selected application. Exclude all other applications.',
         '',
         'Existing fields already proposed (do not repeat these):',
         JSON.stringify(firstPassProposals.map((row: any) => ({ tableName: row.tableName || row.table || '', fieldName: row.fieldName })), null, 2),
@@ -1104,6 +1153,7 @@ router.post('/data-definitions/:definitionId/ai-generate-fields', requireAuth, a
         `Application: ${definition.application_name}`,
         `Target table: ${tableName}`,
         `Need at least ${needed} ADDITIONAL missing fields for this table.`,
+        'Strict Scope Rule: include ONLY the selected application and this target table.',
         '',
         'Existing fields already captured for this table (do not repeat):',
         JSON.stringify(existingForTable, null, 2),
@@ -1146,9 +1196,15 @@ router.post('/data-definitions/:definitionId/ai-generate-fields', requireAuth, a
     }
 
     // Deterministic safety net for key SAP customer master tables when AI depth is constrained.
-    proposals = applySapFallbackCoverage(proposals);
+    if (sapApplication) {
+      proposals = applySapFallbackCoverage(proposals);
+    }
     proposals = enrichIncompleteMetadataFromFallback(proposals);
     proposals = hydrateProposalMetadata(proposals);
+    proposals = filterToSelectedApplicationScope(proposals, {
+      isSap: sapApplication,
+      groundedTables: groundedTableSet,
+    });
 
     res.json(formatSingleResponse({
       proposals,
