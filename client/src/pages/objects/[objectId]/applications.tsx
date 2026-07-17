@@ -602,16 +602,6 @@ const ObjectApplicationsPage: React.FC = () => {
                     {selectedDefinition.application_name}
                   </Typography>
                 </Box>
-                <Button
-                  variant="contained"
-                  size="small"
-                  startIcon={<AutoAwesomeIcon />}
-                  onClick={handleGenerateAiFields}
-                  disabled={isGeneratingAiFields}
-                  sx={{ textTransform: 'none' }}
-                >
-                  {isGeneratingAiFields ? 'Generating...' : 'Generate Data Definition (AI)'}
-                </Button>
               </Box>
 
               <Divider sx={{ mb: 1.5 }} />
