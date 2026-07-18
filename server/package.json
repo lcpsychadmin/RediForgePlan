@@ -8,7 +8,7 @@
     "dev": "nodemon --exec node --loader tsx src/server.ts",
     "build": "tsc --noEmit false --skipLibCheck || true",
     "start": "node dist/server.js",
-    "start:src": "node --loader tsx src/server.ts",
+    "start:src": "node --import tsx src/server.ts",
     "lint": "eslint . --ext ts --report-unused-disable-directives --max-warnings 0"
   },
   "dependencies": {
