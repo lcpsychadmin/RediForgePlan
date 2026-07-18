@@ -1288,6 +1288,7 @@ router.post('/data-definitions/:definitionId/ai-generate-fields', requireAuth, a
     const routeStartedAt = Date.now();
     const routeBudgetMs = 26000;
     const remainingBudgetMs = () => routeBudgetMs - (Date.now() - routeStartedAt);
+    const targetTableName = String(req.body?.targetTableName || '').trim();
 
     const definitionResult = await db.query(
       `SELECT dd.id, dd.global_object_id, dd.application_id, dd.object_sub_object_id,
@@ -1399,6 +1400,7 @@ router.post('/data-definitions/:definitionId/ai-generate-fields', requireAuth, a
       '',
       'Strict Scope Rule: include ONLY tables and fields belonging to the selected application above.',
       'Exclude tables/fields that belong to any other application or platform.',
+      ...(targetTableName ? [`Target Table: ${targetTableName} — generate fields ONLY for this specific table.`] : []),
       '',
       'Grounded metadata sample (existing data definition fields):',
       JSON.stringify(compactFields, null, 2),
@@ -1409,7 +1411,9 @@ router.post('/data-definitions/:definitionId/ai-generate-fields', requireAuth, a
       'CDM relationships for reference and relationship field inference:',
       JSON.stringify(compactCdmRelationships, null, 2),
       '',
-      'Instruction: Return the COMPLETE field list for all relevant tables in this application/sub-object scope.',
+      targetTableName
+        ? `Instruction: Return ONLY fields for the table "${targetTableName}". Cover ALL columns of this table as completely as possible.`
+        : 'Instruction: Return the COMPLETE field list for all relevant tables in this application/sub-object scope.',
     ].join('\n');
 
     const runAiProposal = async (maxTokens: number, requestedTimeoutMs: number) => {
@@ -1595,6 +1599,84 @@ router.post('/data-definitions/:definitionId/ai-generate-fields', requireAuth, a
       isSap: sapApplication,
       groundedTables: groundedTableSet,
     });
+
+    res.json(formatSingleResponse({
+      proposals,
+      usage: executionResult?.usage || null,
+      selection: executionResult?.selection || null,
+    }));
+  } catch (err) { next(err); }
+});
+
+router.post('/data-definitions/:definitionId/ai-generate-tables', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const definitionResult = await db.query(
+      `SELECT dd.id, dd.global_object_id, dd.application_id, dd.object_sub_object_id,
+              go.object_id, go.description AS object_description, go.process_area,
+              go.default_gateway_id, go.default_router_id,
+              app.name AS application_name, app.vendor, app.version,
+              so.name AS sub_object_name
+       FROM data_definitions dd
+       JOIN global_objects go ON go.id = dd.global_object_id
+       JOIN applications app ON app.id = dd.application_id
+       LEFT JOIN object_sub_objects so ON so.id = dd.object_sub_object_id
+       WHERE dd.id = $1`,
+      [req.params.definitionId]
+    );
+
+    if (!definitionResult.rows.length) {
+      throw new ApiError(404, 'Data definition not found', 'NOT_FOUND');
+    }
+
+    const definition = definitionResult.rows[0];
+
+    const systemPrompt = [
+      'You are an ERP and enterprise application integration specialist.',
+      'Given a data object and application context, identify the physical database tables in that application that are relevant to managing this data object.',
+      '',
+      'Output format:',
+      'Return ONLY a JSON array of table objects with this exact shape:',
+      '[{"tableName":string,"description":string,"purpose":string}]',
+      'tableName: the physical table name in the application (e.g. F0101, KNA1, CUSTOMERS)',
+      'description: a concise description of what this table stores',
+      'purpose: one of Primary, Reference, Extension, or Audit — how this table relates to the data object',
+      '',
+      'Include primary tables, key reference tables, and extension tables.',
+      'Return between 3 and 12 tables. Prioritize the most important tables first.',
+      'Do not include markdown, prose, comments, or wrapper keys.',
+    ].join('\n');
+
+    const userPrompt = [
+      `Data Object: ${definition.object_id}`,
+      `Sub-object: ${definition.sub_object_name || 'null'}`,
+      `Application: ${definition.application_name}`,
+      `Vendor: ${definition.vendor || ''}`,
+      `Version: ${definition.version || ''}`,
+      `Process Area: ${definition.process_area || ''}`,
+      `Object Description: ${definition.object_description || ''}`,
+      '',
+      'Return the relevant physical tables in this application for managing this data object.',
+    ].join('\n');
+
+    const executionResult = await aiExecutionService.execute({
+      gatewayId: definition.default_gateway_id || undefined,
+      routerId: definition.default_router_id || undefined,
+      payload: {
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        temperature: 0.1,
+        maxTokens: 600,
+        timeoutMs: 15000,
+      },
+    });
+
+    const aiText = extractAiText(executionResult);
+    const parsed = parseAiJson(aiText);
+    const proposals = Array.isArray(parsed)
+      ? parsed.filter((row: any) => String(row?.tableName || '').trim())
+      : [];
 
     res.json(formatSingleResponse({
       proposals,
