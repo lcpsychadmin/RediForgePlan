@@ -157,7 +157,7 @@ const ObjectApplicationAssignmentPage: React.FC = () => {
                 <Box sx={{ p: 1.2 }}><Typography color="text.secondary" variant="body2">No applications assigned to this scope.</Typography></Box>
               ) : linked.map((row) => (
                 <Box key={row.id} sx={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 0.8fr', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
-                  <Box sx={{ px: 1, py: 0.8, fontWeight: 600 }}>{row.application_name}</Box>
+                  <Box sx={{ px: 1, py: 0.8, fontWeight: 600 }}>{row.applicationName || row.application_name}</Box>
                   <Box sx={{ px: 1, py: 0.8, color: 'text.secondary' }}>{row.vendor || '-'}</Box>
                   <Box sx={{ px: 1, py: 0.8, color: 'text.secondary' }}>{row.version || '-'}</Box>
                   <Box sx={{ px: 1, py: 0.8 }}>
