@@ -278,15 +278,6 @@ const AppRoutes: React.FC = () => {
       />
 
       <Route
-        path="/objects/:objectId/applications"
-        element={
-          <ProtectedRoute>
-            <ObjectApplicationsPage />
-          </ProtectedRoute>
-        }
-      />
-
-      <Route
         path="/objects/:objectId/application-assignment"
         element={
           <ProtectedRoute>
