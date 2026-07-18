@@ -1,10 +1,8 @@
 import React from 'react';
-import { Alert, Box, Button, Card, CardContent, MenuItem, Stack, Typography } from '@mui/material';
+import { Alert, Box, Button, Card, CardContent, Stack, TextField, Typography } from '@mui/material';
 import { useNavigate, useParams } from 'react-router-dom';
 import Layout from '../../../components/Layout';
 import ObjectWorkspaceHeader from '../../../components/objects/ObjectWorkspaceHeader';
-import ObjectSubObjectSelector from '../../../components/objects/ObjectSubObjectSelector';
-import useObjectSubObjectSelection from '../../../components/objects/useObjectSubObjectSelection';
 import apiClient from '../../../api/client';
 
 const ObjectIndexPage: React.FC = () => {
@@ -17,15 +15,6 @@ const ObjectIndexPage: React.FC = () => {
   const [isSavingObject, setIsSavingObject] = React.useState(false);
   const [saveStatus, setSaveStatus] = React.useState('');
   const [saveError, setSaveError] = React.useState('');
-
-  const {
-    subObjects,
-    hasSubObjects,
-    selectedSubObject,
-    selectedSubObjectId,
-    setSelectedSubObjectId,
-    isLoading: isLoadingSubObjects,
-  } = useObjectSubObjectSelection(objectId);
 
   React.useEffect(() => {
     let active = true;
@@ -114,43 +103,30 @@ const ObjectIndexPage: React.FC = () => {
                 Loading object details...
               </Typography>
             ) : (
-              <Stack spacing={2} sx={{ mt: 1.2, maxWidth: 900 }}>
-                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 1.2 }}>
-                  <Box sx={{ p: 1.25, borderRadius: 1, border: '1px solid rgba(255,255,255,0.12)', backgroundColor: 'rgba(255,255,255,0.02)' }}>
-                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                      Object Definition
-                    </Typography>
-                    <Typography sx={{ fontWeight: 700, fontFamily: 'monospace' }}>{objectDraft.objectId || '-'}</Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.6 }}>{objectDraft.description || 'No description provided.'}</Typography>
-                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.8 }}>
-                      Process Area: {objectDraft.processArea || '-'}
-                    </Typography>
-                  </Box>
-
-                  <Box sx={{ p: 1.25, borderRadius: 1, border: '1px solid rgba(255,255,255,0.12)', backgroundColor: 'rgba(255,255,255,0.02)' }}>
-                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                      Sub-Object Definitions
-                    </Typography>
-
-                    {isLoadingSubObjects ? (
-                      <Typography variant="body2" color="text.secondary">Loading sub-objects...</Typography>
-                    ) : hasSubObjects ? (
-                      <>
-                        <ObjectSubObjectSelector
-                          subObjects={subObjects}
-                          selectedSubObjectId={selectedSubObjectId}
-                          onChange={setSelectedSubObjectId}
-                          helperText="Use Sub Objects tab to create or edit definitions."
-                        />
-                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.8 }}>
-                          Selected definition: {selectedSubObject?.name || '-'}
-                        </Typography>
-                      </>
-                    ) : (
-                      <Typography variant="body2" color="text.secondary">No sub-object definitions yet.</Typography>
-                    )}
-                  </Box>
-                </Box>
+              <Stack spacing={2} sx={{ mt: 1.2, maxWidth: 600 }}>
+                <TextField
+                  label="Object ID"
+                  size="small"
+                  fullWidth
+                  value={objectDraft.objectId}
+                  onChange={(e) => setObjectDraft((d) => ({ ...d, objectId: e.target.value }))}
+                />
+                <TextField
+                  label="Description"
+                  size="small"
+                  fullWidth
+                  multiline
+                  minRows={2}
+                  value={objectDraft.description}
+                  onChange={(e) => setObjectDraft((d) => ({ ...d, description: e.target.value }))}
+                />
+                <TextField
+                  label="Process Area"
+                  size="small"
+                  fullWidth
+                  value={objectDraft.processArea}
+                  onChange={(e) => setObjectDraft((d) => ({ ...d, processArea: e.target.value }))}
+                />
 
                 <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
                   <Button
@@ -160,7 +136,7 @@ const ObjectIndexPage: React.FC = () => {
                     onClick={handleSaveOverview}
                     disabled={isSavingObject}
                   >
-                    {isSavingObject ? 'Saving...' : 'Save Definitions'}
+                    {isSavingObject ? 'Saving...' : 'Save'}
                   </Button>
                   <Button
                     size="small"
