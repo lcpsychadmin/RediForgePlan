@@ -1294,7 +1294,7 @@ router.post('/data-definitions/:definitionId/metadata-sync', requireAuth, requir
 router.post('/data-definitions/:definitionId/ai-generate-fields', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const routeStartedAt = Date.now();
-    const routeBudgetMs = 26000;
+    const routeBudgetMs = 28500;
     const remainingBudgetMs = () => routeBudgetMs - (Date.now() - routeStartedAt);
     const targetTableName = String(req.body?.targetTableName || '').trim();
     const leanOutputMode = Boolean(targetTableName);
@@ -1441,7 +1441,7 @@ router.post('/data-definitions/:definitionId/ai-generate-fields', requireAuth, a
     const runAiProposal = async (maxTokens: number, requestedTimeoutMs: number) => {
       const remaining = remainingBudgetMs();
       // Keep a small reserve for parse/merge/response write before Heroku's 30s cap.
-      const timeoutMs = Math.min(requestedTimeoutMs, Math.max(2500, remaining - 1500));
+      const timeoutMs = Math.min(requestedTimeoutMs, Math.max(2500, remaining - 1200));
       if (timeoutMs < 2500 || remaining < 3500) {
         throw new ApiError(504, 'AI provider request timed out before completion', 'AI_PROVIDER_TIMEOUT');
       }
@@ -1463,12 +1463,12 @@ router.post('/data-definitions/:definitionId/ai-generate-fields', requireAuth, a
 
     let executionResult;
     try {
-      executionResult = await runAiProposal(leanOutputMode ? 1200 : 700, 13000);
+      executionResult = await runAiProposal(leanOutputMode ? 3200 : 700, leanOutputMode ? 16000 : 13000);
     } catch (error) {
       if (!isProviderTimeoutError(error)) {
         throw error;
       }
-      executionResult = await runAiProposal(leanOutputMode ? 700 : 380, 7000);
+      executionResult = await runAiProposal(leanOutputMode ? 1800 : 380, leanOutputMode ? 10000 : 7000);
     }
 
     const aiText = extractAiText(executionResult);
@@ -1580,8 +1580,8 @@ router.post('/data-definitions/:definitionId/ai-generate-fields', requireAuth, a
                 { role: 'user', content: tableExpansionPrompt },
               ],
               temperature: 0.1,
-              maxTokens: targetTableName ? 900 : 620,
-              timeoutMs: Math.min(6000, Math.max(2500, remainingBudgetMs() - 1500)),
+              maxTokens: targetTableName ? 2200 : 620,
+              timeoutMs: Math.min(targetTableName ? 9000 : 6000, Math.max(2500, remainingBudgetMs() - 1200)),
             },
           });
 
