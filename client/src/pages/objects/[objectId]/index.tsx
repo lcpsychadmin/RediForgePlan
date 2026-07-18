@@ -1,9 +1,25 @@
 import React from 'react';
-import { Alert, Box, Button, Card, CardContent, Stack, TextField, Typography } from '@mui/material';
+import { Alert, Box, Button, Card, CardContent, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import { useNavigate, useParams } from 'react-router-dom';
 import Layout from '../../../components/Layout';
 import ObjectWorkspaceHeader from '../../../components/objects/ObjectWorkspaceHeader';
 import apiClient from '../../../api/client';
+
+const DEFAULT_PROCESS_AREAS = ['A2R', 'CTRM', 'GTS', 'H2R', 'I2L', 'MDM', 'P2C', 'P2D', 'PSS', 'R2R', 'S2P', 'TM'];
+
+function loadProcessAreaOptions(): string[] {
+  try {
+    const raw = localStorage.getItem('rf-settings');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      const vals = parsed?.picklistValues?.processArea;
+      if (Array.isArray(vals) && vals.length > 0) return vals;
+    }
+  } catch {
+    // ignore
+  }
+  return DEFAULT_PROCESS_AREAS;
+}
 
 const ObjectIndexPage: React.FC = () => {
   const { objectId = '' } = useParams();
@@ -15,6 +31,7 @@ const ObjectIndexPage: React.FC = () => {
   const [isSavingObject, setIsSavingObject] = React.useState(false);
   const [saveStatus, setSaveStatus] = React.useState('');
   const [saveError, setSaveError] = React.useState('');
+  const processAreaOptions = React.useMemo(() => loadProcessAreaOptions(), []);
 
   React.useEffect(() => {
     let active = true;
@@ -124,9 +141,15 @@ const ObjectIndexPage: React.FC = () => {
                   label="Process Area"
                   size="small"
                   fullWidth
+                  select
                   value={objectDraft.processArea}
                   onChange={(e) => setObjectDraft((d) => ({ ...d, processArea: e.target.value }))}
-                />
+                >
+                  <MenuItem value=""><em>None</em></MenuItem>
+                  {processAreaOptions.map((area) => (
+                    <MenuItem key={area} value={area}>{area}</MenuItem>
+                  ))}
+                </TextField>
 
                 <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
                   <Button
