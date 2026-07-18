@@ -1099,10 +1099,11 @@ router.post('/data-definitions', requireAuth, requireRole('analyst', 'admin'), a
 router.put('/data-definitions/:id', requireAuth, requireRole('analyst', 'admin'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { notes, subObjectId, mappedTables, mappedFields, applicationUsage, businessRules } = req.body;
+    const hasSubObjectId = Object.prototype.hasOwnProperty.call(req.body || {}, 'subObjectId');
     const result = await db.query(
       `UPDATE data_definitions
        SET notes=$1,
-           object_sub_object_id=$2,
+           object_sub_object_id=CASE WHEN $8::boolean THEN $2 ELSE object_sub_object_id END,
            mapped_tables=$3::jsonb,
            mapped_fields=$4::jsonb,
            application_usage=$5,
@@ -1112,7 +1113,16 @@ router.put('/data-definitions/:id', requireAuth, requireRole('analyst', 'admin')
        RETURNING id, global_object_id, application_id, object_sub_object_id,
                  notes, mapped_tables, mapped_fields, application_usage, business_rules,
                  created_at, updated_at`,
-      [notes || null, subObjectId || null, JSON.stringify(normalizeArrayMetadata(mappedTables)), JSON.stringify(normalizeArrayMetadata(mappedFields)), applicationUsage || null, businessRules || null, req.params.id]
+      [
+        notes || null,
+        hasSubObjectId ? (subObjectId || null) : null,
+        JSON.stringify(normalizeArrayMetadata(mappedTables)),
+        JSON.stringify(normalizeArrayMetadata(mappedFields)),
+        applicationUsage || null,
+        businessRules || null,
+        req.params.id,
+        hasSubObjectId,
+      ]
     );
     if (!result.rows.length) throw new ApiError(404, 'Data definition not found', 'NOT_FOUND');
     res.json(formatSingleResponse(formatMappingModel(result.rows[0])));
