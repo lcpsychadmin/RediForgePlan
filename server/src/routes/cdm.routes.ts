@@ -88,6 +88,148 @@ const formatCdmAttributeModel = (row: any, objectId?: string) => ({
   updatedAt: row?.updated_at,
 });
 
+const upsertCdmModel = async (client: any, objectId: string, req: Request) => {
+  const subObjectId = String(req.body?.subObjectId || req.query?.subObjectId || '').trim();
+  const notes = req.body?.notes || null;
+  const objectName = req.body?.objectName || null;
+  const attributes = Array.isArray(req.body?.attributes) ? req.body.attributes : [];
+  const relationships = Array.isArray(req.body?.relationships) ? req.body.relationships : [];
+
+  const existingModel = await client.query(
+    `SELECT id, global_object_id, object_sub_object_id, object_name, notes, created_at, updated_at
+     FROM common_data_model
+     WHERE global_object_id = $1
+       AND (($2 = '' AND object_sub_object_id IS NULL) OR object_sub_object_id::text = $2)`,
+    [objectId, subObjectId]
+  );
+
+  let model: any;
+  if (existingModel.rows.length) {
+    const updatedModel = await client.query(
+      `UPDATE common_data_model
+       SET object_name = $1,
+           notes = $2,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $3
+       RETURNING id, global_object_id, object_sub_object_id, object_name, notes, created_at, updated_at`,
+      [objectName, notes, existingModel.rows[0].id]
+    );
+    model = updatedModel.rows[0];
+  } else {
+    const insertedModel = await client.query(
+      `INSERT INTO common_data_model (global_object_id, object_sub_object_id, object_name, notes)
+       VALUES ($1, $2, $3, $4)
+       RETURNING id, global_object_id, object_sub_object_id, object_name, notes, created_at, updated_at`,
+      [objectId, subObjectId || null, objectName, notes]
+    );
+    model = insertedModel.rows[0];
+  }
+
+  await client.query('DELETE FROM cdm_relationships WHERE common_data_model_id = $1', [model.id]);
+  await client.query('DELETE FROM cdm_attributes WHERE common_data_model_id = $1', [model.id]);
+
+  const insertedAttributeIdsByName = new Map<string, string>();
+
+  for (let i = 0; i < attributes.length; i += 1) {
+    const row = attributes[i] || {};
+    const attributeName = String(row.attributeName || '').trim();
+    if (!attributeName) continue;
+
+    const attributeResult = await client.query(
+      `INSERT INTO cdm_attributes (
+          common_data_model_id,
+          attribute_name,
+          attribute_description,
+          data_type,
+          length,
+          business_rules,
+          governance,
+          security,
+          validation_rules,
+          sort_order
+        )
+       VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8::jsonb,$9::jsonb,$10)
+       RETURNING id, attribute_name`,
+      [
+        model.id,
+        attributeName,
+        row.attributeDescription || null,
+        row.dataType || null,
+        row.length || null,
+        row.businessRules || null,
+        JSON.stringify(parseJsonObject(row.governance)),
+        JSON.stringify(parseJsonObject(row.security)),
+        JSON.stringify(parseJsonArray(row.validationRules)),
+        Number(row.sortOrder ?? i) || i,
+      ]
+    );
+
+    const inserted = attributeResult.rows[0];
+    if (inserted?.id && inserted?.attribute_name) {
+      insertedAttributeIdsByName.set(String(inserted.attribute_name).trim().toLowerCase(), String(inserted.id));
+    }
+  }
+
+  for (let i = 0; i < relationships.length; i += 1) {
+    const row = relationships[i] || {};
+    const sourceAttributeName = String(row.sourceAttributeName || '').trim();
+    const targetObjectName = String(row.targetObjectName || '').trim();
+    if (!sourceAttributeName || !targetObjectName) continue;
+
+    const resolvedSourceAttributeId = insertedAttributeIdsByName.get(sourceAttributeName.toLowerCase()) || null;
+
+    await client.query(
+      `INSERT INTO cdm_relationships (
+          common_data_model_id,
+          source_attribute_id,
+          source_attribute_name,
+          target_object_name,
+          target_attribute_name,
+          relationship_type,
+          business_rules,
+          sort_order
+        )
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+      [
+        model.id,
+        resolvedSourceAttributeId,
+        sourceAttributeName,
+        targetObjectName,
+        row.targetAttributeName || null,
+        row.relationshipType || null,
+        row.businessRules || null,
+        Number(row.sortOrder ?? i) || i,
+      ]
+    );
+  }
+
+  const refreshAttributes = await client.query(
+    `SELECT id, common_data_model_id, attribute_name, attribute_description,
+            data_type, length, business_rules, governance, security, validation_rules,
+            sort_order, created_at, updated_at
+     FROM cdm_attributes
+     WHERE common_data_model_id = $1
+     ORDER BY sort_order ASC, attribute_name ASC`,
+    [model.id]
+  );
+
+  const refreshRelationships = await client.query(
+    `SELECT id, common_data_model_id, source_attribute_id, source_attribute_name,
+            target_object_name, target_attribute_name, relationship_type,
+            business_rules, sort_order, created_at, updated_at
+     FROM cdm_relationships
+     WHERE common_data_model_id = $1
+     ORDER BY sort_order ASC, target_object_name ASC`,
+    [model.id]
+  );
+
+  return {
+    model,
+    attributes: refreshAttributes.rows.map((row: any) => formatCdmAttributeModel(row, model.global_object_id)),
+    relationships: refreshRelationships.rows,
+  };
+};
+
 router.get('/:objectId', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const subObjectId = String(req.query.subObjectId || '').trim();
@@ -138,149 +280,46 @@ router.get('/:objectId', requireAuth, async (req: Request, res: Response, next: 
 router.post('/:objectId', requireAuth, requireRole('analyst', 'admin'), async (req: Request, res: Response, next: NextFunction) => {
   const client = await db.connect();
   try {
-    const subObjectId = String(req.body?.subObjectId || req.query?.subObjectId || '').trim();
-    const notes = req.body?.notes || null;
-    const objectName = req.body?.objectName || null;
-    const attributes = Array.isArray(req.body?.attributes) ? req.body.attributes : [];
-    const relationships = Array.isArray(req.body?.relationships) ? req.body.relationships : [];
-
     await client.query('BEGIN');
-
-    const existingModel = await client.query(
-      `SELECT id, global_object_id, object_sub_object_id, object_name, notes, created_at, updated_at
-       FROM common_data_model
-       WHERE global_object_id = $1
-         AND (($2 = '' AND object_sub_object_id IS NULL) OR object_sub_object_id::text = $2)`,
-      [req.params.objectId, subObjectId]
-    );
-
-    let model: any;
-    if (existingModel.rows.length) {
-      const updatedModel = await client.query(
-        `UPDATE common_data_model
-         SET object_name = $1,
-             notes = $2,
-             updated_at = CURRENT_TIMESTAMP
-         WHERE id = $3
-         RETURNING id, global_object_id, object_sub_object_id, object_name, notes, created_at, updated_at`,
-        [objectName, notes, existingModel.rows[0].id]
-      );
-      model = updatedModel.rows[0];
-    } else {
-      const insertedModel = await client.query(
-        `INSERT INTO common_data_model (global_object_id, object_sub_object_id, object_name, notes)
-         VALUES ($1, $2, $3, $4)
-         RETURNING id, global_object_id, object_sub_object_id, object_name, notes, created_at, updated_at`,
-        [req.params.objectId, subObjectId || null, objectName, notes]
-      );
-      model = insertedModel.rows[0];
-    }
-
-    await client.query('DELETE FROM cdm_relationships WHERE common_data_model_id = $1', [model.id]);
-    await client.query('DELETE FROM cdm_attributes WHERE common_data_model_id = $1', [model.id]);
-
-    const insertedAttributeIdsByName = new Map<string, string>();
-
-    for (let i = 0; i < attributes.length; i += 1) {
-      const row = attributes[i] || {};
-      const attributeName = String(row.attributeName || '').trim();
-      if (!attributeName) continue;
-
-      const attributeResult = await client.query(
-        `INSERT INTO cdm_attributes (
-            common_data_model_id,
-            attribute_name,
-            attribute_description,
-            data_type,
-            length,
-            business_rules,
-            governance,
-            security,
-            validation_rules,
-            sort_order
-          )
-         VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8::jsonb,$9::jsonb,$10)
-         RETURNING id, attribute_name`,
-        [
-          model.id,
-          attributeName,
-          row.attributeDescription || null,
-          row.dataType || null,
-          row.length || null,
-          row.businessRules || null,
-          JSON.stringify(parseJsonObject(row.governance)),
-          JSON.stringify(parseJsonObject(row.security)),
-          JSON.stringify(parseJsonArray(row.validationRules)),
-          Number(row.sortOrder ?? i) || i,
-        ]
-      );
-
-      const inserted = attributeResult.rows[0];
-      if (inserted?.id && inserted?.attribute_name) {
-        insertedAttributeIdsByName.set(String(inserted.attribute_name).trim().toLowerCase(), String(inserted.id));
-      }
-    }
-
-    for (let i = 0; i < relationships.length; i += 1) {
-      const row = relationships[i] || {};
-      const sourceAttributeName = String(row.sourceAttributeName || '').trim();
-      const targetObjectName = String(row.targetObjectName || '').trim();
-      if (!sourceAttributeName || !targetObjectName) continue;
-
-      const resolvedSourceAttributeId = insertedAttributeIdsByName.get(sourceAttributeName.toLowerCase()) || null;
-
-      await client.query(
-        `INSERT INTO cdm_relationships (
-            common_data_model_id,
-            source_attribute_id,
-            source_attribute_name,
-            target_object_name,
-            target_attribute_name,
-            relationship_type,
-            business_rules,
-            sort_order
-          )
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-        [
-          model.id,
-          resolvedSourceAttributeId,
-          sourceAttributeName,
-          targetObjectName,
-          row.targetAttributeName || null,
-          row.relationshipType || null,
-          row.businessRules || null,
-          Number(row.sortOrder ?? i) || i,
-        ]
-      );
-    }
-
-    const refreshAttributes = await client.query(
-      `SELECT id, common_data_model_id, attribute_name, attribute_description,
-              data_type, length, business_rules, governance, security, validation_rules,
-              sort_order, created_at, updated_at
-       FROM cdm_attributes
-       WHERE common_data_model_id = $1
-       ORDER BY sort_order ASC, attribute_name ASC`,
-      [model.id]
-    );
-
-    const refreshRelationships = await client.query(
-      `SELECT id, common_data_model_id, source_attribute_id, source_attribute_name,
-              target_object_name, target_attribute_name, relationship_type,
-              business_rules, sort_order, created_at, updated_at
-       FROM cdm_relationships
-       WHERE common_data_model_id = $1
-       ORDER BY sort_order ASC, target_object_name ASC`,
-      [model.id]
-    );
+    const result = await upsertCdmModel(client, req.params.objectId, req);
 
     await client.query('COMMIT');
 
     res.status(201).json(formatSingleResponse({
-      model,
-      attributes: refreshAttributes.rows.map((row) => formatCdmAttributeModel(row, model.global_object_id)),
-      relationships: refreshRelationships.rows,
+      model: result.model,
+      attributes: result.attributes,
+      relationships: result.relationships,
     }));
+  } catch (error) {
+    await client.query('ROLLBACK');
+    next(error);
+  } finally {
+    client.release();
+  }
+});
+
+router.post('/:objectId/buildCDM', requireAuth, requireRole('analyst', 'admin'), async (req: Request, res: Response, next: NextFunction) => {
+  const client = await db.connect();
+  try {
+    await client.query('BEGIN');
+    const result = await upsertCdmModel(client, req.params.objectId, req);
+    await client.query('COMMIT');
+    res.status(201).json(formatSingleResponse(result));
+  } catch (error) {
+    await client.query('ROLLBACK');
+    next(error);
+  } finally {
+    client.release();
+  }
+});
+
+router.put('/:objectId/updateCDM', requireAuth, requireRole('analyst', 'admin'), async (req: Request, res: Response, next: NextFunction) => {
+  const client = await db.connect();
+  try {
+    await client.query('BEGIN');
+    const result = await upsertCdmModel(client, req.params.objectId, req);
+    await client.query('COMMIT');
+    res.json(formatSingleResponse(result));
   } catch (error) {
     await client.query('ROLLBACK');
     next(error);

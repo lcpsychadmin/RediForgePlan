@@ -7,6 +7,7 @@ import programsRouter from './programs.routes.js';
 import mockCyclesRouter from './mockCycles.routes.js';
 import projectsRouter from './projects.routes.js';
 import globalObjectsRouter from './globalObjects.routes.js';
+import mappingRouter from './mapping.routes.js';
 import projectObjectsRouter from './projectObjects.routes.js';
 import tasksRouter from './tasks.routes.js';
 import scheduleRouter from './schedule.routes.js';
@@ -33,6 +34,7 @@ apiRouter.use('/projects', projectsRouter);
 
 // Object inventory routes
 apiRouter.use('/global-objects', globalObjectsRouter);
+apiRouter.use('/objects', globalObjectsRouter);
 apiRouter.use('/project-objects', projectObjectsRouter);
 
 // Task management routes
@@ -51,6 +53,7 @@ apiRouter.use('/priorities', prioritiesRouter);
 apiRouter.use('/audit', auditRouter);
 apiRouter.use('/people', peopleRouter);
 apiRouter.use('/applications', applicationsRouter);
+apiRouter.use('/mapping', mappingRouter);
 apiRouter.use('/comments', commentsRouter);
 apiRouter.use('/reporting', reportingRouter);
 apiRouter.use('/hierarchy-preferences', hierarchyPreferencesRouter);

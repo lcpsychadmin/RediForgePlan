@@ -707,6 +707,12 @@ const formatMappingModel = (row: any) => ({
   updatedAt: row?.updated_at,
 });
 
+const formatSchemaSourceModel = (row: any) => ({
+  applicationId: row?.id || row?.application_id,
+  schemaSourceType: normalizeSchemaSourceType(row?.schema_source_type ?? row?.schemaSourceType),
+  schemaSourceConfig: parseJsonObject(row?.schema_source_config ?? row?.schemaSourceConfig),
+});
+
 router.get('/', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const result = await db.query(
@@ -721,6 +727,146 @@ router.get('/', requireAuth, async (req: Request, res: Response, next: NextFunct
     const rows = result.rows.map((row) => formatApplicationModel(row));
     res.json(formatListResponse(rows, rows.length));
   } catch (err) { next(err); }
+});
+
+router.get('/:id/schema-source', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const result = await db.query(
+      `SELECT id, schema_source_type, schema_source_config
+       FROM applications
+       WHERE id = $1`,
+      [req.params.id]
+    );
+
+    if (!result.rows.length) {
+      throw new ApiError(404, 'Application not found', 'NOT_FOUND');
+    }
+
+    res.json(formatSingleResponse(formatSchemaSourceModel(result.rows[0])));
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.put('/:id/schema-source', requireAuth, requireRole('analyst', 'admin'), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const schemaSourceType = normalizeSchemaSourceType(req.body?.schemaSourceType ?? req.body?.schema_source_type);
+    const schemaSourceConfig = normalizeSchemaSourceConfig(req.body?.schemaSourceConfig ?? req.body?.schema_source_config);
+
+    const result = await db.query(
+      `UPDATE applications
+       SET schema_source_type = $1,
+           schema_source_config = $2::jsonb,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $3
+       RETURNING id, schema_source_type, schema_source_config`,
+      [schemaSourceType, JSON.stringify(schemaSourceConfig), req.params.id]
+    );
+
+    if (!result.rows.length) {
+      throw new ApiError(404, 'Application not found', 'NOT_FOUND');
+    }
+
+    res.json(formatSingleResponse(formatSchemaSourceModel(result.rows[0])));
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get('/:id/tables', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const result = await db.query(
+      `SELECT tables
+       FROM application_schemas
+       WHERE application_id = $1`,
+      [req.params.id]
+    );
+
+    if (!result.rows.length) {
+      const exists = await db.query(`SELECT id FROM applications WHERE id = $1`, [req.params.id]);
+      if (!exists.rows.length) throw new ApiError(404, 'Application not found', 'NOT_FOUND');
+      res.json(formatSingleResponse({ applicationId: req.params.id, tables: [] }));
+      return;
+    }
+
+    res.json(formatSingleResponse({ applicationId: req.params.id, tables: parseJsonArray(result.rows[0].tables) }));
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.put('/:id/tables', requireAuth, requireRole('analyst', 'admin'), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const tables = normalizeArrayMetadata(req.body?.tables ?? req.body?.tablesMetadata ?? req.body?.tables_metadata);
+    const result = await db.query(
+      `INSERT INTO application_schemas (application_id, tables, fields)
+       VALUES ($1, $2::jsonb, '[]'::jsonb)
+       ON CONFLICT (application_id)
+       DO UPDATE SET tables = EXCLUDED.tables, updated_at = CURRENT_TIMESTAMP
+       RETURNING application_id, tables`,
+      [req.params.id, JSON.stringify(tables)]
+    );
+
+    await db.query(
+      `UPDATE applications
+       SET tables_metadata = $2::jsonb,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1`,
+      [req.params.id, JSON.stringify(tables)]
+    );
+
+    res.json(formatSingleResponse({ applicationId: result.rows[0].application_id, tables: parseJsonArray(result.rows[0].tables) }));
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get('/:id/fields', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const result = await db.query(
+      `SELECT fields
+       FROM application_schemas
+       WHERE application_id = $1`,
+      [req.params.id]
+    );
+
+    if (!result.rows.length) {
+      const exists = await db.query(`SELECT id FROM applications WHERE id = $1`, [req.params.id]);
+      if (!exists.rows.length) throw new ApiError(404, 'Application not found', 'NOT_FOUND');
+      res.json(formatSingleResponse({ applicationId: req.params.id, fields: [] }));
+      return;
+    }
+
+    res.json(formatSingleResponse({ applicationId: req.params.id, fields: parseJsonArray(result.rows[0].fields) }));
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.put('/:id/fields', requireAuth, requireRole('analyst', 'admin'), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const fields = normalizeArrayMetadata(req.body?.fields ?? req.body?.fieldsMetadata ?? req.body?.fields_metadata);
+    const result = await db.query(
+      `INSERT INTO application_schemas (application_id, tables, fields)
+       VALUES ($1, '[]'::jsonb, $2::jsonb)
+       ON CONFLICT (application_id)
+       DO UPDATE SET fields = EXCLUDED.fields, updated_at = CURRENT_TIMESTAMP
+       RETURNING application_id, fields`,
+      [req.params.id, JSON.stringify(fields)]
+    );
+
+    await db.query(
+      `UPDATE applications
+       SET fields_metadata = $2::jsonb,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1`,
+      [req.params.id, JSON.stringify(fields)]
+    );
+
+    res.json(formatSingleResponse({ applicationId: result.rows[0].application_id, fields: parseJsonArray(result.rows[0].fields) }));
+  } catch (err) {
+    next(err);
+  }
 });
 
 router.post('/', requireAuth, requireRole('analyst', 'admin'), async (req: Request, res: Response, next: NextFunction) => {

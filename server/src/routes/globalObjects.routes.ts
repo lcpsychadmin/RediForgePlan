@@ -123,6 +123,53 @@ router.delete(
   }
 );
 
+router.post(
+  '/:globalObjectId/assign-applications',
+  requireAuth,
+  requireRole('analyst', 'admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const applicationIds = Array.isArray(req.body?.applicationIds) ? req.body.applicationIds : [];
+
+      if (!applicationIds.length) {
+        throw new ApiError(400, 'applicationIds must be a non-empty array', 'MISSING_FIELD');
+      }
+
+      const assignedApplicationIds: string[] = [];
+
+      for (const applicationId of applicationIds) {
+        const trimmedApplicationId = String(applicationId || '').trim();
+        if (!trimmedApplicationId) {
+          continue;
+        }
+
+        const existsResult = await db.query(
+          `SELECT id FROM data_definitions WHERE global_object_id = $1 AND application_id = $2 AND object_sub_object_id IS NULL`,
+          [req.params.globalObjectId, trimmedApplicationId]
+        );
+
+        if (!existsResult.rows.length) {
+          await db.query(
+            `INSERT INTO data_definitions (global_object_id, application_id, object_sub_object_id, notes)
+             VALUES ($1, $2, NULL, NULL)`,
+            [req.params.globalObjectId, trimmedApplicationId]
+          );
+        }
+
+        assignedApplicationIds.push(trimmedApplicationId);
+      }
+
+      res.json(formatSingleResponse({
+        success: true,
+        objectId: req.params.globalObjectId,
+        applicationIds: assignedApplicationIds,
+      }));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 router.get(
   '/:globalObjectId/sub-objects',
   requireAuth,
