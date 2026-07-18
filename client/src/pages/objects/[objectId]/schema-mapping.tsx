@@ -77,6 +77,7 @@ const ObjectSchemaMappingPage: React.FC = () => {
   const [apps, setApps] = React.useState<any[]>([]);
   const [linkAppId, setLinkAppId] = React.useState('');
   const [isAssigningApp, setIsAssigningApp] = React.useState(false);
+  const [isLoadingLinked, setIsLoadingLinked] = React.useState(false);
   const [linked, setLinked] = React.useState<any[]>([]);
   const [selectedDataDefId, setSelectedDataDefId] = React.useState('');
   const [viewTab, setViewTab] = React.useState<ViewTab>('schema');
@@ -124,19 +125,25 @@ const ObjectSchemaMappingPage: React.FC = () => {
 
   // ── load linked applications ───────────────────────────────────────────────
   const loadLinkedDefinitions = React.useCallback(async () => {
+    setIsLoadingLinked(true);
     if (hasSubObjects && !scopeSubObjectId) {
       setLinked([]);
       setSelectedDataDefId('');
+      setIsLoadingLinked(false);
       return;
     }
-    const res = await apiClient.get(`/api/applications/data-definitions/object/${objectId}`, {
-      params: { subObjectId: scopeSubObjectId },
-    });
-    const rows = res.data?.data || [];
-    setLinked(rows);
-    setSelectedDataDefId((prev) =>
-      prev && rows.some((r: any) => r.id === prev) ? prev : (rows[0]?.id || '')
-    );
+    try {
+      const res = await apiClient.get(`/api/applications/data-definitions/object/${objectId}`, {
+        params: { subObjectId: scopeSubObjectId },
+      });
+      const rows = res.data?.data || [];
+      setLinked(rows);
+      setSelectedDataDefId((prev) =>
+        prev && rows.some((r: any) => r.id === prev) ? prev : (rows[0]?.id || '')
+      );
+    } finally {
+      setIsLoadingLinked(false);
+    }
   }, [hasSubObjects, objectId, scopeSubObjectId]);
 
   React.useEffect(() => {
@@ -466,7 +473,7 @@ const ObjectSchemaMappingPage: React.FC = () => {
               )}
             </Stack>
 
-            {linked.length === 0 && (
+            {!isLoadingLinked && linked.length === 0 && (
               <Stack spacing={1.2} sx={{ mb: 2 }}>
                 <Alert severity="info">
                   No application is assigned for this sub-object scope yet. Assign one below to enable AI table discovery.
@@ -506,7 +513,7 @@ const ObjectSchemaMappingPage: React.FC = () => {
             </Box>
 
             {/* ── SCHEMA TAB ─────────────────────────────────────────────── */}
-            {viewTab === 'schema' && selectedDefinition && (
+            {viewTab === 'schema' && (
               <Stack spacing={2}>
                 <Stack direction="row" spacing={1} alignItems="center">
                   <Typography variant="body2" color="text.secondary" sx={{ flexGrow: 1 }}>
@@ -517,7 +524,7 @@ const ObjectSchemaMappingPage: React.FC = () => {
                     variant="outlined"
                     startIcon={<AutoAwesomeIcon />}
                     onClick={handleGenerateTables}
-                    disabled={isGeneratingTables}
+                    disabled={isGeneratingTables || !selectedDefinition}
                     sx={{ textTransform: 'none', whiteSpace: 'nowrap' }}
                   >
                     {isGeneratingTables ? 'Generating...' : 'Discover Tables (AI)'}
@@ -527,12 +534,20 @@ const ObjectSchemaMappingPage: React.FC = () => {
                     variant="outlined"
                     startIcon={<AddIcon />}
                     onClick={() => { setAddingTable(true); setNewTableDraft({ tableName: '', description: '', purpose: '' }); }}
+                    disabled={!selectedDefinition}
                     sx={{ textTransform: 'none', whiteSpace: 'nowrap' }}
                   >
                     Add Table
                   </Button>
                 </Stack>
 
+                {!selectedDefinition && (
+                  <Alert severity="info">
+                    Select or assign an application for this scope to enable AI table discovery and manual table entry.
+                  </Alert>
+                )}
+
+                {selectedDefinition && (
                 <Box sx={{ border: '1px solid rgba(255,255,255,0.12)', borderRadius: 1, overflow: 'hidden' }}>
                   <GridHeader cols={GRID_SCHEMA} labels={['Table Name', 'Description', 'Purpose', '', '', '']} />
 
@@ -577,11 +592,8 @@ const ObjectSchemaMappingPage: React.FC = () => {
                     </Box>
                   )}
                 </Box>
+                )}
               </Stack>
-            )}
-
-            {viewTab === 'schema' && !selectedDefinition && (
-              <Typography variant="body2" color="text.secondary">Select or assign an application to manage schema tables.</Typography>
             )}
 
             {/* ── MAPPING TAB ────────────────────────────────────────────── */}
