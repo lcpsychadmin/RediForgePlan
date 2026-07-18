@@ -258,7 +258,6 @@ const ObjectSchemaMappingPage: React.FC = () => {
     setIsSavingTables(true);
     try {
       await apiClient.put(`/api/applications/data-definitions/${selectedDataDefId}`, {
-        subObjectId: hasSubObjects ? scopeSubObjectId || null : null,
         mappedTables: tables,
       });
       setApplicationTables(tables);
