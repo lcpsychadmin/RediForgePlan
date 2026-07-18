@@ -1294,7 +1294,7 @@ router.post('/data-definitions/:definitionId/metadata-sync', requireAuth, requir
 router.post('/data-definitions/:definitionId/ai-generate-fields', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const routeStartedAt = Date.now();
-    const routeBudgetMs = 28500;
+    const routeBudgetMs = 26000;
     const remainingBudgetMs = () => routeBudgetMs - (Date.now() - routeStartedAt);
     const targetTableName = String(req.body?.targetTableName || '').trim();
     const leanOutputMode = Boolean(targetTableName);
@@ -1441,7 +1441,7 @@ router.post('/data-definitions/:definitionId/ai-generate-fields', requireAuth, a
     const runAiProposal = async (maxTokens: number, requestedTimeoutMs: number) => {
       const remaining = remainingBudgetMs();
       // Keep a small reserve for parse/merge/response write before Heroku's 30s cap.
-      const timeoutMs = Math.min(requestedTimeoutMs, Math.max(2500, remaining - 1200));
+      const timeoutMs = Math.min(requestedTimeoutMs, Math.max(2500, remaining - 1500));
       if (timeoutMs < 2500 || remaining < 3500) {
         throw new ApiError(504, 'AI provider request timed out before completion', 'AI_PROVIDER_TIMEOUT');
       }
@@ -1461,21 +1461,34 @@ router.post('/data-definitions/:definitionId/ai-generate-fields', requireAuth, a
       });
     };
 
-    let executionResult;
+    let executionResult: any = null;
+    let firstPassProposals: any[] = [];
     try {
-      executionResult = await runAiProposal(leanOutputMode ? 3200 : 700, leanOutputMode ? 16000 : 13000);
+      executionResult = await runAiProposal(leanOutputMode ? 1800 : 700, leanOutputMode ? 11000 : 13000);
+      const aiText = extractAiText(executionResult);
+      const parsed = parseAiJson(aiText);
+      firstPassProposals = Array.isArray(parsed)
+        ? parsed.map((row: any, index: number) => normalizeAiFieldProposal(row, index)).filter((row: any) => row.fieldName)
+        : [];
     } catch (error) {
       if (!isProviderTimeoutError(error)) {
         throw error;
       }
-      executionResult = await runAiProposal(leanOutputMode ? 1800 : 380, leanOutputMode ? 10000 : 7000);
+      try {
+        executionResult = await runAiProposal(leanOutputMode ? 1200 : 380, leanOutputMode ? 8000 : 7000);
+        const aiText = extractAiText(executionResult);
+        const parsed = parseAiJson(aiText);
+        firstPassProposals = Array.isArray(parsed)
+          ? parsed.map((row: any, index: number) => normalizeAiFieldProposal(row, index)).filter((row: any) => row.fieldName)
+          : [];
+      } catch (fallbackError) {
+        if (!isProviderTimeoutError(fallbackError)) {
+          throw fallbackError;
+        }
+        // Degrade gracefully on repeated provider timeouts.
+        firstPassProposals = [];
+      }
     }
-
-    const aiText = extractAiText(executionResult);
-    const parsed = parseAiJson(aiText);
-    const firstPassProposals = Array.isArray(parsed)
-      ? parsed.map((row: any, index: number) => normalizeAiFieldProposal(row, index)).filter((row: any) => row.fieldName)
-      : [];
 
     const discoveredTables = Array.from(new Set([
       ...firstPassProposals.map((row: any) => String(row.tableName || row.table || '').trim()).filter(Boolean),
@@ -1580,8 +1593,8 @@ router.post('/data-definitions/:definitionId/ai-generate-fields', requireAuth, a
                 { role: 'user', content: tableExpansionPrompt },
               ],
               temperature: 0.1,
-              maxTokens: targetTableName ? 2200 : 620,
-              timeoutMs: Math.min(targetTableName ? 9000 : 6000, Math.max(2500, remainingBudgetMs() - 1200)),
+              maxTokens: targetTableName ? 1400 : 620,
+              timeoutMs: Math.min(targetTableName ? 7000 : 6000, Math.max(2500, remainingBudgetMs() - 1500)),
             },
           });
 
@@ -1629,6 +1642,7 @@ router.post('/data-definitions/:definitionId/ai-generate-fields', requireAuth, a
       proposals,
       usage: executionResult?.usage || null,
       selection: executionResult?.selection || null,
+      degraded: executionResult == null,
     }));
   } catch (err) { next(err); }
 });
