@@ -257,19 +257,49 @@ const ObjectSchemaMappingPage: React.FC = () => {
     if (!selectedDataDefId) return;
     setIsSavingTables(true);
     try {
-      await apiClient.put(`/api/applications/data-definitions/${selectedDataDefId}`, {
-        mappedTables: tables,
-      });
+      const persist = async (definitionId: string) => {
+        await apiClient.put(`/api/applications/data-definitions/${definitionId}`, {
+          mappedTables: tables,
+        });
+        return definitionId;
+      };
+
+      let persistedDefinitionId = selectedDataDefId;
+      try {
+        persistedDefinitionId = await persist(selectedDataDefId);
+      } catch (err: any) {
+        const isConflict = Number(err?.response?.status) === 409;
+        if (!isConflict) throw err;
+
+        // Re-resolve current scope mapping and retry once using the scoped row ID.
+        const refreshed = await apiClient.get(`/api/applications/data-definitions/object/${objectId}`, {
+          params: { subObjectId: scopeSubObjectId },
+        });
+        const rows = refreshed.data?.data || [];
+        setLinked(rows);
+
+        const targetApplicationId = String(
+          selectedDefinition?.applicationId || selectedDefinition?.application_id || ''
+        );
+        const resolved = rows.find((row: any) => String(row?.applicationId || row?.application_id || '') === targetApplicationId);
+        const retryId = resolved?.id || selectedDataDefId;
+
+        persistedDefinitionId = await persist(retryId);
+        if (retryId !== selectedDataDefId) {
+          setSelectedDataDefId(retryId);
+        }
+      }
+
       setApplicationTables(tables);
       // update linked cache
       setLinked((prev) =>
-        prev.map((r) => r.id === selectedDataDefId ? { ...r, mappedTables: tables } : r)
+        prev.map((r) => r.id === persistedDefinitionId ? { ...r, mappedTables: tables } : r)
       );
       setStatusSeverity('success');
       setStatus('Tables saved.');
     } catch (err: any) {
       setStatusSeverity('error');
-      setStatus(err?.response?.data?.message || 'Failed to save tables.');
+      setStatus(err?.response?.data?.error || err?.response?.data?.message || 'Failed to save tables.');
     } finally {
       setIsSavingTables(false);
     }

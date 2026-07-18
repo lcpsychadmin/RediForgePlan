@@ -3,6 +3,12 @@
 
 import { Request, Response, NextFunction } from 'express';
 
+interface PgLikeError extends Error {
+  code?: string;
+  detail?: string;
+  constraint?: string;
+}
+
 export class ApiError extends Error {
   constructor(
     public statusCode: number,
@@ -21,6 +27,7 @@ export const errorHandler = (
   next: NextFunction
 ) => {
   console.error('Error:', err);
+  const dbErr = err as PgLikeError;
 
   // Handle known API errors
   if (err instanceof ApiError) {
@@ -46,10 +53,11 @@ export const errorHandler = (
   }
 
   // Handle database errors
-  if (err instanceof Error && (err.message.includes('duplicate key') || err.message.includes('UNIQUE'))) {
+  if (dbErr.code === '23505' || (err instanceof Error && (err.message.includes('duplicate key') || err.message.includes('UNIQUE')))) {
     return res.status(409).json({
-      error: 'Resource already exists',
+      error: dbErr.detail || 'Resource already exists',
       code: 'DUPLICATE_RESOURCE',
+      constraint: dbErr.constraint || undefined,
     });
   }
 
