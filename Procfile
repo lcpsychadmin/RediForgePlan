@@ -1,2 +1,2 @@
 release: npm run db:migrate
-web: npm run start --prefix server
+web: npm run start:src --prefix server
