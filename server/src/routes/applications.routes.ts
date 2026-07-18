@@ -1297,6 +1297,7 @@ router.post('/data-definitions/:definitionId/ai-generate-fields', requireAuth, a
     const routeBudgetMs = 26000;
     const remainingBudgetMs = () => routeBudgetMs - (Date.now() - routeStartedAt);
     const targetTableName = String(req.body?.targetTableName || '').trim();
+    const leanOutputMode = Boolean(targetTableName);
 
     const definitionResult = await db.query(
       `SELECT dd.id, dd.global_object_id, dd.application_id, dd.object_sub_object_id,
@@ -1376,10 +1377,23 @@ router.post('/data-definitions/:definitionId/ai-generate-fields', requireAuth, a
       '- Include technical, audit, system, reference, and relationship fields.',
       '- Keep fieldName unique per tableName where possible.',
       '- Do not invent impossible table names; prefer grounded tables from context.',
+      ...(leanOutputMode
+        ? [
+            '- Lean output mode is enabled: prioritize returning MANY rows over verbose narrative text.',
+            '- In lean mode, keep fieldDescription short and set non-critical narrative/governance fields to empty strings.',
+          ]
+        : []),
       '',
       'Output format:',
-      'Return ONLY JSON as an array of objects with this exact shape:',
-      '[{"fieldName":string,"label":string,"tableName":string,"fieldDescription":string,"applicationUsage":string,"businessDefinition":string,"businessRules":string,"fieldType":string,"fieldLength":number|null,"decimalPlaces":number|null,"systemRequired":boolean,"businessProcessRequired":boolean,"suppressedField":boolean,"legalRegulatoryImplications":string,"securityClassification":string,"referenceTable":string,"groupingTab":string,"piiType":string,"securityControls":string}]',
+      ...(leanOutputMode
+        ? [
+            'Return ONLY JSON as an array of objects using this minimal shape for high field coverage:',
+            '[{"fieldName":string,"label":string,"tableName":string,"fieldType":string,"fieldLength":number|null,"decimalPlaces":number|null,"systemRequired":boolean,"businessProcessRequired":boolean,"fieldDescription":string}]',
+          ]
+        : [
+            'Return ONLY JSON as an array of objects with this exact shape:',
+            '[{"fieldName":string,"label":string,"tableName":string,"fieldDescription":string,"applicationUsage":string,"businessDefinition":string,"businessRules":string,"fieldType":string,"fieldLength":number|null,"decimalPlaces":number|null,"systemRequired":boolean,"businessProcessRequired":boolean,"suppressedField":boolean,"legalRegulatoryImplications":string,"securityClassification":string,"referenceTable":string,"groupingTab":string,"piiType":string,"securityControls":string}]',
+          ]),
       'Do not include markdown, prose, comments, or wrapper keys.',
     ].join('\n');
 
@@ -1449,12 +1463,12 @@ router.post('/data-definitions/:definitionId/ai-generate-fields', requireAuth, a
 
     let executionResult;
     try {
-      executionResult = await runAiProposal(700, 13000);
+      executionResult = await runAiProposal(leanOutputMode ? 1200 : 700, 13000);
     } catch (error) {
       if (!isProviderTimeoutError(error)) {
         throw error;
       }
-      executionResult = await runAiProposal(380, 7000);
+      executionResult = await runAiProposal(leanOutputMode ? 700 : 380, 7000);
     }
 
     const aiText = extractAiText(executionResult);
@@ -1517,22 +1531,24 @@ router.post('/data-definitions/:definitionId/ai-generate-fields', requireAuth, a
 
     // Table-level enrichment pass: if important tables still have thin coverage, request additional missing fields per table.
     const tableCounts = countByTable(proposals);
-    const minFieldsPerTable = sapApplication ? 24 : 40;
+    const minFieldsPerTable = targetTableName
+      ? (sapApplication ? 60 : 80)
+      : (sapApplication ? 24 : 40);
     const thinTables = discoveredTables
       .map((table) => String(table || '').trim().toUpperCase())
       .filter(Boolean)
       .filter((table) => (tableCounts.get(table) || 0) < minFieldsPerTable)
-      .slice(0, 1);
+      .slice(0, targetTableName ? 1 : 1);
 
     for (const tableName of thinTables) {
       let tablePasses = 0;
-      while (remainingBudgetMs() > 7000 && tablePasses < 2) {
+      while (remainingBudgetMs() > 5000 && tablePasses < (targetTableName ? 4 : 2)) {
         const existingForTable = proposals
           .filter((row: any) => String(row.tableName || row.table || '').trim().toUpperCase() === tableName)
           .map((row: any) => String(row.fieldName || '').trim())
           .filter(Boolean);
 
-        const needed = Math.max(10, minFieldsPerTable - existingForTable.length);
+        const needed = Math.max(targetTableName ? 18 : 10, minFieldsPerTable - existingForTable.length);
         if (needed <= 0) {
           break;
         }
@@ -1543,6 +1559,7 @@ router.post('/data-definitions/:definitionId/ai-generate-fields', requireAuth, a
           `Target table: ${tableName}`,
           `Need at least ${needed} ADDITIONAL missing fields for this table.`,
           'Strict Scope Rule: include ONLY the selected application and this target table.',
+          ...(targetTableName ? ['Lean output mode: prioritize breadth of field rows, keep descriptions concise.'] : []),
           '',
           'Existing fields already captured for this table (do not repeat):',
           JSON.stringify(existingForTable, null, 2),
@@ -1563,7 +1580,7 @@ router.post('/data-definitions/:definitionId/ai-generate-fields', requireAuth, a
                 { role: 'user', content: tableExpansionPrompt },
               ],
               temperature: 0.1,
-              maxTokens: 620,
+              maxTokens: targetTableName ? 900 : 620,
               timeoutMs: Math.min(6000, Math.max(2500, remainingBudgetMs() - 1500)),
             },
           });
