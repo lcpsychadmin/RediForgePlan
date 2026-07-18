@@ -74,6 +74,9 @@ const ObjectSchemaMappingPage: React.FC = () => {
   const { objectId = '' } = useParams();
 
   // ── shared state ───────────────────────────────────────────────────────────
+  const [apps, setApps] = React.useState<any[]>([]);
+  const [linkAppId, setLinkAppId] = React.useState('');
+  const [isAssigningApp, setIsAssigningApp] = React.useState(false);
   const [linked, setLinked] = React.useState<any[]>([]);
   const [selectedDataDefId, setSelectedDataDefId] = React.useState('');
   const [viewTab, setViewTab] = React.useState<ViewTab>('schema');
@@ -114,6 +117,11 @@ const ObjectSchemaMappingPage: React.FC = () => {
 
   const scopeSubObjectId = hasSubObjects ? selectedSubObjectId : '';
 
+  const loadApplications = React.useCallback(async () => {
+    const res = await apiClient.get('/api/applications');
+    setApps(res.data?.data || []);
+  }, []);
+
   // ── load linked applications ───────────────────────────────────────────────
   const loadLinkedDefinitions = React.useCallback(async () => {
     if (hasSubObjects && !scopeSubObjectId) {
@@ -137,6 +145,10 @@ const ObjectSchemaMappingPage: React.FC = () => {
       setSelectedDataDefId('');
     });
   }, [loadLinkedDefinitions]);
+
+  React.useEffect(() => {
+    loadApplications().catch(() => setApps([]));
+  }, [loadApplications]);
 
   // ── sync tables from definition when selection changes ────────────────────
   const selectedDefinition = linked.find((r: any) => r.id === selectedDataDefId) || null;
@@ -196,6 +208,29 @@ const ObjectSchemaMappingPage: React.FC = () => {
       setStatus(err?.response?.data?.message || err?.message || 'Failed to generate tables.');
     } finally {
       setIsGeneratingTables(false);
+    }
+  };
+
+  const handleAssignApplication = async () => {
+    if (!linkAppId) return;
+    setIsAssigningApp(true);
+    setStatus('');
+    try {
+      const res = await apiClient.post('/api/applications/data-definitions', {
+        globalObjectId: objectId,
+        applicationId: linkAppId,
+        subObjectId: hasSubObjects ? scopeSubObjectId || null : null,
+      });
+      await loadLinkedDefinitions();
+      setSelectedDataDefId(res.data?.data?.id || '');
+      setLinkAppId('');
+      setStatusSeverity('success');
+      setStatus('Application assigned to selected scope. You can now discover tables.');
+    } catch (err: any) {
+      setStatusSeverity('error');
+      setStatus(err?.response?.data?.message || 'Failed to assign application.');
+    } finally {
+      setIsAssigningApp(false);
     }
   };
 
@@ -431,6 +466,37 @@ const ObjectSchemaMappingPage: React.FC = () => {
               )}
             </Stack>
 
+            {linked.length === 0 && (
+              <Stack spacing={1.2} sx={{ mb: 2 }}>
+                <Alert severity="info">
+                  No application is assigned for this sub-object scope yet. Assign one below to enable AI table discovery.
+                </Alert>
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                  <TextField
+                    select
+                    size="small"
+                    label="Assign Application"
+                    value={linkAppId}
+                    onChange={(e) => setLinkAppId(e.target.value)}
+                    sx={{ minWidth: 260 }}
+                  >
+                    {apps.map((app) => (
+                      <MenuItem key={app.id} value={app.id}>{app.name}</MenuItem>
+                    ))}
+                  </TextField>
+                  <Button
+                    size="small"
+                    variant="contained"
+                    onClick={handleAssignApplication}
+                    disabled={!linkAppId || isAssigningApp || (hasSubObjects && !scopeSubObjectId)}
+                    sx={{ textTransform: 'none', whiteSpace: 'nowrap' }}
+                  >
+                    {isAssigningApp ? 'Assigning...' : 'Assign & Continue'}
+                  </Button>
+                </Stack>
+              </Stack>
+            )}
+
             {/* View tabs */}
             <Box sx={{ borderBottom: '1px solid rgba(255,255,255,0.12)', mb: 2 }}>
               <Tabs value={viewTab} onChange={(_e, v) => setViewTab(v)}>
@@ -515,7 +581,7 @@ const ObjectSchemaMappingPage: React.FC = () => {
             )}
 
             {viewTab === 'schema' && !selectedDefinition && (
-              <Typography variant="body2" color="text.secondary">Select an application to manage its schema tables.</Typography>
+              <Typography variant="body2" color="text.secondary">Select or assign an application to manage schema tables.</Typography>
             )}
 
             {/* ── MAPPING TAB ────────────────────────────────────────────── */}
