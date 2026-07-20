@@ -7,6 +7,7 @@ import {
   createNewUser,
   setupMFA,
   enableMFA,
+  autoLoginAdmin,
 } from './auth.controller.js';
 import { requireAuth, requireRole } from '../middleware/authMiddleware.js';
 import { query } from '../db.js';
@@ -18,6 +19,7 @@ const router = express.Router();
  * Public routes
  */
 router.post('/login', login);
+router.post('/auto-login', autoLoginAdmin);
 router.post('/mfa/verify', verifyMFA);
 router.post('/mfa/setup', setupMFA);
 

@@ -280,3 +280,47 @@ export const verifyTOTPFromUserId = async (userId: string, token: string): Promi
     return false;
   }
 };
+
+/**
+ * Optional testing helper: auto-login as configured admin user.
+ * Disabled by default; enable explicitly via env var.
+ */
+export const autoLoginAdmin = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const enabled = String(process.env.AUTO_LOGIN_ENABLED || '').toLowerCase() === 'true';
+    if (!enabled) {
+      return res.status(404).json({ error: 'Not found' });
+    }
+
+    const adminEmail = String(process.env.AUTO_LOGIN_ADMIN_EMAIL || 'admin@rediforge.com').trim().toLowerCase();
+    if (!adminEmail) {
+      return res.status(500).json({ error: 'AUTO_LOGIN_ADMIN_EMAIL is not configured' });
+    }
+
+    const user = await getUserByEmail(adminEmail);
+    if (!user) {
+      return res.status(404).json({ error: 'Auto-login admin user not found' });
+    }
+
+    if (user.role !== 'admin') {
+      return res.status(403).json({ error: 'Configured auto-login user is not an admin' });
+    }
+
+    const token = createJWT(user.id, user.email, user.role);
+    await storeSession(user.id, token.token);
+
+    return res.json({
+      mfaRequired: false,
+      token: token.token,
+      user: {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        mfa_enabled: !!user.mfa_enabled,
+      },
+      autoLogin: true,
+    });
+  } catch (error) {
+    next(error);
+  }
+};

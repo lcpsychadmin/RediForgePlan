@@ -35,6 +35,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Initialize auth from localStorage on mount
   useEffect(() => {
+    const autoLoginEnabled = String(import.meta.env.VITE_AUTO_LOGIN_ENABLED || '').toLowerCase() === 'true';
+
     const initializeAuth = async () => {
       try {
         const token = localStorage.getItem('authToken');
@@ -43,6 +45,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           // Verify token is still valid
           const response = await apiClient.get('/auth/me');
           setUser(response.data);
+        } else if (autoLoginEnabled) {
+          setLoading(true);
+          const response = await apiClient.post('/auth/auto-login');
+          if (response.data?.token && response.data?.user) {
+            localStorage.setItem('authToken', response.data.token);
+            apiClient.defaults.headers.common['Authorization'] = `Bearer ${response.data.token}`;
+            setUser(response.data.user);
+          }
         }
       } catch (err) {
         localStorage.removeItem('authToken');
