@@ -381,6 +381,63 @@ const buildFallbackProposal = (tableName: string, field: SapFallbackField, index
   securityControls: '',
 });
 
+const GENERIC_ERP_FALLBACK_FIELDS: SapFallbackField[] = [
+  { fieldName: 'ID', label: 'Record ID', fieldType: 'CHAR', fieldLength: 36 },
+  { fieldName: 'COMPANY_CODE', label: 'Company Code', fieldType: 'CHAR', fieldLength: 10 },
+  { fieldName: 'BUSINESS_UNIT', label: 'Business Unit', fieldType: 'CHAR', fieldLength: 12 },
+  { fieldName: 'ENTITY_CODE', label: 'Entity Code', fieldType: 'CHAR', fieldLength: 12 },
+  { fieldName: 'STATUS', label: 'Status', fieldType: 'CHAR', fieldLength: 20 },
+  { fieldName: 'TYPE', label: 'Type', fieldType: 'CHAR', fieldLength: 20 },
+  { fieldName: 'CATEGORY', label: 'Category', fieldType: 'CHAR', fieldLength: 30 },
+  { fieldName: 'SOURCE_SYSTEM', label: 'Source System', fieldType: 'CHAR', fieldLength: 30 },
+  { fieldName: 'REFERENCE_ID', label: 'Reference ID', fieldType: 'CHAR', fieldLength: 36 },
+  { fieldName: 'EXTERNAL_ID', label: 'External ID', fieldType: 'CHAR', fieldLength: 36 },
+  { fieldName: 'EFFECTIVE_DATE', label: 'Effective Date', fieldType: 'DATE', fieldLength: null },
+  { fieldName: 'END_DATE', label: 'End Date', fieldType: 'DATE', fieldLength: null },
+  { fieldName: 'AMOUNT', label: 'Amount', fieldType: 'DECIMAL', fieldLength: 18, decimalPlaces: 2 },
+  { fieldName: 'CURRENCY_CODE', label: 'Currency Code', fieldType: 'CHAR', fieldLength: 3 },
+  { fieldName: 'UOM', label: 'Unit of Measure', fieldType: 'CHAR', fieldLength: 6 },
+  { fieldName: 'DESCRIPTION', label: 'Description', fieldType: 'VARCHAR', fieldLength: 255 },
+  { fieldName: 'LONG_DESCRIPTION', label: 'Long Description', fieldType: 'VARCHAR', fieldLength: 1000 },
+  { fieldName: 'IS_ACTIVE', label: 'Is Active', fieldType: 'BOOLEAN', fieldLength: null },
+  { fieldName: 'IS_DELETED', label: 'Is Deleted', fieldType: 'BOOLEAN', fieldLength: null },
+  { fieldName: 'CREATED_BY', label: 'Created By', fieldType: 'CHAR', fieldLength: 64 },
+  { fieldName: 'CREATED_AT', label: 'Created At', fieldType: 'TIMESTAMP', fieldLength: null },
+  { fieldName: 'UPDATED_BY', label: 'Updated By', fieldType: 'CHAR', fieldLength: 64 },
+  { fieldName: 'UPDATED_AT', label: 'Updated At', fieldType: 'TIMESTAMP', fieldLength: null },
+  { fieldName: 'LOAD_BATCH_ID', label: 'Load Batch ID', fieldType: 'CHAR', fieldLength: 64 },
+  { fieldName: 'ROW_HASH', label: 'Row Hash', fieldType: 'CHAR', fieldLength: 64 },
+  { fieldName: 'ROW_VERSION', label: 'Row Version', fieldType: 'INTEGER', fieldLength: null },
+  { fieldName: 'VALIDATION_STATUS', label: 'Validation Status', fieldType: 'CHAR', fieldLength: 30 },
+  { fieldName: 'ERROR_CODE', label: 'Error Code', fieldType: 'CHAR', fieldLength: 30 },
+  { fieldName: 'ERROR_MESSAGE', label: 'Error Message', fieldType: 'VARCHAR', fieldLength: 500 },
+  { fieldName: 'SYNC_STATUS', label: 'Sync Status', fieldType: 'CHAR', fieldLength: 20 },
+];
+
+const applyGenericTableFallbackCoverage = (rows: any[], targetTableName: string) => {
+  const table = String(targetTableName || '').trim().toUpperCase();
+  if (!table) {
+    return rows;
+  }
+
+  let proposals = Array.isArray(rows) ? rows : [];
+  const existing = new Set(
+    proposals
+      .filter((row) => String(row?.tableName || row?.table || '').trim().toUpperCase() === table)
+      .map((row) => String(row?.fieldName || '').trim().toUpperCase())
+      .filter(Boolean)
+  );
+
+  const missing = GENERIC_ERP_FALLBACK_FIELDS.filter((field) => !existing.has(field.fieldName.toUpperCase()));
+  if (!missing.length) {
+    return proposals;
+  }
+
+  const fallbackRows = missing.map((field, index) => buildFallbackProposal(table, field, index));
+  proposals = mergeUniqueProposals(proposals, fallbackRows);
+  return proposals;
+};
+
 const applySapFallbackCoverage = (rows: any[]) => {
   let proposals = Array.isArray(rows) ? rows : [];
   const counts = countByTable(proposals);
@@ -1403,6 +1460,9 @@ router.post('/data-definitions/:definitionId/ai-generate-fields', requireAuth, a
         .map((row: any) => String(row?.table_name || '').trim().toUpperCase())
         .filter(Boolean)
     );
+    if (targetTableName) {
+      groundedTableSet.add(targetTableName.trim().toUpperCase());
+    }
     const sapApplication = isSapApplication(
       String(definition.application_name || ''),
       String(definition.vendor || ''),
@@ -1630,6 +1690,9 @@ router.post('/data-definitions/:definitionId/ai-generate-fields', requireAuth, a
     // Deterministic safety net for key SAP customer master tables when AI depth is constrained.
     if (sapApplication) {
       proposals = applySapFallbackCoverage(proposals);
+    }
+    if (targetTableName && proposals.length === 0) {
+      proposals = applyGenericTableFallbackCoverage(proposals, targetTableName);
     }
     proposals = enrichIncompleteMetadataFromFallback(proposals);
     proposals = hydrateProposalMetadata(proposals);
