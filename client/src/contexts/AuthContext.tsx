@@ -37,25 +37,42 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   useEffect(() => {
     const autoLoginEnabled = String(import.meta.env.VITE_AUTO_LOGIN_ENABLED || '').toLowerCase() === 'true';
 
+    const tryAutoLogin = async () => {
+      const response = await apiClient.post('/auth/auto-login', {}, {
+        headers: { 'X-Skip-Auth-Redirect': 'true' },
+      });
+      if (response.data?.token && response.data?.user) {
+        localStorage.setItem('authToken', response.data.token);
+        apiClient.defaults.headers.common['Authorization'] = `Bearer ${response.data.token}`;
+        setUser(response.data.user);
+      }
+    };
+
     const initializeAuth = async () => {
       try {
         const token = localStorage.getItem('authToken');
         if (token) {
           setLoading(true);
-          // Verify token is still valid
-          const response = await apiClient.get('/auth/me');
-          setUser(response.data);
+          try {
+            // Verify token is still valid
+            const response = await apiClient.get('/auth/me', {
+              headers: { 'X-Skip-Auth-Redirect': 'true' },
+            });
+            setUser(response.data);
+          } catch {
+            localStorage.removeItem('authToken');
+            delete apiClient.defaults.headers.common['Authorization'];
+            if (autoLoginEnabled) {
+              await tryAutoLogin();
+            }
+          }
         } else if (autoLoginEnabled) {
           setLoading(true);
-          const response = await apiClient.post('/auth/auto-login');
-          if (response.data?.token && response.data?.user) {
-            localStorage.setItem('authToken', response.data.token);
-            apiClient.defaults.headers.common['Authorization'] = `Bearer ${response.data.token}`;
-            setUser(response.data.user);
-          }
+          await tryAutoLogin();
         }
       } catch (err) {
         localStorage.removeItem('authToken');
+        delete apiClient.defaults.headers.common['Authorization'];
       } finally {
         setLoading(false);
       }

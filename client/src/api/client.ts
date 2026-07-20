@@ -48,8 +48,15 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
   (response) => response,
   (error: AxiosError) => {
+    const requestHeaders: any = error.config?.headers || {};
+    const skipAuthRedirect =
+      requestHeaders['X-Skip-Auth-Redirect'] === 'true'
+      || requestHeaders['x-skip-auth-redirect'] === 'true'
+      || requestHeaders['X-Skip-Auth-Redirect'] === true
+      || requestHeaders['x-skip-auth-redirect'] === true;
+
     // Handle 401 Unauthorized
-    if (error.response?.status === 401) {
+    if (error.response?.status === 401 && !skipAuthRedirect) {
       localStorage.removeItem('authToken');
       
       // Call logout callback if registered
