@@ -1921,6 +1921,75 @@ router.post('/data-definitions/:definitionId/ai-generate-fields', requireAuth, a
           }
         }
       }
+
+      // Continuation expansion: ask for the next unseen columns after current coverage.
+      if (remainingBudgetMs() > 5200) {
+        let continuationPass = 0;
+        while (continuationPass < 2 && remainingBudgetMs() > 4200) {
+          const currentFieldNames = proposals
+            .filter((row: any) => String(row.tableName || row.table || '').trim().toUpperCase() === tableUpper)
+            .map((row: any) => String(row.fieldName || '').trim().toUpperCase())
+            .filter(Boolean)
+            .sort((a, b) => a.localeCompare(b));
+
+          const anchor = currentFieldNames.length ? currentFieldNames[currentFieldNames.length - 1] : '';
+          const sampleWindow = currentFieldNames.slice(Math.max(0, currentFieldNames.length - 25));
+
+          const continuationPrompt = [
+            `Data Object: ${definition.object_id}`,
+            `Application: ${definition.application_name}`,
+            `Target table: ${tableUpper}`,
+            'Strict Scope Rule: include ONLY the selected application and this target table.',
+            'Return additional missing physical columns only; do not repeat existing fields.',
+            'Lean output mode: prioritize row count over verbose narrative fields.',
+            '',
+            anchor
+              ? `Continuation anchor: prioritize columns that would appear after "${anchor}" in lexical order.`
+              : 'Continuation anchor: start from the beginning of the table field list.',
+            '',
+            'Recently captured fields (for dedupe context):',
+            JSON.stringify(sampleWindow, null, 2),
+            '',
+            'Return ONLY new/unseen fields for continuation. If none remain, return [].',
+          ].join('\n');
+
+          try {
+            const continuationResult = await aiExecutionService.execute({
+              gatewayId: definition.default_gateway_id || undefined,
+              routerId: definition.default_router_id || undefined,
+              payload: {
+                messages: [
+                  { role: 'system', content: systemPrompt },
+                  { role: 'user', content: continuationPrompt },
+                ],
+                temperature: 0.1,
+                maxTokens: 950,
+                timeoutMs: Math.min(5000, Math.max(2500, remainingBudgetMs() - 1400)),
+              },
+            });
+
+            const continuationParsed = parseAiJson(extractAiText(continuationResult));
+            const continuationRows = Array.isArray(continuationParsed)
+              ? continuationParsed
+                  .map((row: any, index: number) => normalizeAiFieldProposal(row, index + proposals.length))
+                  .filter((row: any) => row.fieldName)
+                  .map((row: any) => ({ ...row, tableName: row.tableName || tableUpper, table: row.table || tableUpper }))
+              : [];
+
+            const before = proposals.length;
+            proposals = mergeUniqueProposals(proposals, continuationRows);
+            continuationPass += 1;
+            if (proposals.length <= before) {
+              break;
+            }
+          } catch (error) {
+            if (!isProviderTimeoutError(error)) {
+              throw error;
+            }
+            break;
+          }
+        }
+      }
     }
 
     // Deterministic safety net for key SAP customer master tables when AI depth is constrained.
