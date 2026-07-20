@@ -665,6 +665,57 @@ const countByTable = (rows: any[]) => {
   return counts;
 };
 
+const inferCommonFieldPrefix = (fieldNames: string[]) => {
+  const normalized = (fieldNames || []).map((name) => String(name || '').trim().toUpperCase()).filter(Boolean);
+  if (normalized.length < 3) {
+    return '';
+  }
+
+  const byPrefix = new Map<string, number>();
+  for (const name of normalized) {
+    if (name.length < 2) continue;
+    const p2 = name.slice(0, 2);
+    byPrefix.set(p2, (byPrefix.get(p2) || 0) + 1);
+  }
+
+  let bestPrefix = '';
+  let bestCount = 0;
+  for (const [prefix, count] of byPrefix.entries()) {
+    if (count > bestCount) {
+      bestPrefix = prefix;
+      bestCount = count;
+    }
+  }
+
+  // Keep it conservative to avoid overfitting prefixes on sparse data.
+  return bestCount >= Math.max(3, Math.floor(normalized.length * 0.4)) ? bestPrefix : '';
+};
+
+const buildBucketRanges = () => [
+  { code: 'A-F', start: 'A', end: 'F' },
+  { code: 'G-L', start: 'G', end: 'L' },
+  { code: 'M-R', start: 'M', end: 'R' },
+  { code: 'S-Z', start: 'S', end: 'Z' },
+  { code: '0-4', start: '0', end: '4' },
+  { code: '5-9', start: '5', end: '9' },
+];
+
+const selectFieldsForBucket = (fieldNames: string[], prefix: string, start: string, end: string) => {
+  const pfx = String(prefix || '').toUpperCase();
+  const s = start.toUpperCase();
+  const e = end.toUpperCase();
+  return (fieldNames || [])
+    .map((name) => String(name || '').trim().toUpperCase())
+    .filter(Boolean)
+    .filter((name) => {
+      if (pfx && !name.startsWith(pfx)) return false;
+      const idx = pfx ? pfx.length : 0;
+      const ch = (name[idx] || '').toUpperCase();
+      if (!ch) return false;
+      return ch >= s && ch <= e;
+    });
+};
+
 const isProviderTimeoutError = (error: any) => {
   return error instanceof ApiError && error.code === 'AI_PROVIDER_TIMEOUT';
 };
@@ -1683,6 +1734,79 @@ router.post('/data-definitions/:definitionId/ai-generate-fields', requireAuth, a
           }
           // Keep current proposals if table-level enrichment times out.
           break;
+        }
+      }
+    }
+
+    // Bucketed expansion: non-hardcoded coverage top-up by inferred field naming pattern.
+    if (targetTableName && remainingBudgetMs() > 7000) {
+      const tableUpper = targetTableName.trim().toUpperCase();
+      let tableFieldNames = proposals
+        .filter((row: any) => String(row.tableName || row.table || '').trim().toUpperCase() === tableUpper)
+        .map((row: any) => String(row.fieldName || '').trim())
+        .filter(Boolean);
+
+      const commonPrefix = inferCommonFieldPrefix(tableFieldNames);
+      const buckets = buildBucketRanges();
+
+      for (const bucket of buckets) {
+        if (remainingBudgetMs() <= 4500) {
+          break;
+        }
+
+        tableFieldNames = proposals
+          .filter((row: any) => String(row.tableName || row.table || '').trim().toUpperCase() === tableUpper)
+          .map((row: any) => String(row.fieldName || '').trim())
+          .filter(Boolean);
+
+        const existingInBucket = selectFieldsForBucket(tableFieldNames, commonPrefix, bucket.start, bucket.end);
+        const bucketPrompt = [
+          `Data Object: ${definition.object_id}`,
+          `Application: ${definition.application_name}`,
+          `Target table: ${tableUpper}`,
+          `Field-name bucket: ${bucket.code}`,
+          commonPrefix
+            ? `Return only fields where the next character after prefix "${commonPrefix}" is in [${bucket.start}-${bucket.end}].`
+            : `Return only fields where the first character is in [${bucket.start}-${bucket.end}].`,
+          'Strict Scope Rule: include ONLY the selected application and this target table.',
+          'Lean output mode: maximize count of distinct, valid physical columns.',
+          '',
+          'Already captured for this bucket (do not repeat):',
+          JSON.stringify(existingInBucket, null, 2),
+          '',
+          'Return additional missing fields only for this bucket and table.',
+          'If no additional fields exist in this bucket, return an empty array [].',
+        ].join('\n');
+
+        try {
+          const bucketResult = await aiExecutionService.execute({
+            gatewayId: definition.default_gateway_id || undefined,
+            routerId: definition.default_router_id || undefined,
+            payload: {
+              messages: [
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: bucketPrompt },
+              ],
+              temperature: 0.1,
+              maxTokens: 900,
+              timeoutMs: Math.min(5500, Math.max(2500, remainingBudgetMs() - 1400)),
+            },
+          });
+
+          const bucketParsed = parseAiJson(extractAiText(bucketResult));
+          const bucketRows = Array.isArray(bucketParsed)
+            ? bucketParsed
+                .map((row: any, index: number) => normalizeAiFieldProposal(row, index + proposals.length))
+                .filter((row: any) => row.fieldName)
+                .map((row: any) => ({ ...row, tableName: row.tableName || tableUpper, table: row.table || tableUpper }))
+            : [];
+
+          proposals = mergeUniqueProposals(proposals, bucketRows);
+        } catch (error) {
+          if (!isProviderTimeoutError(error)) {
+            throw error;
+          }
+          // Keep partial results and continue with remaining buckets where possible.
         }
       }
     }
