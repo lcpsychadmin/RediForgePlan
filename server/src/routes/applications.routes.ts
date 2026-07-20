@@ -700,6 +700,54 @@ const buildBucketRanges = () => [
   { code: '5-9', start: '5', end: '9' },
 ];
 
+const buildSemanticFamilies = () => [
+  {
+    name: 'Identity and Master Keys',
+    hints: [
+      'primary/business keys',
+      'alternate keys',
+      'cross-reference identifiers',
+      'entity/type/status indicators',
+    ],
+  },
+  {
+    name: 'Address and Communication',
+    hints: [
+      'name fields',
+      'address lines, city, postal, region, country',
+      'phone, fax, email and communication preferences',
+      'language/locale fields',
+    ],
+  },
+  {
+    name: 'Financial, Tax, and Compliance',
+    hints: [
+      'tax IDs and registration fields',
+      'credit/payment terms',
+      'currency/accounting linkage fields',
+      'regulatory/compliance flags',
+    ],
+  },
+  {
+    name: 'Classification and Segmentation',
+    hints: [
+      'category/classification codes',
+      'industry/market segmentation',
+      'grouping/reporting codes',
+      'reference lookups and relationship attributes',
+    ],
+  },
+  {
+    name: 'Operational, Audit, and Integration',
+    hints: [
+      'effective dates and lifecycle status',
+      'workflow/control fields',
+      'user/program/job update stamps',
+      'integration sync/error/control fields',
+    ],
+  },
+];
+
 const selectFieldsForBucket = (fieldNames: string[], prefix: string, start: string, end: string) => {
   const pfx = String(prefix || '').toUpperCase();
   const s = start.toUpperCase();
@@ -1807,6 +1855,70 @@ router.post('/data-definitions/:definitionId/ai-generate-fields', requireAuth, a
             throw error;
           }
           // Keep partial results and continue with remaining buckets where possible.
+        }
+      }
+
+      // Semantic family expansion: requests missing fields by business/technical field families.
+      if (remainingBudgetMs() > 6000) {
+        const families = buildSemanticFamilies();
+        for (const family of families) {
+          if (remainingBudgetMs() <= 4200) {
+            break;
+          }
+
+          const currentFieldNames = proposals
+            .filter((row: any) => String(row.tableName || row.table || '').trim().toUpperCase() === tableUpper)
+            .map((row: any) => String(row.fieldName || '').trim())
+            .filter(Boolean);
+
+          const familyPrompt = [
+            `Data Object: ${definition.object_id}`,
+            `Application: ${definition.application_name}`,
+            `Target table: ${tableUpper}`,
+            `Field family focus: ${family.name}`,
+            'Strict Scope Rule: include ONLY the selected application and this target table.',
+            'Return additional missing physical columns only; do not repeat existing fields.',
+            'Lean output mode: prioritize row count over verbose narrative fields.',
+            '',
+            'Family hints:',
+            ...family.hints.map((hint) => `- ${hint}`),
+            '',
+            'Existing fields already captured for this table (do not repeat):',
+            JSON.stringify(currentFieldNames, null, 2),
+            '',
+            'If no additional fields exist for this family, return an empty array [].',
+          ].join('\n');
+
+          try {
+            const familyResult = await aiExecutionService.execute({
+              gatewayId: definition.default_gateway_id || undefined,
+              routerId: definition.default_router_id || undefined,
+              payload: {
+                messages: [
+                  { role: 'system', content: systemPrompt },
+                  { role: 'user', content: familyPrompt },
+                ],
+                temperature: 0.1,
+                maxTokens: 850,
+                timeoutMs: Math.min(5200, Math.max(2500, remainingBudgetMs() - 1400)),
+              },
+            });
+
+            const familyParsed = parseAiJson(extractAiText(familyResult));
+            const familyRows = Array.isArray(familyParsed)
+              ? familyParsed
+                  .map((row: any, index: number) => normalizeAiFieldProposal(row, index + proposals.length))
+                  .filter((row: any) => row.fieldName)
+                  .map((row: any) => ({ ...row, tableName: row.tableName || tableUpper, table: row.table || tableUpper }))
+              : [];
+
+            proposals = mergeUniqueProposals(proposals, familyRows);
+          } catch (error) {
+            if (!isProviderTimeoutError(error)) {
+              throw error;
+            }
+            // Continue with what we have if a family pass times out.
+          }
         }
       }
     }
