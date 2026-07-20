@@ -226,6 +226,30 @@ const normalizeAiFieldProposal = (row: any, index: number) => ({
   securityControls: String(row?.securityControls || row?.security_controls || '').trim(),
 });
 
+const normalizeExistingFieldAsProposal = (row: any, index: number) => ({
+  id: String(row?.id || `existing-field-${index}`),
+  fieldName: String(row?.field_name || '').trim(),
+  label: String(row?.field_label || row?.field_name || '').trim(),
+  table: String(row?.table_name || row?.field_metadata?.tableName || row?.field_metadata?.table || '').trim(),
+  tableName: String(row?.table_name || row?.field_metadata?.tableName || row?.field_metadata?.table || '').trim(),
+  fieldDescription: String(row?.description || '').trim(),
+  applicationUsage: String(row?.field_metadata?.applicationUsage || '').trim(),
+  businessDefinition: String(row?.field_metadata?.businessDefinition || '').trim(),
+  businessRules: String(row?.field_metadata?.businessRules || '').trim(),
+  fieldType: String(row?.data_type || row?.field_metadata?.fieldType || '').trim(),
+  fieldLength: row?.length == null ? null : Number(row.length),
+  decimalPlaces: row?.decimals == null ? null : Number(row.decimals),
+  systemRequired: !!row?.is_required,
+  businessProcessRequired: !!(row?.business_process_required ?? row?.is_required),
+  suppressedField: false,
+  legalRegulatoryImplications: String(row?.field_metadata?.legalRegulatoryImplications || '').trim(),
+  securityClassification: String(row?.field_metadata?.securityClassification || '').trim(),
+  referenceTable: String(row?.field_metadata?.referenceTable || '').trim(),
+  groupingTab: String(row?.field_metadata?.groupingTab || '').trim(),
+  piiType: String(row?.field_metadata?.piiType || '').trim(),
+  securityControls: String(row?.field_metadata?.securityControls || '').trim(),
+});
+
 const compactMetadataContext = (fields: any[]) => {
   const limited = Array.isArray(fields) ? fields.slice(0, 120) : [];
   return limited.map((field) => ({
@@ -236,7 +260,7 @@ const compactMetadataContext = (fields: any[]) => {
     decimals: field?.decimals ?? null,
     is_key: !!field?.is_key,
     is_required: !!field?.is_required,
-    table_name: field?.field_metadata?.tableName || field?.field_metadata?.table || null,
+    table_name: field?.table_name || field?.field_metadata?.tableName || field?.field_metadata?.table || null,
     source_type: field?.field_metadata?.sourceType || null,
     sort_order: field?.sort_order ?? null,
   }));
@@ -1479,7 +1503,7 @@ router.post('/data-definitions/:definitionId/ai-generate-fields', requireAuth, a
 
     const definition = definitionResult.rows[0];
     const fieldsResult = await db.query(
-      `SELECT id, field_name, field_label, data_type, length, decimals, is_key, is_required, description, field_metadata, sort_order
+      `SELECT id, table_name, field_name, field_label, data_type, length, decimals, is_key, is_required, business_process_required, description, field_metadata, sort_order
        FROM data_definition_fields
        WHERE data_definition_id = $1
        ORDER BY sort_order ASC, field_name ASC`,
@@ -1655,6 +1679,16 @@ router.post('/data-definitions/:definitionId/ai-generate-fields', requireAuth, a
     ])).slice(0, 8);
 
     let proposals = firstPassProposals;
+
+    if (targetTableName) {
+      const targetUpper = targetTableName.trim().toUpperCase();
+      const existingTargetTableRows = (fieldsResult.rows || [])
+        .filter((row: any) => String(row?.table_name || row?.field_metadata?.tableName || row?.field_metadata?.table || '').trim().toUpperCase() === targetUpper)
+        .map((row: any, index: number) => normalizeExistingFieldAsProposal(row, index))
+        .filter((row: any) => row.fieldName);
+
+      proposals = mergeUniqueProposals(existingTargetTableRows, proposals);
+    }
 
     if (discoveredTables.length > 0 && firstPassProposals.length < 30 && remainingBudgetMs() > 9000) {
       const expansionUserPrompt = [
