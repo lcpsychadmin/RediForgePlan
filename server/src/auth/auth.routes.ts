@@ -8,6 +8,7 @@ import {
   setupMFA,
   enableMFA,
   autoLoginAdmin,
+  buildAccessLogin,
 } from './auth.controller.js';
 import { requireAuth, requireRole } from '../middleware/authMiddleware.js';
 import { query } from '../db.js';
@@ -20,6 +21,7 @@ const router = express.Router();
  */
 router.post('/login', login);
 router.post('/auto-login', autoLoginAdmin);
+router.post('/build-access', buildAccessLogin);
 router.post('/mfa/verify', verifyMFA);
 router.post('/mfa/setup', setupMFA);
 

@@ -324,3 +324,52 @@ export const autoLoginAdmin = async (req: Request, res: Response, next: NextFunc
     next(error);
   }
 };
+
+/**
+ * Optional build helper: login with a shared build access key.
+ * Disabled by default; enable explicitly via env vars.
+ */
+export const buildAccessLogin = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const enabled = String(process.env.BUILD_ACCESS_ENABLED || '').toLowerCase() === 'true';
+    if (!enabled) {
+      return res.status(404).json({ error: 'Not found' });
+    }
+
+    const expectedKey = String(process.env.BUILD_ACCESS_KEY || '').trim();
+    if (!expectedKey) {
+      return res.status(500).json({ error: 'BUILD_ACCESS_KEY is not configured' });
+    }
+
+    const providedKey = String(req.body?.key || req.headers['x-build-access-key'] || '').trim();
+    if (!providedKey || providedKey !== expectedKey) {
+      return res.status(401).json({ error: 'Invalid build access key' });
+    }
+
+    const loginEmail = String(process.env.BUILD_ACCESS_EMAIL || process.env.AUTO_LOGIN_ADMIN_EMAIL || 'admin@rediforge.com')
+      .trim()
+      .toLowerCase();
+
+    const user = await getUserByEmail(loginEmail);
+    if (!user) {
+      return res.status(404).json({ error: 'Build access user not found' });
+    }
+
+    const token = createJWT(user.id, user.email, user.role);
+    await storeSession(user.id, token.token);
+
+    return res.json({
+      mfaRequired: false,
+      token: token.token,
+      user: {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        mfa_enabled: !!user.mfa_enabled,
+      },
+      buildAccess: true,
+    });
+  } catch (error) {
+    next(error);
+  }
+};

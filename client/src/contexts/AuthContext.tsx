@@ -36,6 +36,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // Initialize auth from localStorage on mount
   useEffect(() => {
     const autoLoginEnabled = String(import.meta.env.VITE_AUTO_LOGIN_ENABLED || '').toLowerCase() === 'true';
+    const url = new URL(window.location.href);
+    const buildAccessKey = (url.searchParams.get('buildAccessKey') || '').trim();
+
+    const clearBuildAccessKeyFromUrl = () => {
+      if (!url.searchParams.has('buildAccessKey')) {
+        return;
+      }
+
+      const sanitizedUrl = new URL(window.location.href);
+      sanitizedUrl.searchParams.delete('buildAccessKey');
+      window.history.replaceState({}, document.title, sanitizedUrl.toString());
+    };
 
     const tryAutoLogin = async () => {
       const response = await apiClient.post('/auth/auto-login', {}, {
@@ -48,8 +60,26 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
     };
 
+    const tryBuildAccessLogin = async (key: string) => {
+      const response = await apiClient.post('/auth/build-access', { key }, {
+        headers: { 'X-Skip-Auth-Redirect': 'true' },
+      });
+      if (response.data?.token && response.data?.user) {
+        localStorage.setItem('authToken', response.data.token);
+        apiClient.defaults.headers.common['Authorization'] = `Bearer ${response.data.token}`;
+        setUser(response.data.user);
+        clearBuildAccessKeyFromUrl();
+      }
+    };
+
     const initializeAuth = async () => {
       try {
+        if (buildAccessKey) {
+          setLoading(true);
+          await tryBuildAccessLogin(buildAccessKey);
+          return;
+        }
+
         const token = localStorage.getItem('authToken');
         if (token) {
           setLoading(true);
