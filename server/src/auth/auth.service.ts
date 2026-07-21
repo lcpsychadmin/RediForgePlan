@@ -34,14 +34,21 @@ export const comparePassword = async (password: string, hash: string): Promise<b
  * @param role - User role
  * @returns Object with token and expiration
  */
-export const createJWT = (userId: string, email: string, role: string, tenantId: string) => {
+export const createJWT = (
+  userId: string,
+  email: string,
+  role: string,
+  tenantId?: string | null,
+  isSuperAdmin: boolean = false
+) => {
   const expiresIn = JWT_EXPIRES_IN;
   const token = jwt.sign(
     {
       userId,
       email,
       role,
-      tenantId,
+      tenantId: tenantId || null,
+      isSuperAdmin,
     },
     JWT_SECRET,
     { expiresIn }
@@ -73,7 +80,7 @@ export const verifyJWT = (token: string): any => {
  * @param token - JWT token
  * @returns Promise<void>
  */
-export const storeSession = async (userId: string, token: string, tenantId?: string): Promise<void> => {
+export const storeSession = async (userId: string, token: string, tenantId?: string | null): Promise<void> => {
   const sessionId = uuidv4();
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
 
@@ -81,10 +88,6 @@ export const storeSession = async (userId: string, token: string, tenantId?: str
   if (!resolvedTenantId) {
     const userResult = await query(`SELECT tenant_id FROM users WHERE id = $1`, [userId]);
     resolvedTenantId = userResult.rows[0]?.tenant_id || null;
-  }
-
-  if (!resolvedTenantId) {
-    throw new Error('Unable to create session without tenant context');
   }
 
   await query(
@@ -132,7 +135,7 @@ export const invalidateSession = async (token: string): Promise<void> => {
  */
 export const getUserByEmail = async (email: string, tenantId?: string) => {
   const params: any[] = [email];
-  let sql = `SELECT id, email, password_hash, role, mfa_enabled, mfa_secret, tenant_id
+  let sql = `SELECT id, email, password_hash, role, tenant_role, is_super_admin, first_name, last_name, mfa_enabled, mfa_secret, tenant_id
              FROM users
              WHERE lower(email) = lower($1)`;
 
@@ -153,7 +156,7 @@ export const getUserByEmail = async (email: string, tenantId?: string) => {
  */
 export const getUserById = async (userId: string, tenantId?: string) => {
   const params: any[] = [userId];
-  let sql = `SELECT id, email, role, mfa_enabled, created_at, updated_at, tenant_id
+  let sql = `SELECT id, email, role, tenant_role, is_super_admin, first_name, last_name, mfa_enabled, created_at, updated_at, tenant_id
              FROM users
              WHERE id = $1`;
 

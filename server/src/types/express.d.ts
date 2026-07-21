@@ -6,6 +6,7 @@ declare global {
       userId?: string;
       userEmail?: string;
       userRole?: string;
+      isSuperAdmin?: boolean;
       token?: string;
       tenant?: {
         id: string;
@@ -13,6 +14,7 @@ declare global {
         slug: string;
         domain: string | null;
         status: 'active' | 'suspended' | 'disabled';
+        role?: 'tenant_admin' | 'member' | 'viewer';
       };
     }
   }

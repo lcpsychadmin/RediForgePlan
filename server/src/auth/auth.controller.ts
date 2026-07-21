@@ -24,9 +24,6 @@ import {
 export const login = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const tenantId = req.tenant?.id;
-    if (!tenantId) {
-      return res.status(400).json({ error: 'Tenant context is required' });
-    }
 
     const { email, password } = req.body;
 
@@ -40,6 +37,14 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
+    if (!tenantId && !user.is_super_admin) {
+      return res.status(400).json({ error: 'Tenant context is required for non-super-admin users' });
+    }
+
+    if (tenantId && user.is_super_admin) {
+      return res.status(403).json({ error: 'Super admin users must authenticate in global admin context' });
+    }
+
     // Verify password
     const passwordMatch = await comparePassword(password, user.password_hash);
     if (!passwordMatch) {
@@ -48,8 +53,8 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
 
     // If MFA is disabled, bypass MFA and issue token directly
     if (!user.mfa_enabled) {
-      const token = createJWT(user.id, user.email, user.role, tenantId);
-      await storeSession(user.id, token.token, tenantId);
+      const token = createJWT(user.id, user.email, user.role, tenantId || user.tenant_id || null, !!user.is_super_admin);
+      await storeSession(user.id, token.token, tenantId || user.tenant_id || null);
       return res.json({
         mfaRequired: false,
         token: token.token,
@@ -79,9 +84,6 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
 export const verifyMFA = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const tenantId = req.tenant?.id;
-    if (!tenantId) {
-      return res.status(400).json({ error: 'Tenant context is required' });
-    }
 
     const { userId, token } = req.body;
 
@@ -95,6 +97,14 @@ export const verifyMFA = async (req: Request, res: Response, next: NextFunction)
       return res.status(401).json({ error: 'Invalid user' });
     }
 
+    if (!tenantId && !user.is_super_admin) {
+      return res.status(400).json({ error: 'Tenant context is required for non-super-admin users' });
+    }
+
+    if (tenantId && user.is_super_admin) {
+      return res.status(403).json({ error: 'Super admin users must authenticate in global admin context' });
+    }
+
     if (!user.mfa_enabled) {
       return res.status(400).json({ error: 'MFA is not enabled for this user' });
     }
@@ -106,10 +116,16 @@ export const verifyMFA = async (req: Request, res: Response, next: NextFunction)
     }
 
     // Create JWT token
-    const { token: jwtToken } = createJWT(user.id, user.email, user.role, tenantId);
+    const { token: jwtToken } = createJWT(
+      user.id,
+      user.email,
+      user.role,
+      tenantId || user.tenant_id || null,
+      !!user.is_super_admin
+    );
 
     // Store session
-    await storeSession(user.id, jwtToken, tenantId);
+    await storeSession(user.id, jwtToken, tenantId || user.tenant_id || null);
 
     res.json({
       success: true,

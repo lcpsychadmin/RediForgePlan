@@ -1,0 +1,63 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum TenantStatus {
+  ACTIVE    @map("active")
+  SUSPENDED @map("suspended")
+  DISABLED  @map("disabled")
+}
+
+enum TenantPlan {
+  FREE       @map("free")
+  PRO        @map("pro")
+  ENTERPRISE @map("enterprise")
+}
+
+enum TenantUserRole {
+  TENANT_ADMIN @map("tenant_admin")
+  MEMBER       @map("member")
+  VIEWER       @map("viewer")
+}
+
+model Tenant {
+  id          String       @id @default(uuid()) @db.Uuid
+  name        String
+  slug        String       @unique
+  domain      String?      @unique
+  status      TenantStatus @default(ACTIVE)
+  plan        TenantPlan   @default(FREE)
+  ssoEnabled  Boolean      @default(false) @map("sso_enabled")
+  ssoProvider String?      @map("sso_provider")
+  ssoConfig   Json?        @map("sso_config")
+  users       User[]
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  @@map("organizations")
+}
+
+model User {
+  id           String          @id @default(uuid()) @db.Uuid
+  email        String          @unique
+  passwordHash String          @map("password_hash")
+  legacyRole   String          @map("role")
+  tenantRole   TenantUserRole? @map("tenant_role")
+  mfaEnabled   Boolean         @default(false) @map("mfa_enabled")
+  mfaSecret    String?         @map("mfa_secret")
+  isSuperAdmin Boolean         @default(false) @map("is_super_admin")
+  firstName    String?         @map("first_name")
+  lastName     String?         @map("last_name")
+  tenantId     String?         @map("tenant_id") @db.Uuid
+  tenant       Tenant?         @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  createdAt    DateTime        @default(now()) @map("created_at")
+  updatedAt    DateTime        @updatedAt @map("updated_at")
+
+  @@index([tenantId])
+  @@map("users")
+}

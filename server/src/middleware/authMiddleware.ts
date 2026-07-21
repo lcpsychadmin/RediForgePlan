@@ -40,6 +40,7 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
     req.userId = decoded.userId;
     req.userEmail = decoded.email;
     req.userRole = decoded.role;
+    req.isSuperAdmin = !!(decoded.isSuperAdmin || user.is_super_admin);
     req.token = token;
 
     next();
@@ -65,6 +66,17 @@ export const requireRole = (...allowedRoles: string[]) => {
 };
 
 /**
+ * Platform-level super admin guard
+ */
+export const requireSuperAdmin = (req: Request, res: Response, next: NextFunction) => {
+  if (!req.isSuperAdmin) {
+    return res.status(403).json({ error: 'Super admin access required' });
+  }
+
+  return next();
+};
+
+/**
  * Optional auth middleware - attaches user if present, but doesn't require it
  */
 export const optionalAuth = async (req: Request, res: Response, next: NextFunction) => {
@@ -85,6 +97,7 @@ export const optionalAuth = async (req: Request, res: Response, next: NextFuncti
           req.userId = decoded.userId;
           req.userEmail = decoded.email;
           req.userRole = decoded.role;
+          req.isSuperAdmin = !!decoded.isSuperAdmin;
           req.token = token;
         }
       }

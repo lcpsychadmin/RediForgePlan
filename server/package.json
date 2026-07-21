@@ -9,9 +9,12 @@
     "build": "tsc --noEmit false --skipLibCheck || true",
     "start": "node dist/server.js",
     "start:src": "node --import tsx src/server.ts",
-    "lint": "eslint . --ext ts --report-unused-disable-directives --max-warnings 0"
+    "lint": "eslint . --ext ts --report-unused-disable-directives --max-warnings 0",
+    "prisma:generate": "prisma generate --schema prisma/schema.prisma",
+    "prisma:push": "prisma db push --schema prisma/schema.prisma"
   },
   "dependencies": {
+    "@prisma/client": "^6.11.1",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "crypto": "^1.0.1",
@@ -39,7 +42,8 @@
     "nodemon": "^3.0.1",
     "ts-node": "^10.9.1",
     "tsx": "^3.13.0",
-    "typescript": "^5.1.0"
+    "typescript": "^5.1.0",
+    "prisma": "^6.11.1"
   },
   "engines": {
     "node": ">=16.0.0"
