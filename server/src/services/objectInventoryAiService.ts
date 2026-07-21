@@ -11,6 +11,7 @@ import {
   SuggestMappingsRequest,
   SuggestMappingsResult,
 } from '../types/objectInventoryAi.js';
+import modelRegistryService from './modelRegistryService.js';
 
 const LOGGER_SCOPE = '[ObjectInventoryAI]';
 
@@ -185,7 +186,31 @@ const normalizeMapping = (row: any): FieldMappingSuggestion | null => {
 };
 
 class ObjectInventoryAiService {
-  private async runStructuredPrompt(prompt: string, routing: any): Promise<any> {
+  private async resolveModelId(routing: any, defaultCapabilities: string[]) {
+    if (routing?.modelId) {
+      return {
+        modelId: String(routing.modelId),
+        selectionReason: 'explicit-model-id',
+      };
+    }
+
+    const resolved = await modelRegistryService.resolveModel({
+      modelName: routing?.modelName,
+      capability: routing?.capability || defaultCapabilities,
+      costTier: routing?.costTier,
+      provider: routing?.provider,
+      allowFallback: routing?.allowFallback,
+    });
+
+    return {
+      modelId: resolved.model.id,
+      selectionReason: resolved.reason,
+    };
+  }
+
+  private async runStructuredPrompt(prompt: string, routing: any, defaultCapabilities: string[]): Promise<any> {
+    const modelSelection = await this.resolveModelId(routing, defaultCapabilities);
+
     const payload = {
       messages: [
         {
@@ -204,12 +229,17 @@ class ObjectInventoryAiService {
     };
 
     const execution = await aiExecutionService.execute({
-      modelId: routing?.modelId,
+      modelId: modelSelection.modelId,
       gatewayId: routing?.gatewayId,
       routerId: routing?.routerId,
       policyId: routing?.policyId,
-      capabilityKeys: ['json_output'],
+      capabilityKeys: [],
       payload,
+    });
+
+    console.info(`${LOGGER_SCOPE} model selected`, {
+      modelId: modelSelection.modelId,
+      reason: modelSelection.selectionReason,
     });
 
     const aiText = extractAiText(execution);
@@ -242,7 +272,7 @@ class ObjectInventoryAiService {
       `Limit output to at most ${input.maxSubObjects || 8} subObjects.`,
     ].join('\n');
 
-    const parsed = await this.runStructuredPrompt(prompt, input.ai);
+    const parsed = await this.runStructuredPrompt(prompt, input.ai, ['chat', 'reasoning', 'schema-analysis']);
     const rawSubObjects = Array.isArray(parsed?.subObjects) ? parsed.subObjects : [];
     const subObjects = rawSubObjects
       .map((row: any) => normalizeSubObject(row))
@@ -279,7 +309,7 @@ class ObjectInventoryAiService {
       'Consolidate synonyms and duplicates into canonical field names.',
     ].join('\n');
 
-    const parsed = await this.runStructuredPrompt(prompt, input.ai);
+    const parsed = await this.runStructuredPrompt(prompt, input.ai, ['chat', 'reasoning', 'schema-analysis']);
     const rawCdmFields = Array.isArray(parsed?.cdmFields) ? parsed.cdmFields : [];
     const cdmFields = rawCdmFields
       .map((row: any) => normalizeCdmField(row))
@@ -323,7 +353,7 @@ class ObjectInventoryAiService {
 
     let parsed: any;
     try {
-      parsed = await this.runStructuredPrompt(prompt, input.ai);
+      parsed = await this.runStructuredPrompt(prompt, input.ai, ['chat', 'reasoning', 'code']);
     } catch (error) {
       console.warn(`${LOGGER_SCOPE} suggestFieldMappings AI call failed`, {
         error: error instanceof Error ? error.message : String(error),

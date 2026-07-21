@@ -81,7 +81,36 @@ const isSupportedProvider = (provider: string | null | undefined) => {
   return normalized === 'openai' || normalized === 'anthropic' || normalized === 'databricks';
 };
 
+const normalizeForEnv = (value: string) => value
+  .toUpperCase()
+  .replace(/[^A-Z0-9]+/g, '_')
+  .replace(/^_+|_+$/g, '');
+
+const resolveModelApiKey = (modelKey: string, provider: string | null | undefined, dbApiKey: string | null | undefined) => {
+  const providerNormalized = String(provider || '').trim().toLowerCase();
+  const modelSpecificEnvKey = `AI_MODEL_API_KEY_${normalizeForEnv(modelKey || '')}`;
+  const modelSpecificApiKey = process.env[modelSpecificEnvKey];
+
+  const providerEnvKey = providerNormalized === 'openai'
+    ? process.env.OPENAI_API_KEY
+    : providerNormalized === 'anthropic'
+      ? process.env.ANTHROPIC_API_KEY
+      : providerNormalized === 'databricks'
+        ? (process.env.DATABRICKS_API_KEY || process.env.DATABRICKS_TOKEN)
+        : undefined;
+
+  // Prefer secure env/secret values over DB values, but keep DB as fallback.
+  return modelSpecificApiKey || providerEnvKey || dbApiKey || null;
+};
+
 class AiExecutionService {
+  private withResolvedApiKey(model: any): ModelWithCapabilities {
+    return {
+      ...model,
+      api_key: resolveModelApiKey(String(model.model_key || ''), model.provider, model.api_key),
+    } as ModelWithCapabilities;
+  }
+
   private async loadModelById(modelId: string) {
     const result = await db.query(
       `SELECT m.id, m.model_key, m.display_name, m.provider, m.model_family, m.context_window,
@@ -102,7 +131,7 @@ class AiExecutionService {
       throw new ApiError(404, 'AI model not found', 'NOT_FOUND');
     }
 
-    return result.rows[0];
+    return this.withResolvedApiKey(result.rows[0]);
   }
 
   private async loadAllActiveModels() {
@@ -121,7 +150,7 @@ class AiExecutionService {
        ORDER BY m.display_name ASC`
     );
 
-    return result.rows as ModelWithCapabilities[];
+    return result.rows.map((row: any) => this.withResolvedApiKey(row));
   }
 
   private async loadGatewayById(gatewayId: string) {

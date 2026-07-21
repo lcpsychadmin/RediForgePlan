@@ -1,5 +1,10 @@
 export type AiRoutingOptions = {
   modelId?: string;
+  modelName?: string;
+  capability?: string | string[];
+  costTier?: string | string[];
+  provider?: string;
+  allowFallback?: boolean;
   gatewayId?: string;
   routerId?: string;
   policyId?: string;
