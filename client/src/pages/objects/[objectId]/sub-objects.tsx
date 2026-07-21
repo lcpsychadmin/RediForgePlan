@@ -22,6 +22,9 @@ import ObjectWorkspaceHeader from '../../../components/objects/ObjectWorkspaceHe
 import ObjectSubObjectSelector from '../../../components/objects/ObjectSubObjectSelector';
 import useObjectSubObjectSelection, { type ObjectSubObjectRow } from '../../../components/objects/useObjectSubObjectSelection';
 import apiClient from '../../../api/client';
+import AiSubObjectProposalPanel from '../../../components/objects/AiSubObjectProposalPanel';
+import { useAiSubObjectProposals } from '../../../hooks/useObjectAiActions';
+import type { AiSubObjectProposal } from '../../../types/objectAi';
 
 interface SubObjectDraft {
   name: string;
@@ -49,6 +52,14 @@ const ObjectSubObjectsPage: React.FC = () => {
   const [draft, setDraft] = React.useState<SubObjectDraft>(emptyDraft);
   const [status, setStatus] = React.useState('');
   const [error, setError] = React.useState('');
+  const [aiPanelOpen, setAiPanelOpen] = React.useState(false);
+  const [aiProposals, setAiProposals] = React.useState<AiSubObjectProposal[]>([]);
+
+  const {
+    run: runAiProposals,
+    loading: aiLoading,
+    error: aiError,
+  } = useAiSubObjectProposals();
 
   const openCreate = () => {
     setEditingRow(null);
@@ -121,14 +132,64 @@ const ObjectSubObjectsPage: React.FC = () => {
     }
   };
 
+  const handleAiProposeSubObjects = async () => {
+    setError('');
+    setStatus('');
+    try {
+      const result = await runAiProposals(objectId, 8);
+      setAiProposals(result.proposals || []);
+      setAiPanelOpen(true);
+      if ((result.proposals || []).length === 0) {
+        setStatus('AI returned no proposals for this object.');
+      }
+    } catch {
+      // Hook already captures and exposes error.
+    }
+  };
+
+  const handleApplyAiProposals = async (accepted: AiSubObjectProposal[]) => {
+    if (!accepted.length) {
+      setAiPanelOpen(false);
+      return;
+    }
+
+    setSaving(true);
+    setError('');
+    setStatus('');
+    try {
+      const existingNames = new Set(subObjects.map((row) => row.name.trim().toLowerCase()));
+      for (const proposal of accepted) {
+        const name = String(proposal.name || '').trim();
+        if (!name || existingNames.has(name.toLowerCase())) {
+          continue;
+        }
+        await apiClient.post(`/api/global-objects/${objectId}/sub-objects`, {
+          name,
+          description: proposal.description || proposal.explanation || null,
+          sortOrder: subObjects.length,
+        });
+      }
+      await reloadSubObjects();
+      setAiPanelOpen(false);
+      setStatus('AI sub-object proposals applied.');
+      setStatusSeverity('success');
+    } catch {
+      setError('Failed to apply AI sub-object proposals.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const [statusSeverity, setStatusSeverity] = React.useState<'success' | 'error' | 'info'>('success');
+
   return (
     <Layout>
       <Box sx={{ p: 3 }}>
         <ObjectWorkspaceHeader objectId={objectId} title="Sub Objects" breadcrumbLabel="Sub Objects" />
 
-        {(status || error) && (
-          <Alert severity={error ? 'error' : 'success'} sx={{ mb: 2 }}>
-            {error || status}
+        {(status || error || aiError) && (
+          <Alert severity={error || aiError ? 'error' : statusSeverity} sx={{ mb: 2 }}>
+            {error || aiError || status}
           </Alert>
         )}
 
@@ -137,6 +198,14 @@ const ObjectSubObjectsPage: React.FC = () => {
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems={{ xs: 'stretch', md: 'center' }} sx={{ mb: 1.5 }}>
               <Typography sx={{ fontWeight: 700 }}>Object Sub-objects</Typography>
               <Box sx={{ flex: 1 }} />
+              <Button
+                variant="outlined"
+                onClick={handleAiProposeSubObjects}
+                disabled={aiLoading || saving}
+                sx={{ textTransform: 'none' }}
+              >
+                {aiLoading ? 'Analyzing...' : 'AI Propose Sub-Objects'}
+              </Button>
               <Button variant="contained" onClick={openCreate} sx={{ textTransform: 'none' }}>
                 + Add Sub-object
               </Button>
@@ -197,6 +266,15 @@ const ObjectSubObjectsPage: React.FC = () => {
                 </Box>
               ))}
             </Box>
+
+            {aiPanelOpen && (
+              <AiSubObjectProposalPanel
+                proposals={aiProposals}
+                loading={saving}
+                onApply={handleApplyAiProposals}
+                onClose={() => setAiPanelOpen(false)}
+              />
+            )}
           </CardContent>
         </Card>
 

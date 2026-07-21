@@ -1,11 +1,14 @@
 import React from 'react';
-import { Alert, Box, Card, CardContent, Chip, Typography } from '@mui/material';
+import { Alert, Box, Button, Card, CardContent, Chip, Typography } from '@mui/material';
 import { useParams } from 'react-router-dom';
 import Layout from '../../../components/Layout';
 import ObjectWorkspaceHeader from '../../../components/objects/ObjectWorkspaceHeader';
 import ObjectSubObjectSelector from '../../../components/objects/ObjectSubObjectSelector';
 import useObjectSubObjectSelection from '../../../components/objects/useObjectSubObjectSelection';
 import apiClient from '../../../api/client';
+import AiCdmFieldProposalPanel from '../../../components/objects/AiCdmFieldProposalPanel';
+import { useAiCdmDerivation } from '../../../hooks/useObjectAiActions';
+import type { AiCdmFieldProposal } from '../../../types/objectAi';
 
 type FieldRow = {
   id: string;
@@ -100,6 +103,11 @@ const ObjectCdmPage: React.FC = () => {
   const [allFields, setAllFields] = React.useState<FieldRow[]>([]);
   const [loadError, setLoadError] = React.useState('');
   const [isLoading, setIsLoading] = React.useState(true);
+  const [status, setStatus] = React.useState('');
+  const [statusSeverity, setStatusSeverity] = React.useState<'success' | 'error' | 'info'>('info');
+  const [aiPanelOpen, setAiPanelOpen] = React.useState(false);
+  const [aiCdmProposals, setAiCdmProposals] = React.useState<AiCdmFieldProposal[]>([]);
+  const [isApplyingAiCdm, setIsApplyingAiCdm] = React.useState(false);
 
   const {
     subObjects,
@@ -111,6 +119,12 @@ const ObjectCdmPage: React.FC = () => {
   } = useObjectSubObjectSelection(objectId);
 
   const scopeSubObjectId = hasSubObjects ? selectedSubObjectId : '';
+
+  const {
+    run: runAiCdmDerivation,
+    loading: aiDeriveLoading,
+    error: aiDeriveError,
+  } = useAiCdmDerivation();
 
   const load = React.useCallback(async () => {
     if (!objectId) return;
@@ -312,10 +326,71 @@ const ObjectCdmPage: React.FC = () => {
     };
   }, [linkedDefs, mappingFields]);
 
+  const handleDeriveCdmFromSources = async () => {
+    if (!scopeSubObjectId) {
+      setStatusSeverity('info');
+      setStatus('Select a sub-object before deriving CDM fields.');
+      return;
+    }
+
+    setStatus('');
+    try {
+      const result = await runAiCdmDerivation(scopeSubObjectId);
+      setAiCdmProposals(result.proposals || []);
+      setAiPanelOpen(true);
+    } catch {
+      // Hook exposes error via aiDeriveError.
+    }
+  };
+
+  const handleApplyAiCdm = async (accepted: AiCdmFieldProposal[]) => {
+    if (!accepted.length) {
+      setAiPanelOpen(false);
+      return;
+    }
+
+    setIsApplyingAiCdm(true);
+    setStatus('');
+    try {
+      await apiClient.post(`/api/cdm/${objectId}`, {
+        subObjectId: scopeSubObjectId || null,
+        objectName: objectSummary?.objectId || objectSummary?.object_id || null,
+        notes: null,
+        attributes: accepted.map((row, index) => ({
+          attributeName: row.fieldName,
+          attributeDescription: row.description,
+          dataType: row.dataType,
+          length: row.length,
+          businessRules: row.explanation,
+          required: !!row.required,
+          validationRules: row.sourceFields || [],
+          sortOrder: index,
+        })),
+        relationships: [],
+      });
+
+      await load();
+      setAiPanelOpen(false);
+      setStatusSeverity('success');
+      setStatus('CDM fields derived and applied.');
+    } catch {
+      setStatusSeverity('error');
+      setStatus('Failed to apply AI CDM proposals.');
+    } finally {
+      setIsApplyingAiCdm(false);
+    }
+  };
+
   return (
     <Layout>
       <Box sx={{ p: 3 }}>
         <ObjectWorkspaceHeader objectId={objectId} title="Common Data Model Builder" breadcrumbLabel="CDM Builder" />
+
+        {(status || aiDeriveError) && (
+          <Alert severity={aiDeriveError ? 'error' : statusSeverity} sx={{ mb: 2 }} onClose={() => setStatus('')}>
+            {aiDeriveError || status}
+          </Alert>
+        )}
 
         <Card sx={{ mb: 2, backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.12)' }}>
           <CardContent>
@@ -341,6 +416,18 @@ const ObjectCdmPage: React.FC = () => {
 
             {loadError && <Alert severity="error" sx={{ mt: 1.5 }}>{loadError}</Alert>}
 
+            <Box sx={{ mt: 1.5, display: 'flex', justifyContent: 'flex-end' }}>
+              <Button
+                size="small"
+                variant="outlined"
+                onClick={handleDeriveCdmFromSources}
+                disabled={aiDeriveLoading || isApplyingAiCdm || (hasSubObjects && !scopeSubObjectId)}
+                sx={{ textTransform: 'none' }}
+              >
+                {aiDeriveLoading ? 'Deriving...' : 'Derive CDM from Sources'}
+              </Button>
+            </Box>
+
             {!loadError && (
               <Box sx={{ mt: 1.5, display: 'flex', flexWrap: 'wrap', gap: 0.8 }}>
                 <Chip size="small" label={`Object: ${objectSummary?.objectId || objectSummary?.object_id || objectId}`} />
@@ -350,6 +437,15 @@ const ObjectCdmPage: React.FC = () => {
                 <Chip size="small" label={`Mapped Fields: ${mappingFields.length}`} />
                 <Chip size="small" label={`CDM Attributes: ${cdmAttributes.length}`} />
               </Box>
+            )}
+
+            {aiPanelOpen && (
+              <AiCdmFieldProposalPanel
+                proposals={aiCdmProposals}
+                loading={isApplyingAiCdm}
+                onApply={handleApplyAiCdm}
+                onClose={() => setAiPanelOpen(false)}
+              />
             )}
           </CardContent>
         </Card>

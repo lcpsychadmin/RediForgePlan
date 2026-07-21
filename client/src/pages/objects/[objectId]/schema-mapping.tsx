@@ -30,6 +30,9 @@ import useObjectSubObjectSelection from '../../../components/objects/useObjectSu
 import apiClient from '../../../api/client';
 import DataDefinitionAiProposalModal from '../../../components/objects/DataDefinitionAiProposalModal';
 import type { AiDataDefinitionProposalField } from '../../../types/dataDefinitions';
+import AiMappingSuggestionPanel from '../../../components/objects/AiMappingSuggestionPanel';
+import { useAiMappingSuggestions } from '../../../hooks/useObjectAiActions';
+import type { AiMappingSuggestion, CdmFieldInput, SourceFieldInput } from '../../../types/objectAi';
 
 type ViewTab = 'schema' | 'mapping';
 
@@ -103,6 +106,10 @@ const ObjectSchemaMappingPage: React.FC = () => {
   const [isSavingFields, setIsSavingFields] = React.useState(false);
   const [aiFieldProposals, setAiFieldProposals] = React.useState<AiDataDefinitionProposalField[]>([]);
   const [aiFieldProposalOpen, setAiFieldProposalOpen] = React.useState(false);
+  const [aiMappingSuggestionsOpen, setAiMappingSuggestionsOpen] = React.useState(false);
+  const [aiMappingSuggestions, setAiMappingSuggestions] = React.useState<AiMappingSuggestion[]>([]);
+  const [aiMappingAverageConfidence, setAiMappingAverageConfidence] = React.useState(0);
+  const [isApplyingMappings, setIsApplyingMappings] = React.useState(false);
   const [addingField, setAddingField] = React.useState(false);
   const [newFieldDraft, setNewFieldDraft] = React.useState<FieldDraft>(emptyFieldDraft());
   const [editFieldId, setEditFieldId] = React.useState<string | null>(null);
@@ -117,6 +124,12 @@ const ObjectSchemaMappingPage: React.FC = () => {
   } = useObjectSubObjectSelection(objectId);
 
   const scopeSubObjectId = hasSubObjects ? selectedSubObjectId : '';
+
+  const {
+    run: runAiMappingSuggestions,
+    loading: isGeneratingMappingSuggestions,
+    error: aiMappingError,
+  } = useAiMappingSuggestions();
 
   const loadApplications = React.useCallback(async () => {
     const res = await apiClient.get('/api/applications');
@@ -439,6 +452,115 @@ const ObjectSchemaMappingPage: React.FC = () => {
     }
   };
 
+  const handleSuggestMappings = async () => {
+    if (!selectedMappingTable || fieldsForTable.length === 0) {
+      setStatusSeverity('info');
+      setStatus('Add fields to the selected table before requesting AI mapping suggestions.');
+      return;
+    }
+
+    try {
+      const cdmRes = await apiClient.get(`/api/cdm/${objectId}`, {
+        params: { subObjectId: scopeSubObjectId || undefined },
+      });
+
+      const cdmAttributes = Array.isArray(cdmRes.data?.data?.attributes) ? cdmRes.data.data.attributes : [];
+      if (cdmAttributes.length === 0) {
+        setStatusSeverity('info');
+        setStatus('No CDM fields found for this scope. Derive or define CDM first.');
+        return;
+      }
+
+      const sourceFields: SourceFieldInput[] = fieldsForTable.map((field: any) => ({
+        applicationId: String(selectedDefinition?.application_id || selectedDefinition?.applicationId || ''),
+        applicationName: String(selectedDefinition?.application_name || selectedDefinition?.applicationName || ''),
+        tableName: String(field.table_name || selectedMappingTable),
+        fieldName: String(field.field_name || ''),
+        fieldLabel: String(field.field_label || ''),
+        dataType: String(field.data_type || ''),
+        length: field.length == null ? null : Number(field.length),
+        decimals: field.decimals == null ? null : Number(field.decimals),
+        description: String(field.description || ''),
+      }));
+
+      const cdmFields: CdmFieldInput[] = cdmAttributes.map((attr: any) => ({
+        fieldName: String(attr.attributeName || attr.name || ''),
+        description: String(attr.attributeDescription || attr.definition || ''),
+        dataType: String(attr.dataType || 'string'),
+        length: attr.length == null ? null : Number(attr.length),
+        required: Boolean(attr.required),
+        aliases: [],
+        sourceFields: [],
+      })).filter((row) => row.fieldName);
+
+      const result = await runAiMappingSuggestions({
+        objectName: String(objectId),
+        subObjectId: scopeSubObjectId || undefined,
+        sourceFields,
+        cdmFields,
+      });
+
+      setAiMappingSuggestions(result.suggestions || []);
+      setAiMappingAverageConfidence(result.averageConfidenceScore || 0);
+      setAiMappingSuggestionsOpen(true);
+    } catch {
+      // Hook exposes error message.
+    }
+  };
+
+  const handleApplyMappingSuggestions = async (accepted: AiMappingSuggestion[]) => {
+    if (!accepted.length || !selectedDataDefId) {
+      setAiMappingSuggestionsOpen(false);
+      return;
+    }
+
+    setIsApplyingMappings(true);
+    try {
+      for (const suggestion of accepted) {
+        const match = fieldsForTable.find((field: any) =>
+          String(field.field_name || '').trim().toLowerCase() === String(suggestion.sourceFieldName || '').trim().toLowerCase()
+        );
+
+        if (!match?.id) {
+          continue;
+        }
+
+        const metadata = (match.field_metadata && typeof match.field_metadata === 'object') ? { ...match.field_metadata } : {};
+        metadata.aiMapping = {
+          cdmFieldName: suggestion.cdmFieldName,
+          confidenceScore: suggestion.confidenceScore,
+          explanation: suggestion.explanation,
+          transformRule: suggestion.transformRule,
+          matchType: suggestion.matchType,
+          suggestedAt: new Date().toISOString(),
+        };
+
+        await apiClient.put(`/api/applications/data-definitions/fields/${match.id}`, {
+          tableName: selectedMappingTable,
+          fieldName: match.field_name,
+          fieldLabel: match.field_label,
+          dataType: match.data_type,
+          length: match.length,
+          decimals: match.decimals,
+          isKey: Boolean(match.is_key),
+          isRequired: Boolean(match.is_required),
+          description: match.description,
+          fieldMetadata: metadata,
+        });
+      }
+
+      await loadFields(selectedDataDefId);
+      setAiMappingSuggestionsOpen(false);
+      setStatusSeverity('success');
+      setStatus('AI mapping suggestions applied to field metadata.');
+    } catch (err: any) {
+      setStatusSeverity('error');
+      setStatus(err?.response?.data?.message || 'Failed to apply mapping suggestions.');
+    } finally {
+      setIsApplyingMappings(false);
+    }
+  };
+
   const startEditField = (field: any) => {
     setEditFieldId(String(field.id));
     setEditFieldDraft({
@@ -664,6 +786,16 @@ const ObjectSchemaMappingPage: React.FC = () => {
                       <Button
                         size="small"
                         variant="outlined"
+                        startIcon={<AutoAwesomeIcon />}
+                        onClick={handleSuggestMappings}
+                        disabled={isGeneratingMappingSuggestions || !selectedMappingTable || fieldsForTable.length === 0}
+                        sx={{ textTransform: 'none', whiteSpace: 'nowrap' }}
+                      >
+                        {isGeneratingMappingSuggestions ? 'Suggesting...' : 'AI Suggest Mappings'}
+                      </Button>
+                      <Button
+                        size="small"
+                        variant="outlined"
                         startIcon={<AddIcon />}
                         onClick={() => { setAddingField(true); setNewFieldDraft(emptyFieldDraft()); }}
                         disabled={!selectedMappingTable}
@@ -732,6 +864,16 @@ const ObjectSchemaMappingPage: React.FC = () => {
                         )}
                       </Box>
                     )}
+
+                    {aiMappingSuggestionsOpen && (
+                      <AiMappingSuggestionPanel
+                        suggestions={aiMappingSuggestions}
+                        averageConfidenceScore={aiMappingAverageConfidence}
+                        loading={isApplyingMappings}
+                        onApply={handleApplyMappingSuggestions}
+                        onClose={() => setAiMappingSuggestionsOpen(false)}
+                      />
+                    )}
                   </>
                 )}
               </Stack>
@@ -742,7 +884,7 @@ const ObjectSchemaMappingPage: React.FC = () => {
             )}
 
             {/* Status message */}
-            {status && <Alert severity={statusSeverity} sx={{ mt: 2 }} onClose={() => setStatus('')}>{status}</Alert>}
+            {(status || aiMappingError) && <Alert severity={aiMappingError ? 'error' : statusSeverity} sx={{ mt: 2 }} onClose={() => setStatus('')}>{aiMappingError || status}</Alert>}
 
             {/* AI Table Proposal Panel */}
             {proposalOpen && (
