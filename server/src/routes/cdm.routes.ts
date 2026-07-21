@@ -71,18 +71,21 @@ const parseJsonArray = (value: any) => (Array.isArray(value) ? value : []);
 const formatCdmAttributeModel = (row: any, objectId?: string) => ({
   id: row?.id,
   objectId: objectId || row?.global_object_id || null,
-  name: row?.attribute_name,
-  definition: row?.attribute_description || null,
+  name: row?.field_name,
+  definition: row?.field_description || null,
   governance: parseJsonObject(row?.governance),
   security: parseJsonObject(row?.security),
   validationRules: parseJsonArray(row?.validation_rules),
   // compatibility fields
   commonDataModelId: row?.common_data_model_id,
-  attributeName: row?.attribute_name,
-  attributeDescription: row?.attribute_description,
+  attributeName: row?.field_name,
+  attributeDescription: row?.field_description,
   dataType: row?.data_type,
   length: row?.length,
-  businessRules: row?.business_rules,
+  businessRules: parseJsonArray(row?.validation_rules)
+    .map((entry: any) => (typeof entry === 'string' ? entry : String(entry?.rule || '')))
+    .filter(Boolean)
+    .join('; '),
   sortOrder: row?.sort_order,
   createdAt: row?.created_at,
   updatedAt: row?.updated_at,
@@ -126,7 +129,7 @@ const upsertCdmModel = async (client: any, objectId: string, req: Request) => {
   }
 
   await client.query('DELETE FROM cdm_relationships WHERE common_data_model_id = $1', [model.id]);
-  await client.query('DELETE FROM cdm_attributes WHERE common_data_model_id = $1', [model.id]);
+  await client.query('DELETE FROM cdm_fields WHERE common_data_model_id = $1', [model.id]);
 
   const insertedAttributeIdsByName = new Map<string, string>();
 
@@ -135,38 +138,47 @@ const upsertCdmModel = async (client: any, objectId: string, req: Request) => {
     const attributeName = String(row.attributeName || '').trim();
     if (!attributeName) continue;
 
+    const validationRules = parseJsonArray(row.validationRules);
+    if (row.businessRules) {
+      validationRules.push(String(row.businessRules));
+    }
+
     const attributeResult = await client.query(
-      `INSERT INTO cdm_attributes (
+      `INSERT INTO cdm_fields (
           common_data_model_id,
-          attribute_name,
-          attribute_description,
+          global_object_id,
+          object_sub_object_id,
+          field_name,
+          field_description,
           data_type,
           length,
-          business_rules,
+          required,
           governance,
           security,
           validation_rules,
           sort_order
         )
-       VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8::jsonb,$9::jsonb,$10)
-       RETURNING id, attribute_name`,
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9::jsonb,$10::jsonb,$11)
+       RETURNING id, field_name`,
       [
         model.id,
+        model.global_object_id,
+        model.object_sub_object_id || null,
         attributeName,
         row.attributeDescription || null,
         row.dataType || null,
         row.length || null,
-        row.businessRules || null,
+        !!row.required,
         JSON.stringify(parseJsonObject(row.governance)),
         JSON.stringify(parseJsonObject(row.security)),
-        JSON.stringify(parseJsonArray(row.validationRules)),
+        JSON.stringify(validationRules),
         Number(row.sortOrder ?? i) || i,
       ]
     );
 
     const inserted = attributeResult.rows[0];
-    if (inserted?.id && inserted?.attribute_name) {
-      insertedAttributeIdsByName.set(String(inserted.attribute_name).trim().toLowerCase(), String(inserted.id));
+    if (inserted?.id && inserted?.field_name) {
+      insertedAttributeIdsByName.set(String(inserted.field_name).trim().toLowerCase(), String(inserted.id));
     }
   }
 
@@ -204,12 +216,12 @@ const upsertCdmModel = async (client: any, objectId: string, req: Request) => {
   }
 
   const refreshAttributes = await client.query(
-    `SELECT id, common_data_model_id, attribute_name, attribute_description,
-            data_type, length, business_rules, governance, security, validation_rules,
+    `SELECT id, common_data_model_id, field_name, field_description,
+            data_type, length, required, governance, security, validation_rules,
             sort_order, created_at, updated_at
-     FROM cdm_attributes
+     FROM cdm_fields
      WHERE common_data_model_id = $1
-     ORDER BY sort_order ASC, attribute_name ASC`,
+     ORDER BY sort_order ASC, field_name ASC`,
     [model.id]
   );
 
@@ -248,12 +260,12 @@ router.get('/:objectId', requireAuth, async (req: Request, res: Response, next: 
     }
 
     const attributesResult = await db.query(
-      `SELECT id, common_data_model_id, attribute_name, attribute_description,
-              data_type, length, business_rules, governance, security, validation_rules,
+      `SELECT id, common_data_model_id, field_name, field_description,
+              data_type, length, required, governance, security, validation_rules,
               sort_order, created_at, updated_at
-       FROM cdm_attributes
+       FROM cdm_fields
        WHERE common_data_model_id = $1
-       ORDER BY sort_order ASC, attribute_name ASC`,
+       ORDER BY sort_order ASC, field_name ASC`,
       [model.id]
     );
 
@@ -508,37 +520,40 @@ router.put('/:objectId/attribute/:attributeId', requireAuth, requireRole('analys
     }
 
     const result = await db.query(
-      `UPDATE cdm_attributes
-       SET attribute_name = $1,
-           attribute_description = $2,
+      `UPDATE cdm_fields
+       SET field_name = $1,
+           field_description = $2,
            data_type = $3,
            length = $4,
-           business_rules = $5,
+           required = $5,
            governance = $6::jsonb,
            security = $7::jsonb,
            validation_rules = $8::jsonb,
            sort_order = $9,
            updated_at = CURRENT_TIMESTAMP
        WHERE id = $10
-       RETURNING id, common_data_model_id, attribute_name, attribute_description,
-                 data_type, length, business_rules, governance, security, validation_rules,
+       RETURNING id, common_data_model_id, field_name, field_description,
+                 data_type, length, required, governance, security, validation_rules,
                  sort_order, created_at, updated_at`,
       [
         attributeName,
         req.body?.attributeDescription || null,
         req.body?.dataType || null,
         req.body?.length || null,
-        req.body?.businessRules || null,
+        !!(req.body?.required || req.body?.systemRequired || req.body?.businessProcessRequired),
         JSON.stringify(parseJsonObject(req.body?.governance)),
         JSON.stringify(parseJsonObject(req.body?.security)),
-        JSON.stringify(parseJsonArray(req.body?.validationRules)),
+        JSON.stringify([
+          ...parseJsonArray(req.body?.validationRules),
+          ...(req.body?.businessRules ? [String(req.body.businessRules)] : []),
+        ]),
         req.body?.sortOrder || 0,
         req.params.attributeId,
       ]
     );
 
     if (!result.rows.length) {
-      throw new ApiError(404, 'CDM attribute not found', 'NOT_FOUND');
+      throw new ApiError(404, 'CDM field not found', 'NOT_FOUND');
     }
 
     res.json(formatSingleResponse(formatCdmAttributeModel(result.rows[0], req.params.objectId)));
@@ -549,7 +564,7 @@ router.put('/:objectId/attribute/:attributeId', requireAuth, requireRole('analys
 
 router.delete('/:objectId/attribute/:attributeId', requireAuth, requireRole('analyst', 'admin'), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    await db.query('DELETE FROM cdm_attributes WHERE id = $1', [req.params.attributeId]);
+    await db.query('DELETE FROM cdm_fields WHERE id = $1', [req.params.attributeId]);
     res.json(formatSingleResponse({ success: true }));
   } catch (error) {
     next(error);

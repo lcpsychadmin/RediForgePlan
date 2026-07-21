@@ -1515,10 +1515,18 @@ router.post('/data-definitions/:definitionId/ai-generate-fields', requireAuth, a
     if (definition.cdm_id) {
       const [attrResult, relResult] = await Promise.all([
         db.query(
-          `SELECT attribute_name, attribute_description, data_type, length, business_rules, sort_order
-           FROM cdm_attributes
+          `SELECT field_name AS attribute_name,
+                  field_description AS attribute_description,
+                  data_type,
+                  length,
+                  (
+                    SELECT string_agg(value, '; ')
+                    FROM jsonb_array_elements_text(COALESCE(cdm_fields.validation_rules, '[]'::jsonb)) AS value
+                  ) AS business_rules,
+                  sort_order
+           FROM cdm_fields
            WHERE common_data_model_id = $1
-           ORDER BY sort_order ASC, attribute_name ASC`,
+           ORDER BY sort_order ASC, field_name ASC`,
           [definition.cdm_id]
         ),
         db.query(
