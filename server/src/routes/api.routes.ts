@@ -21,6 +21,7 @@ import settingsDbtRouter from './settingsDbt.routes.js';
 import cdmRouter from './cdm.routes.js';
 import aiRouter from './ai.routes.js';
 import objectInventoryAiRouter from './objectInventoryAi.routes.js';
+import objectModelingAiRouter from './objectModelingAi.routes.js';
 import validationRouter from '../validation/validation.routes.js';
 import issuesRouter from '../issues/issues.routes.js';
 import defectsRouter from '../defects/defects.routes.js';
@@ -63,5 +64,6 @@ apiRouter.use('/settings/dbt', settingsDbtRouter);
 apiRouter.use('/cdm', cdmRouter);
 apiRouter.use('/ai', aiRouter);
 apiRouter.use('/ai/object-inventory', objectInventoryAiRouter);
+apiRouter.use('/', objectModelingAiRouter);
 
 export default apiRouter;
