@@ -3,7 +3,19 @@
 import axios, { AxiosInstance, AxiosError } from 'axios';
 import { parseApiError } from './errorHandler';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/';
+const rawApiBase = String(
+  import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '/'
+).trim();
+const apiOrigin = String(import.meta.env.VITE_API_ORIGIN || '').trim();
+const API_BASE_URL = apiOrigin
+  ? `${apiOrigin.replace(/\/$/, '')}/${rawApiBase.replace(/^\//, '')}`
+  : rawApiBase;
+
+let tenantSlugHeader: string | null = null;
+
+export function setApiTenantSlug(slug: string | null): void {
+  tenantSlugHeader = slug ? String(slug).trim().toLowerCase() : null;
+}
 
 /**
  * Create Axios instance with base configuration
@@ -34,9 +46,17 @@ export function setLogoutCallback(callback: () => void): void {
 apiClient.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('authToken');
+    const storedTenantSlug = localStorage.getItem('rediforge.tenant.slug');
+    const tenantSlug = tenantSlugHeader || (storedTenantSlug ? storedTenantSlug.trim().toLowerCase() : '');
+
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+
+    if (tenantSlug) {
+      config.headers['X-Tenant-Slug'] = tenantSlug;
+    }
+
     return config;
   },
   (error) => Promise.reject(error)

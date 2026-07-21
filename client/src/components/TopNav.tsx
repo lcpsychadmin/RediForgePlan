@@ -23,10 +23,12 @@ import MenuIcon from '@mui/icons-material/Menu';
 import TimelineIcon from '@mui/icons-material/Timeline';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
+import ApartmentIcon from '@mui/icons-material/Apartment';
 import { useAuth } from '../contexts/AuthContext';
 import { usePageStats } from '../contexts/PageStatsContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import apiClient from '../api/client';
+import { useTenant } from '../contexts/TenantContext';
 
 interface TopNavProps {
   onMenuClick: () => void;
@@ -70,6 +72,7 @@ const TopNav: React.FC<TopNavProps> = ({
   onPeopleClick
 }) => {
   const { user, logout } = useAuth();
+  const { tenantSlug, availableTenants, switchTenant } = useTenant();
   const { stats: pageStats } = usePageStats();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -78,6 +81,7 @@ const TopNav: React.FC<TopNavProps> = ({
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
   const [notifAnchorEl, setNotifAnchorEl] = React.useState<null | HTMLElement>(null);
   const [workspaceAnchorEl, setWorkspaceAnchorEl] = React.useState<null | HTMLElement>(null);
+  const [tenantAnchorEl, setTenantAnchorEl] = React.useState<null | HTMLElement>(null);
   const [notifications, setNotifications] = React.useState<any[]>([]);
   const [unreadCount, setUnreadCount] = React.useState(0);
   const unopenedCount = React.useMemo(() => {
@@ -145,6 +149,15 @@ const TopNav: React.FC<TopNavProps> = ({
     await logout();
     handleMenuClose();
     navigate('/login');
+  };
+
+  const handleTenantSwitch = (nextTenantSlug: string) => {
+    setTenantAnchorEl(null);
+    if (!nextTenantSlug || nextTenantSlug === tenantSlug) {
+      return;
+    }
+
+    switchTenant(nextTenantSlug, `${location.pathname}${location.search}${location.hash}`);
   };
 
   const handleNotificationClick = async (n: any) => {
@@ -336,6 +349,23 @@ const TopNav: React.FC<TopNavProps> = ({
               <Button
                 variant="contained"
                 size="small"
+                startIcon={<ApartmentIcon />}
+                endIcon={<KeyboardArrowDownIcon sx={{ fontSize: '1rem !important', opacity: 0.75 }} />}
+                onClick={(event) => setTenantAnchorEl(event.currentTarget)}
+                sx={{
+                  textTransform: 'none',
+                  fontWeight: 500,
+                  backgroundColor: 'rgba(255, 255, 255, 0.12)',
+                  color: 'white',
+                  boxShadow: 'none',
+                  '&:hover': { backgroundColor: 'rgba(255, 255, 255, 0.2)', boxShadow: 'none' },
+                }}
+              >
+                {tenantSlug}
+              </Button>
+              <Button
+                variant="contained"
+                size="small"
                 startIcon={<GroupIcon />}
                 onClick={onPeopleClick}
                 sx={{
@@ -359,6 +389,7 @@ const TopNav: React.FC<TopNavProps> = ({
               </Button>
             </Box>
             )}
+
           </>
           )
         ) : (
@@ -372,6 +403,35 @@ const TopNav: React.FC<TopNavProps> = ({
 
         {/* Account Menu */}
         <Box>
+          <IconButton color="inherit" onClick={(event) => setTenantAnchorEl(event.currentTarget)}>
+            <Badge color="primary" variant="dot">
+              <ApartmentIcon />
+            </Badge>
+          </IconButton>
+
+          <Menu
+            anchorEl={tenantAnchorEl}
+            open={Boolean(tenantAnchorEl)}
+            onClose={() => setTenantAnchorEl(null)}
+            PaperProps={{ sx: { minWidth: 220 } }}
+          >
+            <MenuItem disabled>
+              <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase' }}>
+                Organization
+              </Typography>
+            </MenuItem>
+            <Divider />
+            {availableTenants.map((tenant) => (
+              <MenuItem
+                key={tenant}
+                selected={tenant === tenantSlug}
+                onClick={() => handleTenantSwitch(tenant)}
+              >
+                {tenant}
+              </MenuItem>
+            ))}
+          </Menu>
+
           {/* Notification Bell */}
           <IconButton color="inherit" onClick={async (e) => { setNotifAnchorEl(e.currentTarget); await loadNotifications(); }}>
             <Badge badgeContent={unopenedCount} color="error" max={99}>

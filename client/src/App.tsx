@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom';
 import { ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { QueryClientProvider } from '@tanstack/react-query';
@@ -10,6 +10,7 @@ import { ProtectedRoute, RoleRoute } from './components/ProtectedRoute';
 import { setLogoutCallback } from './api/client';
 import queryClient from './api/queryClient';
 import theme from './theme/theme';
+import { TenantProvider, useTenant } from './contexts/TenantContext';
 
 // Pages
 import Login from './pages/Login';
@@ -66,9 +67,28 @@ const LogoutCallbackRegistration: React.FC = () => {
   return null;
 };
 
+const TenantPathRedirect: React.FC = () => {
+  const { tenantSlug } = useParams();
+  const location = useLocation();
+  const { setTenantSlug } = useTenant();
+
+  React.useEffect(() => {
+    if (tenantSlug) {
+      setTenantSlug(tenantSlug);
+    }
+  }, [tenantSlug, setTenantSlug]);
+
+  const match = location.pathname.match(/^\/t\/[^/]+(\/.*)?$/i);
+  const targetPath = match?.[1] || '/dashboard';
+
+  return <Navigate to={`${targetPath}${location.search}${location.hash}`} replace />;
+};
+
 const AppRoutes: React.FC = () => {
   return (
     <Routes>
+      <Route path="/t/:tenantSlug/*" element={<TenantPathRedirect />} />
+
       {/* Public routes */}
       <Route
         path="/login"
@@ -450,14 +470,16 @@ const App: React.FC = () => {
       <CssBaseline />
       <QueryClientProvider client={queryClient}>
         <Router>
-          <AuthProvider>
-            <FilterProvider>
-              <PageStatsProvider>
-                <LogoutCallbackRegistration />
-                <AppRoutes />
-              </PageStatsProvider>
-            </FilterProvider>
-          </AuthProvider>
+          <TenantProvider>
+            <AuthProvider>
+              <FilterProvider>
+                <PageStatsProvider>
+                  <LogoutCallbackRegistration />
+                  <AppRoutes />
+                </PageStatsProvider>
+              </FilterProvider>
+            </AuthProvider>
+          </TenantProvider>
         </Router>
       </QueryClientProvider>
     </ThemeProvider>
