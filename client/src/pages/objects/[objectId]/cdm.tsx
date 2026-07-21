@@ -9,6 +9,9 @@ import apiClient from '../../../api/client';
 import AiCdmFieldProposalPanel from '../../../components/objects/AiCdmFieldProposalPanel';
 import { useAiCdmDerivation } from '../../../hooks/useObjectAiActions';
 import type { AiCdmFieldProposal } from '../../../types/objectAi';
+import CdmFieldsEditorTable from '../../../components/objects/CdmFieldsEditorTable';
+import { mapAttributesToEditorRows, useCdmFieldsEditor } from '../../../hooks/useCdmFieldsEditor';
+import type { CdmFieldEditorRow } from '../../../types/cdmEditor';
 
 type FieldRow = {
   id: string;
@@ -96,6 +99,18 @@ const getAttributeDescription = (field: FieldRow): string => {
   );
 };
 
+const downloadTextFile = (content: string, fileName: string, mimeType: string) => {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+};
+
 const ObjectCdmPage: React.FC = () => {
   const { objectId = '' } = useParams();
   const [objectSummary, setObjectSummary] = React.useState<any>(null);
@@ -107,7 +122,9 @@ const ObjectCdmPage: React.FC = () => {
   const [statusSeverity, setStatusSeverity] = React.useState<'success' | 'error' | 'info'>('info');
   const [aiPanelOpen, setAiPanelOpen] = React.useState(false);
   const [aiCdmProposals, setAiCdmProposals] = React.useState<AiCdmFieldProposal[]>([]);
-  const [isApplyingAiCdm, setIsApplyingAiCdm] = React.useState(false);
+  const [persistedCdmAttributes, setPersistedCdmAttributes] = React.useState<any[]>([]);
+  const [persistedCdmRelationships, setPersistedCdmRelationships] = React.useState<any[]>([]);
+  const [isSavingCdmRows, setIsSavingCdmRows] = React.useState(false);
 
   const {
     subObjects,
@@ -126,11 +143,30 @@ const ObjectCdmPage: React.FC = () => {
     error: aiDeriveError,
   } = useAiCdmDerivation();
 
+  const {
+    rows: cdmEditorRows,
+    selectedCount,
+    initializeRows,
+    addRow,
+    removeRow,
+    updateRow,
+    toggleRowSelection,
+    toggleAllSelection,
+    bulkDeleteSelected,
+    bulkSetNullable,
+    applyAiSuggestions,
+    toJson,
+    toSql,
+  } = useCdmFieldsEditor();
+
   const load = React.useCallback(async () => {
     if (!objectId) return;
     if (hasSubObjects && !scopeSubObjectId) {
       setLinkedDefs([]);
       setAllFields([]);
+      setPersistedCdmAttributes([]);
+      setPersistedCdmRelationships([]);
+      initializeRows([]);
       setIsLoading(false);
       return;
     }
@@ -139,11 +175,14 @@ const ObjectCdmPage: React.FC = () => {
     setLoadError('');
 
     try {
-      const [objectRes, linkedRes] = await Promise.all([
+      const [objectRes, linkedRes, cdmRes] = await Promise.all([
         apiClient.get(`/api/global-objects/${objectId}`),
         apiClient.get(`/api/applications/data-definitions/object/${objectId}`, {
           params: { subObjectId: scopeSubObjectId },
         }),
+        apiClient.get(`/api/cdm/${objectId}`, {
+          params: { subObjectId: scopeSubObjectId || undefined },
+        }).catch(() => ({ data: { data: { attributes: [], relationships: [] } } })),
       ]);
 
       const objectData = objectRes.data?.data || null;
@@ -151,6 +190,8 @@ const ObjectCdmPage: React.FC = () => {
 
       setObjectSummary(objectData);
       setLinkedDefs(definitions);
+      setPersistedCdmAttributes(Array.isArray(cdmRes.data?.data?.attributes) ? cdmRes.data.data.attributes : []);
+      setPersistedCdmRelationships(Array.isArray(cdmRes.data?.data?.relationships) ? cdmRes.data.data.relationships : []);
 
       const fieldResults = await Promise.all(
         definitions.map((definition: any) =>
@@ -180,10 +221,12 @@ const ObjectCdmPage: React.FC = () => {
       setObjectSummary(null);
       setLinkedDefs([]);
       setAllFields([]);
+      setPersistedCdmAttributes([]);
+      setPersistedCdmRelationships([]);
     } finally {
       setIsLoading(false);
     }
-  }, [hasSubObjects, objectId, scopeSubObjectId]);
+  }, [hasSubObjects, initializeRows, objectId, scopeSubObjectId]);
 
   React.useEffect(() => {
     load().catch(() => {
@@ -326,6 +369,28 @@ const ObjectCdmPage: React.FC = () => {
     };
   }, [linkedDefs, mappingFields]);
 
+  React.useEffect(() => {
+    if (persistedCdmAttributes.length > 0) {
+      initializeRows(mapAttributesToEditorRows(persistedCdmAttributes));
+      return;
+    }
+
+    const fallbackRows: CdmFieldEditorRow[] = cdmAttributes.map((row, index) => ({
+      id: `derived-${index}-${row.attributeName}`,
+      selected: false,
+      fieldName: row.attributeName,
+      dataType: row.dataType,
+      lengthPrecision: '',
+      nullable: row.requiredPct < 100,
+      description: row.description,
+      businessRule: '',
+      transformationHint: '',
+      sourceExamples: row.sourceTables.join(', '),
+    }));
+
+    initializeRows(fallbackRows);
+  }, [cdmAttributes, initializeRows, persistedCdmAttributes]);
+
   const handleDeriveCdmFromSources = async () => {
     if (!scopeSubObjectId) {
       setStatusSeverity('info');
@@ -349,36 +414,67 @@ const ObjectCdmPage: React.FC = () => {
       return;
     }
 
-    setIsApplyingAiCdm(true);
+    applyAiSuggestions(accepted);
+    setAiPanelOpen(false);
+    setStatusSeverity('success');
+    setStatus(`Added ${accepted.length} AI suggestion(s) to the CDM table. Save when ready.`);
+  };
+
+  const handleSaveCdmRows = async () => {
+    if (hasSubObjects && !scopeSubObjectId) {
+      setStatusSeverity('info');
+      setStatus('Select a sub-object before saving CDM fields.');
+      return;
+    }
+
+    setIsSavingCdmRows(true);
     setStatus('');
     try {
       await apiClient.post(`/api/cdm/${objectId}`, {
         subObjectId: scopeSubObjectId || null,
         objectName: objectSummary?.objectId || objectSummary?.object_id || null,
         notes: null,
-        attributes: accepted.map((row, index) => ({
-          attributeName: row.fieldName,
-          attributeDescription: row.description,
-          dataType: row.dataType,
-          length: row.length,
-          businessRules: row.explanation,
-          required: !!row.required,
-          validationRules: row.sourceFields || [],
-          sortOrder: index,
-        })),
-        relationships: [],
+        attributes: cdmEditorRows
+          .filter((row) => row.fieldName.trim())
+          .map((row, index) => {
+            const lengthValue = Number(String(row.lengthPrecision || '').split(',')[0].trim());
+            const validationRules = [
+              row.businessRule ? row.businessRule.trim() : '',
+              row.transformationHint ? `TRANSFORMATION_HINT:${row.transformationHint.trim()}` : '',
+              row.sourceExamples ? `SOURCE_EXAMPLES:${row.sourceExamples.trim()}` : '',
+            ].filter(Boolean);
+
+            return {
+              attributeName: row.fieldName.trim(),
+              attributeDescription: row.description || null,
+              dataType: row.dataType || null,
+              length: Number.isFinite(lengthValue) ? lengthValue : null,
+              businessRules: row.businessRule || null,
+              required: !row.nullable,
+              validationRules,
+              sortOrder: index,
+            };
+          }),
+        relationships: persistedCdmRelationships,
       });
 
-      await load();
-      setAiPanelOpen(false);
       setStatusSeverity('success');
-      setStatus('CDM fields derived and applied.');
+      setStatus('CDM fields saved.');
+      await load();
     } catch {
       setStatusSeverity('error');
-      setStatus('Failed to apply AI CDM proposals.');
+      setStatus('Failed to save CDM fields.');
     } finally {
-      setIsApplyingAiCdm(false);
+      setIsSavingCdmRows(false);
     }
+  };
+
+  const handleExportJson = () => {
+    downloadTextFile(toJson(), `cdm-fields-${objectId}.json`, 'application/json');
+  };
+
+  const handleExportSql = () => {
+    downloadTextFile(toSql('cdm_fields_export'), `cdm-fields-${objectId}.sql`, 'text/sql');
   };
 
   return (
@@ -421,7 +517,7 @@ const ObjectCdmPage: React.FC = () => {
                 size="small"
                 variant="outlined"
                 onClick={handleDeriveCdmFromSources}
-                disabled={aiDeriveLoading || isApplyingAiCdm || (hasSubObjects && !scopeSubObjectId)}
+                disabled={aiDeriveLoading || isSavingCdmRows || (hasSubObjects && !scopeSubObjectId)}
                 sx={{ textTransform: 'none' }}
               >
                 {aiDeriveLoading ? 'Deriving...' : 'Derive CDM from Sources'}
@@ -442,11 +538,35 @@ const ObjectCdmPage: React.FC = () => {
             {aiPanelOpen && (
               <AiCdmFieldProposalPanel
                 proposals={aiCdmProposals}
-                loading={isApplyingAiCdm}
+                loading={isSavingCdmRows}
                 onApply={handleApplyAiCdm}
                 onClose={() => setAiPanelOpen(false)}
               />
             )}
+          </CardContent>
+        </Card>
+
+        <Card sx={{ mb: 2, backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.12)' }}>
+          <CardContent>
+            <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>CDM Fields</Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.2 }}>
+              Edit canonical CDM fields, apply bulk updates, and export as JSON or SQL.
+            </Typography>
+            <CdmFieldsEditorTable
+              rows={cdmEditorRows}
+              selectedCount={selectedCount}
+              saving={isSavingCdmRows}
+              onAddRow={addRow}
+              onRemoveRow={removeRow}
+              onUpdateRow={updateRow}
+              onToggleRowSelection={toggleRowSelection}
+              onToggleAllSelection={toggleAllSelection}
+              onBulkDeleteSelected={bulkDeleteSelected}
+              onBulkSetNullable={bulkSetNullable}
+              onExportJson={handleExportJson}
+              onExportSql={handleExportSql}
+              onSave={handleSaveCdmRows}
+            />
           </CardContent>
         </Card>
 
