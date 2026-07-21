@@ -18,6 +18,25 @@ ALTER TABLE users
 ALTER TABLE sessions
   ALTER COLUMN tenant_id DROP NOT NULL;
 
+-- Backfill tenant role semantics before adding strict constraints.
+UPDATE users
+SET tenant_role = CASE
+  WHEN role = 'admin' THEN 'tenant_admin'
+  WHEN role = 'analyst' THEN 'member'
+  ELSE 'viewer'
+END
+WHERE tenant_id IS NOT NULL
+  AND tenant_role IS NULL;
+
+UPDATE users
+SET tenant_role = NULL
+WHERE tenant_id IS NULL;
+
+UPDATE users
+SET tenant_id = NULL,
+    tenant_role = NULL
+WHERE is_super_admin = true;
+
 ALTER TABLE users DROP CONSTRAINT IF EXISTS users_tenant_super_admin_check;
 ALTER TABLE users
   ADD CONSTRAINT users_tenant_super_admin_check
