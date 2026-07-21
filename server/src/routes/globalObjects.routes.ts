@@ -13,12 +13,17 @@ const router = Router();
 // List all global objects with filters
 router.get('/', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const tenantId = req.tenant?.id;
+    if (!tenantId) {
+      throw new ApiError(400, 'Tenant context is required', 'TENANT_REQUIRED');
+    }
+
     const filters = {
       processArea: req.query.processArea as string | undefined,
       search: req.query.search as string | undefined,
     };
 
-    const objects = await globalObjectService.getAllGlobalObjects(filters);
+    const objects = await globalObjectService.getAllGlobalObjects(tenantId, filters);
     res.json(formatListResponse(objects, objects.length));
   } catch (error) {
     next(error);
@@ -32,6 +37,11 @@ router.post(
   requireRole('admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
+      const tenantId = req.tenant?.id;
+      if (!tenantId) {
+        throw new ApiError(400, 'Tenant context is required', 'TENANT_REQUIRED');
+      }
+
       const { objectId, description, processArea, defaultGatewayId, defaultRouterId } = req.body;
 
       if (!objectId) {
@@ -39,6 +49,7 @@ router.post(
       }
 
       const object = await globalObjectService.createGlobalObject(
+        tenantId,
         objectId,
         description,
         processArea,
@@ -59,7 +70,12 @@ router.get(
   requireAuth,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const object = await globalObjectService.getGlobalObjectById(req.params.globalObjectId);
+      const tenantId = req.tenant?.id;
+      if (!tenantId) {
+        throw new ApiError(400, 'Tenant context is required', 'TENANT_REQUIRED');
+      }
+
+      const object = await globalObjectService.getGlobalObjectById(req.params.globalObjectId, tenantId);
 
       if (!object) {
         throw new ApiError(404, 'Global object not found', 'NOT_FOUND');
@@ -68,9 +84,9 @@ router.get(
       const subObjectsResult = await db.query(
         `SELECT id, global_object_id, name, description, sort_order, created_at, updated_at
          FROM object_sub_objects
-         WHERE global_object_id = $1
+         WHERE global_object_id = $1 AND tenant_id = $2
          ORDER BY sort_order ASC, name ASC`,
-        [req.params.globalObjectId]
+        [req.params.globalObjectId, tenantId]
       );
 
       res.json(formatSingleResponse({
@@ -95,7 +111,12 @@ router.patch(
   requireRole('analyst', 'admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const object = await globalObjectService.updateGlobalObject(req.params.globalObjectId, req.body);
+      const tenantId = req.tenant?.id;
+      if (!tenantId) {
+        throw new ApiError(400, 'Tenant context is required', 'TENANT_REQUIRED');
+      }
+
+      const object = await globalObjectService.updateGlobalObject(req.params.globalObjectId, tenantId, req.body);
 
       if (!object) {
         throw new ApiError(404, 'Global object not found', 'NOT_FOUND');
@@ -115,7 +136,12 @@ router.delete(
   requireRole('admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      await globalObjectService.deleteGlobalObject(req.params.globalObjectId);
+      const tenantId = req.tenant?.id;
+      if (!tenantId) {
+        throw new ApiError(400, 'Tenant context is required', 'TENANT_REQUIRED');
+      }
+
+      await globalObjectService.deleteGlobalObject(req.params.globalObjectId, tenantId);
       res.json({ success: true });
     } catch (error) {
       next(error);
@@ -129,6 +155,11 @@ router.post(
   requireRole('analyst', 'admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
+      const tenantId = req.tenant?.id;
+      if (!tenantId) {
+        throw new ApiError(400, 'Tenant context is required', 'TENANT_REQUIRED');
+      }
+
       const applicationIds = Array.isArray(req.body?.applicationIds) ? req.body.applicationIds : [];
 
       if (!applicationIds.length) {
@@ -144,15 +175,20 @@ router.post(
         }
 
         const existsResult = await db.query(
-          `SELECT id FROM data_definitions WHERE global_object_id = $1 AND application_id = $2 AND object_sub_object_id IS NULL`,
-          [req.params.globalObjectId, trimmedApplicationId]
+          `SELECT id
+           FROM data_definitions
+           WHERE global_object_id = $1
+             AND application_id = $2
+             AND object_sub_object_id IS NULL
+             AND tenant_id = $3`,
+          [req.params.globalObjectId, trimmedApplicationId, tenantId]
         );
 
         if (!existsResult.rows.length) {
           await db.query(
-            `INSERT INTO data_definitions (global_object_id, application_id, object_sub_object_id, notes)
-             VALUES ($1, $2, NULL, NULL)`,
-            [req.params.globalObjectId, trimmedApplicationId]
+            `INSERT INTO data_definitions (tenant_id, global_object_id, application_id, object_sub_object_id, notes)
+             VALUES ($1, $2, $3, NULL, NULL)`,
+            [tenantId, req.params.globalObjectId, trimmedApplicationId]
           );
         }
 
@@ -175,12 +211,17 @@ router.get(
   requireAuth,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
+      const tenantId = req.tenant?.id;
+      if (!tenantId) {
+        throw new ApiError(400, 'Tenant context is required', 'TENANT_REQUIRED');
+      }
+
       const result = await db.query(
         `SELECT id, global_object_id, name, description, sort_order, created_at, updated_at
          FROM object_sub_objects
-         WHERE global_object_id = $1
+         WHERE global_object_id = $1 AND tenant_id = $2
          ORDER BY sort_order ASC, name ASC`,
-        [req.params.globalObjectId]
+        [req.params.globalObjectId, tenantId]
       );
       res.json(formatListResponse(result.rows, result.rows.length));
     } catch (error) {
@@ -195,16 +236,21 @@ router.post(
   requireRole('analyst', 'admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
+      const tenantId = req.tenant?.id;
+      if (!tenantId) {
+        throw new ApiError(400, 'Tenant context is required', 'TENANT_REQUIRED');
+      }
+
       const { name, description, sortOrder } = req.body || {};
       if (!String(name || '').trim()) {
         throw new ApiError(400, 'Sub-object name is required', 'MISSING_FIELD');
       }
 
       const result = await db.query(
-        `INSERT INTO object_sub_objects (global_object_id, name, description, sort_order)
-         VALUES ($1, $2, $3, $4)
+        `INSERT INTO object_sub_objects (tenant_id, global_object_id, name, description, sort_order)
+         VALUES ($1, $2, $3, $4, $5)
          RETURNING id, global_object_id, name, description, sort_order, created_at, updated_at`,
-        [req.params.globalObjectId, String(name).trim(), description || null, Number(sortOrder || 0)]
+        [tenantId, req.params.globalObjectId, String(name).trim(), description || null, Number(sortOrder || 0)]
       );
 
       res.status(201).json(formatSingleResponse(result.rows[0]));
@@ -220,6 +266,11 @@ router.put(
   requireRole('analyst', 'admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
+      const tenantId = req.tenant?.id;
+      if (!tenantId) {
+        throw new ApiError(400, 'Tenant context is required', 'TENANT_REQUIRED');
+      }
+
       const { name, description, sortOrder } = req.body || {};
       if (!String(name || '').trim()) {
         throw new ApiError(400, 'Sub-object name is required', 'MISSING_FIELD');
@@ -231,9 +282,9 @@ router.put(
              description = $2,
              sort_order = $3,
              updated_at = CURRENT_TIMESTAMP
-         WHERE id = $4
+         WHERE id = $4 AND tenant_id = $5
          RETURNING id, global_object_id, name, description, sort_order, created_at, updated_at`,
-        [String(name).trim(), description || null, Number(sortOrder || 0), req.params.subObjectId]
+        [String(name).trim(), description || null, Number(sortOrder || 0), req.params.subObjectId, tenantId]
       );
 
       if (!result.rows.length) {
@@ -253,7 +304,15 @@ router.delete(
   requireRole('analyst', 'admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      await db.query('DELETE FROM object_sub_objects WHERE id = $1', [req.params.subObjectId]);
+      const tenantId = req.tenant?.id;
+      if (!tenantId) {
+        throw new ApiError(400, 'Tenant context is required', 'TENANT_REQUIRED');
+      }
+
+      await db.query('DELETE FROM object_sub_objects WHERE id = $1 AND tenant_id = $2', [
+        req.params.subObjectId,
+        tenantId,
+      ]);
       res.json({ success: true });
     } catch (error) {
       next(error);

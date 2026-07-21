@@ -21,17 +21,26 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
       return res.status(401).json({ error: 'Invalid or expired token' });
     }
 
+    if (req.tenant && decoded.tenantId && decoded.tenantId !== req.tenant.id) {
+      return res.status(403).json({ error: 'Token tenant does not match request tenant' });
+    }
+
     // Verify session exists in database
-    const sessionValid = await verifySession(token);
+    const sessionValid = await verifySession(token, req.tenant?.id);
     if (!sessionValid) {
       return res.status(401).json({ error: 'Session expired or invalid' });
     }
 
+    const user = await getUserById(decoded.userId, req.tenant?.id);
+    if (!user) {
+      return res.status(403).json({ error: 'User is not authorized for this tenant' });
+    }
+
     // Attach user info to request
-    (req as any).userId = decoded.userId;
-    (req as any).userEmail = decoded.email;
-    (req as any).userRole = decoded.role;
-    (req as any).token = token;
+    req.userId = decoded.userId;
+    req.userEmail = decoded.email;
+    req.userRole = decoded.role;
+    req.token = token;
 
     next();
   } catch (error) {
@@ -45,7 +54,7 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
  */
 export const requireRole = (...allowedRoles: string[]) => {
   return (req: Request, res: Response, next: NextFunction) => {
-    const userRole = (req as any).userRole;
+    const userRole = req.userRole;
 
     if (!userRole || !allowedRoles.includes(userRole)) {
       return res.status(403).json({ error: 'Insufficient permissions' });
@@ -67,12 +76,16 @@ export const optionalAuth = async (req: Request, res: Response, next: NextFuncti
 
       const decoded = verifyJWT(token);
       if (decoded) {
-        const sessionValid = await verifySession(token);
+        if (req.tenant && decoded.tenantId && decoded.tenantId !== req.tenant.id) {
+          return next();
+        }
+
+        const sessionValid = await verifySession(token, req.tenant?.id);
         if (sessionValid) {
-          (req as any).userId = decoded.userId;
-          (req as any).userEmail = decoded.email;
-          (req as any).userRole = decoded.role;
-          (req as any).token = token;
+          req.userId = decoded.userId;
+          req.userEmail = decoded.email;
+          req.userRole = decoded.role;
+          req.token = token;
         }
       }
     }

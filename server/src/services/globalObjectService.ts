@@ -24,11 +24,11 @@ export class GlobalObjectService {
     this.aiColumnsReady = true;
   }
 
-  async getAllGlobalObjects(filters?: { processArea?: string; search?: string }) {
+  async getAllGlobalObjects(tenantId: string, filters?: { processArea?: string; search?: string }) {
     await this.ensureAiColumns();
-    let query = 'SELECT id, object_id, description, process_area, default_gateway_id, default_router_id, created_at, updated_at FROM global_objects WHERE 1=1';
-    const params: any[] = [];
-    let paramCount = 1;
+    let query = 'SELECT id, object_id, description, process_area, default_gateway_id, default_router_id, created_at, updated_at FROM global_objects WHERE tenant_id = $1';
+    const params: any[] = [tenantId];
+    let paramCount = 2;
 
     if (filters?.processArea) {
       query += ` AND process_area = $${paramCount}`;
@@ -47,17 +47,18 @@ export class GlobalObjectService {
     return result.rows.map(row => this.formatGlobalObject(row));
   }
 
-  async getGlobalObjectById(globalObjectId: string) {
+  async getGlobalObjectById(globalObjectId: string, tenantId: string) {
     await this.ensureAiColumns();
     const result = await db.query(
-      'SELECT id, object_id, description, process_area, default_gateway_id, default_router_id, created_at, updated_at FROM global_objects WHERE id = $1',
-      [globalObjectId]
+      'SELECT id, object_id, description, process_area, default_gateway_id, default_router_id, created_at, updated_at FROM global_objects WHERE id = $1 AND tenant_id = $2',
+      [globalObjectId, tenantId]
     );
     if (result.rows.length === 0) return null;
     return this.formatGlobalObject(result.rows[0]);
   }
 
   async createGlobalObject(
+    tenantId: string,
     objectId: string,
     description: string | undefined,
     processArea: string | undefined,
@@ -66,17 +67,21 @@ export class GlobalObjectService {
   ) {
     await this.ensureAiColumns();
     const result = await db.query(
-      'INSERT INTO global_objects (object_id, description, process_area, default_gateway_id, default_router_id) VALUES ($1, $2, $3, $4, $5) RETURNING id, object_id, description, process_area, default_gateway_id, default_router_id, created_at, updated_at',
-      [objectId, description || null, processArea || null, defaultGatewayId || null, defaultRouterId || null]
+      'INSERT INTO global_objects (tenant_id, object_id, description, process_area, default_gateway_id, default_router_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, object_id, description, process_area, default_gateway_id, default_router_id, created_at, updated_at',
+      [tenantId, objectId, description || null, processArea || null, defaultGatewayId || null, defaultRouterId || null]
     );
     return this.formatGlobalObject(result.rows[0]);
   }
 
-  async updateGlobalObject(globalObjectId: string, data: { objectId?: string; description?: string; processArea?: string; defaultGatewayId?: string | null; defaultRouterId?: string | null }) {
+  async updateGlobalObject(
+    globalObjectId: string,
+    tenantId: string,
+    data: { objectId?: string; description?: string; processArea?: string; defaultGatewayId?: string | null; defaultRouterId?: string | null }
+  ) {
     await this.ensureAiColumns();
     const fields: string[] = [];
-    const values: any[] = [globalObjectId];
-    let paramCount = 2;
+    const values: any[] = [globalObjectId, tenantId];
+    let paramCount = 3;
 
     if (data.objectId !== undefined) {
       fields.push(`object_id = $${paramCount}`);
@@ -104,12 +109,12 @@ export class GlobalObjectService {
       paramCount++;
     }
 
-    if (fields.length === 0) return this.getGlobalObjectById(globalObjectId);
+    if (fields.length === 0) return this.getGlobalObjectById(globalObjectId, tenantId);
 
     fields.push(`updated_at = CURRENT_TIMESTAMP`);
 
     const result = await db.query(
-      `UPDATE global_objects SET ${fields.join(', ')} WHERE id = $1 RETURNING id, object_id, description, process_area, default_gateway_id, default_router_id, created_at, updated_at`,
+      `UPDATE global_objects SET ${fields.join(', ')} WHERE id = $1 AND tenant_id = $2 RETURNING id, object_id, description, process_area, default_gateway_id, default_router_id, created_at, updated_at`,
       values
     );
 
@@ -117,10 +122,10 @@ export class GlobalObjectService {
     return this.formatGlobalObject(result.rows[0]);
   }
 
-  async deleteGlobalObject(globalObjectId: string) {
+  async deleteGlobalObject(globalObjectId: string, tenantId: string) {
     const refCount = await db.query(
-      'SELECT COUNT(*) FROM project_objects WHERE global_object_id = $1',
-      [globalObjectId]
+      'SELECT COUNT(*) FROM project_objects WHERE global_object_id = $1 AND tenant_id = $2',
+      [globalObjectId, tenantId]
     );
 
     if (parseInt(refCount.rows[0].count) > 0) {
@@ -128,8 +133,8 @@ export class GlobalObjectService {
     }
 
     const result = await db.query(
-      'DELETE FROM global_objects WHERE id = $1 RETURNING id',
-      [globalObjectId]
+      'DELETE FROM global_objects WHERE id = $1 AND tenant_id = $2 RETURNING id',
+      [globalObjectId, tenantId]
     );
 
     return result.rows.length > 0;

@@ -30,8 +30,19 @@ router.post('/mfa/setup', setupMFA);
  */
 router.post('/seed', async (req, res) => {
   try {
+    const tenantSlug = String(process.env.DEFAULT_TENANT_SLUG || 'default').trim().toLowerCase();
+
+    const tenantResult = await query(
+      `INSERT INTO organizations (name, slug, status)
+       VALUES ('Default Organization', $1, 'active')
+       ON CONFLICT (slug) DO UPDATE SET slug = EXCLUDED.slug
+       RETURNING id`,
+      [tenantSlug]
+    );
+    const tenantId = tenantResult.rows[0].id;
+
     // Check if any users exist
-    const result = await query('SELECT COUNT(*) FROM users');
+    const result = await query('SELECT COUNT(*) FROM users WHERE tenant_id = $1', [tenantId]);
     const userCount = parseInt(result.rows[0].count);
     
     if (userCount > 0) {
@@ -43,17 +54,17 @@ router.post('/seed', async (req, res) => {
     
     // Insert admin user
     await query(
-      `INSERT INTO users (id, email, password_hash, role, mfa_enabled) 
-       VALUES (gen_random_uuid(), $1, $2, $3, false)`,
-      ['admin@rediforge.com', hashedPassword, 'admin']
+      `INSERT INTO users (id, email, password_hash, role, mfa_enabled, tenant_id)
+       VALUES (gen_random_uuid(), $1, $2, $3, false, $4)`,
+      ['admin@rediforge.com', hashedPassword, 'admin', tenantId]
     );
     
     // Insert analyst user
     const hashedPassword2 = await hashPassword('password');
     await query(
-      `INSERT INTO users (id, email, password_hash, role, mfa_enabled) 
-       VALUES (gen_random_uuid(), $1, $2, $3, false)`,
-      ['analyst@rediforge.com', hashedPassword2, 'analyst']
+      `INSERT INTO users (id, email, password_hash, role, mfa_enabled, tenant_id)
+       VALUES (gen_random_uuid(), $1, $2, $3, false, $4)`,
+      ['analyst@rediforge.com', hashedPassword2, 'analyst', tenantId]
     );
     
     res.json({ 
@@ -83,7 +94,12 @@ router.post('/admin/create-user', requireAuth, requireRole('admin'), createNewUs
 
 router.get('/admin/users', requireAuth, requireRole('admin'), async (_req, res) => {
   try {
-    const users = await listUsersForAssignment();
+    const tenantId = _req.tenant?.id;
+    if (!tenantId) {
+      return res.status(400).json({ error: 'Tenant context is required' });
+    }
+
+    const users = await listUsersForAssignment(tenantId);
     res.json({ data: users, total: users.length });
   } catch (error) {
     res.status(500).json({ error: (error as any).message || 'Failed to fetch users' });

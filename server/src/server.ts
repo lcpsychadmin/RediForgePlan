@@ -9,6 +9,8 @@ import authRoutes from './auth/auth.routes.js';
 import apiRoutes from './routes/api.routes.js';
 import { requestLogger } from './middleware/index.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
+import { optionalAuth } from './middleware/authMiddleware.js';
+import { resolveTenantContext, validateTenantMembership } from './middleware/tenantContextMiddleware.js';
 
 dotenv.config();
 
@@ -25,6 +27,11 @@ app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(requestLogger);
+
+// Resolve tenant early for both auth and API traffic.
+app.use(resolveTenantContext);
+app.use(optionalAuth);
+app.use(validateTenantMembership);
 
 // API Routes (new planning API)
 app.use('/api', apiRoutes);

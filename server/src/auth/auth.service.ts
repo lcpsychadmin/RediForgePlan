@@ -34,13 +34,14 @@ export const comparePassword = async (password: string, hash: string): Promise<b
  * @param role - User role
  * @returns Object with token and expiration
  */
-export const createJWT = (userId: string, email: string, role: string) => {
+export const createJWT = (userId: string, email: string, role: string, tenantId: string) => {
   const expiresIn = JWT_EXPIRES_IN;
   const token = jwt.sign(
     {
       userId,
       email,
       role,
+      tenantId,
     },
     JWT_SECRET,
     { expiresIn }
@@ -72,13 +73,23 @@ export const verifyJWT = (token: string): any => {
  * @param token - JWT token
  * @returns Promise<void>
  */
-export const storeSession = async (userId: string, token: string): Promise<void> => {
+export const storeSession = async (userId: string, token: string, tenantId?: string): Promise<void> => {
   const sessionId = uuidv4();
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
 
+  let resolvedTenantId = tenantId;
+  if (!resolvedTenantId) {
+    const userResult = await query(`SELECT tenant_id FROM users WHERE id = $1`, [userId]);
+    resolvedTenantId = userResult.rows[0]?.tenant_id || null;
+  }
+
+  if (!resolvedTenantId) {
+    throw new Error('Unable to create session without tenant context');
+  }
+
   await query(
-    `INSERT INTO sessions (id, user_id, jwt_token, expires_at) VALUES ($1, $2, $3, $4)`,
-    [sessionId, userId, token, expiresAt]
+    `INSERT INTO sessions (id, user_id, jwt_token, expires_at, tenant_id) VALUES ($1, $2, $3, $4, $5)`,
+    [sessionId, userId, token, expiresAt, resolvedTenantId]
   );
 };
 
@@ -87,12 +98,17 @@ export const storeSession = async (userId: string, token: string): Promise<void>
  * @param token - JWT token
  * @returns Promise<boolean> - True if session is valid
  */
-export const verifySession = async (token: string): Promise<boolean> => {
+export const verifySession = async (token: string, tenantId?: string): Promise<boolean> => {
   try {
-    const result = await query(
-      `SELECT id FROM sessions WHERE jwt_token = $1 AND expires_at > NOW()`,
-      [token]
-    );
+    const where: string[] = ['jwt_token = $1', 'expires_at > NOW()'];
+    const params: any[] = [token];
+
+    if (tenantId) {
+      where.push(`tenant_id = $${params.length + 1}`);
+      params.push(tenantId);
+    }
+
+    const result = await query(`SELECT id FROM sessions WHERE ${where.join(' AND ')}`, params);
 
     return result.rows.length > 0;
   } catch (error) {
@@ -114,10 +130,18 @@ export const invalidateSession = async (token: string): Promise<void> => {
  * @param email - User email
  * @returns Promise with user data or null
  */
-export const getUserByEmail = async (email: string) => {
-  const result = await query(`SELECT id, email, password_hash, role, mfa_enabled, mfa_secret FROM users WHERE email = $1`, [
-    email,
-  ]);
+export const getUserByEmail = async (email: string, tenantId?: string) => {
+  const params: any[] = [email];
+  let sql = `SELECT id, email, password_hash, role, mfa_enabled, mfa_secret, tenant_id
+             FROM users
+             WHERE lower(email) = lower($1)`;
+
+  if (tenantId) {
+    sql += ` AND tenant_id = $2`;
+    params.push(tenantId);
+  }
+
+  const result = await query(sql, params);
 
   return result.rows[0] || null;
 };
@@ -127,11 +151,18 @@ export const getUserByEmail = async (email: string) => {
  * @param userId - User UUID
  * @returns Promise with user data or null
  */
-export const getUserById = async (userId: string) => {
-  const result = await query(
-    `SELECT id, email, role, mfa_enabled, created_at, updated_at FROM users WHERE id = $1`,
-    [userId]
-  );
+export const getUserById = async (userId: string, tenantId?: string) => {
+  const params: any[] = [userId];
+  let sql = `SELECT id, email, role, mfa_enabled, created_at, updated_at, tenant_id
+             FROM users
+             WHERE id = $1`;
+
+  if (tenantId) {
+    sql += ` AND tenant_id = $2`;
+    params.push(tenantId);
+  }
+
+  const result = await query(sql, params);
 
   return result.rows[0] || null;
 };
@@ -143,14 +174,19 @@ export const getUserById = async (userId: string) => {
  * @param role - User role
  * @returns Promise with user data
  */
-export const createUser = async (email: string, password: string, role: string = 'viewer') => {
+export const createUser = async (
+  email: string,
+  password: string,
+  role: string = 'viewer',
+  tenantId: string
+) => {
   const userId = uuidv4();
   const passwordHash = await hashPassword(password);
 
   const result = await query(
-    `INSERT INTO users (id, email, password_hash, role, mfa_enabled) VALUES ($1, $2, $3, $4, $5)
+    `INSERT INTO users (id, email, password_hash, role, mfa_enabled, tenant_id) VALUES ($1, $2, $3, $4, $5, $6)
      RETURNING id, email, role, created_at`,
-    [userId, email, passwordHash, role, false]
+    [userId, email, passwordHash, role, false, tenantId]
   );
 
   return result.rows[0];
@@ -160,11 +196,14 @@ export const createUser = async (email: string, password: string, role: string =
  * List users for assignment workflows
  * @returns Promise of users with identity/role fields
  */
-export const listUsersForAssignment = async () => {
+export const listUsersForAssignment = async (tenantId: string) => {
   const result = await query(
     `SELECT id, email, role, created_at, updated_at
      FROM users
+     WHERE tenant_id = $1
      ORDER BY email ASC`
+    ,
+    [tenantId]
   );
 
   return result.rows;
@@ -176,13 +215,21 @@ export const listUsersForAssignment = async () => {
  * @param mfaSecret - Encrypted MFA secret
  * @returns Promise<void>
  */
-export const enableUserMFA = async (userId: string, mfaSecret: string): Promise<void> => {
+export const enableUserMFA = async (
+  userId: string,
+  mfaSecret: string,
+  tenantId?: string
+): Promise<void> => {
   const encryptedSecret = encryptMFASecret(mfaSecret);
 
-  await query(
-    `UPDATE users SET mfa_secret = $1, mfa_enabled = true, updated_at = NOW() WHERE id = $2`,
-    [encryptedSecret, userId]
-  );
+  const params: any[] = [encryptedSecret, userId];
+  let sql = `UPDATE users SET mfa_secret = $1, mfa_enabled = true, updated_at = NOW() WHERE id = $2`;
+  if (tenantId) {
+    sql += ` AND tenant_id = $3`;
+    params.push(tenantId);
+  }
+
+  await query(sql, params);
 };
 
 /**
@@ -190,8 +237,14 @@ export const enableUserMFA = async (userId: string, mfaSecret: string): Promise<
  * @param userId - User UUID
  * @returns Promise<string | null> - Decrypted secret or null
  */
-export const getUserMFASecret = async (userId: string): Promise<string | null> => {
-  const result = await query(`SELECT mfa_secret FROM users WHERE id = $1`, [userId]);
+export const getUserMFASecret = async (userId: string, tenantId?: string): Promise<string | null> => {
+  const params: any[] = [userId];
+  let sql = `SELECT mfa_secret FROM users WHERE id = $1`;
+  if (tenantId) {
+    sql += ` AND tenant_id = $2`;
+    params.push(tenantId);
+  }
+  const result = await query(sql, params);
 
   if (!result.rows[0] || !result.rows[0].mfa_secret) {
     return null;
@@ -206,13 +259,21 @@ export const getUserMFASecret = async (userId: string): Promise<string | null> =
  * @param newPassword - New password
  * @returns Promise<void>
  */
-export const updateUserPassword = async (userId: string, newPassword: string): Promise<void> => {
+export const updateUserPassword = async (
+  userId: string,
+  newPassword: string,
+  tenantId?: string
+): Promise<void> => {
   const passwordHash = await hashPassword(newPassword);
 
-  await query(`UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2`, [
-    passwordHash,
-    userId,
-  ]);
+  const params: any[] = [passwordHash, userId];
+  let sql = `UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2`;
+  if (tenantId) {
+    sql += ` AND tenant_id = $3`;
+    params.push(tenantId);
+  }
+
+  await query(sql, params);
 };
 
 /**
@@ -220,7 +281,14 @@ export const updateUserPassword = async (userId: string, newPassword: string): P
  * @param email - User email
  * @returns Promise<boolean>
  */
-export const userExists = async (email: string): Promise<boolean> => {
-  const result = await query(`SELECT id FROM users WHERE email = $1`, [email]);
+export const userExists = async (email: string, tenantId?: string): Promise<boolean> => {
+  const params: any[] = [email];
+  let sql = `SELECT id FROM users WHERE lower(email) = lower($1)`;
+  if (tenantId) {
+    sql += ` AND tenant_id = $2`;
+    params.push(tenantId);
+  }
+
+  const result = await query(sql, params);
   return result.rows.length > 0;
 };

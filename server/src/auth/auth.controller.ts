@@ -23,6 +23,11 @@ import {
  */
 export const login = async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const tenantId = req.tenant?.id;
+    if (!tenantId) {
+      return res.status(400).json({ error: 'Tenant context is required' });
+    }
+
     const { email, password } = req.body;
 
     if (!email || !password) {
@@ -30,7 +35,7 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
     }
 
     // Get user from database
-    const user = await getUserByEmail(email);
+    const user = await getUserByEmail(email, tenantId);
     if (!user) {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
@@ -43,8 +48,8 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
 
     // If MFA is disabled, bypass MFA and issue token directly
     if (!user.mfa_enabled) {
-      const token = createJWT(user.id, user.email, user.role);
-      await storeSession(user.id, token.token);
+      const token = createJWT(user.id, user.email, user.role, tenantId);
+      await storeSession(user.id, token.token, tenantId);
       return res.json({
         mfaRequired: false,
         token: token.token,
@@ -73,6 +78,11 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
  */
 export const verifyMFA = async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const tenantId = req.tenant?.id;
+    if (!tenantId) {
+      return res.status(400).json({ error: 'Tenant context is required' });
+    }
+
     const { userId, token } = req.body;
 
     if (!userId || !token) {
@@ -80,7 +90,7 @@ export const verifyMFA = async (req: Request, res: Response, next: NextFunction)
     }
 
     // Get user and their MFA secret
-    const user = await getUserById(userId);
+    const user = await getUserById(userId, tenantId);
     if (!user) {
       return res.status(401).json({ error: 'Invalid user' });
     }
@@ -90,16 +100,16 @@ export const verifyMFA = async (req: Request, res: Response, next: NextFunction)
     }
 
     // Verify the TOTP token (will handle decryption internally)
-    const verified = await verifyTOTPFromUserId(userId, token);
+    const verified = await verifyTOTPFromUserId(userId, token, tenantId);
     if (!verified) {
       return res.status(401).json({ error: 'Invalid or expired MFA token' });
     }
 
     // Create JWT token
-    const { token: jwtToken } = createJWT(user.id, user.email, user.role);
+    const { token: jwtToken } = createJWT(user.id, user.email, user.role, tenantId);
 
     // Store session
-    await storeSession(user.id, jwtToken);
+    await storeSession(user.id, jwtToken, tenantId);
 
     res.json({
       success: true,
@@ -137,9 +147,10 @@ export const logout = async (req: Request, res: Response, next: NextFunction) =>
  */
 export const getCurrentUser = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const userId = (req as any).userId;
+    const userId = req.userId;
+    const tenantId = req.tenant?.id;
 
-    const user = await getUserById(userId);
+    const user = await getUserById(userId, tenantId);
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
@@ -156,10 +167,15 @@ export const getCurrentUser = async (req: Request, res: Response, next: NextFunc
 export const createNewUser = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { email, password, role } = req.body;
-    const adminId = (req as any).userId;
+    const adminId = req.userId;
+    const tenantId = req.tenant?.id;
+
+    if (!tenantId) {
+      return res.status(400).json({ error: 'Tenant context is required' });
+    }
 
     // Verify requesting user is admin
-    const admin = await getUserById(adminId);
+    const admin = await getUserById(adminId, tenantId);
     if (!admin || admin.role !== 'admin') {
       return res.status(403).json({ error: 'Only admins can create users' });
     }
@@ -170,12 +186,12 @@ export const createNewUser = async (req: Request, res: Response, next: NextFunct
     }
 
     // Check if user already exists
-    if (await userExists(email)) {
+    if (await userExists(email, tenantId)) {
       return res.status(400).json({ error: 'User already exists' });
     }
 
     // Create user
-    const newUser = await createUser(email, password, role);
+    const newUser = await createUser(email, password, role, tenantId);
 
     // Generate MFA secret
     const { base32, qrCodeUrl } = generateMFASecret(email);
@@ -205,13 +221,18 @@ export const createNewUser = async (req: Request, res: Response, next: NextFunct
  */
 export const setupMFA = async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const tenantId = req.tenant?.id;
+    if (!tenantId) {
+      return res.status(400).json({ error: 'Tenant context is required' });
+    }
+
     const { email } = req.body;
 
     if (!email) {
       return res.status(400).json({ error: 'Email is required' });
     }
 
-    const user = await getUserByEmail(email);
+    const user = await getUserByEmail(email, tenantId);
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
@@ -238,7 +259,12 @@ export const setupMFA = async (req: Request, res: Response, next: NextFunction) 
 export const enableMFA = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { secret, token } = req.body;
-    const userId = (req as any).userId;
+    const userId = req.userId;
+    const tenantId = req.tenant?.id;
+
+    if (!tenantId) {
+      return res.status(400).json({ error: 'Tenant context is required' });
+    }
 
     if (!secret || !token) {
       return res.status(400).json({ error: 'Secret and TOTP token are required' });
@@ -252,7 +278,7 @@ export const enableMFA = async (req: Request, res: Response, next: NextFunction)
 
     // Store encrypted MFA secret and enable MFA
     const { enableUserMFA } = await import('./auth.service.js');
-    await enableUserMFA(userId, secret);
+    await enableUserMFA(userId, secret, tenantId);
 
     res.json({
       success: true,
@@ -266,10 +292,14 @@ export const enableMFA = async (req: Request, res: Response, next: NextFunction)
 /**
  * Helper: Verify TOTP token for a user by ID
  */
-export const verifyTOTPFromUserId = async (userId: string, token: string): Promise<boolean> => {
+export const verifyTOTPFromUserId = async (
+  userId: string,
+  token: string,
+  tenantId?: string
+): Promise<boolean> => {
   try {
     const { getUserMFASecret } = await import('./auth.service.js');
-    const secret = await getUserMFASecret(userId);
+    const secret = await getUserMFASecret(userId, tenantId);
 
     if (!secret) {
       return false;
@@ -287,6 +317,11 @@ export const verifyTOTPFromUserId = async (userId: string, token: string): Promi
  */
 export const autoLoginAdmin = async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const tenantId = req.tenant?.id;
+    if (!tenantId) {
+      return res.status(400).json({ error: 'Tenant context is required' });
+    }
+
     const enabled = String(process.env.AUTO_LOGIN_ENABLED || '').toLowerCase() === 'true';
     if (!enabled) {
       return res.status(404).json({ error: 'Not found' });
@@ -297,7 +332,7 @@ export const autoLoginAdmin = async (req: Request, res: Response, next: NextFunc
       return res.status(500).json({ error: 'AUTO_LOGIN_ADMIN_EMAIL is not configured' });
     }
 
-    const user = await getUserByEmail(adminEmail);
+    const user = await getUserByEmail(adminEmail, tenantId);
     if (!user) {
       return res.status(404).json({ error: 'Auto-login admin user not found' });
     }
@@ -306,8 +341,8 @@ export const autoLoginAdmin = async (req: Request, res: Response, next: NextFunc
       return res.status(403).json({ error: 'Configured auto-login user is not an admin' });
     }
 
-    const token = createJWT(user.id, user.email, user.role);
-    await storeSession(user.id, token.token);
+    const token = createJWT(user.id, user.email, user.role, tenantId);
+    await storeSession(user.id, token.token, tenantId);
 
     return res.json({
       mfaRequired: false,
@@ -331,6 +366,11 @@ export const autoLoginAdmin = async (req: Request, res: Response, next: NextFunc
  */
 export const buildAccessLogin = async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const tenantId = req.tenant?.id;
+    if (!tenantId) {
+      return res.status(400).json({ error: 'Tenant context is required' });
+    }
+
     const enabled = String(process.env.BUILD_ACCESS_ENABLED || '').toLowerCase() === 'true';
     if (!enabled) {
       return res.status(404).json({ error: 'Not found' });
@@ -350,13 +390,13 @@ export const buildAccessLogin = async (req: Request, res: Response, next: NextFu
       .trim()
       .toLowerCase();
 
-    const user = await getUserByEmail(loginEmail);
+    const user = await getUserByEmail(loginEmail, tenantId);
     if (!user) {
       return res.status(404).json({ error: 'Build access user not found' });
     }
 
-    const token = createJWT(user.id, user.email, user.role);
-    await storeSession(user.id, token.token);
+    const token = createJWT(user.id, user.email, user.role, tenantId);
+    await storeSession(user.id, token.token, tenantId);
 
     return res.json({
       mfaRequired: false,
